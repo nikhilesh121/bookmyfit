@@ -1,0 +1,120 @@
+import { Module, Controller, Get, Post, Put, Body, UseGuards, Req, Query } from '@nestjs/common';
+import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
+import { Repository, ILike } from 'typeorm';
+import { paginate, paginatedResponse } from '../../common/pagination.helper';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Injectable } from '@nestjs/common';
+import { UserEntity } from '../../database/entities/user.entity';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.decorator';
+
+function generateCode(): string {
+  return 'BMF' + Math.random().toString(36).toUpperCase().slice(2, 7);
+}
+
+class UpdateUserDto {
+  name?: string;
+  email?: string;
+  dob?: string;
+  gender?: string;
+}
+
+@Injectable()
+class UsersService {
+  constructor(@InjectRepository(UserEntity) private readonly repo: Repository<UserEntity>) {}
+
+  me(id: string) { return this.repo.findOne({ where: { id } }); }
+  async list(page: any = 1, limit: any = 20, search?: string) {
+    const { skip, take, page: p, limit: l } = paginate(page, limit);
+    const qb = this.repo.createQueryBuilder('u').orderBy('u.createdAt', 'DESC').skip(skip).take(take);
+    if (search) qb.where('u.name ILIKE :s OR u.phone ILIKE :s', { s: `%${search}%` });
+    const [data, total] = await qb.getManyAndCount();
+    return paginatedResponse(data, total, p, l);
+  }
+
+  async update(id: string, data: Partial<UserEntity>) {
+    await this.repo.update(id, { name: data.name, email: data.email, dob: data.dob, gender: data.gender });
+    return this.me(id);
+  }
+
+  async getReferralCode(userId: string) {
+    const user = await this.repo.findOne({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+    if (!user.referralCode) {
+      let code = generateCode();
+      // Ensure unique
+      const existing = await this.repo.findOne({ where: { referralCode: code } });
+      if (existing) code = generateCode() + userId.slice(0, 3).toUpperCase();
+      await this.repo.update(userId, { referralCode: code });
+      user.referralCode = code;
+    }
+    // Count referrals
+    const referralCount = await this.repo.count({ where: { referredBy: user.referralCode } });
+    return {
+      code: user.referralCode,
+      referralLink: `https://bookmyfit.in/signup?ref=${user.referralCode}`,
+      totalReferrals: referralCount,
+      pointsEarned: referralCount * 200,
+      pointsBalance: user.loyaltyPoints || 0,
+    };
+  }
+
+  async applyReferral(userId: string, code: string) {
+    const user = await this.repo.findOne({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+    if (user.referredBy) throw new Error('You have already used a referral code');
+    const referrer = await this.repo.findOne({ where: { referralCode: code } });
+    if (!referrer) throw new Error('Invalid referral code');
+    if (referrer.id === userId) throw new Error('You cannot use your own referral code');
+    // Award points to both
+    await this.repo.update(userId, { referredBy: code, loyaltyPoints: (user.loyaltyPoints || 0) + 100 });
+    await this.repo.update(referrer.id, { loyaltyPoints: (referrer.loyaltyPoints || 0) + 200 });
+    return { success: true, message: 'Referral applied! You earned 100 loyalty points.' };
+  }
+
+  async getLoyaltyPoints(userId: string) {
+    const user = await this.repo.findOne({ where: { id: userId } });
+    return {
+      points: user?.loyaltyPoints || 0,
+      value: ((user?.loyaltyPoints || 0) * 0.1).toFixed(2), // 1 point = ₹0.10
+      history: [
+        { action: 'Signup Bonus', points: 50, date: user?.createdAt },
+      ],
+    };
+  }
+}
+
+@ApiTags('Users')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller('users')
+class UsersController {
+  constructor(private readonly svc: UsersService) {}
+  @Get('me') me(@Req() req: any) { return this.svc.me(req.user.userId); }
+
+  @Put('me') update(@Req() req: any, @Body() body: UpdateUserDto) {
+    return this.svc.update(req.user.userId, body);
+  }
+
+  @Get('me/referral') referralCode(@Req() req: any) { return this.svc.getReferralCode(req.user.userId); }
+
+  @Post('me/referral/apply') applyReferral(@Req() req: any, @Body() body: { code: string }) {
+    return this.svc.applyReferral(req.user.userId, body.code);
+  }
+
+  @Get('me/loyalty') loyalty(@Req() req: any) { return this.svc.getLoyaltyPoints(req.user.userId); }
+
+  @Get() @UseGuards(RolesGuard) @Roles('super_admin')
+  list(@Query('page') page = 1, @Query('limit') limit = 20, @Query('search') search?: string) {
+    return this.svc.list(+page, +limit, search);
+  }
+}
+
+@Module({
+  imports: [TypeOrmModule.forFeature([UserEntity])],
+  controllers: [UsersController],
+  providers: [UsersService],
+  exports: [UsersService],
+})
+export class UsersModule {}

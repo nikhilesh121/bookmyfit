@@ -1,0 +1,217 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
+/* ══════════════════════════════════════════════════════════
+   BookMyFit Design System — Neon Yellow-Green + Aurora theme
+   ══════════════════════════════════════════════════════════ */
+:root {
+  /* Brand accent — Neon Yellow-Green */
+  --primary: #CCFF00;
+  --primary-r: 204; --primary-g: 255; --primary-b: 0;
+
+  /* Secondary aurora colours */
+  --aurora-a: rgba(204, 255, 0, 0.17);  /* neon yellow-green — primary */
+  --aurora-b: rgba(255, 30, 90, 0.13);  /* hot pink-red — secondary */
+  --aurora-c: rgba(255, 80, 0, 0.09);  /* deep orange-red — tertiary */
+
+  --serif: 'Playfair Display', Georgia, serif;
+  --sans: 'DM Sans', system-ui, sans-serif;
+
+  /* Background — dark navy, not pure black */
+  --bg: #060606;
+
+  --accent: var(--primary);
+  --accent-soft: rgba(var(--primary-r),var(--primary-g),var(--primary-b),0.14);
+  --accent-border: rgba(var(--primary-r),var(--primary-g),var(--primary-b),0.32);
+  --accent-glow: rgba(var(--primary-r),var(--primary-g),var(--primary-b),0.4);
+
+  /* Glass surfaces */
+  --surface: rgba(255,255,255,0.045);
+  --glass-bg: rgba(255,255,255,0.065);
+  --glass-border: rgba(255,255,255,0.13);
+  --glass-highlight: rgba(255,255,255,0.20);
+  --border: rgba(255,255,255,0.09);
+  --border-strong: rgba(255,255,255,0.18);
+
+  /* Text — slightly more readable */
+  --t: rgba(255,255,255,0.90);
+  --t2: rgba(255,255,255,0.55);
+  --t3: rgba(255,255,255,0.28);
+
+  --error: #F87171;
+  --success: #34D399;
+  --warning: #FBBF24;
+}
+
+/* ── Animated Aurora background ───────────────────── */
+body {
+  background: var(--bg);
+  color: #fff;
+  font-family: var(--sans);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Static base gradient — always visible */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(ellipse 90% 70% at 75% -5%,  var(--aurora-a) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 55% at -10% 90%,  var(--aurora-b) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 45% at 50% 55%,  var(--aurora-c) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 90% 60%,  rgba(255,30,90,0.09) 0%, transparent 50%);
+}
+
+/* Animated aurora orb — drifts slowly */
+body::after {
+  content: '';
+  position: fixed; z-index: -1; pointer-events: none;
+  width: 700px; height: 700px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(204,255,0,0.15) 0%, rgba(255,30,90,0.10) 50%, transparent 70%);
+  top: -200px; left: -150px;
+  animation: auroraFloat 18s ease-in-out infinite alternate;
+  filter: blur(60px);
+}
+
+@keyframes auroraFloat {
+  0%   { transform: translate(0px, 0px) scale(1); opacity: 0.7; }
+  33%  { transform: translate(120px, 80px) scale(1.15); opacity: 1; }
+  66%  { transform: translate(60px, 200px) scale(0.9); opacity: 0.8; }
+  100% { transform: translate(200px, 50px) scale(1.2); opacity: 0.6; }
+}
+
+/* ── Typography ───────────────────────────────────── */
+.serif { font-family: var(--serif); }
+.kicker {
+  font-size: 10px; font-weight: 700; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--t2);
+}
+
+/* ── Glass Card ───────────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow:
+    0 8px 40px rgba(0,0,0,0.35),
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
+}
+.card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow:
+    0 4px 28px rgba(0,0,0,0.28),
+    inset 0 1px 0 var(--glass-highlight);
+}
+
+/* ── Buttons ──────────────────────────────────────── */
+.btn {
+  padding: .55rem 1.2rem; border-radius: 28px; font-family: var(--sans);
+  font-weight: 700; font-size: 13px; letter-spacing: .2px;
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: all .2s ease; cursor: pointer;
+}
+.btn-primary {
+  background: #CCFF00;
+  color: #000;
+  box-shadow: 0 0 24px rgba(108,99,255,0.35), 0 2px 8px rgba(0,0,0,0.3);
+  border: none;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 36px rgba(108,99,255,0.5), 0 4px 16px rgba(0,0,0,0.4);
+}
+.btn-ghost {
+  background: var(--glass-bg); border: 1px solid var(--border-strong);
+  color: #fff; backdrop-filter: blur(12px);
+}
+.btn-ghost:hover { background: rgba(255,255,255,0.09); }
+
+/* ── Accent pill ──────────────────────────────────── */
+.accent-pill {
+  background: var(--accent-soft); border: 1px solid var(--accent-border);
+  color: var(--accent); border-radius: 999px; padding: 4px 12px;
+  font-size: 10px; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ── Status badges ────────────────────────────────── */
+.badge-active {
+  background: rgba(52,211,153,0.15); border: 1px solid rgba(52,211,153,0.3);
+  color: #34D399; border-radius: 999px; padding: 3px 10px;
+  font-size: 11px; font-weight: 700;
+}
+.badge-pending {
+  background: rgba(251,191,36,0.15); border: 1px solid rgba(251,191,36,0.3);
+  color: #FBBF24; border-radius: 999px; padding: 3px 10px;
+  font-size: 11px; font-weight: 700;
+}
+.badge-danger {
+  background: rgba(248,113,113,0.15); border: 1px solid rgba(248,113,113,0.3);
+  color: #F87171; border-radius: 999px; padding: 3px 10px;
+  font-size: 11px; font-weight: 700;
+}
+
+/* ── Table styles ─────────────────────────────────── */
+.glass-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.glass-table thead th {
+  text-align: left; padding: 12px 16px; font-size: 10px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--t2);
+  border-bottom: 1px solid var(--border);
+}
+.glass-table tbody td {
+  padding: 14px 16px; font-size: 13px; color: var(--t);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.glass-table tbody tr:hover td {
+  background: rgba(108,99,255,0.04);
+  transition: background 0.15s;
+}
+
+/* ── Input styles ─────────────────────────────────── */
+.glass-input {
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: 12px; padding: 10px 14px; color: #fff; font-size: 13px;
+  font-family: var(--sans); outline: none; transition: border-color .2s, box-shadow .2s;
+  backdrop-filter: blur(12px);
+}
+.glass-input:focus {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px rgba(108,99,255,0.15);
+}
+.glass-input::placeholder { color: var(--t3); }
+.glass-input option { background: #111; color: #fff; }
+
+/* ── Stat glow ────────────────────────────────────── */
+.stat-glow {
+  position: relative;
+}
+.stat-glow::after {
+  content: '';
+  position: absolute; inset: 0; border-radius: 16px;
+  background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(204,255,0,0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── Scrollbar ────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(108,99,255,0.3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(108,99,255,0.5); }
+
+/* ── Utilities ────────────────────────────────────── */
+.text-white { color: #fff !important; }
+.space-y-3 > * + * { margin-top: 0.75rem; }
+.space-y-4 > * + * { margin-top: 1rem; }
+.space-y-2 > * + * { margin-top: 0.5rem; }

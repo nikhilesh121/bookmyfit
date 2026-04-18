@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "BookMyFit",
+    "slug": "bookmyfit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "bookmyfit",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0a0f0a"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "in.bookmyfit.app"
+    },
+    "android": {
+      "package": "in.bookmyfit.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store"
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:3003"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+import Svg, { Path, Circle, Line, Rect, Polyline, Polygon } from 'react-native-svg';
+
+// Inline SVG icon set (per brand guidelines: no icon fonts, no emojis).
+const stroke = 'currentColor';
+const base = { fill: 'none', stroke: '#fff', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+
+type Props = { size?: number; color?: string };
+const mk = (size = 20, color = '#fff') => ({ width: size, height: size, viewBox: '0 0 24 24', ...base, stroke: color });
+
+export const IconHome = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M3 12l9-9 9 9" /><Path d="M5 10v10a1 1 0 001 1h3V14h6v7h3a1 1 0 001-1V10" /></Svg>);
+export const IconSearch = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Circle cx="11" cy="11" r="8" /><Line x1="21" y1="21" x2="16.65" y2="16.65" /></Svg>);
+export const IconCreditCard = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Rect x="2" y="5" width="20" height="14" rx="2" /><Line x1="2" y1="10" x2="22" y2="10" /></Svg>);
+export const IconShopping = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><Line x1="3" y1="6" x2="21" y2="6" /><Path d="M16 10a4 4 0 01-8 0" /></Svg>);
+export const IconUser = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><Circle cx="12" cy="7" r="4" /></Svg>);
+export const IconQR = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Rect x="3" y="3" width="7" height="7" rx="1" /><Rect x="14" y="3" width="7" height="7" rx="1" /><Rect x="3" y="14" width="7" height="7" rx="1" /><Rect x="14" y="14" width="3" height="3" /></Svg>);
+export const IconArrowRight = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Line x1="5" y1="12" x2="19" y2="12" /><Polyline points="12 5 19 12 12 19" /></Svg>);
+export const IconArrowLeft = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Line x1="19" y1="12" x2="5" y2="12" /><Polyline points="12 19 5 12 12 5" /></Svg>);
+export const IconStar = ({ size, color }: Props) => (<Svg {...mk(size, color)} stroke={color || 'rgba(255,205,55,0.9)'}><Polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill={color || 'rgba(255,205,55,0.9)'} /></Svg>);
+export const IconPin = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><Circle cx="12" cy="10" r="3" /></Svg>);
+export const IconBell = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><Path d="M13.73 21a2 2 0 01-3.46 0" /></Svg>);
+export const IconBolt = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></Svg>);
+export const IconCheck = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polyline points="20 6 9 17 4 12" /></Svg>);
+export const IconClose = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Line x1="18" y1="6" x2="6" y2="18" /><Line x1="6" y1="6" x2="18" y2="18" /></Svg>);
+export const IconClock = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Circle cx="12" cy="12" r="10" /><Polyline points="12 6 12 12 16 14" /></Svg>);
+export const IconDumbbell = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M6.5 6.5h11M6.5 17.5h11M2 10v4M22 10v4M5 8v8M19 8v8" /></Svg>);
+export const IconPlay = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polygon points="5 3 19 12 5 21 5 3" fill={color || '#fff'} /></Svg>);
+export const IconShare = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polyline points="4 17 10 11 4 5" /><Line x1="12" y1="19" x2="20" y2="19" /></Svg>);
+export const IconCart = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><Line x1="3" y1="6" x2="21" y2="6" /><Path d="M16 10a4 4 0 01-8 0" /></Svg>);
+export const IconChevronRight = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polyline points="9 18 15 12 9 6" /></Svg>);
+export const IconTag = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" /><Line x1="7" y1="7" x2="7.01" y2="7" /></Svg>);
+export const IconInfo = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Circle cx="12" cy="12" r="10" /><Line x1="12" y1="16" x2="12" y2="12" /><Line x1="12" y1="8" x2="12.01" y2="8" /></Svg>);
+export const IconRefresh = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polyline points="23 4 23 10 17 10" /><Polyline points="1 20 1 14 7 14" /><Path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" /></Svg>);
+export const IconLock = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Rect x="3" y="11" width="18" height="11" rx="2" /><Path d="M7 11V7a5 5 0 0110 0v4" /></Svg>);
+export const IconCalendar = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Rect x="3" y="4" width="18" height="18" rx="2" /><Line x1="16" y1="2" x2="16" y2="6" /><Line x1="8" y1="2" x2="8" y2="6" /><Line x1="3" y1="10" x2="21" y2="10" /></Svg>);
+export const IconDollar = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Line x1="12" y1="1" x2="12" y2="23" /><Path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></Svg>);
+export const IconMapPin = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><Circle cx="12" cy="10" r="3" /></Svg>);
+export const IconDownload = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><Polyline points="7 10 12 15 17 10" /><Line x1="12" y1="15" x2="12" y2="3" /></Svg>);
+export const IconFileText = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><Polyline points="14 2 14 8 20 8" /><Line x1="16" y1="13" x2="8" y2="13" /><Line x1="16" y1="17" x2="8" y2="17" /><Polyline points="10 9 9 9 8 9" /></Svg>);
+export const IconUsers = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><Circle cx="9" cy="7" r="4" /><Path d="M23 21v-2a4 4 0 00-3-3.87" /><Path d="M16 3.13a4 4 0 010 7.75" /></Svg>);

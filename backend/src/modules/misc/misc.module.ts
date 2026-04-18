@@ -1,0 +1,392 @@
+import { Module, Controller, Get, Post, Put, Param, Body, Query, Injectable, BadRequestException, UseGuards, Req, NotFoundException } from '@nestjs/common';
+import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { paginate, paginatedResponse } from '../../common/pagination.helper';
+import { ApiTags } from '@nestjs/swagger';
+import {
+  RatingEntity, CouponEntity, NotificationEntity,
+  CategoryEntity, AmenityEntity, WorkoutVideoEntity, FraudAlertEntity,
+} from '../../database/entities/misc.entity';
+import { CheckinEntity } from '../../database/entities/checkin.entity';
+import { UserEntity } from '../../database/entities/user.entity';
+import { SubscriptionEntity } from '../../database/entities/subscription.entity';
+import { GymEntity } from '../../database/entities/gym.entity';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.decorator';
+
+// ============ Ratings ============
+@Injectable()
+class RatingsService {
+  constructor(
+    @InjectRepository(RatingEntity) private readonly repo: Repository<RatingEntity>,
+    @InjectRepository(CheckinEntity) private readonly checkins: Repository<CheckinEntity>,
+  ) {}
+  async submit(userId: string, targetType: 'gym' | 'trainer' | 'wellness', targetId: string, stars: number, review?: string) {
+    if (stars < 1 || stars > 5) throw new BadRequestException('Stars must be 1-5');
+    // Eligibility: must have at least 1 successful check-in (for gym)
+    if (targetType === 'gym') {
+      const hasCheckin = await this.checkins.count({ where: { userId, gymId: targetId, status: 'success' } });
+      if (hasCheckin === 0) throw new BadRequestException('Must check in at least once to rate');
+    }
+    const data: any = { userId, stars, review, status: 'pending' };
+    if (targetType === 'gym') data.gymId = targetId;
+    if (targetType === 'trainer') data.trainerId = targetId;
+    if (targetType === 'wellness') data.wellnessPartnerId = targetId;
+    return this.repo.save(this.repo.create(data));
+  }
+  moderate(id: string, approve: boolean) {
+    return this.repo.update(id, { status: approve ? 'approved' : 'rejected' });
+  }
+  listPending() { return this.repo.find({ where: { status: 'pending' }, order: { createdAt: 'DESC' } }); }
+  listForGym(gymId: string) { return this.repo.find({ where: { gymId, status: 'approved' }, order: { createdAt: 'DESC' } }); }
+}
+
+// ============ Coupons ============
+@Injectable()
+class CouponsService {
+  constructor(@InjectRepository(CouponEntity) private readonly repo: Repository<CouponEntity>) {}
+  list() { return this.repo.find({ order: { createdAt: 'DESC' } }); }
+  create(d: Partial<CouponEntity>) { return this.repo.save(this.repo.create(d)); }
+  async validate(code: string, amount: number, kind: string) {
+    const c = await this.repo.findOne({ where: { code, isActive: true } });
+    if (!c) throw new BadRequestException('Invalid coupon');
+    const now = new Date();
+    if (now < new Date(c.validFrom) || now > new Date(c.validTo)) throw new BadRequestException('Expired');
+    if (c.usageLimit > 0 && c.usedCount >= c.usageLimit) throw new BadRequestException('Limit reached');
+    if (amount < Number(c.minOrderValue)) throw new BadRequestException(`Min order ₹${c.minOrderValue}`);
+    if (c.applicableTo?.length && !c.applicableTo.includes(kind)) throw new BadRequestException('Not applicable');
+    let discount = c.discountType === 'percentage' ? amount * (Number(c.discountValue) / 100) : Number(c.discountValue);
+    if (c.maxDiscount) discount = Math.min(discount, Number(c.maxDiscount));
+    return { valid: true, discount, coupon: c.code };
+  }
+}
+
+// ============ Notifications ============
+@Injectable()
+class NotificationsService {
+  constructor(@InjectRepository(NotificationEntity) private readonly repo: Repository<NotificationEntity>) {}
+  send(userId: string, title: string, body: string, type = 'general', data: any = {}) {
+    // TODO: integrate FCM push
+    return this.repo.save(this.repo.create({ userId, title, body, type, data }));
+  }
+  broadcast(userIds: string[], title: string, body: string) {
+    return Promise.all(userIds.map((u) => this.send(u, title, body, 'broadcast')));
+  }
+  async listForUser(userId: string, page: any = 1, limit: any = 20) {
+    const { skip, take, page: p, limit: l } = paginate(page, limit);
+    const [data, total] = await this.repo.findAndCount({ where: { userId }, order: { createdAt: 'DESC' }, skip, take });
+    return paginatedResponse(data, total, p, l);
+  }
+  markRead(id: string) { return this.repo.update(id, { isRead: true }); }
+}
+
+// ============ Master Data (categories, amenities) ============
+@Injectable()
+class MasterDataService {
+  constructor(
+    @InjectRepository(CategoryEntity) private readonly categories: Repository<CategoryEntity>,
+    @InjectRepository(AmenityEntity) private readonly amenities: Repository<AmenityEntity>,
+  ) {}
+  listCategories() { return this.categories.find({ where: { isActive: true } }); }
+  createCategory(d: Partial<CategoryEntity>) { return this.categories.save(this.categories.create(d)); }
+  listAmenities() { return this.amenities.find({ where: { isActive: true, status: 'approved' } }); }
+  createAmenity(d: Partial<AmenityEntity>) { return this.amenities.save(this.amenities.create({ ...d, status: 'approved' })); }
+  requestAmenity(name: string) { return this.amenities.save(this.amenities.create({ name, requestedByGym: true, status: 'pending', isActive: false })); }
+  approveAmenity(id: string) { return this.amenities.update(id, { status: 'approved', isActive: true }); }
+}
+
+// ============ Videos ============
+@Injectable()
+class VideosService {
+  constructor(@InjectRepository(WorkoutVideoEntity) private readonly repo: Repository<WorkoutVideoEntity>) {}
+  list(category?: string) {
+    return this.repo.find({ where: category ? { category } : {}, order: { createdAt: 'DESC' } });
+  }
+  create(d: Partial<WorkoutVideoEntity>) { return this.repo.save(this.repo.create(d)); }
+}
+
+// ============ Analytics ============
+@Injectable()
+class AnalyticsService {
+  constructor(
+    @InjectRepository(SubscriptionEntity) private readonly subs: Repository<SubscriptionEntity>,
+    @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
+    @InjectRepository(CheckinEntity) private readonly checkins: Repository<CheckinEntity>,
+    @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
+  ) {}
+
+  async summary() {
+    const [totalRevenue, activeSubscribers, totalUsers, totalCheckins] = await Promise.all([
+      this.subs.createQueryBuilder('s').select('SUM(s."amountPaid")', 'total').getRawOne().then((r) => Number(r?.total || 0)),
+      this.subs.count({ where: { status: 'active' } }),
+      this.users.count(),
+      this.checkins.count({ where: { status: 'success' } }),
+    ]);
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const newSignups = await this.users
+      .createQueryBuilder('u')
+      .where('u.createdAt >= :since', { since: thirtyDaysAgo })
+      .getCount();
+
+    const avgCheckinsPerDay = totalCheckins > 0 ? Math.round(totalCheckins / 30) : 0;
+
+    const topGyms = await this.checkins
+      .createQueryBuilder('c')
+      .select('c.gymId', 'gymId')
+      .addSelect('COUNT(*)', 'checkins')
+      .where('c.status = :st', { st: 'success' })
+      .groupBy('c.gymId')
+      .orderBy('"checkins"', 'DESC')
+      .limit(5)
+      .getRawMany();
+
+    const topPlans = await this.subs
+      .createQueryBuilder('s')
+      .select('s.planType', 'name')
+      .addSelect('COUNT(*)', 'subscribers')
+      .addSelect('SUM(s."amountPaid")', 'revenue')
+      .groupBy('s.planType')
+      .orderBy('"subscribers"', 'DESC')
+      .getRawMany();
+
+    const monthlyRevenue = await this.subs
+      .createQueryBuilder('s')
+      .select("TO_CHAR(s.\"createdAt\", 'YYYY-MM')", 'month')
+      .addSelect('SUM(s."amountPaid")', 'revenue')
+      .groupBy("TO_CHAR(s.\"createdAt\", 'YYYY-MM')")
+      .orderBy('month', 'DESC')
+      .limit(12)
+      .getRawMany();
+
+    return { totalRevenue, activeSubscribers, newSignups, avgCheckinsPerDay, topGyms, topPlans, monthlyRevenue };
+  }
+}
+
+// ============ Controllers ============
+@ApiTags('Ratings')
+@Controller('ratings')
+class RatingsController {
+  constructor(private readonly svc: RatingsService) {}
+  @Post() submit(@Body() b: any) { return this.svc.submit(b.userId, b.targetType, b.targetId, b.stars, b.review); }
+  @Post(':id/approve') approve(@Param('id') id: string) { return this.svc.moderate(id, true); }
+  @Post(':id/reject') reject(@Param('id') id: string) { return this.svc.moderate(id, false); }
+  @Get('pending') pending() { return this.svc.listPending(); }
+  @Get('gym/:gymId') forGym(@Param('gymId') gymId: string) { return this.svc.listForGym(gymId); }
+}
+
+@ApiTags('Coupons')
+@Controller('coupons')
+class CouponsController {
+  constructor(private readonly svc: CouponsService) {}
+  @Get() list() { return this.svc.list(); }
+  @Post() create(@Body() b: any) { return this.svc.create(b); }
+  @Post('validate') validate(@Body() b: any) { return this.svc.validate(b.code, b.amount, b.kind); }
+}
+
+@ApiTags('Notifications')
+@Controller('notifications')
+class NotificationsController {
+  constructor(private readonly svc: NotificationsService) {}
+  @Get() @UseGuards(JwtAuthGuard)
+  list(@Req() req: any, @Query('userId') userIdOverride?: string, @Query('page') page = 1, @Query('limit') limit = 20) {
+    const userId = userIdOverride && req.user?.role === 'super_admin' ? userIdOverride : req.user.userId;
+    return this.svc.listForUser(userId, +page, +limit);
+  }
+  @Post('send') send(@Body() b: any) { return this.svc.send(b.userId, b.title, b.body, b.type, b.data); }
+  @Post('broadcast') broadcast(@Body() b: any) { return this.svc.broadcast(b.userIds, b.title, b.body); }
+  @Post(':id/read') read(@Param('id') id: string) { return this.svc.markRead(id); }
+}
+
+@ApiTags('Master Data')
+@Controller('master')
+class MasterController {
+  constructor(private readonly svc: MasterDataService) {}
+  @Get('categories') cats() { return this.svc.listCategories(); }
+  @Post('categories') newCat(@Body() b: any) { return this.svc.createCategory(b); }
+  @Get('amenities') am() { return this.svc.listAmenities(); }
+  @Post('amenities') newAm(@Body() b: any) { return this.svc.createAmenity(b); }
+  @Post('amenities/request') req(@Body() b: { name: string }) { return this.svc.requestAmenity(b.name); }
+  @Post('amenities/:id/approve') ap(@Param('id') id: string) { return this.svc.approveAmenity(id); }
+}
+
+@ApiTags('Videos')
+@Controller('videos')
+class VideosController {
+  constructor(private readonly svc: VideosService) {}
+  @Get() list(@Query('category') c?: string) { return this.svc.list(c); }
+  @Post() create(@Body() b: any) { return this.svc.create(b); }
+}
+
+@ApiTags('Analytics')
+@Controller('analytics')
+class AnalyticsController {
+  constructor(private readonly svc: AnalyticsService) {}
+  @Get('summary') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  summary() { return this.svc.summary(); }
+}
+
+// ============ Fraud Detection ============
+const SEED_ALERTS = [
+  { userId: 'seed-user-001', eventType: 'velocity_check', gymId: 'seed-gym-001', gymName: 'PowerFit Andheri', riskScore: 85, device: 'iPhone 14', details: 'Checked in 4 times within 1 hour', status: 'open' },
+  { userId: 'seed-user-002', eventType: 'duplicate_qr', gymId: 'seed-gym-002', gymName: 'FitZone Bandra', riskScore: 92, device: 'Samsung S23', details: 'QR code reused within 60s', status: 'open' },
+  { userId: 'seed-user-003', eventType: 'device_mismatch', gymId: 'seed-gym-001', gymName: 'PowerFit Andheri', riskScore: 70, device: 'Pixel 7', details: 'Device fingerprint changed between sessions', status: 'investigating' },
+  { userId: 'seed-user-004', eventType: 'velocity_check', gymId: 'seed-gym-003', gymName: 'Iron House Juhu', riskScore: 78, device: 'OnePlus 11', details: 'Checked in 3 times within 45 minutes', status: 'cleared' },
+];
+
+@Injectable()
+export class FraudService {
+  constructor(@InjectRepository(FraudAlertEntity) private readonly repo: Repository<FraudAlertEntity>) {}
+
+  async list(page: any = 1, limit: any = 20, status?: string) {
+    const count = await this.repo.count();
+    if (count === 0) {
+      await this.repo.save(SEED_ALERTS.map((a) => this.repo.create(a)));
+    }
+    const { skip, take, page: p, limit: l } = paginate(page, limit);
+    const qb = this.repo.createQueryBuilder('f').orderBy('f.createdAt', 'DESC').skip(skip).take(take);
+    if (status) qb.andWhere('f.status = :status', { status });
+    const [data, total] = await qb.getManyAndCount();
+    return paginatedResponse(data, total, p, l);
+  }
+
+  create(data: Partial<FraudAlertEntity>) {
+    return this.repo.save(this.repo.create(data));
+  }
+
+  async flag(id: string) {
+    const alert = await this.repo.findOne({ where: { id } });
+    if (!alert) throw new NotFoundException('Alert not found');
+    await this.repo.update(id, { status: 'investigating' });
+    return this.repo.findOne({ where: { id } });
+  }
+
+  async clear(id: string) {
+    const alert = await this.repo.findOne({ where: { id } });
+    if (!alert) throw new NotFoundException('Alert not found');
+    await this.repo.update(id, { status: 'cleared' });
+    return this.repo.findOne({ where: { id } });
+  }
+}
+
+@ApiTags('Fraud')
+@Controller('fraud')
+class FraudController {
+  constructor(private readonly svc: FraudService) {}
+
+  @Get('alerts') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  list(@Query('page') page = 1, @Query('limit') limit = 20, @Query('status') status?: string) {
+    return this.svc.list(+page, +limit, status);
+  }
+
+  @Post('alerts') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  create(@Body() body: any) { return this.svc.create(body); }
+
+  @Post('alerts/:id/flag') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  flag(@Param('id') id: string) { return this.svc.flag(id); }
+
+  @Post('alerts/:id/clear') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  clear(@Param('id') id: string) { return this.svc.clear(id); }
+}
+
+// ============ Homepage Config ============
+let homepageConfig: any = {
+  sections: [
+    { id: 'hero', type: 'hero', title: 'Your Fitness, Your City', subtitle: 'Discover premium gyms & fitness studios near you', visible: true, order: 0 },
+    { id: 'featured_gyms', type: 'gym_grid', title: 'Featured Gyms', visible: true, order: 1 },
+    { id: 'plans', type: 'plans', title: 'Choose a Plan', visible: true, order: 2 },
+    { id: 'stats', type: 'stats', visible: true, order: 3 },
+  ],
+  promoText: '',
+  bannerImage: '',
+};
+
+@ApiTags('Homepage')
+@Controller('homepage')
+class HomepageController {
+  @Get('config')
+  getConfig() {
+    return homepageConfig;
+  }
+
+  @Put('config')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  saveConfig(@Body() body: any) {
+    homepageConfig = { ...homepageConfig, ...body };
+    return homepageConfig;
+  }
+}
+
+// In-memory commission rate config (no DB migration needed, admin-only)
+const DEFAULT_COMMISSION_RATES = [
+  { id: '1', planType: 'Individual', commission: 15, minGyms: 1, maxGyms: 1 },
+  { id: '2', planType: 'Pro', commission: 13, minGyms: 1, maxGyms: 5 },
+  { id: '3', planType: 'Max', commission: 12, minGyms: 1, maxGyms: 999 },
+  { id: '4', planType: 'Elite', commission: 10, minGyms: 1, maxGyms: 999 },
+  { id: '5', planType: 'Corporate', commission: 8, minGyms: 10, maxGyms: 999 },
+];
+
+let commissionRatesStore = [...DEFAULT_COMMISSION_RATES];
+
+@ApiTags('Commission')
+@Controller('commission')
+class CommissionController {
+  @Get('rates') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  getRates() { return commissionRatesStore; }
+
+  @Put('rates/:id') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  updateRate(@Param('id') id: string, @Body() body: { commission?: number; minGyms?: number; maxGyms?: number }) {
+    const idx = commissionRatesStore.findIndex((r) => r.id === id);
+    if (idx === -1) return { error: 'Not found' };
+    commissionRatesStore[idx] = { ...commissionRatesStore[idx], ...body };
+    return commissionRatesStore[idx];
+  }
+}
+
+// Gym sessions (class schedules) - in-memory store
+let gymSessionsStore: any[] = [];
+
+@ApiTags('Sessions')
+@Controller('sessions')
+@UseGuards(JwtAuthGuard, RolesGuard)
+class SessionsController {
+  @Get('my-gym') @Roles('gym_owner', 'gym_staff', 'super_admin')
+  getMyGymSessions(@Req() req: any) {
+    return gymSessionsStore.filter(s => !s.gymId || s.gymId === req.user?.gymId);
+  }
+
+  @Post() @Roles('gym_owner', 'gym_staff')
+  createSession(@Body() body: any, @Req() req: any) {
+    const session = { id: `s-${Date.now()}`, ...body, gymId: req.user?.gymId, createdAt: new Date() };
+    gymSessionsStore.push(session);
+    return session;
+  }
+
+  @Put(':id') @Roles('gym_owner', 'gym_staff')
+  updateSession(@Param('id') id: string, @Body() body: any) {
+    const idx = gymSessionsStore.findIndex(s => s.id === id);
+    if (idx === -1) return { error: 'Not found' };
+    gymSessionsStore[idx] = { ...gymSessionsStore[idx], ...body };
+    return gymSessionsStore[idx];
+  }
+
+  @Post(':id/delete') @Roles('gym_owner', 'gym_staff')
+  deleteSession(@Param('id') id: string) {
+    gymSessionsStore = gymSessionsStore.filter(s => s.id !== id);
+    return { success: true };
+  }
+}
+
+@Module({
+  imports: [TypeOrmModule.forFeature([
+    RatingEntity, CouponEntity, NotificationEntity, CategoryEntity, AmenityEntity, WorkoutVideoEntity,
+    CheckinEntity, UserEntity, SubscriptionEntity, GymEntity, FraudAlertEntity,
+  ])],
+  controllers: [RatingsController, CouponsController, NotificationsController, MasterController, VideosController, AnalyticsController, FraudController, CommissionController, HomepageController, SessionsController],
+  providers: [RatingsService, CouponsService, NotificationsService, MasterDataService, VideosService, AnalyticsService, FraudService],
+  exports: [RatingsService, CouponsService, NotificationsService, MasterDataService, VideosService, FraudService],
+})
+export class MiscModule {}
