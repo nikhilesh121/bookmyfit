@@ -5,12 +5,16 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import Redis from 'ioredis';
 import { UserEntity } from '../../database/entities/user.entity';
+import { GymEntity } from '../../database/entities/gym.entity';
+import { CorporateAccountEntity } from '../../database/entities/corporate.entity';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
+    @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
+    @InjectRepository(CorporateAccountEntity) private readonly corporates: Repository<CorporateAccountEntity>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly jwt: JwtService,
   ) {}
@@ -65,6 +69,45 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+  async registerGym(data: {
+    email: string; password: string; name: string;
+    gymName: string; city: string; area: string; address: string;
+  }) {
+    const existing = await this.users.findOne({ where: { email: data.email } });
+    if (existing) throw new BadRequestException('An account with this email already exists');
+    const passwordHash = await bcrypt.hash(data.password, 10);
+    const user = await this.users.save(
+      this.users.create({ email: data.email, name: data.name, passwordHash, role: 'gym_owner', isActive: true }),
+    );
+    const gym = await this.gyms.save(
+      this.gyms.create({
+        name: data.gymName, city: data.city, area: data.area,
+        address: data.address, lat: 0, lng: 0,
+        status: 'pending', ownerId: user.id, kycStatus: 'not_started',
+      }),
+    );
+    return { ...this.issueTokens(user), gym };
+  }
+
+  async registerCorporate(data: {
+    email: string; password: string; companyName: string; billingContact: string;
+  }) {
+    const existing = await this.users.findOne({ where: { email: data.email } });
+    if (existing) throw new BadRequestException('An account with this email already exists');
+    const passwordHash = await bcrypt.hash(data.password, 10);
+    const user = await this.users.save(
+      this.users.create({ email: data.email, name: data.companyName, passwordHash, role: 'corporate_admin', isActive: true }),
+    );
+    const corporate = await this.corporates.save(
+      this.corporates.create({
+        companyName: data.companyName, email: data.email,
+        billingContact: data.billingContact, planType: 'multigym',
+        totalSeats: 0, assignedSeats: 0, adminUserId: user.id, isActive: true,
+      }),
+    );
+    return { ...this.issueTokens(user), corporate };
   }
 
   private issueTokens(user: UserEntity) {

@@ -17,6 +17,7 @@
     "dev:corporate": "pnpm --filter corporate-panel dev",
     "dev:mobile": "pnpm --filter mobile start",
     "dev:backend": "pnpm --filter backend start:dev",
+    "dev:landing": "pnpm --filter landing dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",

@@ -45,7 +45,7 @@ export default function SettlementPage() {
       setLoading(true); setError(null);
       try {
         const data = await api.get<{ current: CurrentMonth; history: Settlement[] }>('/settlements/my-gym');
-        setCurrent(data?.current ?? EMPTY_CURRENT);
+        setCurrent({ ...EMPTY_CURRENT, ...(data?.current ?? {}) });
         setPast(data?.history ?? []);
       } catch {
         setCurrent(EMPTY_CURRENT);
@@ -75,14 +75,14 @@ export default function SettlementPage() {
       <div className="glass p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="serif text-lg">Current Month (Projected)</h3>
-          <span className="badge-pending">{c.status.replace('_', ' ')}</span>
+          <span className="badge-pending">{(c.status || '').replace('_', ' ')}</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: 'Gross Revenue', value: fmt(c.grossRevenue), icon: TrendingUp },
-            { label: `Commission (${c.commissionRate}%)`, value: fmt(c.commission), icon: DollarSign },
-            { label: 'Net Payout', value: fmt(c.netPayout), icon: CheckCircle },
-            { label: 'Status', value: c.status.replace('_', ' ').toUpperCase(), icon: Clock },
+            { label: `Commission (${c.commissionRate ?? 0}%)`, value: fmt(c.commission ?? 0), icon: DollarSign },
+            { label: 'Net Payout', value: fmt(c.netPayout ?? 0), icon: CheckCircle },
+            { label: 'Status', value: (c.status || '—').replace('_', ' ').toUpperCase(), icon: Clock },
           ].map((s) => {
             const Icon = s.icon;
             return (

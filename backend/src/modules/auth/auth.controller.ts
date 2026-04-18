@@ -1,6 +1,6 @@
 import { Body, Controller, Post, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, Length } from 'class-validator';
+import { IsNotEmpty, IsString, Length, IsEmail, MinLength } from 'class-validator';
 import { AuthService } from './auth.service';
 
 class SendOtpDto {
@@ -15,6 +15,21 @@ class VerifyOtpDto {
 class AdminLoginDto {
   @IsString() email: string;
   @IsString() password: string;
+}
+class GymRegisterDto {
+  @IsEmail() email: string;
+  @IsString() @MinLength(6) password: string;
+  @IsString() @IsNotEmpty() name: string;
+  @IsString() @IsNotEmpty() gymName: string;
+  @IsString() @IsNotEmpty() city: string;
+  @IsString() @IsNotEmpty() area: string;
+  @IsString() @IsNotEmpty() address: string;
+}
+class CorporateRegisterDto {
+  @IsEmail() email: string;
+  @IsString() @MinLength(6) password: string;
+  @IsString() @IsNotEmpty() companyName: string;
+  @IsString() @IsNotEmpty() billingContact: string;
 }
 
 @ApiTags('Auth')
@@ -41,6 +56,20 @@ export class AuthController {
   @ApiOperation({ summary: 'Admin / Gym / Corporate login (email + password)' })
   adminLogin(@Body() dto: AdminLoginDto) {
     return this.auth.passwordLogin(dto.email, dto.password);
+  }
+
+  @Post('gym/register')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Register a new gym partner account' })
+  registerGym(@Body() dto: GymRegisterDto) {
+    return this.auth.registerGym(dto);
+  }
+
+  @Post('corporate/register')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Register a new corporate account' })
+  registerCorporate(@Body() dto: CorporateRegisterDto) {
+    return this.auth.registerCorporate(dto);
   }
 
   @Post('refresh')

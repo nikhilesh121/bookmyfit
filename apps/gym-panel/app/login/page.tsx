@@ -51,6 +51,10 @@ export default function Login() {
           {error && <div className="text-sm" style={{ color: '#FF3C3C' }}>{error}</div>}
           <button type="submit" className="btn btn-primary w-full justify-center">Sign in</button>
         </form>
+        <p className="text-sm mt-5 text-center" style={{ color: 'var(--t2)' }}>
+          New gym partner?{' '}
+          <a href="/signup" style={{ color: 'var(--accent)', fontWeight: 600 }}>Register your gym →</a>
+        </p>
       </div>
     </div>
   );

@@ -21,6 +21,30 @@ const DEFAULT_PLANS = [
   { id: 'max', name: 'Max', sub: 'Everything Unlimited', price: 3999, maxGyms: 99, perks: ['Unlimited PT sessions', 'Priority support', 'All locations'], aurora: 'rgba(255,200,50,0.6)', popular: false },
 ];
 
+const TESTIMONIALS = [
+  {
+    name: 'Priya Sharma',
+    role: 'Software Engineer, Bangalore',
+    avatar: 'PS',
+    rating: 5,
+    text: 'BookMyFit changed how I work out. I travel between offices and can now hit a premium gym near any location. The QR check-in is seamless!',
+  },
+  {
+    name: 'Rahul Mehta',
+    role: 'Entrepreneur, Mumbai',
+    avatar: 'RM',
+    rating: 5,
+    text: 'Worth every rupee. The Elite plan gives me access to 5 top gyms — I switch based on my schedule. No more being tied to one gym!',
+  },
+  {
+    name: 'Ananya Krishnan',
+    role: 'Marketing Lead, Chennai',
+    avatar: 'AK',
+    rating: 5,
+    text: 'I used to pay ₹3,000/month for a single gym. With BookMyFit Pro I get 10 premium gyms, PT sessions, and the video library. Best fitness investment.',
+  },
+];
+
 export default function Plans() {
   const params = useLocalSearchParams<{ gymId?: string; gymName?: string }>();
   const [plans, setPlans] = useState(DEFAULT_PLANS);
@@ -117,6 +141,31 @@ export default function Plans() {
               </TouchableOpacity>
             </View>
           ))}
+
+          {/* Testimonials */}
+          <View style={s.testimonialsSection}>
+            <Text style={s.testimonialsTitle}>What members say</Text>
+            {TESTIMONIALS.map((t) => (
+              <View key={t.name} style={s.testimonialCard}>
+                <View style={s.testimonialHeader}>
+                  <View style={s.testimonialAvatar}>
+                    <Text style={s.testimonialAvatarText}>{t.avatar}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.testimonialName}>{t.name}</Text>
+                    <Text style={s.testimonialRole}>{t.role}</Text>
+                  </View>
+                  <View style={s.starsRow}>
+                    {Array.from({ length: t.rating }).map((_, i) => (
+                      <Text key={i} style={{ fontSize: 10, color: colors.accent }}>★</Text>
+                    ))}
+                  </View>
+                </View>
+                <Text style={s.testimonialText}>"{t.text}"</Text>
+              </View>
+            ))}
+            <View style={{ height: 16 }} />
+          </View>
         </ScrollView>
       )}
 
@@ -178,4 +227,21 @@ const s = StyleSheet.create({
     height: 54, borderRadius: 30, backgroundColor: colors.accent,
   },
   ctaText: { fontFamily: fonts.sansBold, fontSize: 15, color: '#000' },
+  testimonialsSection: { marginTop: 8, paddingTop: 8 },
+  testimonialsTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff', marginBottom: 14, paddingHorizontal: 2 },
+  testimonialCard: {
+    backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.lg, padding: 16, marginBottom: 12,
+  },
+  testimonialHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
+  testimonialAvatar: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: 'rgba(61,255,84,0.15)', borderWidth: 1, borderColor: colors.accentBorder,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  testimonialAvatarText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
+  testimonialName: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  testimonialRole: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 1 },
+  starsRow: { flexDirection: 'row', gap: 2 },
+  testimonialText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, lineHeight: 20 },
 });

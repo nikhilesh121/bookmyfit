@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, QrCode, Calendar, Users, Building2, CreditCard, UserSquare2, Sparkles, DollarSign, FileBarChart, Settings, LogOut, ShieldCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { LayoutDashboard, QrCode, Calendar, Users, Building2, CreditCard, UserSquare2, Sparkles, DollarSign, FileBarChart, Settings, LogOut, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 const NAV = [
   { group: 'Main', items: [
@@ -26,8 +27,40 @@ const NAV = [
   ]},
 ];
 
+type GymStatus = 'pending' | 'active' | 'suspended' | 'rejected';
+
+const STATUS_BANNERS: Record<string, { bg: string; border: string; text: string; msg: string }> = {
+  pending: {
+    bg: 'rgba(255,180,0,0.07)', border: 'rgba(255,180,0,0.3)', text: '#FFB400',
+    msg: 'Your gym is pending activation. Complete KYC verification to go live on the platform.',
+  },
+  suspended: {
+    bg: 'rgba(255,100,100,0.07)', border: 'rgba(255,100,100,0.3)', text: '#FF6464',
+    msg: 'Your gym account has been suspended. Please contact support.',
+  },
+  rejected: {
+    bg: 'rgba(255,100,100,0.07)', border: 'rgba(255,100,100,0.3)', text: '#FF6464',
+    msg: 'Your gym registration was rejected. Please contact support or re-submit your KYC.',
+  },
+};
+
 export default function Shell({ children, title }: { children: React.ReactNode; title: string }) {
   const pathname = usePathname();
+  const [gymStatus, setGymStatus] = useState<GymStatus | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('bmf_gym_token');
+    if (!token) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003'}/api/v1/gyms/my-gym`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => { if (data?.status) setGymStatus(data.status); })
+      .catch(() => {});
+  }, []);
+
+  const banner = gymStatus && gymStatus !== 'active' ? STATUS_BANNERS[gymStatus] : null;
+
   return (
     <div className="flex min-h-screen text-white">
       <aside className="w-64 border-r flex flex-col" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
@@ -55,6 +88,9 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
                     }}>
                     <Icon size={15} strokeWidth={1.8} />
                     <span>{item.label}</span>
+                    {item.href === '/kyc' && gymStatus && gymStatus !== 'active' && (
+                      <span style={{ marginLeft: 'auto', width: 8, height: 8, borderRadius: '50%', background: '#FFB400', flexShrink: 0 }} />
+                    )}
                   </Link>
                 );
               })}
@@ -73,8 +109,19 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
       <main className="flex-1 flex flex-col">
         <header className="h-16 border-b px-8 flex items-center justify-between" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(16px)' }}>
           <h1 className="serif" style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.5px' }}>{title}</h1>
-          <div className="accent-pill">Live</div>
+          <div className="accent-pill">{gymStatus === 'active' ? 'Live' : gymStatus === 'pending' ? 'Pending' : gymStatus ?? 'Live'}</div>
         </header>
+        {banner && (
+          <div style={{ background: banner.bg, borderBottom: `1px solid ${banner.border}`, padding: '10px 32px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AlertTriangle size={15} color={banner.text} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 13, color: banner.text }}>{banner.msg}</span>
+            {gymStatus === 'pending' && (
+              <Link href="/kyc" style={{ marginLeft: 'auto', fontSize: 12, color: banner.text, fontWeight: 700, textDecoration: 'underline', whiteSpace: 'nowrap' }}>
+                Complete KYC →
+              </Link>
+            )}
+          </div>
+        )}
         <div className="flex-1 p-8">{children}</div>
       </main>
     </div>

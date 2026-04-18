@@ -11,6 +11,7 @@ const DEFAULTS = {
   commission: { standard: 15, premium: 12, corporate: 10 },
   settlements: { cycle: 'Monthly', minPayout: 5000, processingWindow: 7 },
   flags: { storeModule: true, wellnessBooking: true, aiRecommendations: false, corporatePortal: true },
+  multigym: { price: 999, label: 'Multi-Gym Access' },
 };
 
 type Settings = typeof DEFAULTS;
@@ -82,7 +83,7 @@ export default function SettingsPage() {
 
   return (
     <Shell title="Settings">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5 mb-6">
         {/* Commission Settings */}
         <div className="glass p-6">
           <h3 className="serif text-lg mb-4">Commission Rates</h3>
@@ -163,6 +164,39 @@ export default function SettingsPage() {
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Multi-Gym Plan Settings */}
+        <div className="glass p-6">
+          <h3 className="serif text-lg mb-1">Multi-Gym Subscription</h3>
+          <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>Configure the single multi-gym plan price shown to users in the mobile app.</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <div>
+                <span className="text-[13px]" style={{ color: 'var(--t)' }}>Plan Name</span>
+                <div className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>Displayed in mobile app</div>
+              </div>
+              <input
+                type="text"
+                style={{ ...inputStyle, width: 180 }}
+                value={settings.multigym.label}
+                onChange={(e) => setSettings((s) => ({ ...s, multigym: { ...s.multigym, label: e.target.value } }))}
+              />
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <div>
+                <span className="text-[13px]" style={{ color: 'var(--t)' }}>Price per Employee/Month (₹)</span>
+                <div className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>For corporate + individual multi-gym plans</div>
+              </div>
+              <input
+                type="number"
+                min={0}
+                style={{ ...inputStyle, width: 100, textAlign: 'right' }}
+                value={settings.multigym.price}
+                onChange={(e) => setSettings((s) => ({ ...s, multigym: { ...s.multigym, price: Number(e.target.value) } }))}
+              />
+            </div>
           </div>
         </div>
 

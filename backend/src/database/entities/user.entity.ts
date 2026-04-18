@@ -7,8 +7,8 @@ export class UserEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Index({ unique: true })
-  @Column({ length: 20 })
+  @Index({ unique: true, where: '"phone" IS NOT NULL' })
+  @Column({ length: 20, nullable: true })
   phone: string;
 
   @Index({ unique: true, where: '"email" IS NOT NULL' })
