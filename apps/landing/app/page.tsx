@@ -1,342 +1,574 @@
 import ScrollReveal from '../components/ScrollReveal';
+import StatCounter from '../components/StatCounter';
 import EarlyAccessForm from '../components/EarlyAccessForm';
 
-/* ─── data ─────────────────────────────────────────────── */
+/* ─── SVG helpers ───────────────────────────────── */
+const Check = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+const Arrow = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+  </svg>
+);
+const Star = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="var(--accent)" stroke="none">
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+  </svg>
+);
+
+/* ─── QR code visual pattern (8×8) ─────────────── */
+const QR = [1,1,1,0,0,1,1,1, 1,0,1,0,0,1,0,1, 1,1,1,0,0,1,1,1, 0,0,0,1,0,0,0,0, 1,1,0,0,1,1,0,1, 0,0,1,1,0,0,1,0, 1,0,1,0,1,1,1,1, 1,1,0,0,0,1,0,1];
+
+/* ─── Data ──────────────────────────────────────── */
 const STATS = [
-  { num: '1,000+', label: 'Gym Partners' },
-  { num: '50+', label: 'Cities' },
-  { num: '₹599', label: 'Starts From' },
-  { num: 'QR', label: 'Check-in' },
+  { num: '1,000+', label: 'Partner Gyms' },
+  { num: '50+',    label: 'Cities Covered' },
+  { num: '₹599',   label: 'From / Month' },
+  { num: '<3s',    label: 'QR Check-in' },
+];
+
+const FEATURES = [
+  { title: 'Multi-Gym Access',      desc: 'One QR code, any partner gym, any city. Scan in and work out — zero friction.',                                                                path: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
+  { title: 'AI-Verified Check-in',  desc: 'Instant entry in under 3 seconds. AI reads your QR, logs the visit, and opens the gate — no tokens, no paper.',                               path: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { title: 'Session Intelligence',  desc: 'Every visit auto-logged. Track streaks, consistency, and frequency with rich personal dashboards.',                                             path: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+  { title: 'PT & Video Library',    desc: 'Book personal training at partner gyms or stream 500+ on-demand workout videos — anytime, anywhere.',                                           path: 'M15 10l4.553-2.069A1 1 0 0121 8.82v6.362a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z' },
 ];
 
 const HOW = [
-  { n: '01', icon: '📱', title: 'Download & Sign up', desc: 'Create your account with just your phone number. OTP login — no passwords to remember.' },
-  { n: '02', icon: '💳', title: 'Pick a Plan', desc: 'Choose from Individual (₹599) to Max (₹3,999). Every plan includes unlimited visits to your chosen gyms.' },
-  { n: '03', icon: '⚡', title: 'Scan & Workout', desc: 'Show your QR code at any BookMyFit partner gym. Instant AI-verified check-in. No tokens, no paper.' },
-  { n: '04', icon: '🏆', title: 'Track & Earn', desc: 'Monitor sessions, earn loyalty points, book PT trainers, and stream workout videos — all in one app.' },
+  { n: '01', title: 'Sign up with your phone',  desc: 'OTP login — no passwords, no friction. Your account is live in under 60 seconds.' },
+  { n: '02', title: 'Choose your plan',          desc: 'From Individual (₹599) to Max (₹3,999). Every plan includes unlimited daily visits to your chosen gyms.' },
+  { n: '03', title: 'Scan and work out',          desc: 'Open the app, tap QR, walk into any partner gym. AI-verified entry in under 3 seconds.' },
+  { n: '04', title: 'Track and grow',            desc: 'Every session auto-logged. View your streak, book PT trainers, stream workout videos — all in one place.' },
 ];
 
 const PLANS = [
-  { name: 'Individual', sub: '1 Gym Access', price: '₹599', per: '/month', color: '#fff', features: ['Access to 1 home gym', 'Unlimited daily visits', 'QR check-in', 'Session history'], popular: false },
-  { name: 'Elite', sub: '5+ Gyms Access', price: '₹1,499', per: '/month', color: 'var(--accent)', features: ['Access to 5 premium gyms', 'Multi-city access', 'Video workout library', 'All Premium gyms'], popular: true },
-  { name: 'Pro', sub: '10 Gyms Unlimited', price: '₹2,499', per: '/month', color: '#fff', features: ['Access to 10 elite gyms', 'PT session add-on', 'Full video library', 'Priority support'], popular: false },
-  { name: 'Max', sub: 'Everything Unlimited', price: '₹3,999', per: '/month', color: '#fff', features: ['Unlimited gyms across India', 'Unlimited PT sessions', 'Concierge support', 'All Elite locations'], popular: false },
+  { name: 'Individual', tagline: 'Your home gym, perfected',           price: '₹599',   sub: 'Single gym access',          features: ['1 partner gym of your choice','Unlimited daily visits','QR check-in','Session history & streaks','Workout video library'],                              popular: false },
+  { name: 'Elite',      tagline: 'For the city-hopping professional',  price: '₹1,499', sub: 'Access up to 5 gyms',        features: ['Up to 5 gyms in our network','Multi-city access','Full video library','Priority support','Workout analytics'],                                        popular: true  },
+  { name: 'Max',        tagline: 'No limits, anywhere',                price: '₹3,999', sub: 'Unlimited gym access',       features: ['Unlimited gyms across India','1 visit/day per gym','PT session add-ons','Concierge support','Early feature access'],                                   popular: false },
 ];
 
 const GYM_PERKS = [
-  { icon: '💰', title: 'Zero Upfront Cost', desc: 'No integration fees. No hardware. We pay you per member visit-day at your configured rate. Revenue on day one.' },
-  { icon: '📊', title: 'Real-time Dashboard', desc: 'Track check-ins, revenue, members, and settlements from a powerful gym partner portal. Full transparency, always.' },
-  { icon: '🔐', title: 'Automated Settlements', desc: 'Monthly settlements deposited directly to your bank account. Raise disputes and download invoices with one click.' },
+  { title: 'Zero Upfront Cost',       desc: 'No fees, no hardware. List your gym and start earning from member visits from day one.' },
+  { title: 'Real-time Dashboard',     desc: 'Track check-ins, revenue, and member activity from a clean partner portal. Full transparency.' },
+  { title: 'Automated Settlements',  desc: 'Monthly payouts to your bank. Raise disputes and download invoices in one click.' },
 ];
 
 const CORP_PERKS = [
-  { icon: '👥', title: 'Per-Employee Billing', desc: 'Pay only for active employees. Add or remove seats from your HR dashboard any time. No annual commitments.' },
-  { icon: '🗺️', title: '1,000+ Gyms Nationwide', desc: 'Employees working from different cities? No problem. One plan gives access to all partner gyms across India.' },
-  { icon: '📈', title: 'Usage Analytics', desc: 'See who\'s using it, when, and where. Powerful reports help you demonstrate wellness ROI to leadership.' },
+  { title: 'Per-Seat Billing',    desc: 'Pay only for active employees. Add or remove seats any time. No annual commitments.' },
+  { title: 'Nationwide Access',   desc: 'Employees in different cities? One plan unlocks all partner gyms across India.' },
+  { title: 'Wellness Analytics',  desc: "See who is using it, when, and where. Prove wellness ROI to your leadership with rich usage reports." },
 ];
 
 const TESTIMONIALS = [
-  { avatar: 'PS', name: 'Priya Sharma', role: 'Software Engineer, Bangalore', text: 'BookMyFit changed how I work out. I travel between offices and can now hit a premium gym near any location. The QR check-in is seamless!' },
-  { avatar: 'RM', name: 'Rahul Mehta', role: 'Entrepreneur, Mumbai', text: "Worth every rupee. The Elite plan gives me access to 5 top gyms — I switch based on my schedule. No more being tied to one place!" },
-  { avatar: 'AK', name: 'Ananya Krishnan', role: 'Marketing Lead, Chennai', text: "I used to pay ₹3,000/month for a single gym. With BookMyFit Pro I get 10 premium gyms and PT sessions. Best fitness investment ever." },
+  { name: 'Priya Sharma',    role: 'Product Manager',     city: 'Bangalore',  text: "I travel between offices every week. BookMyFit lets me hit a top gym near any location. QR check-in is seamless.",                                    plan: 'Elite Plan',    initials: 'PS' },
+  { name: 'Ananya Krishnan', role: 'Marketing Director',  city: 'Chennai',    text: "The corporate plan transformed our wellness programme. Setup took 10 minutes. Our team loves having gym choices instead of being locked to one location.", plan: 'Corporate',     initials: 'AK' },
+  { name: 'Vikram Singh',    role: 'Gym Owner',           city: 'Pune',       text: "BookMyFit brings new members every week with zero marketing spend. The dashboard is clean and settlements are always on time.",                            plan: 'Gym Partner',   initials: 'VS' },
+  { name: 'Deepa Nair',      role: 'Software Engineer',   city: 'Hyderabad',  text: "I move apartments frequently. With the Max plan I never worry about finding a new gym — covered in any city, any neighbourhood.",                        plan: 'Max Plan',      initials: 'DN' },
 ];
 
-const GYM_PANEL_URL = process.env.NEXT_PUBLIC_GYM_URL || 'http://localhost:3001/signup';
-const CORP_PANEL_URL = process.env.NEXT_PUBLIC_CORP_URL || 'http://localhost:3002/signup';
+const CITIES = ['Mumbai','Bangalore','Delhi','Chennai','Pune','Hyderabad','Kolkata','Ahmedabad','Jaipur','Kochi','Indore','Surat','Chandigarh','Lucknow','Bhubaneswar','Coimbatore'];
 
-/* ─── styles helpers ────────────────────────────────────── */
-const s = {
-  section: { padding: '100px 5vw', position: 'relative' as const, zIndex: 1 },
-  sectionAlt: { padding: '100px 5vw', background: 'rgba(255,255,255,0.015)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', position: 'relative' as const, zIndex: 1 },
-  h2: { fontFamily: 'var(--serif)', fontSize: 'clamp(32px,5vw,54px)', fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1.1, marginBottom: 16 } as React.CSSProperties,
-  sub: { fontSize: 17, color: 'var(--t2)', maxWidth: 560, marginBottom: 56 } as React.CSSProperties,
-  grid2: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 20 },
-  grid3: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 20 },
-  grid4: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 20 },
-  card: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, padding: '28px 24px' } as React.CSSProperties,
-  cardTitle: { fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 700, marginBottom: 8 } as React.CSSProperties,
-  cardDesc: { fontSize: 14, color: 'var(--t2)', lineHeight: 1.65 } as React.CSSProperties,
-};
+const GYM_URL  = process.env.NEXT_PUBLIC_GYM_URL  || '/onboard?tab=gym';
+const CORP_URL = process.env.NEXT_PUBLIC_CORP_URL  || '/onboard?tab=corporate';
 
-/* ─── page ──────────────────────────────────────────────── */
+/* ─── Layout constants ──────────────────────────── */
+const sec:    React.CSSProperties = { padding: '72px 5vw', position: 'relative', zIndex: 1 };
+const secAlt: React.CSSProperties = { ...sec, background: 'rgba(255,255,255,0.012)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' };
+const H2:     React.CSSProperties = { fontFamily: 'var(--serif)', fontSize: 'clamp(34px,5vw,58px)', fontWeight: 900, letterSpacing: '-2px', lineHeight: 1.06 };
+const Sub:    React.CSSProperties = { fontSize: 17, color: 'var(--t2)', lineHeight: 1.7, maxWidth: 520 };
+
+/* ─── Page ──────────────────────────────────────── */
 export default function LandingPage() {
   return (
     <>
       <ScrollReveal />
-
-      {/* Aurora blobs */}
       <div className="aurora aurora-1" aria-hidden="true" />
       <div className="aurora aurora-2" aria-hidden="true" />
       <div className="aurora aurora-3" aria-hidden="true" />
 
-      {/* ── Navbar ─────────────────────────────────────────── */}
-      <nav
-        role="navigation"
-        aria-label="Main navigation"
-        style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 5vw', height: 68,
-          background: 'rgba(6,6,6,0.78)', backdropFilter: 'blur(20px)',
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
+      {/* ── Navbar ──────────────────────────────── */}
+      <nav aria-label="Main navigation" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 5vw', height: 64, background: 'rgba(6,6,6,0.45)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', borderBottom: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 4px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
         <a href="/" style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 900, letterSpacing: -1, textDecoration: 'none', color: '#fff' }}>
           Book<em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--t2)' }}>My</em>Fit
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-          {[['#how-it-works','How it works'],['#plans','Plans'],['#for-gyms','For Gyms'],['#for-corporates','For Corporates']].map(([href, label]) => (
-            <a key={href} href={href} style={{ fontSize: 14, color: 'var(--t2)', textDecoration: 'none' }}
-               className="hidden sm:block">{label}</a>
+          {([['#features','Features'],['#plans','Plans'],['#for-gyms','For Gyms'],['#for-corporates','For Corporates']] as [string,string][]).map(([href, label]) => (
+            <a key={href} href={href} className="nav-link hidden sm:block">{label}</a>
           ))}
-          <a href="#early-access" className="btn btn-primary" style={{ padding: '9px 20px', fontSize: 13 }}>
-            Get Early Access
-          </a>
+          <a href="#early-access" className="btn btn-primary" style={{ padding: '9px 22px', fontSize: 13 }}>Early Access</a>
         </div>
       </nav>
 
-      {/* ── Hero ───────────────────────────────────────────── */}
-      <section
-        id="home"
-        aria-labelledby="hero-heading"
-        style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '140px 5vw 80px', position: 'relative', zIndex: 1 }}
-      >
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          background: 'rgba(61,255,84,0.1)', border: '1px solid rgba(61,255,84,0.25)', borderRadius: 100,
-          padding: '6px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase',
-          color: 'var(--accent)', marginBottom: 28,
-        }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse-dot 1.5s ease-in-out infinite', display: 'inline-block' }} />
-          🚀 Early Access — Limited Spots
-        </div>
+      {/* ── Hero ────────────────────────────────── */}
+      <section id="home" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '100px 5vw 56px', position: 'relative', zIndex: 1, overflow: 'hidden' }}>
+        <div className="hero-grid" aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '7vw', flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1200, width: '100%', position: 'relative', zIndex: 1 }}>
 
-        <h1
-          id="hero-heading"
-          style={{ fontFamily: 'var(--serif)', fontSize: 'clamp(44px,8vw,88px)', fontWeight: 900, letterSpacing: '-2px', lineHeight: 1.05, marginBottom: 24, maxWidth: 900 }}
-        >
-          India&apos;s fitness<br />
-          <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>everywhere</em> you go.
-        </h1>
-
-        <p style={{ fontSize: 'clamp(16px,2vw,20px)', color: 'var(--t2)', maxWidth: 580, margin: '0 auto 44px', fontWeight: 400 }}>
-          One subscription. 1,000+ premium gyms. AI-powered check-in. Stop being tied to one gym — BookMyFit gives you the freedom to work out anywhere in India.
-        </p>
-
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 52 }}>
-          <a href="#early-access" className="btn btn-primary btn-lg">🔥 Join Waitlist — It&apos;s Free</a>
-          <a href="#how-it-works" className="btn btn-ghost btn-lg">See how it works</a>
-        </div>
-
-        {/* App download badges */}
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 60 }}>
-          {[
-            { icon: '🍎', small: 'Coming soon on', strong: 'App Store', label: 'Download on App Store' },
-            { icon: '🤖', small: 'Coming soon on', strong: 'Google Play', label: 'Get it on Google Play' },
-          ].map((b) => (
-            <a key={b.strong} href="#early-access" aria-label={b.label}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '10px 20px', textDecoration: 'none', color: '#fff', minWidth: 160 }}>
-              <span style={{ fontSize: 26 }}>{b.icon}</span>
-              <div>
-                <div style={{ fontSize: 10, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{b.small}</div>
-                <div style={{ fontSize: 15, fontWeight: 600 }}>{b.strong}</div>
-              </div>
-            </a>
-          ))}
-        </div>
-
-        {/* Stats */}
-        <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {STATS.map((st) => (
-            <div key={st.label} style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'var(--serif)', fontSize: 36, fontWeight: 900, color: 'var(--accent)' }}>{st.num}</div>
-              <div style={{ fontSize: 12, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '1px', marginTop: 4 }}>{st.label}</div>
+          {/* ── Left copy ── */}
+          <div style={{ flex: '1 1 480px', maxWidth: 600 }}>
+            <div className="hero-animate" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(61,255,84,0.08)', border: '1px solid rgba(61,255,84,0.2)', borderRadius: 100, padding: '6px 18px', marginBottom: 20 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse-dot 1.6s ease-in-out infinite', display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)' }}>Early Access — Limited Spots</span>
             </div>
-          ))}
-        </div>
-      </section>
 
-      {/* ── How it works ───────────────────────────────────── */}
-      <section id="how-it-works" style={s.section} aria-labelledby="how-heading">
-        <p className="kicker reveal">Simple by design</p>
-        <h2 id="how-heading" style={s.h2} className="reveal">
-          Three steps to <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>freedom</em>
-        </h2>
-        <p style={s.sub} className="reveal">No contracts, no queues, no confusion. Download, subscribe, check in.</p>
-        <div style={s.grid4}>
-          {HOW.map((h) => (
-            <article key={h.n} className="glass-card reveal" style={{ padding: '32px 28px', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ fontFamily: 'var(--serif)', fontSize: 56, fontWeight: 900, color: 'rgba(61,255,84,0.07)', position: 'absolute', top: 12, right: 20, lineHeight: 1, userSelect: 'none' }}>{h.n}</div>
-              <div style={{ fontSize: 32, marginBottom: 16 }}>{h.icon}</div>
-              <h3 style={{ fontWeight: 700, fontSize: 17, marginBottom: 8 }}>{h.title}</h3>
-              <p style={s.cardDesc}>{h.desc}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+            <h1 className="hero-animate hero-animate-delay-1" style={{ ...H2, fontSize: 'clamp(46px,7.5vw,88px)', marginBottom: 24, maxWidth: 640 }}>
+              India&apos;s fitness<br />
+              <em style={{ fontStyle: 'italic', fontWeight: 400 }} className="gradient-text">everywhere</em> you go.
+            </h1>
 
-      {/* ── Plans ──────────────────────────────────────────── */}
-      <section id="plans" style={s.sectionAlt} aria-labelledby="plans-heading">
-        <p className="kicker reveal">Pricing</p>
-        <h2 id="plans-heading" style={s.h2} className="reveal">
-          Choose your <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>level</em>
-        </h2>
-        <p style={s.sub} className="reveal">All plans include unlimited visits. No hidden fees. Cancel anytime.</p>
-        <div style={s.grid3}>
-          {PLANS.map((p) => (
-            <article
-              key={p.name}
-              className="glass-card reveal"
-              style={{ padding: '28px 24px', position: 'relative', ...(p.popular && { borderColor: 'rgba(61,255,84,0.4)' }) }}
-            >
-              {p.popular && (
-                <div style={{ position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#000', fontSize: 10, fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', padding: '4px 14px', borderRadius: '0 0 10px 10px' }}>
-                  Most Popular
+            <p className="hero-animate hero-animate-delay-2" style={{ ...Sub, fontSize: 19, marginBottom: 42 }}>
+              One subscription. 1,000+ premium gyms. AI-powered QR check-in. Stop being locked to one location — work out anywhere in India.
+            </p>
+
+            <div className="hero-animate hero-animate-delay-3" style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 28 }}>
+              <a href="#early-access" className="btn btn-primary btn-lg" style={{ gap: 10 }}>Join the Waitlist — Free <Arrow /></a>
+              <a href="#how-it-works" className="btn btn-ghost btn-lg">See how it works</a>
+            </div>
+
+            <div className="hero-animate hero-animate-delay-4" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 52 }}>
+              {[{ top: 'Coming soon on', bottom: 'App Store' }, { top: 'Coming soon on', bottom: 'Google Play' }].map((b) => (
+                <a key={b.bottom} href="#early-access" aria-label={`${b.bottom} download`} style={{ display: 'inline-flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 18px', textDecoration: 'none', color: '#fff', minWidth: 148 }}>
+                  <div style={{ width: 28, height: 28, background: 'rgba(255,255,255,0.07)', borderRadius: 8, flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{b.top}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{b.bottom}</div>
+                  </div>
+                </a>
+              ))}
+            </div>
+
+            <div className="hero-animate hero-animate-delay-5" style={{ display: 'flex', gap: 32, flexWrap: 'wrap', borderTop: '1px solid var(--border)', paddingTop: 32 }}>
+              {STATS.map((st) => (
+                <div key={st.label}>
+                  <div style={{ fontFamily: 'var(--serif)', fontSize: 32, fontWeight: 900, color: 'var(--accent)', lineHeight: 1.1 }}>{st.num}</div>
+                  <div style={{ fontSize: 11, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '1px', marginTop: 5 }}>{st.label}</div>
                 </div>
-              )}
-              <div style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 900, marginBottom: 4 }}>{p.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 20 }}>{p.sub}</div>
-              <div style={{ fontSize: 38, fontWeight: 800, color: p.color, marginBottom: 4 }}>
-                {p.price} <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--t2)' }}>{p.per}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Right visual ── */}
+          <div className="hero-animate hero-animate-delay-2" style={{ flex: '0 0 auto' }}>
+            <div className="float" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* QR card */}
+              <div style={{ width: 264, background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 28, padding: '28px 24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+                  <span style={{ fontFamily: 'var(--serif)', fontSize: 14, fontWeight: 700 }}>BookMyFit</span>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', animation: 'pulse-dot 2s ease-in-out infinite' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8,1fr)', gap: 4, background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: 14, marginBottom: 22 }}>
+                  {QR.map((v, i) => (
+                    <div key={i} style={{ aspectRatio: '1', background: v ? 'rgba(255,255,255,0.84)' : 'transparent', borderRadius: 2 }} />
+                  ))}
+                </div>
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 18 }}>
+                  <div style={{ fontSize: 10, color: 'var(--t3)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 6 }}>Active at</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>Iron House Gym</div>
+                  <div style={{ fontSize: 12, color: 'var(--t2)', marginBottom: 14 }}>Mumbai, Bandra West</div>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'rgba(61,255,84,0.1)', border: '1px solid rgba(61,255,84,0.25)', borderRadius: 100, fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />Valid today
+                  </div>
+                </div>
               </div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: '20px 0' }}>
-                {p.features.map((f) => (
-                  <li key={f} style={{ fontSize: 13, color: 'var(--t2)', display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0 }}>✓</span> {f}
-                  </li>
+              {/* Stat pills */}
+              <div style={{ display: 'flex', gap: 10 }}>
+                {[{ l: 'This month', v: '18', u: 'Sessions' }, { l: 'Streak', v: '7', u: 'Days' }].map((s) => (
+                  <div key={s.l} style={{ flex: 1, background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6 }}>{s.l}</div>
+                    <div style={{ fontFamily: 'var(--serif)', fontSize: 24, fontWeight: 900, color: 'var(--accent)', lineHeight: 1 }}>{s.v}</div>
+                    <div style={{ fontSize: 11, color: 'var(--t2)', marginTop: 4 }}>{s.u}</div>
+                  </div>
                 ))}
-              </ul>
-              <a href="#early-access" className={`btn ${p.popular ? 'btn-primary' : 'btn-ghost'}`} style={{ width: '100%', justifyContent: 'center' }}>
-                Get Early Access
-              </a>
-            </article>
-          ))}
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
-      {/* ── For Gyms ───────────────────────────────────────── */}
-      <section id="for-gyms" style={s.section} aria-labelledby="gyms-heading">
-        <p className="kicker reveal">Gym Partners</p>
-        <h2 id="gyms-heading" style={s.h2} className="reveal">
-          Grow your gym.<br />
-          <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>We handle members.</em>
-        </h2>
-        <p style={s.sub} className="reveal">Join 1,000+ gym partners earning from every BookMyFit member who walks through your door — zero upfront cost.</p>
-        <div style={s.grid2}>
-          {GYM_PERKS.map((p) => (
-            <article key={p.title} className="glass-card reveal" style={{ padding: 28 }}>
-              <div style={{ fontSize: 36, marginBottom: 16 }}>{p.icon}</div>
-              <h3 style={s.cardTitle}>{p.title}</h3>
-              <p style={s.cardDesc}>{p.desc}</p>
-            </article>
+      {/* ── Cities marquee ───────────────────────── */}
+      <div style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '18px 0', overflow: 'hidden', position: 'relative', zIndex: 1, background: 'rgba(255,255,255,0.01)' }}>
+        <div style={{ display: 'flex', gap: 0, width: 'max-content' }} className="marquee-track">
+          {[...CITIES, ...CITIES].map((city, i) => (
+            <span key={i} style={{ padding: '0 24px', fontSize: 13, color: 'var(--t3)', fontWeight: 500, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--accent)', opacity: 0.55 }} />{city}
+            </span>
           ))}
         </div>
-        <div className="reveal" style={{ textAlign: 'center', marginTop: 44 }}>
-          <a href={GYM_PANEL_URL} className="btn btn-primary btn-lg" aria-label="Register your gym on BookMyFit">
-            🏋️ Register Your Gym →
-          </a>
-          <p style={{ fontSize: 12, color: 'var(--t3)', marginTop: 12 }}>Gym listing goes live after KYC verification (typically 2–3 business days).</p>
-        </div>
-      </section>
+      </div>
 
-      {/* ── For Corporates ─────────────────────────────────── */}
-      <section id="for-corporates" style={s.sectionAlt} aria-labelledby="corporate-heading">
-        <p className="kicker reveal">Corporate Wellness</p>
-        <h2 id="corporate-heading" style={s.h2} className="reveal">
-          Healthy teams.<br />
-          <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>₹999 per employee.</em>
+      {/* ── Features ─────────────────────────────── */}
+      <section id="features" style={sec}>
+        <p className="kicker reveal">Platform</p>
+        <h2 style={{ ...H2, marginBottom: 12 }} className="reveal">
+          Everything you need<br />to stay fit, <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>anywhere</em>
         </h2>
-        <p style={s.sub} className="reveal">Give every employee unlimited multi-gym access. We handle billing per seat, you focus on culture.</p>
-        <div style={s.grid2}>
-          {CORP_PERKS.map((p) => (
-            <article key={p.title} className="glass-card reveal" style={{ padding: 28 }}>
-              <div style={{ fontSize: 36, marginBottom: 16 }}>{p.icon}</div>
-              <h3 style={s.cardTitle}>{p.title}</h3>
-              <p style={s.cardDesc}>{p.desc}</p>
-            </article>
-          ))}
-        </div>
-        <div className="reveal" style={{ textAlign: 'center', marginTop: 44 }}>
-          <a href={CORP_PANEL_URL} className="btn btn-primary btn-lg" aria-label="Register your company on BookMyFit">
-            🏢 Register Your Company →
-          </a>
-          <p style={{ fontSize: 12, color: 'var(--t3)', marginTop: 12 }}>Starting from ₹999/employee/month. Add employees from your dashboard.</p>
-        </div>
-      </section>
-
-      {/* ── Testimonials ───────────────────────────────────── */}
-      <section style={s.section} aria-labelledby="testimonials-heading">
-        <p className="kicker reveal">Social Proof</p>
-        <h2 id="testimonials-heading" style={s.h2} className="reveal">
-          Loved by <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>fitness people</em>
-        </h2>
-        <p style={s.sub} className="reveal">Join thousands of professionals who&apos;ve made BookMyFit their fitness companion.</p>
-        <div style={s.grid2}>
-          {TESTIMONIALS.map((t) => (
-            <article key={t.name} className="glass-card reveal" style={{ padding: 28 }}>
-              <div style={{ fontSize: 14, color: 'var(--accent)', letterSpacing: 2, marginBottom: 12 }} aria-label="5 out of 5 stars">★★★★★</div>
-              <p style={{ fontSize: 15, color: 'var(--t)', lineHeight: 1.7, fontStyle: 'italic', marginBottom: 20 }}>&ldquo;{t.text}&rdquo;</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'rgba(61,255,84,0.15)', border: '1px solid rgba(61,255,84,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, color: 'var(--accent)', flexShrink: 0 }}>
-                  {t.avatar}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--t3)' }}>{t.role}</div>
-                </div>
+        <p style={{ ...Sub, marginBottom: 28 }} className="reveal">
+          Built for the modern professional who refuses to be locked to a single location.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 14 }}>
+          {FEATURES.map((f, i) => (
+            <article key={f.title} className={`glass-card reveal reveal-delay-${(i % 4) + 1}`} style={{ padding: '24px 22px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+              <div className="icon-box" style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={f.path} />
+                </svg>
+              </div>
+              <div>
+                <h3 style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>{f.title}</h3>
+                <p style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.65, margin: 0 }}>{f.desc}</p>
               </div>
             </article>
           ))}
         </div>
       </section>
 
-      {/* ── Early Access CTA ───────────────────────────────── */}
-      <section id="early-access" style={{ padding: '80px 5vw', position: 'relative', zIndex: 1 }} aria-labelledby="early-access-heading">
-        <div
-          className="reveal"
-          style={{
-            background: 'linear-gradient(135deg, rgba(61,255,84,0.06) 0%, rgba(0,120,255,0.06) 100%)',
-            border: '1px solid rgba(61,255,84,0.15)',
-            borderRadius: 28, padding: '64px 40px',
-            textAlign: 'center', maxWidth: 680, margin: '0 auto',
-          }}
-        >
-          <p className="kicker" style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>⚡ Limited Spots Available</p>
-          <h2 id="early-access-heading" style={{ fontFamily: 'var(--serif)', fontSize: 'clamp(28px,5vw,48px)', fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1.1, marginBottom: 12 }}>
-            Get early access<br />
-            <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>before launch</em>
-          </h2>
-          <p style={{ fontSize: 16, color: 'var(--t2)', marginBottom: 36 }}>
-            Be the first to know when BookMyFit launches in your city.<br />Early users get 3 months free on any plan.
-          </p>
+      {/* ── Multi-gym explainer ──────────────────── */}
+      <section id="multigym" style={secAlt}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: '4vw', alignItems: 'center', maxWidth: 1200, margin: '0 auto' }}>
+          <div>
+            <p className="kicker reveal">The BookMyFit Advantage</p>
+            <h2 style={{ ...H2, marginBottom: 20 }} className="reveal">
+              One network.<br /><em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>Every city.</em>
+            </h2>
+            <p style={{ ...Sub, marginBottom: 28 }} className="reveal">
+              Traditional memberships lock you to one location. Move neighbourhoods? New city for work? Travelling? You are stuck paying for a gym you cannot use.
+            </p>
+            <p style={{ ...Sub, marginBottom: 24 }} className="reveal">
+              BookMyFit works the other way. Your subscription travels with you. Every partner gym across 50+ cities accepts your QR code — the Spotify model for fitness.
+            </p>
+            <div className="reveal" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {['Access any partner gym, any day, any city','Switch gyms based on your location or mood','One QR code everywhere — no re-registration','Corporate accounts manage hundreds of employees at once'].map((pt) => (
+                <div key={pt} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <span style={{ color: 'var(--accent)', marginTop: 1, flexShrink: 0 }}><Check /></span>
+                  <span style={{ fontSize: 15, color: 'var(--t2)', lineHeight: 1.55 }}>{pt}</span>
+                </div>
+              ))}
+            </div>
+          </div>
 
-          <EarlyAccessForm />
-
-          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 36, flexWrap: 'wrap' }}>
-            <a href={GYM_PANEL_URL} className="btn btn-ghost" aria-label="Onboard your gym">
-              🏋️ I own a gym — Onboard my gym
-            </a>
-            <a href={CORP_PANEL_URL} className="btn btn-ghost" aria-label="Register your company">
-              🏢 I&apos;m in HR — Register my company
-            </a>
+          <div className="reveal" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="compare-old">
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(255,90,90,0.75)', marginBottom: 16 }}>The old way</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {['Locked to 1 gym forever','Useless when you travel or relocate','Rigid annual contracts','No flexibility on plan changes'].map((x) => (
+                  <div key={x} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ color: 'rgba(255,90,90,0.6)', fontWeight: 700, fontSize: 17 }}>—</span>
+                    <span style={{ fontSize: 14, color: 'var(--t2)' }}>{x}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="compare-new">
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 16 }}>The BookMyFit way</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {['1,000+ gyms across all of India','Works in every city you visit or move to','Cancel any month — zero commitment','Upgrade or downgrade freely at any time'].map((x) => (
+                  <div key={x} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ color: 'var(--accent)', flexShrink: 0 }}><Check /></span>
+                    <span style={{ fontSize: 14, color: 'var(--t)' }}>{x}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {([
+                { end: 1000, suffix: '+', label: 'Partner gyms' },
+                { end: 50,   suffix: '+', label: 'Cities live'  },
+                { end: 3,    suffix: '',  label: 'Plan tiers'   },
+                { end: 99,   suffix: '%', label: 'Uptime SLA'   },
+              ] as { end: number; suffix: string; label: string }[]).map((s) => (
+                <StatCounter key={s.label} end={s.end} suffix={s.suffix} label={s.label} />
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── Footer ─────────────────────────────────────────── */}
-      <footer
-        role="contentinfo"
-        style={{ borderTop: '1px solid var(--border)', padding: '36px 5vw', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20, position: 'relative', zIndex: 1 }}
-      >
-        <a href="/" style={{ fontFamily: 'var(--serif)', fontSize: 18, fontWeight: 900, color: '#fff', textDecoration: 'none' }}>
+      {/* ── How it works ─────────────────────────── */}
+      <section id="how-it-works" style={sec}>
+        <p className="kicker reveal">Simple by Design</p>
+        <h2 style={{ ...H2, marginBottom: 16 }} className="reveal">
+          Four steps to <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>fitness freedom</em>
+        </h2>
+        <p style={{ ...Sub, marginBottom: 32 }} className="reveal">No contracts, no queues, no confusion. Ready in minutes.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 20 }}>
+          {HOW.map((h, i) => (
+            <article key={h.n} className={`glass-card reveal reveal-delay-${i + 1}`} style={{ padding: '36px 28px', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ fontFamily: 'var(--serif)', fontSize: 80, fontWeight: 900, color: 'rgba(61,255,84,0.05)', position: 'absolute', top: -10, right: 10, lineHeight: 1, userSelect: 'none', pointerEvents: 'none' }}>{h.n}</div>
+              <div style={{ width: 42, height: 42, background: 'rgba(61,255,84,0.1)', border: '1px solid rgba(61,255,84,0.2)', borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--serif)', fontSize: 13, fontWeight: 900, color: 'var(--accent)', marginBottom: 22, flexShrink: 0 }}>{h.n}</div>
+              <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 10 }}>{h.title}</h3>
+              <p style={{ fontSize: 14, color: 'var(--t2)', lineHeight: 1.72 }}>{h.desc}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Plans ────────────────────────────────── */}
+      <section id="plans" style={secAlt}>
+        <p className="kicker reveal">Pricing</p>
+        <h2 style={{ ...H2, marginBottom: 12 }} className="reveal">
+          Choose your <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>level</em>
+        </h2>
+        <p style={{ ...Sub, marginBottom: 28 }} className="reveal">All plans include unlimited visits. No hidden fees. Cancel any month.</p>
+
+        <div className="reveal" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 18, alignItems: 'start' }}>
+
+          {/* Individual — single gym */}
+          <article className="glass-card" style={{ padding: '32px 26px', position: 'relative' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 100, display: 'inline-block', padding: '3px 10px', marginBottom: 14 }}>Single Gym</div>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 26, fontWeight: 900, marginBottom: 4 }}>Individual</div>
+            <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 20 }}>Your home gym, perfected</div>
+            <div style={{ marginBottom: 20 }}>
+              <span style={{ fontSize: 42, fontWeight: 800, letterSpacing: '-2px' }}>₹599</span>
+              <span style={{ fontSize: 13, color: 'var(--t2)' }}> /month</span>
+            </div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 22px' }}>
+              {['1 partner gym of your choice','Unlimited daily visits','QR check-in','Session history & streaks','Workout video library'].map((f) => (
+                <li key={f} style={{ fontSize: 13, color: 'var(--t2)', display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ color: 'var(--accent)', flexShrink: 0 }}><Check /></span>{f}
+                </li>
+              ))}
+            </ul>
+            <a href="#early-access" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>Get Early Access</a>
+          </article>
+
+          {/* Multi-Gym group */}
+          <div style={{ border: '1px solid rgba(61,255,84,0.22)', borderRadius: 24, padding: '22px 20px', background: 'rgba(61,255,84,0.03)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 4 }}>Multi-Gym Access</div>
+                <div style={{ fontSize: 13, color: 'var(--t2)' }}>Work out at any gym in our network</div>
+              </div>
+              <div style={{ background: 'rgba(61,255,84,0.12)', border: '1px solid rgba(61,255,84,0.25)', borderRadius: 100, padding: '4px 12px', fontSize: 10, fontWeight: 700, color: 'var(--accent)', letterSpacing: '1px', textTransform: 'uppercase' }}>Recommended</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {/* Elite */}
+              <article className="glass-card-featured" style={{ padding: '24px 20px', position: 'relative' }}>
+                <div className="plan-badge">Most Popular</div>
+                <div style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 900, marginBottom: 4, marginTop: 8 }}>Elite</div>
+                <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 16 }}>Up to 5 gyms</div>
+                <div style={{ marginBottom: 16 }}>
+                  <span style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-1.5px', color: 'var(--accent)' }}>₹1,499</span>
+                  <span style={{ fontSize: 12, color: 'var(--t2)' }}>/mo</span>
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 18px' }}>
+                  {['5 gyms in network','Multi-city access','Full video library','Priority support','Analytics'].map((f) => (
+                    <li key={f} style={{ fontSize: 12, color: 'var(--t2)', display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <span style={{ color: 'var(--accent)', flexShrink: 0, fontSize: 10 }}>✓</span>{f}
+                    </li>
+                  ))}
+                </ul>
+                <a href="#early-access" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', fontSize: 12, padding: '9px 16px' }}>Get Access</a>
+              </article>
+              {/* Max */}
+              <article className="glass-card" style={{ padding: '24px 20px', position: 'relative' }}>
+                <div style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 900, marginBottom: 4 }}>Max</div>
+                <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 16 }}>Unlimited gyms</div>
+                <div style={{ marginBottom: 16 }}>
+                  <span style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-1.5px' }}>₹3,999</span>
+                  <span style={{ fontSize: 12, color: 'var(--t2)' }}>/mo</span>
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 18px' }}>
+                  {['Unlimited gyms India','1 visit/day per gym','PT add-ons','Concierge support','Early access'].map((f) => (
+                    <li key={f} style={{ fontSize: 12, color: 'var(--t2)', display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <span style={{ color: 'var(--accent)', flexShrink: 0, fontSize: 10 }}>✓</span>{f}
+                    </li>
+                  ))}
+                </ul>
+                <a href="#early-access" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', fontSize: 12, padding: '9px 16px' }}>Get Access</a>
+              </article>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* ── For Gyms ─────────────────────────────── */}
+      <section id="for-gyms" style={sec}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: '4vw', alignItems: 'center', maxWidth: 1200, margin: '0 auto' }}>
+          <div>
+            <p className="kicker reveal">Gym Partners</p>
+            <h2 style={{ ...H2, marginBottom: 16 }} className="reveal">
+              Grow your gym.<br /><em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>We bring members.</em>
+            </h2>
+            <p style={{ ...Sub, marginBottom: 24 }} className="reveal">Join 1,000+ gym partners earning from every BookMyFit member who walks through your door. Zero upfront cost, zero technical complexity.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
+              {GYM_PERKS.map((p) => (
+                <div key={p.title} className="reveal" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  <div className="icon-box" style={{ width: 44, height: 44, borderRadius: 13, flexShrink: 0 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{p.title}</div>
+                    <div style={{ fontSize: 14, color: 'var(--t2)', lineHeight: 1.65 }}>{p.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="reveal" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <a href={GYM_URL} className="btn btn-primary btn-lg">Register Your Gym</a>
+              <span style={{ fontSize: 12, color: 'var(--t3)' }}>Live within 2–3 business days</span>
+            </div>
+          </div>
+
+          {/* Dashboard preview */}
+          <div className="dash-card reveal float">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Gym Dashboard</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--accent)', background: 'rgba(61,255,84,0.08)', padding: '3px 10px', borderRadius: 100 }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)' }} />Live
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+              {[{ l: "Today's Check-ins", v: '47' },{ l: 'Monthly Revenue', v: '₹1.2L' },{ l: 'Active Members', v: '312' },{ l: 'Settlement Due', v: '₹48K' }].map((s) => (
+                <div key={s.l} className="dash-stat">
+                  <div style={{ fontSize: 10, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 6 }}>{s.l}</div>
+                  <div style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 900, color: 'var(--accent)' }}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 16 }}>
+              <div style={{ fontSize: 10, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 12 }}>Recent Check-ins</div>
+              {['Ananya K.', 'Rahul M.', 'Deepa N.'].map((n, i) => (
+                <div key={n} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: i < 2 ? '1px solid rgba(255,255,255,0.04)' : undefined }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(61,255,84,0.1)', border: '1px solid rgba(61,255,84,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>{n[0]}</div>
+                    <span style={{ fontSize: 13 }}>{n}</span>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--accent)', background: 'rgba(61,255,84,0.08)', padding: '2px 9px', borderRadius: 100 }}>Checked in</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── For Corporates ───────────────────────── */}
+      <section id="for-corporates" style={secAlt}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: '4vw', alignItems: 'center', maxWidth: 1200, margin: '0 auto' }}>
+          {/* HR portal preview */}
+          <div className="dash-card reveal float">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Corporate Portal</span>
+              <span style={{ fontSize: 11, color: 'var(--t3)' }}>Q1 2025</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 18 }}>
+              {[{ l: 'Employees', v: '148' },{ l: 'Active Seats', v: '131' },{ l: 'Monthly Bill', v: '₹1.3L' }].map((s) => (
+                <div key={s.l} className="dash-stat">
+                  <div style={{ fontSize: 9, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 5 }}>{s.l}</div>
+                  <div style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 900, color: 'var(--accent)' }}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 14, padding: '16px 18px', marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 10 }}>
+                <span style={{ color: 'var(--t2)' }}>Seat utilisation</span>
+                <span style={{ color: 'var(--accent)', fontWeight: 700 }}>88.5%</span>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 100, height: 6 }}>
+                <div style={{ width: '88.5%', height: '100%', background: 'var(--accent)', borderRadius: 100 }} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ flex: 1, padding: '9px 0', background: 'rgba(61,255,84,0.08)', border: '1px solid rgba(61,255,84,0.18)', borderRadius: 10, fontSize: 12, fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Add seats</div>
+              <div style={{ flex: 1, padding: '9px 0', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, fontSize: 12, fontWeight: 600, color: 'var(--t2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>View report</div>
+            </div>
+          </div>
+
+          <div>
+            <p className="kicker reveal">Corporate Wellness</p>
+            <h2 style={{ ...H2, marginBottom: 16 }} className="reveal">
+              Healthy teams.<br /><em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>₹999 per employee.</em>
+            </h2>
+            <p style={{ ...Sub, marginBottom: 24 }} className="reveal">Give every employee unlimited multi-gym access from one HR dashboard. We handle billing per seat — you focus on culture and retention.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
+              {CORP_PERKS.map((p) => (
+                <div key={p.title} className="reveal" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                  <div className="icon-box" style={{ width: 44, height: 44, borderRadius: 13, flexShrink: 0 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{p.title}</div>
+                    <div style={{ fontSize: 14, color: 'var(--t2)', lineHeight: 1.65 }}>{p.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="reveal" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <a href={CORP_URL} className="btn btn-primary btn-lg">Register Your Company</a>
+              <span style={{ fontSize: 12, color: 'var(--t3)' }}>Starting at ₹999 / employee / month</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Testimonials ─────────────────────────── */}
+      <section style={sec}>
+        <p className="kicker reveal">Social Proof</p>
+        <h2 style={{ ...H2, marginBottom: 16 }} className="reveal">
+          Loved by fitness <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>professionals</em>
+        </h2>
+        <p style={{ ...Sub, marginBottom: 32 }} className="reveal">Join thousands of users who have made BookMyFit their fitness companion.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 14 }}>
+          {TESTIMONIALS.map((t, i) => (
+            <article key={t.name} className={`glass-card reveal reveal-delay-${(i % 4) + 1}`} style={{ padding: '22px 22px 18px' }}>
+              <div style={{ display: 'flex', gap: 2, marginBottom: 12 }}>
+                {Array(5).fill(0).map((_, j) => <Star key={j} />)}
+              </div>
+              <p style={{ fontSize: 14, color: 'var(--t)', lineHeight: 1.68, fontStyle: 'italic', marginBottom: 16 }}>&ldquo;{t.text}&rdquo;</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(61,255,84,0.12)', border: '1px solid rgba(61,255,84,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, color: 'var(--accent)', flexShrink: 0 }}>{t.initials}</div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{t.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--t3)' }}>{t.role} · {t.city}</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--accent)', background: 'rgba(61,255,84,0.08)', padding: '3px 9px', borderRadius: 100, whiteSpace: 'nowrap', flexShrink: 0 }}>{t.plan}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      {/* ── CTA ──────────────────────────────────── */}
+      <section id="early-access" style={{ padding: '60px 5vw', position: 'relative', zIndex: 1 }}>
+        <div className="reveal" style={{ background: 'linear-gradient(135deg, rgba(61,255,84,0.07) 0%, rgba(0,80,255,0.05) 50%, rgba(61,255,84,0.04) 100%)', border: '1px solid rgba(61,255,84,0.15)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderRadius: 32, padding: 'clamp(32px,5vw,56px) 5vw', textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(61,255,84,0.08)', border: '1px solid rgba(61,255,84,0.2)', borderRadius: 100, padding: '5px 18px', fontSize: 11, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 26 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', animation: 'pulse-dot 1.6s ease-in-out infinite' }} />Limited Spots Available
+          </div>
+          <h2 style={{ ...H2, fontSize: 'clamp(30px,5vw,52px)', marginBottom: 16 }}>
+            Get early access<br /><em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>before launch</em>
+          </h2>
+          <p style={{ ...Sub, margin: '0 auto 40px', textAlign: 'center' }}>
+            Be the first to know when BookMyFit launches in your city.<br />Early users get 3 months free on any plan.
+          </p>
+          <EarlyAccessForm />
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 32, flexWrap: 'wrap' }}>
+            <a href={GYM_URL}  className="btn btn-ghost">I own a gym — Onboard my gym</a>
+            <a href={CORP_URL} className="btn btn-ghost">I&apos;m in HR — Register my company</a>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Footer ───────────────────────────────── */}
+      <footer role="contentinfo" style={{ borderTop: '1px solid var(--border)', padding: '40px 5vw', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20, position: 'relative', zIndex: 1 }}>
+        <a href="/" style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 900, color: '#fff', textDecoration: 'none' }}>
           Book<em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--t2)' }}>My</em>Fit
         </a>
         <nav aria-label="Footer navigation" style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-          {[['#how-it-works','How it works'],['#plans','Plans'],['#for-gyms','For Gyms'],['#for-corporates','For Corporates'],['mailto:hello@bookmyfit.in','Contact']].map(([href, label]) => (
-            <a key={href} href={href} style={{ fontSize: 13, color: 'var(--t3)', textDecoration: 'none' }}>{label}</a>
+          {([['#features','Features'],['#plans','Plans'],['#for-gyms','For Gyms'],['#for-corporates','For Corporates'],['mailto:hello@bookmyfit.in','Contact']] as [string,string][]).map(([href, label]) => (
+            <a key={href} href={href} className="nav-link">{label}</a>
           ))}
         </nav>
-        <p style={{ fontSize: 12, color: 'var(--t3)' }}>© 2025 BookMyFit. All rights reserved.</p>
+        <p style={{ fontSize: 12, color: 'var(--t3)' }}>© 2025 BookMyFit Technologies Pvt Ltd</p>
       </footer>
     </>
   );

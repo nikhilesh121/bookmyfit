@@ -1,330 +1,430 @@
-'use client'
+'use client';
 
-import Shell from '../../components/Shell'
-import { api } from '../../lib/api'
-import { useEffect, useState } from 'react'
-import { Calendar, Clock, Users, Activity, Plus, X, ChevronDown, AlertTriangle } from 'lucide-react'
+import Shell from '../../components/Shell';
+import { api } from '../../lib/api';
+import { useEffect, useState } from 'react';
+import { Plus, Trash2, Edit3, Check, X, Calendar, Users, Clock, Zap, Star, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 
-type Trainer = { id: string; name: string; specialization?: string }
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const COLORS = ['#3DFF54', '#6C63FF', '#FF6B6B', '#FFD93D', '#FF8C00', '#00D4FF', '#FF69B4'];
 
-type Session = {
-  id: string;
-  name: string;
-  trainer: string;
-  type: string;
-  date: string;
-  time: string;
-  capacity: number;
-  enrolled: number;
-  status: string;
-}
+type SessionType = {
+  id: string; gymId: string; name: string; kind: 'standard' | 'special';
+  description?: string; durationMinutes: number; maxCapacity: number;
+  color: string; instructor?: string; isActive: boolean; createdAt: string;
+};
 
-const TYPE_COLORS: Record<string, { background: string; color: string }> = {
-  Yoga:     { background: 'rgba(180,120,255,0.18)', color: '#B478FF' },
-  HIIT:     { background: 'rgba(255,60,60,0.15)',   color: '#FF6432' },
-  Strength: { background: 'rgba(100,160,255,0.15)', color: '#64A0FF' },
-  Cardio:   { background: 'rgba(61,255,84,0.12)',   color: 'var(--accent)' },
-  Spin:     { background: 'rgba(255,220,0,0.15)',   color: '#FFDC00' },
-  CrossFit: { background: 'rgba(255,140,0,0.15)',   color: '#FF8C00' },
-}
+type SessionSchedule = {
+  id: string; sessionTypeId: string; gymId: string;
+  daysOfWeek: number[]; startTime: string; endTime: string;
+  isActive: boolean; validFrom?: string; validUntil?: string;
+  sessionType?: SessionType;
+};
 
-function TypeBadge({ type }: { type: string }) {
-  const s = TYPE_COLORS[type] ?? { background: 'rgba(255,255,255,0.08)', color: 'var(--t)' }
-  return (
-    <span style={{ ...s, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>
-      {type}
-    </span>
-  )
-}
+type BookingRow = {
+  id: string; slotDate: string; status: string; bookingRef: string;
+  slot?: { startTime: string; endTime: string; date: string };
+  sessionType?: { name: string; color: string };
+  user?: { name: string; phone: string };
+};
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === 'Active')    return <span className="badge-active">{status}</span>
-  if (status === 'Full')      return <span className="badge-pending">{status}</span>
-  if (status === 'Draft')     return <span className="badge-danger">{status}</span>
-  if (status === 'Completed') return <span className="badge-suspended">{status}</span>
-  return <span>{status}</span>
-}
-
-function SkeletonRow() {
-  const cell: React.CSSProperties = {
-    height: 14,
-    borderRadius: 6,
-    background: 'rgba(255,255,255,0.08)',
-    animation: 'pulse 1.5s ease-in-out infinite',
-  }
-  return (
-    <tr>
-      {Array.from({ length: 7 }).map((_, i) => (
-        <td key={i}><div style={cell} /></td>
-      ))}
-    </tr>
-  )
-}
+const pill = (color: string) => ({
+  background: `${color}22`, border: `1px solid ${color}44`,
+  borderRadius: 20, padding: '3px 10px', fontSize: 11,
+  fontWeight: 700, color, letterSpacing: 0.5,
+});
 
 export default function SessionsPage() {
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState('')
-  const [showForm, setShowForm] = useState(false)
-  const [trainers, setTrainers] = useState<Trainer[]>([])
-  const [gymId, setGymId]       = useState('')
+  const [tab, setTab] = useState<'types' | 'bookings'>('types');
+  const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
+  const [schedules, setSchedules] = useState<SessionSchedule[]>([]);
+  const [bookings, setBookings] = useState<BookingRow[]>([]);
+  const [bookingDate, setBookingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [loading, setLoading] = useState(true);
+  const [expandedType, setExpandedType] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingType, setEditingType] = useState<SessionType | null>(null);
+  const [error, setError] = useState('');
 
-  const [fName,     setFName]     = useState('')
-  const [fType,     setFType]     = useState('Yoga')
-  const [fTrainer,  setFTrainer]  = useState('')
-  const [fDate,     setFDate]     = useState('')
-  const [fTime,     setFTime]     = useState('')
-  const [fCapacity, setFCapacity] = useState('')
+  // New session form state
+  const [form, setForm] = useState({
+    name: '', description: '', durationMinutes: 60,
+    maxCapacity: 20, color: COLORS[1], instructor: '',
+  });
+  const [scheduleForm, setScheduleForm] = useState({
+    daysOfWeek: [] as number[],
+    startTime: '07:00', endTime: '08:00',
+  });
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const gymData = await api.get<any>('/gyms/my-gym');
-        const gid = gymData?.id ?? gymData?.data?.id ?? '';
-        setGymId(gid);
-        if (gid) {
-          const trainerRes = await api.get<any>(`/trainers?gymId=${gid}&limit=100`);
-          const trainerList: Trainer[] = Array.isArray(trainerRes) ? trainerRes : (trainerRes?.data ?? []);
-          setTrainers(trainerList.map((t: any) => ({ id: t.id, name: t.name, specialization: t.specialization })));
-          if (trainerList.length > 0) setFTrainer(trainerList[0].id);
-        }
-      } catch { /* gym/trainer fetch failed, continue */ }
-
-      try {
-        const data = await api.get<any>('/sessions/my-gym');
-        const list = Array.isArray(data) ? data : (data?.data ?? []);
-        setSessions(list);
-      } catch {
-        setError('API unavailable.')
-        setSessions([])
-      } finally {
-        setLoading(false)
-      }
-    };
-    init();
-  }, [])
-
-  const today         = new Date().toISOString().slice(0, 10)
-  const todayCount    = sessions.filter(s => s.date === today).length
-  const totalEnrolled = sessions.reduce((acc, s) => acc + s.enrolled, 0)
-  const upcoming      = sessions.filter(s => s.status === 'Active' || s.status === 'Full').length
-  const completed     = sessions.filter(s => s.status === 'Completed').length
-
-  async function handleCreate() {
-    if (!fName.trim() || !fDate || !fTime || !fCapacity) return
-    const trainerName = trainers.find(t => t.id === fTrainer)?.name ?? fTrainer
-    const newSession: Session = {
-      id:       's' + Date.now(),
-      name:     fName,
-      trainer:  trainerName,
-      type:     fType,
-      date:     fDate,
-      time:     fTime,
-      capacity: parseInt(fCapacity) || 0,
-      enrolled: 0,
-      status:   'Active',
-    }
+  const load = async () => {
+    setLoading(true);
     try {
-      await api.post('/sessions/my-gym', {
-        name: fName, type: fType, trainerId: fTrainer, trainerName,
-        date: fDate, time: fTime, capacity: parseInt(fCapacity) || 0,
-        gymId, status: 'Active',
-      });
-    } catch { /* stored in-memory fallback */ }
-    setSessions(prev => [newSession, ...prev])
-    setFName(''); setFType('Yoga'); setFTrainer(trainers[0]?.id ?? ''); setFDate(''); setFTime(''); setFCapacity('')
-    setShowForm(false)
-  }
+      const [types, scheds] = await Promise.all([
+        api.get('/sessions/session-types'),
+        api.get('/sessions/session-schedules'),
+      ]);
+      setSessionTypes(types || []);
+      setSchedules(scheds || []);
+    } catch {}
+    setLoading(false);
+  };
 
-  const statCards = [
-    { label: "Today's Sessions",       value: todayCount,    icon: <Calendar size={18} /> },
-    { label: 'Total Members Attended', value: totalEnrolled, icon: <Users size={18} /> },
-    { label: 'Upcoming',               value: upcoming,      icon: <Clock size={18} /> },
-    { label: 'Completed',              value: completed,     icon: <Activity size={18} /> },
-  ]
+  const loadBookings = async (date: string) => {
+    try {
+      const data = await api.get(`/sessions/gym-bookings?date=${date}`);
+      setBookings(data || []);
+    } catch {}
+  };
+
+  useEffect(() => { load(); }, []);
+  useEffect(() => { if (tab === 'bookings') loadBookings(bookingDate); }, [tab, bookingDate]);
+
+  const resetForm = () => {
+    setForm({ name: '', description: '', durationMinutes: 60, maxCapacity: 20, color: COLORS[1], instructor: '' });
+    setScheduleForm({ daysOfWeek: [], startTime: '07:00', endTime: '08:00' });
+    setEditingType(null);
+    setShowAddForm(false);
+  };
+
+  const saveType = async () => {
+    setError('');
+    if (!form.name.trim()) { setError('Session name is required'); return; }
+    try {
+      if (editingType) {
+        await api.put(`/sessions/session-types/${editingType.id}`, form);
+      } else {
+        const created: SessionType = await api.post('/sessions/session-types', form);
+        // Also save schedule if days were selected
+        if (scheduleForm.daysOfWeek.length > 0) {
+          await api.put('/sessions/session-schedules', {
+            sessionTypeId: created.id,
+            ...scheduleForm,
+          });
+        }
+      }
+      await load();
+      resetForm();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to save');
+    }
+  };
+
+  const saveSchedule = async (sessionTypeId: string) => {
+    if (scheduleForm.daysOfWeek.length === 0) { setError('Select at least one day'); return; }
+    try {
+      await api.put('/sessions/session-schedules', { sessionTypeId, ...scheduleForm });
+      await load();
+      setExpandedType(null);
+      setScheduleForm({ daysOfWeek: [], startTime: '07:00', endTime: '08:00' });
+    } catch (e: any) {
+      setError(e?.message || 'Failed to save schedule');
+    }
+  };
+
+  const toggleActive = async (type: SessionType) => {
+    try {
+      await api.put(`/sessions/session-types/${type.id}`, { isActive: !type.isActive });
+      await load();
+    } catch {}
+  };
+
+  const deleteType = async (id: string) => {
+    if (!confirm('Delete this session type? This will also remove its schedule.')) return;
+    try {
+      await api.del(`/sessions/session-types/${id}`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || 'Cannot delete');
+    }
+  };
+
+  const getScheduleForType = (id: string) =>
+    schedules.find((s) => s.sessionTypeId === id);
+
+  const statusColor = (s: string) => ({
+    confirmed: '#3DFF54', attended: '#00D4FF',
+    not_attended: '#FF6B6B', cancelled: 'rgba(255,255,255,0.3)',
+  }[s] || '#888');
 
   return (
-    <Shell title="Sessions & Classes">
-      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
-
-      {error && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: 'rgba(255,60,60,0.1)', border: '1px solid rgba(255,60,60,0.25)',
-          borderRadius: 10, padding: '10px 16px', marginBottom: 20,
-          color: 'var(--error)', fontSize: 13,
-        }}>
-          <AlertTriangle size={15} />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
-        {statCards.map(stat => (
-          <div key={stat.label} className="card" style={{ padding: '18px 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--t3)', fontSize: 12, marginBottom: 8 }}>
-              {stat.icon}
-              <span className="kicker">{stat.label}</span>
-            </div>
-            <div className="stat-glow" style={{ fontSize: 28, fontWeight: 700, color: 'var(--t)' }}>
-              {loading ? '\u2014' : stat.value}
-            </div>
-          </div>
+    <Shell title="Sessions">
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 4, width: 'fit-content' }}>
+        {(['types', 'bookings'] as const).map((t) => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            padding: '8px 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
+            background: tab === t ? 'rgba(61,255,84,0.15)' : 'transparent',
+            color: tab === t ? 'var(--accent)' : 'rgba(255,255,255,0.5)',
+            fontFamily: 'DM Sans, sans-serif', fontWeight: 600, fontSize: 14,
+            borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent',
+            transition: 'all 0.2s',
+          }}>
+            {t === 'types' ? 'Session Types & Schedule' : 'Bookings'}
+          </button>
         ))}
       </div>
 
-      {/* Action row */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button
-          className="btn btn-primary"
-          onClick={() => setShowForm(v => !v)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-        >
-          <Plus size={15} />
-          Schedule Session
-        </button>
-      </div>
-
-      {/* Inline schedule form */}
-      {showForm && (
-        <div className="card glass" style={{ padding: 24, marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-            <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--t)' }}>New Session</span>
-            <button
-              className="btn btn-ghost"
-              onClick={() => setShowForm(false)}
-              style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-            >
-              <X size={14} /> Cancel
-            </button>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Session Name</label>
-              <input
-                className="glass-input"
-                style={{ width: '100%' }}
-                placeholder="e.g. Morning Yoga"
-                value={fName}
-                onChange={e => setFName(e.target.value)}
-              />
+      {/* ── SESSION TYPES TAB ── */}
+      {tab === 'types' && (
+        <div style={{ maxWidth: 780 }}>
+          {error && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#FF6B6B', background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.2)', borderRadius: 10, padding: '10px 16px', marginBottom: 16 }}>
+              <AlertCircle size={16} /> {error}
+              <button onClick={() => setError('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#FF6B6B', cursor: 'pointer' }}><X size={14} /></button>
             </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Type</label>
-              <div style={{ position: 'relative' }}>
-                <select
-                  className="glass-input"
-                  style={{ width: '100%', appearance: 'none' }}
-                  value={fType}
-                  onChange={e => setFType(e.target.value)}
-                >
-                  {['Yoga', 'HIIT', 'Strength', 'Cardio', 'Spin', 'CrossFit'].map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={13}
-                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--t3)' }}
-                />
+          )}
+
+          {/* Existing session types */}
+          {loading ? (
+            <div style={{ color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: 40 }}>Loading…</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+              {sessionTypes.map((type) => {
+                const sched = getScheduleForType(type.id);
+                const isExpanded = expandedType === type.id;
+                return (
+                  <div key={type.id} className="glass" style={{ borderRadius: 16, overflow: 'hidden', borderColor: type.isActive ? `${type.color}33` : 'rgba(255,255,255,0.06)' }}>
+                    {/* Type row */}
+                    <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                      {/* Color dot */}
+                      <div style={{ width: 12, height: 12, borderRadius: '50%', background: type.color, flexShrink: 0 }} />
+
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                          <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 15, color: '#fff' }}>{type.name}</span>
+                          <span style={pill(type.kind === 'standard' ? '#3DFF54' : '#6C63FF')}>
+                            {type.kind === 'standard' ? 'STANDARD' : 'SPECIAL'}
+                          </span>
+                          {!type.isActive && <span style={pill('#888')}>INACTIVE</span>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
+                          <span><Clock size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />{type.durationMinutes} min</span>
+                          <span><Users size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />Max {type.maxCapacity}</span>
+                          {type.instructor && <span><Star size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />{type.instructor}</span>}
+                          {sched && (
+                            <span style={{ color: 'var(--accent)' }}>
+                              <Calendar size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                              {sched.daysOfWeek.map((d) => DAYS[d]).join(', ')} · {sched.startTime}–{sched.endTime}
+                            </span>
+                          )}
+                          {type.kind === 'standard' && !sched && (
+                            <span style={{ color: 'var(--accent)' }}>Auto-generated every hour</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {type.kind !== 'standard' && (
+                          <button onClick={() => { setExpandedType(isExpanded ? null : type.id); setScheduleForm({ daysOfWeek: sched?.daysOfWeek ?? [], startTime: sched?.startTime ?? '07:00', endTime: sched?.endTime ?? '08:00' }); }}
+                            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
+                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          </button>
+                        )}
+                        {type.kind !== 'standard' && (
+                          <>
+                            <button onClick={() => toggleActive(type)} title={type.isActive ? 'Disable' : 'Enable'}
+                              style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: type.isActive ? 'rgba(61,255,84,0.1)' : 'rgba(255,255,255,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: type.isActive ? 'var(--accent)' : 'rgba(255,255,255,0.4)' }}>
+                              <Zap size={14} />
+                            </button>
+                            <button onClick={() => deleteType(type.id)} title="Delete"
+                              style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,107,107,0.2)', background: 'rgba(255,107,107,0.08)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FF6B6B' }}>
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Expanded schedule editor */}
+                    {isExpanded && type.kind !== 'standard' && (
+                      <div style={{ padding: '0 20px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 14, marginTop: 14 }}>Set recurring schedule for <strong style={{ color: '#fff' }}>{type.name}</strong></p>
+
+                        {/* Days of week */}
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                          {DAYS.map((day, idx) => {
+                            const sel = scheduleForm.daysOfWeek.includes(idx);
+                            return (
+                              <button key={idx} onClick={() => setScheduleForm((p) => ({
+                                ...p,
+                                daysOfWeek: sel ? p.daysOfWeek.filter((d) => d !== idx) : [...p.daysOfWeek, idx],
+                              }))}
+                                style={{
+                                  width: 44, height: 36, borderRadius: 8, border: `1px solid ${sel ? type.color : 'rgba(255,255,255,0.1)'}`,
+                                  background: sel ? `${type.color}22` : 'rgba(255,255,255,0.04)',
+                                  color: sel ? type.color : 'rgba(255,255,255,0.5)',
+                                  cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                                }}>
+                                {day}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Time range */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                          <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', minWidth: 40 }}>Start</label>
+                          <input type="time" value={scheduleForm.startTime} onChange={(e) => setScheduleForm((p) => ({ ...p, startTime: e.target.value }))}
+                            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', padding: '6px 12px', colorScheme: 'dark', fontSize: 14 }} />
+                          <span style={{ color: 'rgba(255,255,255,0.3)' }}>→</span>
+                          <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', minWidth: 30 }}>End</label>
+                          <input type="time" value={scheduleForm.endTime} onChange={(e) => setScheduleForm((p) => ({ ...p, endTime: e.target.value }))}
+                            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', padding: '6px 12px', colorScheme: 'dark', fontSize: 14 }} />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <button onClick={() => saveSchedule(type.id)} className="btn-primary" style={{ padding: '9px 22px', borderRadius: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Check size={14} /> Save Schedule
+                          </button>
+                          <button onClick={() => setExpandedType(null)} style={{ padding: '9px 18px', borderRadius: 20, fontSize: 13, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Add special session form */}
+          {showAddForm ? (
+            <div className="glass" style={{ borderRadius: 16, padding: 24, borderColor: 'rgba(108,99,255,0.3)' }}>
+              <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: '#fff', marginBottom: 20, marginTop: 0 }}>
+                Add Special Session
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+                {[
+                  { label: 'Session Name', key: 'name', placeholder: 'e.g. Yoga, Zumba, HIIT' },
+                  { label: 'Instructor', key: 'instructor', placeholder: 'Instructor name (optional)' },
+                ].map(({ label, key, placeholder }) => (
+                  <div key={key}>
+                    <label style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>{label}</label>
+                    <input value={(form as any)[key]} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} placeholder={placeholder}
+                      style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 14, boxSizing: 'border-box' }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Description</label>
+                <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="Brief description of the session"
+                  style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 14, resize: 'vertical', minHeight: 70, boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 16 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Duration (min)</label>
+                  <input type="number" min={15} max={240} value={form.durationMinutes} onChange={(e) => setForm((p) => ({ ...p, durationMinutes: Number(e.target.value) }))}
+                    style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 14, boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Max Capacity</label>
+                  <input type="number" min={1} max={200} value={form.maxCapacity} onChange={(e) => setForm((p) => ({ ...p, maxCapacity: Number(e.target.value) }))}
+                    style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 14, boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Color</label>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                    {COLORS.map((c) => (
+                      <button key={c} onClick={() => setForm((p) => ({ ...p, color: c }))}
+                        style={{ width: 28, height: 28, borderRadius: '50%', background: c, border: form.color === c ? '3px solid #fff' : '3px solid transparent', cursor: 'pointer' }} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Schedule for new type */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 16, marginBottom: 16 }}>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 12 }}>Set recurring schedule (optional — can be added later)</p>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                  {DAYS.map((day, idx) => {
+                    const sel = scheduleForm.daysOfWeek.includes(idx);
+                    return (
+                      <button key={idx} onClick={() => setScheduleForm((p) => ({ ...p, daysOfWeek: sel ? p.daysOfWeek.filter((d) => d !== idx) : [...p.daysOfWeek, idx] }))}
+                        style={{ width: 44, height: 36, borderRadius: 8, border: `1px solid ${sel ? form.color : 'rgba(255,255,255,0.1)'}`, background: sel ? `${form.color}22` : 'rgba(255,255,255,0.04)', color: sel ? form.color : 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                        {day}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <input type="time" value={scheduleForm.startTime} onChange={(e) => setScheduleForm((p) => ({ ...p, startTime: e.target.value }))}
+                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', padding: '6px 12px', colorScheme: 'dark', fontSize: 14 }} />
+                  <span style={{ color: 'rgba(255,255,255,0.3)' }}>→</span>
+                  <input type="time" value={scheduleForm.endTime} onChange={(e) => setScheduleForm((p) => ({ ...p, endTime: e.target.value }))}
+                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', padding: '6px 12px', colorScheme: 'dark', fontSize: 14 }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={saveType} className="btn-primary" style={{ padding: '10px 24px', borderRadius: 20, fontSize: 14 }}>Save Session</button>
+                <button onClick={resetForm} style={{ padding: '10px 20px', borderRadius: 20, fontSize: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>Cancel</button>
               </div>
             </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Trainer</label>
-              {trainers.length > 0 ? (
-                <div style={{ position: 'relative' }}>
-                  <select
-                    className="glass-input"
-                    style={{ width: '100%', appearance: 'none' }}
-                    value={fTrainer}
-                    onChange={e => setFTrainer(e.target.value)}
-                  >
-                    {trainers.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}{t.specialization ? ` — ${t.specialization}` : ''}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={13} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--t3)' }} />
-                </div>
-              ) : (
-                <input
-                  className="glass-input"
-                  style={{ width: '100%' }}
-                  placeholder="Trainer name (add trainers first)"
-                  value={fTrainer}
-                  onChange={e => setFTrainer(e.target.value)}
-                />
-              )}
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Date</label>
-              <input
-                className="glass-input"
-                style={{ width: '100%' }}
-                type="date"
-                value={fDate}
-                onChange={e => setFDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Time</label>
-              <input
-                className="glass-input"
-                style={{ width: '100%' }}
-                type="time"
-                value={fTime}
-                onChange={e => setFTime(e.target.value)}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Capacity</label>
-              <input
-                className="glass-input"
-                style={{ width: '100%' }}
-                type="number"
-                placeholder="20"
-                value={fCapacity}
-                onChange={e => setFCapacity(e.target.value)}
-              />
-            </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
-            <button className="btn btn-primary" onClick={handleCreate}>Create Session</button>
-          </div>
+          ) : (
+            <button onClick={() => setShowAddForm(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '14px 22px',
+              background: 'rgba(108,99,255,0.1)', border: '1px dashed rgba(108,99,255,0.4)',
+              borderRadius: 16, cursor: 'pointer', color: '#6C63FF',
+              fontFamily: 'DM Sans, sans-serif', fontWeight: 600, fontSize: 14, width: '100%',
+            }}>
+              <Plus size={18} /> Add Special Session (Yoga, Zumba, HIIT…)
+            </button>
+          )}
         </div>
       )}
 
-      {/* Table */}
-      <div className="glass overflow-hidden" style={{ borderRadius: 12 }}>
-        <table className="glass-table" style={{ width: '100%' }}>
-          <thead>
-            <tr>
-              <th>Session Name</th>
-              <th>Trainer</th>
-              <th>Type</th>
-              <th>Time</th>
-              <th>Capacity</th>
-              <th>Enrolled</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading
-              ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-              : sessions.map(s => (
-                  <tr key={s.id}>
-                    <td style={{ fontWeight: 600, color: 'var(--t)' }}>{s.name}</td>
-                    <td>{s.trainer}</td>
-                    <td><TypeBadge type={s.type} /></td>
-                    <td>{s.time}</td>
-                    <td>{s.capacity}</td>
-                    <td>{s.enrolled} / {s.capacity}</td>
-                    <td><StatusBadge status={s.status} /></td>
+      {/* ── BOOKINGS TAB ── */}
+      {tab === 'bookings' && (
+        <div style={{ maxWidth: 900 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <label style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Date</label>
+            <input type="date" value={bookingDate} onChange={(e) => setBookingDate(e.target.value)}
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, color: '#fff', padding: '8px 14px', colorScheme: 'dark', fontSize: 14, cursor: 'pointer' }} />
+            <button onClick={() => loadBookings(bookingDate)} className="btn-ghost" style={{ padding: '8px 18px', borderRadius: 20, fontSize: 13 }}>Refresh</button>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>{bookings.length} booking{bookings.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {bookings.length === 0 ? (
+            <div className="glass" style={{ borderRadius: 16, padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)' }}>
+              No bookings for this date yet.
+            </div>
+          ) : (
+            <div className="glass" style={{ borderRadius: 16, overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    {['Ref', 'Member', 'Session', 'Time', 'Status'].map((h) => (
+                      <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', fontWeight: 600 }}>{h}</th>
+                    ))}
                   </tr>
-                ))
-            }
-          </tbody>
-        </table>
-      </div>
+                </thead>
+                <tbody>
+                  {bookings.map((b) => (
+                    <tr key={b.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>{b.bookingRef}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 14, color: '#fff' }}>
+                        {b.user?.name ?? '—'}
+                        {b.user?.phone && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{b.user.phone}</div>}
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        {b.sessionType && <span style={pill(b.sessionType.color)}>{b.sessionType.name}</span>}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
+                        {b.slot ? `${b.slot.startTime} – ${b.slot.endTime}` : '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={pill(statusColor(b.status))}>{b.status.replace('_', ' ').toUpperCase()}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </Shell>
-  )
+  );
 }

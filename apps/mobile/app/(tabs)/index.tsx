@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconQR, IconStar, IconPin, IconBell, IconDumbbell, IconBolt } from '../../components/Icons';
-import { gymsApi, getUser } from '../../lib/api';
+import { gymsApi, getUser, api } from '../../lib/api';
 import AuroraBackground from '../../components/AuroraBackground';
 
 const FALLBACK_GYMS = [

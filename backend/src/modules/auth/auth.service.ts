@@ -8,6 +8,7 @@ import { UserEntity } from '../../database/entities/user.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
 import { CorporateAccountEntity } from '../../database/entities/corporate.entity';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class AuthService {
@@ -17,6 +18,7 @@ export class AuthService {
     @InjectRepository(CorporateAccountEntity) private readonly corporates: Repository<CorporateAccountEntity>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly jwt: JwtService,
+    private readonly email: EmailService,
   ) {}
 
   async sendOtp(phone: string) {
@@ -26,7 +28,14 @@ export class AuthService {
     await this.redis.set(`otp:${phone}`, code, 'EX', 300);
     // TODO: integrate Twilio in production
     // await twilio.messages.create({ to: phone, from: TWILIO_PHONE, body: `Your BMF OTP: ${code}` });
-    return { success: true, message: 'OTP sent', ...(process.env.NODE_ENV !== 'production' && { devOtp: code }) };
+    const existingUser = await this.users.findOne({ where: { phone } });
+    return {
+      success: true,
+      message: 'OTP sent',
+      userExists: !!existingUser,
+      userName: existingUser?.name || null,
+      ...(process.env.NODE_ENV !== 'production' && { devOtp: code }),
+    };
   }
 
   async verifyOtp(phone: string, code: string, deviceId: string, name?: string) {
@@ -39,7 +48,6 @@ export class AuthService {
       user = this.users.create({ phone, name: name || 'User', deviceId, role: 'end_user' });
       user = await this.users.save(user);
     } else if (user.deviceId && user.deviceId !== deviceId) {
-      // device mismatch → could flag account here
       user.deviceId = deviceId;
       await this.users.save(user);
     } else if (!user.deviceId) {
@@ -88,6 +96,8 @@ export class AuthService {
         status: 'pending', ownerId: user.id, kycStatus: 'not_started',
       }),
     );
+    // Fire-and-forget welcome email
+    this.email.sendGymRegistered({ gymName: data.gymName, ownerName: data.name, email: data.email }).catch(() => {});
     return { ...this.issueTokens(user), gym };
   }
 
@@ -107,11 +117,13 @@ export class AuthService {
         totalSeats: 0, assignedSeats: 0, adminUserId: user.id, isActive: true,
       }),
     );
+    // Fire-and-forget welcome email
+    this.email.sendCorporateRegistered({ companyName: data.companyName, adminName: data.companyName, email: data.email }).catch(() => {});
     return { ...this.issueTokens(user), corporate };
   }
 
   private issueTokens(user: UserEntity) {
-    const payload = { sub: user.id, role: user.role, phone: user.phone };
+    const payload = { sub: user.id, role: user.role, phone: user.phone, email: user.email };
     const accessToken = this.jwt.sign(payload);
     const refreshToken = this.jwt.sign(payload, {
       secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret',

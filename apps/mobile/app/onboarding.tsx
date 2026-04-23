@@ -32,7 +32,7 @@ const SLIDES = [
 export default function Onboarding() {
   const [current, setCurrent] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  const autoTimer = useRef<ReturnType<typeof setTimeout>>();
+  const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panX = useRef(0);
 
   const goTo = (idx: number) => {

@@ -93,13 +93,42 @@ export const gymsApi = {
 export const subscriptionsApi = {
   plans: () => api.get('/subscriptions/plans'),
   mySubscriptions: () => api.get('/subscriptions'),
-  purchase: (body: { planId: string; gymId?: string; durationMonths: number }) =>
-    api.post('/subscriptions/purchase', body),
-  createOrder: (body: { planId: string; gymId?: string; durationMonths: number; couponCode?: string; ptAddon?: boolean }) =>
-    api.post('/payments/cashfree/order', body),
+  /** Purchase a subscription — creates DB record + Cashfree order */
+  purchase: (body: {
+    planType: 'multigym_elite' | 'multigym_max' | 'gym_specific';
+    gymId?: string;
+    gymPlanId?: string;
+    durationMonths: number;
+    amountOverride?: number;
+    isDayPass?: boolean;
+    ptAddon?: boolean;
+    couponCode?: string;
+  }) => api.post('/subscriptions/purchase', body),
+  /** Legacy alias used in order.tsx - maps planId to planType */
+  createOrder: (body: { planId: string; gymId?: string; durationMonths: number; couponCode?: string; ptAddon?: boolean; totalAmount?: number; isDayPass?: boolean }) => {
+    const planTypeMap: Record<string, string> = {
+      multigym_elite: 'multigym_elite',
+      multigym_max: 'multigym_max',
+    };
+    const planType = planTypeMap[body.planId] || 'gym_specific';
+    return api.post('/subscriptions/purchase', {
+      planType,
+      gymId: planType === 'gym_specific' ? body.gymId : undefined,
+      durationMonths: body.durationMonths,
+      amountOverride: planType === 'gym_specific' ? body.totalAmount : undefined,
+      isDayPass: body.isDayPass || body.durationMonths === 0,
+      couponCode: body.couponCode,
+      ptAddon: body.ptAddon,
+    });
+  },
   verifyPayment: (body: { orderId: string; paymentId: string; signature: string }) =>
     api.post('/payments/webhook', body),
+  verify: (subId: string) => api.post(`/subscriptions/${subId}/verify`, {}),
   invoice: (id: string) => api.get(`/subscriptions/${id}/invoice`),
+};
+
+export const gymPlansApi = {
+  forGym: (gymId: string) => api.get(`/gym-plans/by-gym/${gymId}`),
 };
 
 export const qrApi = {

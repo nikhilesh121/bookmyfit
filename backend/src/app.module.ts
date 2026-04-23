@@ -20,6 +20,14 @@ import { WellnessModule } from './modules/wellness/wellness.module';
 import { StoreModule } from './modules/store/store.module';
 import { MiscModule } from './modules/misc/misc.module';
 import { SlotsModule } from './modules/slots/slots.module';
+import { SessionsModule } from './modules/sessions/sessions.module';
+import { EmailModule } from './modules/email/email.module';
+import { GymScheduleEntity } from './database/entities/gym-schedule.entity';
+import { SessionTypeEntity } from './database/entities/session-type.entity';
+import { SessionScheduleEntity } from './database/entities/session-schedule.entity';
+import { SessionSlotEntity } from './database/entities/session-slot.entity';
+import { SessionBookingEntity } from './database/entities/session-booking.entity';
+import { AttendanceEntity } from './database/entities/attendance.entity';
 import { SeedService } from './database/seed.service';
 import { UserEntity } from './database/entities/user.entity';
 import { GymEntity } from './database/entities/gym.entity';
@@ -28,11 +36,12 @@ import { CorporateAccountEntity } from './database/entities/corporate.entity';
 import { WorkoutVideoEntity } from './database/entities/misc.entity';
 import { GymSlotEntity } from './database/entities/gym-slot.entity';
 import { SlotBookingEntity } from './database/entities/slot-booking.entity';
+import { AppConfigEntity } from './database/entities/app-config.entity';
 
 @Module({
   providers: [SeedService],
   imports: [
-    TypeOrmModule.forFeature([UserEntity, GymEntity, ProductEntity, CorporateAccountEntity, WorkoutVideoEntity, GymSlotEntity, SlotBookingEntity]),
+    TypeOrmModule.forFeature([UserEntity, GymEntity, ProductEntity, CorporateAccountEntity, WorkoutVideoEntity, GymSlotEntity, SlotBookingEntity, AppConfigEntity, GymScheduleEntity, SessionTypeEntity, SessionScheduleEntity, SessionSlotEntity, SessionBookingEntity, AttendanceEntity]),
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', '../.env'] }),
     TypeOrmModule.forRootAsync({
       useFactory: () => {
@@ -78,6 +87,8 @@ import { SlotBookingEntity } from './database/entities/slot-booking.entity';
     StoreModule,
     MiscModule,
     SlotsModule,
+    SessionsModule,
+    EmailModule,
     HealthModule,
   ],
 })

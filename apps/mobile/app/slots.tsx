@@ -58,10 +58,22 @@ export default function SlotsScreen() {
     try {
       const date = formatDate(days[dayIndex]);
       const res: any = await slotsApi.list(gymId || '', date);
-      const items = Array.isArray(res) ? res : res?.slots ?? res?.data ?? [];
-      setSlots(items.length > 0 ? items : FALLBACK_SLOTS);
+      let items = Array.isArray(res) ? res : res?.slots ?? res?.data ?? [];
+
+      // For today (dayIndex === 0), filter out past time slots
+      if (dayIndex === 0) {
+        const now = new Date();
+        const currentHHMM = now.getHours() * 60 + now.getMinutes();
+        items = items.filter((slot: any) => {
+          const t = slot.startTime || '00:00';
+          const [h, m] = t.split(':').map(Number);
+          return (h * 60 + m) > currentHHMM;
+        });
+      }
+
+      setSlots(items.length > 0 ? items : (dayIndex === 0 ? [] : FALLBACK_SLOTS));
     } catch {
-      setSlots(FALLBACK_SLOTS);
+      setSlots(dayIndex === 0 ? [] : FALLBACK_SLOTS);
     } finally {
       setLoading(false);
     }

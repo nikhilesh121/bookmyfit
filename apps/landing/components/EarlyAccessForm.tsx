@@ -34,7 +34,7 @@ export default function EarlyAccessForm() {
           padding: '24px 0',
         }}
       >
-        🎉 You&apos;re on the list! We&apos;ll notify you at launch.
+        You&apos;re on the list — we&apos;ll notify you at launch.
       </p>
     );
   }

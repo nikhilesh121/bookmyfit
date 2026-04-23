@@ -34,8 +34,8 @@ export default function Profile() {
 
   const MENU_ITEMS = [
     { label: 'My Subscriptions', icon: IconCreditCard, onPress: () => router.push('/(tabs)/subscriptions') },
+    { label: 'My Session Bookings', icon: IconCalendar, onPress: () => router.push('/my-bookings') },
     { label: 'Visit History', icon: IconClock, onPress: () => router.push('/history') },
-    { label: 'My Slot Bookings', icon: IconCalendar, onPress: () => router.push('/slots') },
     { label: 'Store Orders', icon: IconShopping, onPress: () => router.push('/(tabs)/store') },
     { label: 'Notifications', icon: IconBell, onPress: () => router.push('/notifications') },
     { label: 'Rate App', icon: IconBolt, onPress: () => Alert.alert('Rate App', 'Thank you for your support!') },

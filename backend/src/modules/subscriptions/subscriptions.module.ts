@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Body, UseGuards, Req, Injectable, BadRequestException, NotFoundException, Param, Query } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Body, UseGuards, Req, Injectable, BadRequestException, NotFoundException, Param, Query } from '@nestjs/common';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
@@ -6,17 +6,32 @@ import { Repository } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { v4 as uuid } from 'uuid';
-import { SubscriptionEntity, PlanType } from '../../database/entities/subscription.entity';
+import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { UserEntity } from '../../database/entities/user.entity';
+import { AppConfigEntity } from '../../database/entities/app-config.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
 
-const PLAN_CATALOG: Record<PlanType, { name: string; basePrice: number; maxGyms?: number }> = {
-  individual: { name: 'Individual Gym', basePrice: 1500, maxGyms: 1 },
-  pro: { name: 'Pro Multi-Gym', basePrice: 2500, maxGyms: 5 },
-  max: { name: 'Max All Access', basePrice: 3500 },
-  elite: { name: 'Elite Premium', basePrice: 5000 },
+/**
+ * Default Multi-Gym plan pricing. Admin can override via /subscriptions/multigym-config.
+ * Individual gym plans are managed entirely by the gym owner in gym-plans module.
+ */
+const DEFAULT_MULTIGYM_CONFIG = {
+  elite: {
+    name: 'Multi-Gym Elite',
+    subtitle: 'Access any 5 gyms on BookMyFit',
+    basePrice: 1499,
+    gymLimit: 5,
+    features: ['Access any 5 distinct gyms', 'QR Check-in', 'Unlimited visits per gym', '1 visit/day per gym', 'All Standard & Premium gyms'],
+  },
+  max: {
+    name: 'Multi-Gym Max',
+    subtitle: 'Unlimited access to every gym',
+    basePrice: 3999,
+    gymLimit: null, // unlimited
+    features: ['Unlimited gyms, unlimited visits', 'QR Check-in', 'Priority support', 'All gym tiers', 'PT session add-on eligible'],
+  },
 };
 
 @Injectable()
@@ -24,53 +39,136 @@ class SubscriptionsService {
   constructor(
     @InjectRepository(SubscriptionEntity) private readonly repo: Repository<SubscriptionEntity>,
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
+    @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
     private readonly cashfree: CashfreeService,
   ) {}
 
-  plans() {
-    return Object.entries(PLAN_CATALOG).map(([type, meta]) => ({ type, ...meta }));
+  async getMultigymConfig() {
+    const record = await this.configRepo.findOne({ where: { key: 'multigym_plans' } });
+    return record ? { ...DEFAULT_MULTIGYM_CONFIG, ...record.value } : DEFAULT_MULTIGYM_CONFIG;
+  }
+
+  async setMultigymConfig(data: Partial<typeof DEFAULT_MULTIGYM_CONFIG>) {
+    const current = await this.getMultigymConfig();
+    const merged = { ...current, ...data };
+    await this.configRepo.save(this.configRepo.create({ key: 'multigym_plans', value: merged }));
+    return merged;
+  }
+
+  async plans() {
+    const config = await this.getMultigymConfig();
+    return {
+      multigym: {
+        elite: { ...config.elite, planType: 'multigym_elite' },
+        max: { ...config.max, planType: 'multigym_max' },
+      },
+      note: 'Individual gym plans are set by each gym. Browse gyms to see their plans.',
+    };
   }
 
   myActive(userId: string) {
-    return this.repo.find({ where: { userId, status: 'active' }, order: { endDate: 'DESC' } });
+    return this.repo.find({ where: { userId }, order: { createdAt: 'DESC' }, take: 50 });
   }
 
   /**
-   * Creates a subscription in "pending" state + a Cashfree order.
-   * Subscription moves to "active" only when the payment webhook fires.
+   * Creates a subscription + Cashfree payment order.
+   * - multigym_elite / multigym_max: no gym selection required.
+   * - gym_specific: requires gymId and optionally gymPlanId.
+   * - durationMonths = 0 means 1-day pass.
    */
-  async purchase(userId: string, phone: string, dto: { planType: PlanType; durationMonths: number; gymIds?: string[] }) {
-    if (!PLAN_CATALOG[dto.planType]) throw new BadRequestException('Invalid plan');
-    if (dto.planType === 'individual' && (!dto.gymIds || dto.gymIds.length !== 1))
-      throw new BadRequestException('Individual plan requires exactly 1 gym');
+  async purchase(userId: string, phone: string, email: string | undefined, dto: {
+    planType: 'multigym_elite' | 'multigym_max' | 'gym_specific';
+    durationMonths: number;
+    gymId?: string;
+    gymPlanId?: string;
+    amountOverride?: number;
+    isDayPass?: boolean;
+  }) {
+    const config = await this.getMultigymConfig();
+    let amount: number;
+    let gymIds: string[] = [];
+    let gymPlanId: string | undefined;
+    const isDayPass = dto.isDayPass || dto.durationMonths === 0;
+    const durationMonths = isDayPass ? 0 : (dto.durationMonths || 1);
+
+    if (dto.planType === 'gym_specific') {
+      if (!dto.gymId) throw new BadRequestException('gymId required for gym-specific plan');
+      gymIds = [dto.gymId];
+      gymPlanId = dto.gymPlanId;
+      amount = dto.amountOverride || 0; // gym sets the price, mobile sends totalAmount
+    } else if (dto.planType === 'multigym_elite') {
+      const elitePrice = (config.elite?.basePrice || DEFAULT_MULTIGYM_CONFIG.elite.basePrice);
+      amount = isDayPass ? Math.round(elitePrice / 20) : elitePrice * durationMonths;
+    } else if (dto.planType === 'multigym_max') {
+      const maxPrice = (config.max?.basePrice || DEFAULT_MULTIGYM_CONFIG.max.basePrice);
+      amount = isDayPass ? Math.round(maxPrice / 20) : maxPrice * durationMonths;
+    } else {
+      throw new BadRequestException('Invalid planType. Use multigym_elite, multigym_max, or gym_specific');
+    }
 
     const startDate = new Date();
     const endDate = new Date();
-    endDate.setMonth(endDate.getMonth() + dto.durationMonths);
-    const amount = PLAN_CATALOG[dto.planType].basePrice * dto.durationMonths;
+    if (isDayPass) {
+      endDate.setDate(endDate.getDate() + 1);
+    } else {
+      endDate.setMonth(endDate.getMonth() + durationMonths);
+    }
     const cfOrderId = `SUB_${uuid().slice(0, 18)}`;
 
-    const sub = await this.repo.save(this.repo.create({
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+
+    const entity = this.repo.create({
       userId,
       planType: dto.planType,
-      durationMonths: dto.durationMonths,
+      durationMonths,
       startDate: startDate.toISOString().slice(0, 10),
       endDate: endDate.toISOString().slice(0, 10),
-      status: 'expired', // stays "inactive" until webhook confirms; use expired as placeholder
+      status: 'pending', // becomes 'active' after payment webhook or verify
       amountPaid: amount,
-      gymIds: dto.gymIds || [],
+      gymIds,
+      gymPlanId,
       razorpayOrderId: cfOrderId,
-    }));
+    } as any);
+    const sub = (await this.repo.save(entity as any)) as SubscriptionEntity;
 
     const payment = await this.cashfree.createOrder({
       orderId: cfOrderId,
       amount,
       customerId: userId,
-      customerPhone: phone,
-      notes: { kind: 'subscription', subscriptionId: sub.id },
+      customerPhone: phone || user?.phone || '0000000000',
+      customerEmail: email || user?.email,
+      notes: { kind: 'subscription', subscriptionId: sub.id, planType: dto.planType },
     });
 
+    // In dev/mock mode, auto-activate immediately
+    if ((payment as any)?.mock) {
+      await this.repo.update(sub.id, { status: 'active' });
+      sub.status = 'active';
+    }
+
     return { subscription: sub, payment };
+  }
+
+  /** Verify/activate a subscription after payment (called by mobile on success) */
+  async verifyAndActivate(subId: string, userId: string) {
+    const sub = await this.repo.findOne({ where: { id: subId, userId } });
+    if (!sub) throw new NotFoundException('Subscription not found');
+    if (sub.status === 'active') return { success: true, subscription: sub };
+
+    // In dev mode, activate directly. In prod this would verify with Cashfree.
+    if (process.env.NODE_ENV !== 'production' || !sub.razorpayOrderId) {
+      await this.repo.update(subId, { status: 'active' });
+      sub.status = 'active';
+      return { success: true, subscription: sub };
+    }
+
+    // Prod: fetch Cashfree order status
+    const cfOrder = await this.cashfree.fetchOrder(sub.razorpayOrderId);
+    if (cfOrder?.order_status === 'PAID') {
+      await this.repo.update(subId, { status: 'active' });
+      sub.status = 'active';
+    }
+    return { success: true, subscription: sub };
   }
 
   async list(page: any = 1, limit: any = 20, status?: string, gymId?: string) {
@@ -94,7 +192,6 @@ class SubscriptionsService {
     const sub = await this.repo.findOne({ where: { id: subscriptionId, userId } });
     if (!sub) throw new BadRequestException('Subscription not found');
     if (sub.status !== 'frozen') throw new BadRequestException('Subscription is not frozen');
-    // Extend end date by remaining days (simple 30-day extension)
     const newEnd = new Date(sub.endDate);
     newEnd.setDate(newEnd.getDate() + 30);
     await this.repo.update(subscriptionId, {
@@ -120,7 +217,12 @@ class SubscriptionsService {
     const gstAmount = amount - baseAmount;
     const cgst = Math.round(gstAmount / 2);
     const sgst = Math.round(gstAmount / 2);
-    const planName = PLAN_CATALOG[sub.planType]?.name || sub.planType || 'Standard';
+    const planLabels: Record<string, string> = {
+      multigym_elite: 'Multi-Gym Elite',
+      multigym_max: 'Multi-Gym Max',
+      gym_specific: 'Individual Gym Plan',
+    };
+    const planName = planLabels[sub.planType] || sub.planType || 'Standard';
     return {
       invoiceNumber: sub.invoiceNumber,
       invoiceDate: sub.createdAt,
@@ -157,7 +259,22 @@ class SubscriptionsService {
 class SubscriptionsController {
   constructor(private readonly svc: SubscriptionsService) {}
 
+  /** Public: returns multigym plan structure (Pro & Max). Individual plans are per-gym. */
   @Get('plans') plans() { return this.svc.plans(); }
+
+  /** Admin: get multigym config */
+  @Get('multigym-config')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  getConfig() { return this.svc.getMultigymConfig(); }
+
+  /** Admin: update multigym pricing */
+  @Put('multigym-config')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  setConfig(@Body() body: any) { return this.svc.setMultigymConfig(body); }
 
   @Get()
   @ApiBearerAuth()
@@ -167,7 +284,14 @@ class SubscriptionsController {
   @Post('purchase')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  purchase(@Req() req: any, @Body() body: any) { return this.svc.purchase(req.user.userId, req.user.phone, body); }
+  purchase(@Req() req: any, @Body() body: any) {
+    return this.svc.purchase(req.user.userId, req.user.phone, req.user.email, body);
+  }
+
+  @Post(':id/verify')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  verify(@Param('id') id: string, @Req() req: any) { return this.svc.verifyAndActivate(id, req.user.userId); }
 
   @Get('all')
   @ApiBearerAuth()
@@ -203,7 +327,7 @@ class SubscriptionsController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SubscriptionEntity, UserEntity]), PaymentsModule],
+  imports: [TypeOrmModule.forFeature([SubscriptionEntity, UserEntity, AppConfigEntity]), PaymentsModule],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsService],
   exports: [SubscriptionsService],

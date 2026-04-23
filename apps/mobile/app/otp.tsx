@@ -12,19 +12,23 @@ import { setUser } from '../lib/api';
 const API = (Constants.expoConfig?.extra?.apiUrl) || 'http://localhost:3003';
 
 export default function OtpScreen() {
-  const { phone } = useLocalSearchParams<{ phone: string }>();
+  const { phone, userExists: userExistsParam, userName: userNameParam } = useLocalSearchParams<{
+    phone: string; userExists?: string; userName?: string;
+  }>();
+  const isExistingUser = userExistsParam === 'true';
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
   const verify = async () => {
     if (code.length < 4) return Alert.alert('Enter OTP');
+    if (!isExistingUser && !name.trim()) return Alert.alert('Enter your name');
     setLoading(true);
     try {
       const deviceId = `dev-${Date.now()}`;
       const res = await fetch(`${API}/api/v1/auth/otp/verify`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code, deviceId, name: name.trim() || 'User' }),
+        body: JSON.stringify({ phone, code, deviceId, name: isExistingUser ? undefined : (name.trim() || 'User') }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Invalid OTP');
@@ -34,7 +38,7 @@ export default function OtpScreen() {
       if (data.refreshToken) await SecureStore.setItemAsync('bmf_refresh', data.refreshToken);
 
       // Store user object (with phone fallback)
-      const user = data.user || { phone, name: name.trim() || 'User' };
+      const user = data.user || { phone, name: isExistingUser ? (userNameParam || 'Member') : (name.trim() || 'User') };
       await setUser(user);
 
       const role = user?.role;
@@ -56,21 +60,32 @@ export default function OtpScreen() {
             <IconArrowLeft size={18} color="#fff" />
           </TouchableOpacity>
           <View style={s.top}>
-            <Text style={s.kicker}>Almost there</Text>
+            <Text style={s.kicker}>{isExistingUser ? 'Welcome back' : 'Almost there'}</Text>
             <Text style={s.title}>
               Verify your{'\n'}
               <Text style={s.titleAccent}>phone number.</Text>
             </Text>
-            <Text style={s.sub}>Enter the 6-digit code sent to +91 {phone}</Text>
+            {isExistingUser ? (
+              <Text style={s.sub}>
+                Welcome back, <Text style={{ color: colors.accent, fontFamily: fonts.sansBold }}>{userNameParam || 'member'}</Text>!{'\n'}
+                Enter the 6-digit code sent to +91 {phone}
+              </Text>
+            ) : (
+              <Text style={s.sub}>Enter the 6-digit code sent to +91 {phone}</Text>
+            )}
           </View>
 
           <View style={s.form}>
-            <Text style={s.label}>Your name</Text>
-            <View style={s.inputRow}>
-              <TextInput style={s.input} placeholder="First + last name" placeholderTextColor={colors.t3}
-                value={name} onChangeText={setName} />
-            </View>
-            <Text style={[s.label, { marginTop: 20 }]}>6-digit OTP</Text>
+            {!isExistingUser && (
+              <>
+                <Text style={s.label}>Your name</Text>
+                <View style={s.inputRow}>
+                  <TextInput style={s.input} placeholder="First + last name" placeholderTextColor={colors.t3}
+                    value={name} onChangeText={setName} />
+                </View>
+              </>
+            )}
+            <Text style={[s.label, { marginTop: isExistingUser ? 0 : 20 }]}>6-digit OTP</Text>
             <View style={[s.inputRow, { borderColor: code.length > 0 ? colors.accentBorder : colors.borderGlass }]}>
               <TextInput
                 style={[s.input, { letterSpacing: 10, fontFamily: fonts.sansBold, fontSize: 20, textAlign: 'center' }]}

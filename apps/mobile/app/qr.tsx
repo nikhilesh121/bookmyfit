@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import QRCode from 'react-native-qrcode-svg';
 import { qrApi, subscriptionsApi, gymsApi } from '../lib/api';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconBolt, IconRefresh } from '../components/Icons';
@@ -24,6 +25,7 @@ export default function QRScreen() {
   const [loading, setLoading] = useState(false);
   const [subId, setSubId] = useState<string | null>(routeSubId || null);
   const [gymName, setGymName] = useState<string | null>(null);
+  const [planName, setPlanName] = useState<string | null>(null);
 
   // Fetch gym name if gymId provided
   useEffect(() => {
@@ -44,10 +46,12 @@ export default function QRScreen() {
       subscriptionsApi.mySubscriptions()
         .then((data: any) => {
           const subs = Array.isArray(data) ? data : data?.subscriptions || data?.data || [];
-          const active = subs.find((s: any) => s.status === 'active' || s.isActive);
+          const active = subs.find((s: any) => s.status === 'active');
           if (active) {
             const id = active._id || active.id;
+            const pName = active.plan?.name || active.planType || null;
             setSubId(id);
+            setPlanName(pName);
             generateWithId(id);
           } else {
             generateWithId(null);
@@ -63,13 +67,13 @@ export default function QRScreen() {
       if (id) {
         const res = await qrApi.generate(id);
         const baseToken = res.token || res.qrToken || ('BMF-' + Date.now());
-        setToken(routeGymId ? baseToken + '|GYM:' + routeGymId : baseToken);
+        setToken(routeGymId ? `${baseToken}|GYM:${routeGymId}` : baseToken);
       } else {
-        setToken('BMF-DEMO-' + Math.random().toString(36).slice(2, 10).toUpperCase());
+        setToken(`BMF-DEMO-${Math.random().toString(36).slice(2, 10).toUpperCase()}`);
       }
       setRemaining(30);
     } catch {
-      setToken('BMF-DEMO-' + Math.random().toString(36).slice(2, 10).toUpperCase());
+      setToken(`BMF-DEMO-${Math.random().toString(36).slice(2, 10).toUpperCase()}`);
       setRemaining(30);
     } finally {
       setLoading(false);
@@ -116,25 +120,35 @@ export default function QRScreen() {
           {loading || !token ? (
             <ActivityIndicator color={colors.accent} size="large" />
           ) : (
-            <View style={s.tokenBox}>
-              <Text style={s.tokenLabel}>SCAN TOKEN</Text>
-              <Text style={s.tokenText} numberOfLines={3} adjustsFontSizeToFit>{token}</Text>
+            <View style={s.qrInner}>
+              <QRCode
+                value={token}
+                size={180}
+                color="#000000"
+                backgroundColor="#FFFFFF"
+                logo={undefined}
+                logoSize={0}
+                quietZone={8}
+              />
             </View>
           )}
         </View>
 
+        {/* Timer ring */}
         <View style={s.timerWrap}>
-          <View style={s.timerCircle}>
-            <Text style={s.timerNum}>{remaining}</Text>
+          <View style={[s.timerCircle, { borderColor: remaining > 10 ? colors.accentBorder : 'rgba(255,80,80,0.5)' }]}>
+            <Text style={[s.timerNum, { color: remaining > 10 ? colors.accent : 'rgba(255,120,120,1)' }]}>{remaining}</Text>
           </View>
           <Text style={s.timerLabel}>Refreshes every 30 seconds</Text>
         </View>
 
+        {/* Token preview */}
         <View style={s.memberCard}>
           <Text style={s.memberLabel}>Token Preview</Text>
           <Text style={s.memberId} numberOfLines={1}>
-            {token ? token.slice(0, 24) + (token.length > 24 ? '...' : '') : '-'}
+            {token ? token.slice(0, 28) + (token.length > 28 ? '…' : '') : '-'}
           </Text>
+          {!!planName && <Text style={s.planLabel}>{planName}</Text>}
         </View>
 
         <TouchableOpacity style={s.shareBtn} onPress={() => generateWithId(subId)}>
@@ -150,7 +164,7 @@ const s = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 22, alignItems: 'center' },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    width: '100%', marginTop: 8, marginBottom: 24,
+    width: '100%', marginTop: 8, marginBottom: 20,
   },
   back: {
     width: 38, height: 38, borderRadius: 12, backgroundColor: colors.glass,
@@ -170,36 +184,31 @@ const s = StyleSheet.create({
   gymBadgeText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t },
   qrFrame: {
     width: 220, height: 220, borderRadius: radius.xl,
-    backgroundColor: colors.glass, borderWidth: 2, borderColor: colors.accentBorder,
+    backgroundColor: '#ffffff',
+    borderWidth: 3, borderColor: colors.accentBorder,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 20, padding: 20,
+    marginBottom: 18,
+    shadowColor: colors.accent, shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 0 },
   },
-  tokenBox: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  tokenLabel: {
-    fontFamily: fonts.sansBold, fontSize: 9, color: colors.accent,
-    letterSpacing: 3, marginBottom: 14,
-  },
-  tokenText: {
-    fontFamily: fonts.sansBold, fontSize: 12, color: '#fff',
-    textAlign: 'center', letterSpacing: 1.5, lineHeight: 20,
-  },
-  timerWrap: { alignItems: 'center', gap: 6, marginBottom: 16 },
+  qrInner: { alignItems: 'center', justifyContent: 'center' },
+  timerWrap: { alignItems: 'center', gap: 6, marginBottom: 14 },
   timerCircle: {
-    width: 56, height: 56, borderRadius: 28,
-    borderWidth: 2, borderColor: colors.accentBorder,
+    width: 52, height: 52, borderRadius: 26,
+    borderWidth: 2,
     alignItems: 'center', justifyContent: 'center',
   },
-  timerNum: { fontFamily: fonts.sansBold, fontSize: 20, color: colors.accent },
+  timerNum: { fontFamily: fonts.sansBold, fontSize: 18 },
   timerLabel: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
   memberCard: {
     width: '100%', backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
-    borderRadius: radius.xl, padding: 14, alignItems: 'center', marginBottom: 16,
+    borderRadius: radius.xl, padding: 14, alignItems: 'center', marginBottom: 14,
   },
   memberLabel: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginBottom: 4 },
-  memberId: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', letterSpacing: 1 },
+  memberId: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff', letterSpacing: 0.8 },
+  planLabel: { fontFamily: fonts.sans, fontSize: 10, color: colors.t3, marginTop: 4 },
   shareBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    width: '100%', height: 50, borderRadius: radius.xl,
+    width: '100%', height: 48, borderRadius: radius.xl,
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
   },
   shareBtnText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },

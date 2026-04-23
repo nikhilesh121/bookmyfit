@@ -28,10 +28,14 @@ export default function GymDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [gym, setGym] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'About' | 'Trainers' | 'Reviews'>('About');
+  const [activeTab, setActiveTab] = useState<'About' | 'Sessions' | 'Trainers' | 'Reviews'>('About');
   const [activeSub, setActiveSub] = useState<any>(null);
   const [trainers, setTrainers] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [gymPlans, setGymPlans] = useState<any[]>([]);
+  const [sessionSlots, setSessionSlots] = useState<any[]>([]);
+  const [slotDate, setSlotDate] = useState<string>(new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().split('T')[0]);
+  const [bookingLoading, setBookingLoading] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -52,6 +56,16 @@ export default function GymDetail() {
         setActiveSub(active || null);
       })
       .catch(() => setActiveSub(null));
+
+    api.get(`/gym-plans/by-gym/${id}`)
+      .then((data: any) => {
+        const plans = Array.isArray(data) ? data : data?.plans || [];
+        setGymPlans(plans);
+      })
+      .catch(() => setGymPlans([]));
+
+    // Load sessions for today
+    loadSlots(id as string, new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().split('T')[0]);
 
     api.get(`/trainers?gymId=${id}`)
       .then((data: any) => {
@@ -82,6 +96,31 @@ export default function GymDetail() {
 
   const handleShare = () => {
     Share.share({ message: `Check out ${name} on BookMyFit!` }).catch(() => {});
+  };
+
+  const loadSlots = (gymId: string, date: string) => {
+    api.get(`/sessions/slots/${gymId}?date=${date}`)
+      .then((data: any) => setSessionSlots(Array.isArray(data) ? data : []))
+      .catch(() => setSessionSlots([]));
+  };
+
+  const bookSlot = async (slotId: string) => {
+    if (!activeSub) {
+      router.push({ pathname: '/plans', params: { gymId: id } } as any);
+      return;
+    }
+    setBookingLoading(slotId);
+    try {
+      const { Alert } = require('react-native');
+      await api.post('/sessions/book', { slotId, subscriptionId: activeSub?.id || activeSub?._id });
+      Alert.alert('Booked! ✅', 'Your session is confirmed. Check My Bookings for details.');
+      loadSlots(id as string, slotDate);
+    } catch (e: any) {
+      const { Alert } = require('react-native');
+      Alert.alert('Booking Failed', e?.message || 'Could not book this slot. Please try again.');
+    } finally {
+      setBookingLoading(null);
+    }
   };
 
   return (
@@ -146,12 +185,119 @@ export default function GymDetail() {
 
               {/* Tabs */}
               <View style={s.tabRow}>
-                {(['About', 'Trainers', 'Reviews'] as const).map((tab) => (
+                {(['About', 'Sessions', 'Trainers', 'Reviews'] as const).map((tab) => (
                   <TouchableOpacity key={tab} style={[s.tabBtn, activeTab === tab && s.tabBtnActive]} onPress={() => setActiveTab(tab)}>
                     <Text style={[s.tabText, activeTab === tab && s.tabTextActive]}>{tab}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
+
+              {/* Sessions Tab */}
+              {activeTab === 'Sessions' && (
+                <>
+                  <Text style={s.sectionTitle}>Book a Session</Text>
+                  {/* Date selector — today + next 6 days */}
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                    {Array.from({ length: 7 }).map((_, d) => {
+                      const dt = new Date(Date.now() + 5.5 * 3600 * 1000 + d * 86400000);
+                      const ds = dt.toISOString().split('T')[0];
+                      const isToday = d === 0;
+                      const isSelected = ds === slotDate;
+                      return (
+                        <TouchableOpacity key={ds} onPress={() => { setSlotDate(ds); loadSlots(id as string, ds); }}
+                          style={[s.datePill, isSelected && s.datePillActive]}>
+                          <Text style={[s.datePillDay, isSelected && { color: colors.accent }]}>
+                            {isToday ? 'Today' : dt.toLocaleDateString('en-IN', { weekday: 'short' })}
+                          </Text>
+                          <Text style={[s.datePillNum, isSelected && { color: colors.accent }]}>
+                            {dt.getDate()}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* 1 session/day notice */}
+                  <View style={s.noticeRow}>
+                    <Text style={s.noticeText}>📌 Max 1 session per day per gym — Gym Workout or Special Class</Text>
+                  </View>
+
+                  {sessionSlots.length === 0 ? (
+                    <View style={s.glassCard}>
+                      <Text style={[s.body, { textAlign: 'center', color: colors.t2 }]}>No sessions available for this date.</Text>
+                    </View>
+                  ) : (
+                    (() => {
+                      // Group by session type
+                      const groups: Record<string, any[]> = {};
+                      for (const slot of sessionSlots) {
+                        const key = slot.sessionType?.name || 'Gym Workout';
+                        if (!groups[key]) groups[key] = [];
+                        groups[key].push(slot);
+                      }
+                      return Object.entries(groups).map(([typeName, slots]) => {
+                        const color = slots[0]?.sessionType?.color || colors.accent;
+                        const kind = slots[0]?.sessionType?.kind || 'standard';
+                        return (
+                          <View key={typeName} style={{ marginBottom: 16 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} />
+                              <Text style={[s.sectionTitle, { margin: 0, fontSize: 13 }]}>{typeName}</Text>
+                              <View style={[s.amenityPill, { borderColor: `${color}44`, backgroundColor: `${color}18` }]}>
+                                <Text style={[s.amenityText, { color }]}>{kind === 'standard' ? 'OPEN GYM' : 'CLASS'}</Text>
+                              </View>
+                            </View>
+                            {slots.map((slot: any) => {
+                              const isBooked = slot.userBooked;
+                              const isFull = slot.isFull;
+                              const hasOtherBooking = slot.userHasBookingToday && !isBooked;
+                              const isLoading = bookingLoading === slot.id;
+                              return (
+                                <View key={slot.id} style={[s.slotRow, isBooked && s.slotRowBooked]}>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={s.slotTime}>{slot.startTime} – {slot.endTime}</Text>
+                                    <Text style={s.slotCapacity}>
+                                      {isFull ? '🔴 Full' : `${slot.bookedCount}/${slot.maxCapacity} booked`}
+                                    </Text>
+                                  </View>
+                                  {isBooked ? (
+                                    <View style={[s.slotBtn, { backgroundColor: 'rgba(61,255,84,0.12)', borderColor: colors.accentBorder }]}>
+                                      <IconCheck size={14} color={colors.accent} />
+                                      <Text style={[s.slotBtnText, { color: colors.accent }]}>Booked</Text>
+                                    </View>
+                                  ) : isFull ? (
+                                    <View style={[s.slotBtn, { opacity: 0.4 }]}>
+                                      <Text style={s.slotBtnText}>Full</Text>
+                                    </View>
+                                  ) : hasOtherBooking ? (
+                                    <View style={[s.slotBtn, { opacity: 0.4 }]}>
+                                      <Text style={s.slotBtnText}>1/day limit</Text>
+                                    </View>
+                                  ) : (
+                                    <TouchableOpacity style={s.slotBtn} onPress={() => bookSlot(slot.id)} disabled={!!isLoading}>
+                                      {isLoading
+                                        ? <Text style={s.slotBtnText}>…</Text>
+                                        : <Text style={s.slotBtnText}>Book</Text>
+                                      }
+                                    </TouchableOpacity>
+                                  )}
+                                </View>
+                              );
+                            })}
+                          </View>
+                        );
+                      });
+                    })()
+                  )}
+
+                  {!activeSub && (
+                    <TouchableOpacity style={s.cta} onPress={() => router.push({ pathname: '/plans', params: { gymId: id } } as any)}>
+                      <Text style={s.ctaText}>Subscribe to Book Sessions</Text>
+                      <IconArrowRight size={16} color="#000" />
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
 
               {/* About Tab */}
               {activeTab === 'About' && (
@@ -282,11 +428,36 @@ export default function GymDetail() {
             <>
               <View>
                 <Text style={s.footLabel}>Starting from</Text>
-                <Text style={s.footPrice}>₹599<Text style={s.footPer}>/mo</Text></Text>
+                {gymPlans.length > 0 ? (
+                  <>
+                    <Text style={s.footPrice}>
+                      ₹{Math.min(...gymPlans.map((p: any) => p.price || p.basePrice || 0)).toLocaleString('en-IN')}
+                      <Text style={s.footPer}>/mo</Text>
+                    </Text>
+                    {gymPlans.some((p: any) => p.isDayPass || p.name?.toLowerCase().includes('day')) && (
+                      <Text style={[s.footPer, { color: '#ff6b35', fontSize: 10 }]}>🌶️ Day pass available</Text>
+                    )}
+                  </>
+                ) : (
+                  <Text style={s.footPrice}>₹599<Text style={s.footPer}>/mo</Text></Text>
+                )}
               </View>
               <TouchableOpacity
                 style={s.cta}
-                onPress={() => router.push({ pathname: '/plans', params: { gymId: id, gymName: name } } as any)}
+                onPress={() => {
+                  const minPrice = gymPlans.length > 0
+                    ? Math.min(...gymPlans.map((p: any) => p.price || p.basePrice || 599))
+                    : 599;
+                  router.push({
+                    pathname: '/duration',
+                    params: {
+                      planId: 'gym_specific',
+                      planName: `${name} Membership`,
+                      gymId: id,
+                      basePrice: String(minPrice),
+                    },
+                  } as any)
+                }}
                 activeOpacity={0.9}
               >
                 <Text style={s.ctaText}>Get a Membership</Text>
@@ -387,4 +558,32 @@ const s = StyleSheet.create({
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
   },
   qrBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff' },
+  // Sessions tab styles
+  datePill: {
+    alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8,
+    borderRadius: 12, backgroundColor: colors.glass,
+    borderWidth: 1, borderColor: colors.borderGlass, minWidth: 46,
+  },
+  datePillActive: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  datePillDay: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
+  datePillNum: { fontFamily: fonts.sansBold, fontSize: 16, color: '#fff', marginTop: 2 },
+  noticeRow: {
+    backgroundColor: 'rgba(61,255,84,0.06)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.12)',
+    borderRadius: 10, padding: 10, marginBottom: 14,
+  },
+  noticeText: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+  slotRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
+    borderRadius: radius.md, padding: 12, marginBottom: 8,
+  },
+  slotRowBooked: { borderColor: 'rgba(61,255,84,0.3)', backgroundColor: 'rgba(61,255,84,0.05)' },
+  slotTime: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff' },
+  slotCapacity: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 2 },
+  slotBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 16, height: 34, borderRadius: 20,
+    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+  },
+  slotBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
 });

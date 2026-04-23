@@ -11,10 +11,15 @@ const DEFAULTS = {
   commission: { standard: 15, premium: 12, corporate: 10 },
   settlements: { cycle: 'Monthly', minPayout: 5000, processingWindow: 7 },
   flags: { storeModule: true, wellnessBooking: true, aiRecommendations: false, corporatePortal: true },
-  multigym: { price: 999, label: 'Multi-Gym Access' },
+};
+
+const MULTIGYM_DEFAULTS = {
+  pro: { name: 'Multi-Gym Pro', basePrice: 999, gymLimit: 5 },
+  max: { name: 'Multi-Gym Max', basePrice: 1999, gymLimit: null },
 };
 
 type Settings = typeof DEFAULTS;
+type MultigymConfig = typeof MULTIGYM_DEFAULTS;
 
 interface AdminUser { id: string; name: string; email: string; role: string; lastLogin?: string; }
 
@@ -22,21 +27,32 @@ function loadSettings(): Settings {
   if (typeof window === 'undefined') return DEFAULTS;
   try {
     const stored = localStorage.getItem(SETTINGS_KEY);
-    return stored ? JSON.parse(stored) : DEFAULTS;
+    const parsed = stored ? JSON.parse(stored) : DEFAULTS;
+    // strip old multigym key if present
+    const { multigym: _m, ...rest } = parsed as any;
+    return { ...DEFAULTS, ...rest };
   } catch { return DEFAULTS; }
 }
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
+  const [multigym, setMultigym] = useState<MultigymConfig>(MULTIGYM_DEFAULTS);
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [loadingAdmins, setLoadingAdmins] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingMg, setSavingMg] = useState(false);
   const [showAddAdmin, setShowAddAdmin] = useState(false);
   const [newAdmin, setNewAdmin] = useState({ name: '', email: '', role: 'Operations' });
 
   useEffect(() => {
     setSettings(loadSettings());
+    // Load multigym config from backend
+    api.get('/subscriptions/multigym-config')
+      .then((data: any) => {
+        if (data?.pro || data?.max) setMultigym(data);
+      })
+      .catch(() => {});
     api.get('/users?role=super_admin')
       .then((res: any) => {
         const arr = Array.isArray(res) ? res : res?.data ?? res?.users ?? [];
@@ -64,6 +80,18 @@ export default function SettingsPage() {
       toast('Failed to save settings', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveMultigym = async () => {
+    setSavingMg(true);
+    try {
+      await api.put('/subscriptions/multigym-config', multigym);
+      toast('Multi-Gym pricing updated');
+    } catch {
+      toast('Failed to save pricing', 'error');
+    } finally {
+      setSavingMg(false);
     }
   };
 
@@ -167,36 +195,55 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Multi-Gym Plan Settings */}
+        {/* Multi-Gym Plan Settings — Admin-managed, saved to backend */}
         <div className="glass p-6">
-          <h3 className="serif text-lg mb-1">Multi-Gym Subscription</h3>
-          <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>Configure the single multi-gym plan price shown to users in the mobile app.</p>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-              <div>
-                <span className="text-[13px]" style={{ color: 'var(--t)' }}>Plan Name</span>
-                <div className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>Displayed in mobile app</div>
+          <h3 className="serif text-lg mb-1">Multi-Gym Pricing</h3>
+          <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>Admin controls Pro & Max plan pricing. Individual gym plans are set by gym owners.</p>
+
+          <div className="space-y-4">
+            {/* Pro */}
+            <div className="p-3 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="accent-pill text-xs">PRO</span>
+                <span className="text-xs" style={{ color: 'var(--t2)' }}>Up to 5 distinct gyms</span>
               </div>
-              <input
-                type="text"
-                style={{ ...inputStyle, width: 180 }}
-                value={settings.multigym.label}
-                onChange={(e) => setSettings((s) => ({ ...s, multigym: { ...s.multigym, label: e.target.value } }))}
-              />
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-              <div>
-                <span className="text-[13px]" style={{ color: 'var(--t)' }}>Price per Employee/Month (₹)</span>
-                <div className="text-xs mt-0.5" style={{ color: 'var(--t3)' }}>For corporate + individual multi-gym plans</div>
+              <div className="flex gap-2">
+                <input type="text" placeholder="Plan name" style={{ ...inputStyle, flex: 1 }}
+                  value={multigym.pro.name}
+                  onChange={(e) => setMultigym((m) => ({ ...m, pro: { ...m.pro, name: e.target.value } }))} />
+                <div className="flex items-center gap-1" style={{ minWidth: 100, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                  <span style={{ color: 'var(--t3)', fontSize: 13 }}>₹</span>
+                  <input type="number" min={0} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 14, width: 70 }}
+                    value={multigym.pro.basePrice}
+                    onChange={(e) => setMultigym((m) => ({ ...m, pro: { ...m.pro, basePrice: Number(e.target.value) } }))} />
+                  <span style={{ color: 'var(--t3)', fontSize: 11 }}>/mo</span>
+                </div>
               </div>
-              <input
-                type="number"
-                min={0}
-                style={{ ...inputStyle, width: 100, textAlign: 'right' }}
-                value={settings.multigym.price}
-                onChange={(e) => setSettings((s) => ({ ...s, multigym: { ...s.multigym, price: Number(e.target.value) } }))}
-              />
             </div>
+
+            {/* Max */}
+            <div className="p-3 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <span style={{ background: 'rgba(255,160,0,0.15)', color: '#ffa500', border: '1px solid rgba(255,160,0,0.4)', borderRadius: 20, padding: '2px 10px', fontSize: 10, fontWeight: 700 }}>MAX</span>
+                <span className="text-xs" style={{ color: 'var(--t2)' }}>Unlimited gyms</span>
+              </div>
+              <div className="flex gap-2">
+                <input type="text" placeholder="Plan name" style={{ ...inputStyle, flex: 1 }}
+                  value={multigym.max.name}
+                  onChange={(e) => setMultigym((m) => ({ ...m, max: { ...m.max, name: e.target.value } }))} />
+                <div className="flex items-center gap-1" style={{ minWidth: 100, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                  <span style={{ color: 'var(--t3)', fontSize: 13 }}>₹</span>
+                  <input type="number" min={0} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 14, width: 70 }}
+                    value={multigym.max.basePrice}
+                    onChange={(e) => setMultigym((m) => ({ ...m, max: { ...m.max, basePrice: Number(e.target.value) } }))} />
+                  <span style={{ color: 'var(--t3)', fontSize: 11 }}>/mo</span>
+                </div>
+              </div>
+            </div>
+
+            <button className="btn btn-primary text-sm flex items-center gap-2" onClick={saveMultigym} disabled={savingMg}>
+              <Save size={13} /> {savingMg ? 'Saving...' : 'Save Pricing'}
+            </button>
           </div>
         </div>
 

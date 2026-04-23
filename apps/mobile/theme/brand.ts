@@ -70,37 +70,3 @@ export const glass = {
   borderColor: colors.borderGlass,
 };
 
-export const fonts = {
-  serif: 'PlayfairDisplay_700Bold',
-  serifBlack: 'PlayfairDisplay_900Black',
-  serifItalic: 'PlayfairDisplay_400Regular_Italic',
-  sans: 'DMSans_400Regular',
-  sansMedium: 'DMSans_500Medium',
-  sansBold: 'DMSans_700Bold',
-};
-
-export const radius = {
-  xs: 8,
-  sm: 12,
-  md: 14,
-  lg: 18,
-  xl: 20,
-  xxl: 28,
-  pill: 999,
-};
-
-export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
-  xxl: 24,
-  xxxl: 32,
-};
-
-export const glass = {
-  background: colors.glass,
-  borderWidth: 1,
-  borderColor: colors.borderGlass,
-};

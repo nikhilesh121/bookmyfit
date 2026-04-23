@@ -7,6 +7,7 @@ import AuroraBackground from '../components/AuroraBackground';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconCheck, IconCalendar, IconCreditCard } from '../components/Icons';
+import { subscriptionsApi } from '../lib/api';
 
 export default function Success() {
   const { planName, gymName, validUntil, amountPaid, subscriptionId, orderId } =
@@ -29,6 +30,11 @@ export default function Success() {
         Animated.timing(glowAnim, { toValue: 0.4, duration: 1200, useNativeDriver: true }),
       ])
     ).start();
+
+    // Verify + activate subscription
+    if (subscriptionId && subscriptionId !== 'NEW' && subscriptionId !== 'BMF-NEW') {
+      subscriptionsApi.verify(subscriptionId).catch(() => {});
+    }
   }, []);
 
   const details = [

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert,
 } from 'react-native';
@@ -8,27 +8,41 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius, spacing } from '../theme/brand';
 import { IconArrowLeft, IconCheck } from '../components/Icons';
 
-const DURATIONS = [
-  { months: 1, label: '1 Month', price: 599, save: null },
-  { months: 3, label: '3 Months', price: 1099, save: 'Save 8%' },
-  { months: 6, label: '6 Months', price: 1999, save: 'Save 15%' },
-  { months: 12, label: '12 Months', price: 3499, save: 'Save 25%' },
-];
-
 const PT_PRICE = 1600;
 const GST_RATE = 0.18;
 
 export default function Duration() {
-  const { planId, planName, gymId, maxGyms } = useLocalSearchParams<{
-    planId: string; planName: string; gymId?: string; maxGyms?: string;
+  const { planId, planName, gymId, maxGyms, basePrice } = useLocalSearchParams<{
+    planId: string; planName: string; gymId?: string; maxGyms?: string; basePrice?: string;
   }>();
 
-  const [selected, setSelected] = useState(0);
+  const monthlyBase = Number(basePrice) || 999;
+  const isMultigym = planId?.startsWith('multigym_');
+  const dayPassPrice = Math.round(monthlyBase / 20 * 1.5); // ~4.5% of monthly, premium per-day rate
+
+  // Build duration options relative to the plan's monthly base price
+  const DURATIONS = useMemo(() => [
+    {
+      months: 0,
+      label: '1 Day Pass',
+      sublabel: '🌶️ HOT',
+      price: dayPassPrice,
+      save: null,
+      isDayPass: true,
+      hot: true,
+    },
+    { months: 1, label: '1 Month', sublabel: 'Most flexible', price: monthlyBase, save: null, isDayPass: false, hot: false },
+    { months: 3, label: '3 Months', sublabel: 'Popular choice', price: Math.round(monthlyBase * 3 * 0.92), save: 'Save 8%', isDayPass: false, hot: false },
+    { months: 6, label: '6 Months', sublabel: 'Best value', price: Math.round(monthlyBase * 6 * 0.85), save: 'Save 15%', isDayPass: false, hot: false },
+    { months: 12, label: '12 Months', sublabel: 'Maximum savings', price: Math.round(monthlyBase * 12 * 0.75), save: 'Save 25%', isDayPass: false, hot: false },
+  ], [monthlyBase, dayPassPrice]);
+
+  const [selected, setSelected] = useState(1); // default: 1 Month
   const [ptAddon, setPtAddon] = useState(false);
 
   const dur = DURATIONS[selected];
   const base = dur.price;
-  const ptCost = ptAddon ? PT_PRICE : 0;
+  const ptCost = !dur.isDayPass && ptAddon ? PT_PRICE : 0;
   const subtotal = base + ptCost;
   const gst = Math.round(subtotal * GST_RATE);
   const total = subtotal + gst;
@@ -42,8 +56,9 @@ export default function Duration() {
         gymId: gymId || '',
         durationMonths: String(dur.months),
         totalAmount: String(total),
-        ptAddon: ptAddon ? 'true' : 'false',
+        ptAddon: ptAddon && !dur.isDayPass ? 'true' : 'false',
         maxGyms: maxGyms || '1',
+        isDayPass: dur.isDayPass ? 'true' : 'false',
       },
     });
   };
@@ -68,20 +83,32 @@ export default function Duration() {
           const active = i === selected;
           return (
             <TouchableOpacity
-              key={d.months}
-              style={[s.optionCard, active && s.optionCardActive]}
+              key={d.isDayPass ? 'daypass' : d.months}
+              style={[s.optionCard, active && s.optionCardActive, d.hot && s.optionCardHot]}
               onPress={() => setSelected(i)}
               activeOpacity={0.8}
             >
+              {d.hot && (
+                <View style={s.hotBadge}>
+                  <Text style={s.hotBadgeText}>🌶️ HOT</Text>
+                </View>
+              )}
+
               {/* Radio */}
               <View style={[s.radio, active && s.radioActive]}>
                 {active && <View style={s.radioDot} />}
               </View>
 
               <View style={s.optionInfo}>
-                <Text style={[s.optionLabel, active && { color: '#fff' }]}>{d.label}</Text>
-                <Text style={[s.optionPrice, active && { color: colors.accent }]}>
+                <View style={s.optionLabelRow}>
+                  <Text style={[s.optionLabel, active && { color: '#fff' }]}>{d.label}</Text>
+                  {d.sublabel && !d.hot && (
+                    <Text style={s.optionSublabel}>{d.sublabel}</Text>
+                  )}
+                </View>
+                <Text style={[s.optionPrice, active && { color: d.hot ? '#ff6b35' : colors.accent }]}>
                   ₹{d.price.toLocaleString('en-IN')}
+                  <Text style={s.optionPricePer}>{d.isDayPass ? '/day' : '/plan'}</Text>
                 </Text>
               </View>
 
@@ -94,22 +121,24 @@ export default function Duration() {
           );
         })}
 
-        {/* PT Add-on */}
-        <View style={s.ptCard}>
-          <View style={s.ptLeft}>
-            <Text style={s.ptTitle}>Personal Trainer Add-on</Text>
-            <Text style={s.ptSub}>8 sessions · Expert-matched PT</Text>
+        {/* PT Add-on — only for monthly+ plans */}
+        {!dur.isDayPass && (
+          <View style={s.ptCard}>
+            <View style={s.ptLeft}>
+              <Text style={s.ptTitle}>Personal Trainer Add-on</Text>
+              <Text style={s.ptSub}>8 sessions · Expert-matched PT</Text>
+            </View>
+            <View style={s.ptRight}>
+              <Text style={s.ptPrice}>₹{PT_PRICE.toLocaleString('en-IN')}</Text>
+              <Switch
+                value={ptAddon}
+                onValueChange={setPtAddon}
+                trackColor={{ false: colors.border, true: colors.accentBorder }}
+                thumbColor={ptAddon ? colors.accent : 'rgba(255,255,255,0.4)'}
+              />
+            </View>
           </View>
-          <View style={s.ptRight}>
-            <Text style={s.ptPrice}>₹{PT_PRICE.toLocaleString('en-IN')}</Text>
-            <Switch
-              value={ptAddon}
-              onValueChange={setPtAddon}
-              trackColor={{ false: colors.border, true: colors.accentBorder }}
-              thumbColor={ptAddon ? colors.accent : 'rgba(255,255,255,0.4)'}
-            />
-          </View>
-        </View>
+        )}
 
         <View style={{ height: 160 }} />
       </ScrollView>
@@ -118,10 +147,10 @@ export default function Duration() {
       <View style={s.footer}>
         <View style={s.breakdown}>
           <View style={s.breakRow}>
-            <Text style={s.breakLabel}>{dur.label} Plan</Text>
+            <Text style={s.breakLabel}>{dur.label}</Text>
             <Text style={s.breakVal}>₹{base.toLocaleString('en-IN')}</Text>
           </View>
-          {ptAddon && (
+          {ptAddon && !dur.isDayPass && (
             <View style={s.breakRow}>
               <Text style={s.breakLabel}>PT Add-on (8 sessions)</Text>
               <Text style={s.breakVal}>₹{PT_PRICE.toLocaleString('en-IN')}</Text>
@@ -137,7 +166,9 @@ export default function Duration() {
           </View>
         </View>
         <TouchableOpacity style={s.btnPrimary} onPress={handleCheckout}>
-          <Text style={s.btnPrimaryText}>Proceed to Checkout</Text>
+          <Text style={s.btnPrimaryText}>
+            {dur.isDayPass ? '🌶️ Get Day Pass' : 'Proceed to Checkout'}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -165,11 +196,21 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
-    borderRadius: radius.xl, padding: 18, marginBottom: 12,
+    borderRadius: radius.xl, padding: 18, marginBottom: 12, overflow: 'hidden',
   },
   optionCardActive: {
     borderColor: colors.accent, backgroundColor: 'rgba(204,255,0,0.06)',
   },
+  optionCardHot: {
+    borderColor: 'rgba(255,107,53,0.6)', backgroundColor: 'rgba(255,107,53,0.08)',
+  },
+  hotBadge: {
+    position: 'absolute', top: 10, right: 12,
+    backgroundColor: 'rgba(255,107,53,0.2)',
+    borderWidth: 1, borderColor: 'rgba(255,107,53,0.5)',
+    borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2,
+  },
+  hotBadgeText: { fontFamily: fonts.sansBold, fontSize: 10, color: '#ff6b35' },
   radio: {
     width: 22, height: 22, borderRadius: 11,
     borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)',
@@ -178,8 +219,11 @@ const s = StyleSheet.create({
   radioActive: { borderColor: colors.accent },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accent },
   optionInfo: { flex: 1 },
-  optionLabel: { fontFamily: fonts.sansMedium, fontSize: 15, color: colors.t, marginBottom: 2 },
+  optionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  optionLabel: { fontFamily: fonts.sansMedium, fontSize: 15, color: colors.t },
+  optionSublabel: { fontFamily: fonts.sans, fontSize: 10, color: colors.t3 },
   optionPrice: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
+  optionPricePer: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
   savePill: {
     backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
     borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4,

@@ -5,20 +5,29 @@ import { WebView } from 'react-native-webview';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft } from '../components/Icons';
+import { subscriptionsApi } from '../lib/api';
 
 export default function PaymentWebview() {
-  const { orderId, sessionId, planId, gymId } = useLocalSearchParams<{
-    orderId: string; sessionId: string; planId: string; gymId: string;
+  const { orderId, sessionId, planId, gymId, subId } = useLocalSearchParams<{
+    orderId: string; sessionId: string; planId: string; gymId: string; subId?: string;
   }>();
   const [loading, setLoading] = useState(true);
   const webviewRef = useRef<any>(null);
 
   const checkoutUrl = `https://sandbox.cashfree.com/pg/orders/pay?order_id=${orderId}`;
 
+  const handleSuccess = async () => {
+    // Verify + activate subscription if subId available
+    if (subId) {
+      try { await subscriptionsApi.verify(subId); } catch {}
+    }
+    router.replace({ pathname: '/success', params: { orderId, planId, gymId, subscriptionId: subId || '' } });
+  };
+
   const handleNavigationChange = (navState: any) => {
     const url = navState.url || '';
     if (url.includes('success') || url.includes('bookmyfit://payment-success') || url.includes('payment_status=SUCCESS')) {
-      router.replace({ pathname: '/success', params: { orderId, planId, gymId } });
+      handleSuccess();
     } else if (url.includes('failure') || url.includes('payment_status=FAILED') || url.includes('payment_status=USER_DROPPED')) {
       Alert.alert('Payment Failed', 'Your payment was not completed. Please try again.', [
         { text: 'Try Again', onPress: () => webviewRef.current?.reload() },
@@ -41,7 +50,7 @@ export default function PaymentWebview() {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
       if (msg.type === 'SUCCESS') {
-        router.replace({ pathname: '/success', params: { orderId, planId, gymId } });
+        handleSuccess();
       } else if (msg.type === 'FAILURE') {
         Alert.alert('Payment Failed', 'Please try again.', [
           { text: 'Try Again', onPress: () => webviewRef.current?.reload() },

@@ -23,7 +23,14 @@ export default function Login() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
-      router.push({ pathname: '/otp', params: { phone } });
+      router.push({
+        pathname: '/otp',
+        params: {
+          phone,
+          userExists: data.userExists ? 'true' : 'false',
+          userName: data.userName || '',
+        },
+      });
     } catch (err: any) {
       Alert.alert('Error', err.message);
     } finally { setLoading(false); }

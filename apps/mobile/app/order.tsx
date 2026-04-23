@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, Alert, ActivityIndicator, ImageBackground,
@@ -6,52 +6,35 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
-import { IconArrowLeft, IconCheck, IconLock, IconTag, IconMapPin } from '../components/Icons';
-import { subscriptionsApi, couponsApi, gymsApi } from '../lib/api';
+import { IconArrowLeft, IconCheck, IconLock, IconTag } from '../components/Icons';
+import { subscriptionsApi, couponsApi } from '../lib/api';
 
 const GST_RATE = 0.18;
 
 export default function Order() {
-  const { planId, planName, gymId, durationMonths, totalAmount, ptAddon, maxGyms } =
+  const { planId, planName, gymId, durationMonths, totalAmount, ptAddon, maxGyms, isDayPass: isDayPassParam } =
     useLocalSearchParams<{
       planId: string; planName: string; gymId?: string;
-      durationMonths: string; totalAmount: string; ptAddon?: string; maxGyms?: string;
+      durationMonths: string; totalAmount: string; ptAddon?: string; maxGyms?: string; isDayPass?: string;
     }>();
 
   const hasPt = ptAddon === 'true';
+  const isDayPassRoute = isDayPassParam === 'true';
   const months = Number(durationMonths) || 1;
   const total = Number(totalAmount) || 0;
   const gst = Math.round(total / (1 + GST_RATE) * GST_RATE);
   const planBase = total - gst - (hasPt ? 1600 : 0);
-  const gymLimit = Number(maxGyms) || 1;
-  const isMultiGym = gymLimit > 1;
+  const isMultigym = planId?.startsWith('multigym_');
 
   const [coupon, setCoupon] = useState('');
   const [discount, setDiscount] = useState(0);
   const [couponApplied, setCouponApplied] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Multi-gym selection state
-  const [gymsList, setGymsList] = useState<any[]>([]);
-  const [gymsLoading, setGymsLoading] = useState(false);
-  const [selectedGymIds, setSelectedGymIds] = useState<string[]>(
-    gymId ? [gymId] : [],
-  );
-
-  useEffect(() => {
-    if (!isMultiGym) return;
-    setGymsLoading(true);
-    gymsApi.list({ page: 1 })
-      .then((data: any) => {
-        const list = Array.isArray(data) ? data : data?.gyms || data?.data || [];
-        setGymsList(list);
-      })
-      .catch(() => setGymsList([]))
-      .finally(() => setGymsLoading(false));
-  }, [isMultiGym]);
+  const [selectedGyms, setSelectedGyms] = useState<string[]>([]);
+  const gymLimit = isMultigym ? (Number(maxGyms) || 999) : 1;
 
   const toggleGym = (id: string) => {
-    setSelectedGymIds((prev) => {
+    setSelectedGyms((prev) => {
       if (prev.includes(id)) return prev.filter((g) => g !== id);
       if (prev.length >= gymLimit) {
         Alert.alert('Limit Reached', `You can select up to ${gymLimit} gym${gymLimit > 1 ? 's' : ''} with this plan.`);
@@ -85,44 +68,42 @@ export default function Order() {
   const finalTotal = Math.max(0, total - discount);
 
   const handlePay = async () => {
-    if (isMultiGym && selectedGymIds.length === 0) {
-      Alert.alert('Select Gyms', 'Please select at least one gym to continue.');
-      return;
-    }
     setLoading(true);
     try {
-      const order: any = await subscriptionsApi.createOrder({
+      const result: any = await subscriptionsApi.createOrder({
         planId: planId || '',
-        gymId: isMultiGym ? undefined : (gymId || undefined),
+        gymId: isMultigym ? undefined : (gymId || undefined),
         durationMonths: months,
         ptAddon: hasPt,
         couponCode: couponApplied ? coupon : undefined,
+        totalAmount: finalTotal,
+        isDayPass: isDayPassRoute,
       });
 
-      if (order?.paymentSessionId && order?.orderId) {
+      // New API returns { subscription, payment }
+      const subRecord = result?.subscription || result;
+      const paymentInfo = result?.payment || result;
+      const subId = subRecord?.id || subRecord?._id;
+      const orderId = paymentInfo?.orderId || result?.orderId;
+      const sessionId = paymentInfo?.paymentSessionId || result?.paymentSessionId;
+
+      if (sessionId && orderId && !paymentInfo?.mock) {
         router.push({
           pathname: '/payment-webview',
-          params: {
-            orderId: order.orderId,
-            sessionId: order.paymentSessionId,
-            planId: planId || '',
-            gymId: gymId || '',
-          },
+          params: { orderId, sessionId, planId: planId || '', gymId: gymId || '', subId: subId || '' },
         });
       } else {
-        // Fallback for free plans or already-paid orders
+        // Dev mode or mock payment — subscription already activated by backend
         router.replace({
           pathname: '/success',
           params: {
-            orderId: order?.orderId || 'N/A',
+            orderId: orderId || 'N/A',
             planName: planName || 'Standard Plan',
-            gymName: isMultiGym
-              ? `${selectedGymIds.length} gym${selectedGymIds.length > 1 ? 's' : ''} selected`
-              : (gymId ? 'Selected Gym' : 'Multi-gym Access'),
-            validUntil: new Date(Date.now() + months * 30 * 24 * 3600 * 1000)
+            gymName: isMultigym ? 'Any gym on BookMyFit' : (gymId ? 'Selected Gym' : 'Multi-gym Access'),
+            validUntil: new Date(Date.now() + Math.max(months, 1) * 30 * 24 * 3600 * 1000)
               .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
             amountPaid: String(finalTotal),
-            subscriptionId: order?.subscriptionId || order?.id || 'NEW',
+            subscriptionId: subId || 'NEW',
           },
         });
       }
@@ -153,52 +134,24 @@ export default function Order() {
         >
           <View style={s.planCardOverlay}>
             <View style={s.planBadge}>
-              <Text style={s.planBadgeText}>{durationMonths} MONTH{Number(durationMonths) > 1 ? 'S' : ''}</Text>
+              <Text style={s.planBadgeText}>
+                {isDayPassRoute ? '🌶️ DAY PASS' : `${durationMonths} MONTH${Number(durationMonths) > 1 ? 'S' : ''}`}
+              </Text>
             </View>
             <Text style={s.planName}>{planName || 'Standard Plan'}</Text>
             <Text style={s.planGym}>
-              {isMultiGym ? `Up to ${gymLimit >= 99 ? 'unlimited' : gymLimit} gyms` : (gymId ? 'Selected Gym' : 'Multi-gym Access · 500+ Locations')}
+              {isMultigym ? 'Any gym in our network · No restrictions' : (gymId ? 'Your selected gym' : 'Gym Access')}
             </Text>
           </View>
         </ImageBackground>
 
-        {/* Multi-gym selection */}
-        {isMultiGym && (
-          <View style={s.card}>
-            <Text style={s.sectionLabel}>
-              Select Gyms ({selectedGymIds.length}/{gymLimit >= 99 ? 'unlimited' : gymLimit})
+        {/* Multi-gym access notice */}
+        {isMultigym && (
+          <View style={[s.card, { borderColor: colors.accentBorder }]}>
+            <Text style={[s.sectionLabel, { marginBottom: 6 }]}>Multi-Gym Access Included</Text>
+            <Text style={s.rowLabel}>
+              With this plan you can check in at <Text style={{ color: colors.accent, fontFamily: fonts.sansMedium }}>any BookMyFit gym</Text>. No pre-selection needed — just browse gyms, generate your QR, and walk in.
             </Text>
-            {gymsLoading ? (
-              <ActivityIndicator color={colors.accent} style={{ marginVertical: 12 }} />
-            ) : gymsList.length === 0 ? (
-              <Text style={s.rowLabel}>No gyms available</Text>
-            ) : (
-              gymsList.map((g: any) => {
-                const id = g._id || g.id;
-                const name = g.name || g.gymName || 'Gym';
-                const city = g.city || g.location?.city || '';
-                const isChecked = selectedGymIds.includes(id);
-                return (
-                  <TouchableOpacity
-                    key={id}
-                    style={[s.gymSelectRow, isChecked && s.gymSelectRowActive]}
-                    activeOpacity={0.75}
-                    onPress={() => toggleGym(id)}
-                  >
-                    <View style={s.gymSelectLeft}>
-                      <IconMapPin size={14} color={isChecked ? colors.accent : colors.t2} />
-                      <View>
-                        <Text style={[s.gymSelectName, isChecked && { color: '#fff' }]}>{name}</Text>
-                        {!!city && <Text style={s.gymSelectCity}>{city}</Text>}
-                      </View>
-                    </View>
-                    <View style={[s.checkBox, isChecked && s.checkBoxActive]}>
-                      {isChecked && <IconCheck size={10} color="#000" />}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })
-            )}
           </View>
         )}
 
@@ -346,20 +299,13 @@ const s = StyleSheet.create({
     gap: 6, marginBottom: 16,
   },
   securedText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
-  gymSelectRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 10, paddingHorizontal: 4,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  gymSelectRowActive: { backgroundColor: 'rgba(204,255,0,0.05)', borderRadius: radius.md },
-  gymSelectLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  gymSelectName: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.t },
-  gymSelectCity: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 1 },
-  checkBox: {
-    width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: colors.border,
-    backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center', justifyContent: 'center',
-  },
-  checkBoxActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  gymSelectRow: { flexDirection: 'row' }, // kept for TS but unused
+  gymSelectRowActive: {},
+  gymSelectLeft: { flexDirection: 'row' },
+  gymSelectName: { fontFamily: fonts.sans, fontSize: 14, color: colors.t },
+  gymSelectCity: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+  checkBox: { width: 22, height: 22 },
+  checkBoxActive: {},
   footer: {
     paddingHorizontal: 20, paddingBottom: 28, paddingTop: 14,
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
