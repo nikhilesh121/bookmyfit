@@ -8,7 +8,7 @@ import AuroraBackground from '../components/AuroraBackground';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconUser, IconStar, IconClock, IconCheck } from '../components/Icons';
-import { trainersApi, usersApi, subscriptionsApi } from '../lib/api';
+import { trainersApi, usersApi } from '../lib/api';
 
 interface Trainer {
   id: string;
@@ -45,30 +45,32 @@ export default function TrainersScreen() {
     if (!selected || !user) return;
     const sessionCount = parseInt(sessions) || 1;
     const sessionDate = date.trim() || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    const totalAmount = selected.pricePerSession * sessionCount;
     setBooking(true);
     try {
-      // Create a payment order first, then navigate to payment webview
-      const res: any = await subscriptionsApi.createOrder({
-        planId: 'pt_session',
-        gymId: selected.gymId || gymId as string,
-        durationMonths: 0,
-        totalAmount,
-        ptAddon: true,
+      // trainersApi.book creates booking + Cashfree order in one call
+      const res: any = await trainersApi.book(selected.id, {
+        userId: user.id,
+        sessions: sessionCount,
+        sessionDate,
+        phone: user.phone || user.phoneNumber || '',
       });
-      const orderId: string = res?.orderId || res?.id || res?.cfOrderId || '';
-      const sessionId: string = res?.sessionId || res?.cfSessionId || '';
+      const orderId: string = res?.payment?.orderId || res?.payment?.cfOrderId || res?.booking?.cashfreeOrderId || '';
+      const sessionId: string = res?.payment?.cfSessionId || res?.payment?.paymentSessionId || '';
       setSelected(null);
-      router.push({
-        pathname: '/payment-webview',
-        params: {
-          orderId,
-          sessionId,
-          planId: 'pt_session',
-          gymId: selected.gymId || gymId as string,
-          // Pass trainer + booking details for post-payment confirmation
-        },
-      } as any);
+      if (orderId) {
+        router.push({
+          pathname: '/payment-webview',
+          params: {
+            orderId,
+            sessionId,
+            planId: 'pt_session',
+            gymId: selected.gymId || (gymId as string) || '',
+          },
+        } as any);
+      } else {
+        // No payment gateway configured — booking created directly
+        Alert.alert('Booked!', `Your session with ${selected.name} has been scheduled. They will contact you shortly.`);
+      }
     } catch (err: any) {
       Alert.alert('Booking Failed', err?.message || 'Please try again');
     } finally {

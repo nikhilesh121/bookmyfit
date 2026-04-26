@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, ImageBackground, Alert, ActivityIndicator } from 'react-native';
+import { useEffect, useState, useCallback } from 'react';
+import { ScrollView, View, Text, TouchableOpacity, StyleSheet, ImageBackground, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconCart, IconTag } from '../../components/Icons';
 import { storeApi } from '../../lib/api';
 import AuroraBackground from '../../components/AuroraBackground';
+import { addToCart, cartCount as getCartCount } from '../cart';
 
 const CATS = ['All', 'Supplements', 'Accessories', 'Apparel', 'Equipment'];
 
@@ -32,7 +33,10 @@ export default function Store() {
   const [activeCat, setActiveCat] = useState('All');
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cartCount, setCartCount] = useState(0);
+  const [cartCount, setCartCount] = useState(getCartCount());
+
+  // Refresh badge when returning from cart
+  useFocusEffect(useCallback(() => { setCartCount(getCartCount()); }, []));
 
   useEffect(() => {
     setLoading(true);
@@ -45,9 +49,15 @@ export default function Store() {
       .finally(() => setLoading(false));
   }, [activeCat]);
 
-  const handleAddToCart = (productName: string) => {
-    setCartCount((c) => c + 1);
-    Alert.alert('Added to cart', `${productName} added successfully!`);
+  const handleAddToCart = (product: any) => {
+    addToCart({
+      productId: String(product.id || product._id),
+      name: product.name || product.productName || 'Product',
+      price: product.price ?? product.mrp ?? 0,
+      image: product.img || product.imageUrl || product.image,
+      category: product.category,
+    });
+    setCartCount(getCartCount());
   };
 
   return (
@@ -57,14 +67,14 @@ export default function Store() {
         {/* Header */}
         <View style={s.titleRow}>
           <Text style={s.title}>Store</Text>
-          <View style={s.cartWrap}>
+          <TouchableOpacity style={s.cartWrap} onPress={() => router.push('/cart' as any)}>
             <IconCart size={20} color={colors.t} />
             {cartCount > 0 && (
               <View style={s.cartBadge}>
                 <Text style={s.cartBadgeText}>{cartCount}</Text>
               </View>
             )}
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Category pills */}
@@ -105,7 +115,7 @@ export default function Store() {
                     {!!brand && <Text style={s.prodBrand}>{brand}</Text>}
                     <View style={s.priceRow}>
                       <Text style={s.prodPrice}>₹{Number(price).toLocaleString('en-IN')}</Text>
-                      <TouchableOpacity style={s.cartBtn} onPress={() => handleAddToCart(name)}>
+                      <TouchableOpacity style={s.cartBtn} onPress={() => handleAddToCart(p)}>
                         <IconCart size={14} color={colors.accent} />
                       </TouchableOpacity>
                     </View>

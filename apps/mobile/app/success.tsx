@@ -10,11 +10,14 @@ import { IconCheck, IconCalendar, IconCreditCard } from '../components/Icons';
 import { subscriptionsApi } from '../lib/api';
 
 export default function Success() {
-  const { planName, gymName, validUntil, amountPaid, subscriptionId, orderId } =
+  const { planName, gymName, validUntil, amountPaid, subscriptionId, orderId, planId } =
     useLocalSearchParams<{
       planName: string; gymName?: string; validUntil: string;
-      amountPaid: string; subscriptionId: string; orderId?: string;
+      amountPaid: string; subscriptionId: string; orderId?: string; planId?: string;
     }>();
+
+  const isStoreOrder = planId === 'store_order';
+  const isPtSession = planId === 'pt_session';
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0.4)).current;
@@ -31,18 +34,37 @@ export default function Success() {
       ])
     ).start();
 
-    // Verify + activate subscription
-    if (subscriptionId && subscriptionId !== 'NEW' && subscriptionId !== 'BMF-NEW') {
+    // Verify + activate subscription (only for real subscription orders)
+    if (!isStoreOrder && !isPtSession && subscriptionId && subscriptionId !== 'NEW' && subscriptionId !== 'BMF-NEW') {
       subscriptionsApi.verify(subscriptionId).catch(() => {});
     }
   }, []);
 
-  const details = [
-    { label: 'Gym Access', value: gymName || 'Multi-gym Access' },
-    { label: 'Plan', value: planName || 'Standard Plan' },
-    { label: 'Valid Until', value: validUntil || '—' },
-    { label: 'Amount Paid', value: `₹${Number(amountPaid || 0).toLocaleString('en-IN')}` },
-  ];
+  const details = isStoreOrder
+    ? [
+        { label: 'Order', value: 'Store Purchase' },
+        { label: 'Order ID', value: orderId || '—' },
+        { label: 'Amount Paid', value: `₹${Number(amountPaid || 0).toLocaleString('en-IN')}` },
+      ]
+    : isPtSession
+    ? [
+        { label: 'Session Type', value: 'Personal Training' },
+        { label: 'Booking ID', value: orderId || '—' },
+        { label: 'Amount Paid', value: `₹${Number(amountPaid || 0).toLocaleString('en-IN')}` },
+      ]
+    : [
+        { label: 'Gym Access', value: gymName || 'Multi-gym Access' },
+        { label: 'Plan', value: planName || 'Standard Plan' },
+        { label: 'Valid Until', value: validUntil || '—' },
+        { label: 'Amount Paid', value: `₹${Number(amountPaid || 0).toLocaleString('en-IN')}` },
+      ];
+
+  const titleText = isStoreOrder ? 'Order Placed!' : isPtSession ? 'Session Booked!' : "You're In!";
+  const subtitleText = isStoreOrder
+    ? 'Your order has been placed successfully. We\'ll notify you when it ships.'
+    : isPtSession
+    ? 'Your PT session has been booked. Your trainer will contact you soon.'
+    : `Your ${planName || 'Standard Plan'} membership is active.`;
 
   return (
     <AuroraBackground variant="premium">
@@ -63,12 +85,8 @@ export default function Success() {
         </Animated.View>
 
         <Text style={s.kicker}>Payment Successful</Text>
-        <Text style={s.title}>You're In!</Text>
-        <Text style={s.subtitle}>
-          Your{' '}
-          <Text style={{ color: colors.accent }}>{planName || 'Standard Plan'}</Text>
-          {' '}membership is active.
-        </Text>
+        <Text style={s.title}>{titleText}</Text>
+        <Text style={s.subtitle}>{subtitleText}</Text>
 
         {/* Details card */}
         <View style={s.card}>
@@ -87,13 +105,20 @@ export default function Success() {
           {orderId ? `Order ID · ${orderId}` : `Subscription ID · ${subscriptionId || 'BMF-NEW'}`}
         </Text>
 
-        {/* Buttons */}
-        <TouchableOpacity
-          style={s.btnPrimary}
-          onPress={() => router.push('/qr')}
-        >
-          <Text style={s.btnPrimaryText}>Generate Check-In QR</Text>
-        </TouchableOpacity>
+        {/* Buttons — context-aware */}
+        {isStoreOrder ? (
+          <TouchableOpacity style={s.btnPrimary} onPress={() => router.replace('/(tabs)/store' as any)}>
+            <Text style={s.btnPrimaryText}>Continue Shopping</Text>
+          </TouchableOpacity>
+        ) : isPtSession ? (
+          <TouchableOpacity style={s.btnPrimary} onPress={() => router.replace('/(tabs)' as any)}>
+            <Text style={s.btnPrimaryText}>Go to Home</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={s.btnPrimary} onPress={() => router.push('/qr')}>
+            <Text style={s.btnPrimaryText}>Generate Check-In QR</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={s.btnGhost}
