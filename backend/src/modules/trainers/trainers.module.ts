@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Put, Param, Body, Query, Injectable } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Param, Body, Query, Injectable, UseGuards, Req } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
@@ -7,6 +7,9 @@ import { TrainerEntity, TrainerBookingEntity } from '../../database/entities/tra
 import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
 import { v4 as uuid } from 'uuid';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.decorator';
 
 @Injectable()
 class TrainersService {
@@ -49,16 +52,23 @@ class TrainersService {
 
 @ApiTags('Trainers (PT)')
 @Controller('trainers')
+@UseGuards(JwtAuthGuard, RolesGuard)
 class TrainersController {
   constructor(private readonly svc: TrainersService) {}
-  @Get() list(@Query('gymId') gymId: string, @Query('page') page = 1, @Query('limit') limit = 20) {
+  @Get() @Roles('end_user', 'gym_owner', 'gym_staff', 'super_admin', 'corporate_admin')
+  list(@Query('gymId') gymId: string, @Query('page') page = 1, @Query('limit') limit = 20) {
     return this.svc.listByGym(gymId, +page, +limit);
   }
-  @Get(':id') get(@Param('id') id: string) { return this.svc.get(id); }
-  @Post() create(@Body() body: any) { return this.svc.create(body); }
-  @Put(':id') update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
-  @Post(':id/book') book(@Param('id') id: string, @Body() body: any) {
-    return this.svc.book(body.userId, id, body.sessions, body.sessionDate, body.phone);
+  @Get(':id') @Roles('end_user', 'gym_owner', 'gym_staff', 'super_admin')
+  get(@Param('id') id: string) { return this.svc.get(id); }
+  @Post() @Roles('gym_owner', 'super_admin')
+  create(@Body() body: any) { return this.svc.create(body); }
+  @Put(':id') @Roles('gym_owner', 'super_admin')
+  update(@Param('id') id: string, @Body() body: any) { return this.svc.update(id, body); }
+  @Post(':id/book') @Roles('end_user', 'corporate_admin')
+  book(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    const userId = body.userId || req.user?.userId;
+    return this.svc.book(userId, id, body.sessions, body.sessionDate, body.phone);
   }
 }
 

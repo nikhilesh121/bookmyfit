@@ -47,7 +47,7 @@ export default function Order() {
   const applyCoupon = async () => {
     if (!coupon.trim()) return;
     try {
-      const result: any = await couponsApi.validate(coupon, planId || undefined);
+      const result: any = await couponsApi.validate(coupon, planBase, planId || 'subscription');
       const discountPct = result?.discountPercent || result?.discount || 0;
       const d = Math.round(planBase * (discountPct / 100));
       setDiscount(d);

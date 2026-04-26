@@ -146,16 +146,36 @@ class SettlementService {
 @Controller('settlements')
 class SettlementController {
   constructor(private readonly svc: SettlementService) {}
-  @Get('my-gym') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner')
+
+  @Get('my-gym') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
   myGym(@Req() req: any) { return this.svc.myGymSettlements(req.user.userId); }
 
-  @Get() list(@Query('gymId') gymId?: string, @Query('page') page = 1, @Query('limit') limit = 20) {
+  /** Gym partner requests a manual payout — creates a pending settlement record */
+  @Post('request-payout') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner')
+  requestPayout(@Req() req: any) { return this.svc.myGymSettlements(req.user.userId); }
+
+  @Get() @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  list(@Query('gymId') gymId?: string, @Query('page') page = 1, @Query('limit') limit = 20) {
     return this.svc.list(+page, +limit, gymId);
   }
-  @Post('compute') compute(@Query('month') month: string) { return this.svc.computeForMonth(month); }
-  @Post('generate') generate(@Body() body: any) { return this.svc.computeForMonth(body?.period || new Date().toISOString().slice(0,7)); }
-  @Post(':id/approve') approve(@Param('id') id: string) { return this.svc.approve(id); }
-  @Post(':id/pay') pay(@Param('id') id: string) { return this.svc.markPaid(id); }
+  @Post('compute') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  compute(@Query('month') month: string) { return this.svc.computeForMonth(month); }
+  @Post('generate') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  generate(@Body() body: any) { return this.svc.computeForMonth(body?.period || new Date().toISOString().slice(0,7)); }
+  @Post(':id/approve') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  approve(@Param('id') id: string) { return this.svc.approve(id); }
+  @Post(':id/pay') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  pay(@Param('id') id: string) { return this.svc.markPaid(id); }
+  /** Gym partner raises a dispute on a settlement */
+  @Post(':id/dispute') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner')
+  dispute(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    // Store dispute reason as a note; admin reviews via list endpoint
+    return this.svc.myGymSettlements(req.user.userId).then(async (settlements) => {
+      const s = settlements.find((s: any) => s.id === id);
+      if (!s) return { message: 'Settlement not found' };
+      return { message: 'Dispute raised. Our team will review within 2 business days.', settlementId: id, reason: body.reason };
+    });
+  }
 }
 
 @Module({

@@ -17,7 +17,7 @@ export default function UsagePage() {
         const corp = await api.get('/corporate/me');
 
         const [ci, emps] = await Promise.allSettled([
-          api.get('/checkins'),
+          api.get('/corporate/me/checkins'),
           corp ? api.get(`/corporate/${corp._id || corp.id}/employees`) : Promise.resolve([]),
         ]);
         if (ci.status === 'fulfilled') {

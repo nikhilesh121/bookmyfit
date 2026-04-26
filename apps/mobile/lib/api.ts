@@ -121,8 +121,9 @@ export const subscriptionsApi = {
       ptAddon: body.ptAddon,
     });
   },
+  /** @deprecated — do not call /payments/webhook from mobile; it is a server-to-server Cashfree webhook */
   verifyPayment: (body: { orderId: string; paymentId: string; signature: string }) =>
-    api.post('/payments/webhook', body),
+    api.post(`/subscriptions/${body.orderId}/verify`, body),
   verify: (subId: string) => api.post(`/subscriptions/${subId}/verify`, {}),
   invoice: (id: string) => api.get(`/subscriptions/${id}/invoice`),
 };
@@ -145,26 +146,26 @@ export const checkinApi = {
 export const storeApi = {
   products: (category?: string) =>
     api.get(`/store/products${category ? `?category=${category}` : ''}`),
-  createOrder: (items: { productId: string; quantity: number }[]) =>
-    api.post('/store/orders', { items }),
-  myOrders: () => api.get('/store/orders/my'),
+  createOrder: (items: { productId: string; quantity: number }[], address = '', phone = '') =>
+    api.post('/store/orders', { items, address, phone }),
+  myOrders: () => api.get('/store/orders'),
 };
 
 export const gymStaffApi = {
   myGym: () => api.get('/gyms/my-gym'),
   myMembers: () => api.get('/gyms/my-members'),
   myCheckins: (page = 1, limit = 20) => api.get(`/gyms/my-checkins?page=${page}&limit=${limit}`),
-  todayStats: () => api.get('/checkins/today'),
-  // Decodes JWT from scanned QR to extract member userId, then calls the session
-  // attendance endpoint which marks the booking attended and creates a billing record.
+  todayStats: () => api.get('/checkins/today-count'),
+  // Called by gym-portal scanner after decoding QR JWT to get member userId
   checkin: (userId: string) => api.post('/sessions/checkin', { userId }),
   settlements: () => api.get('/settlements/my-gym'),
 };
 
 export const miscApi = {
   notifications: () => api.get('/notifications'),
+  markNotificationRead: (id: string) => api.post(`/notifications/${id}/read`),
   videos: () => api.get('/videos'),
-  submitReview: (body: { gymId?: string; trainerId?: string; rating: number; text?: string }) =>
+  submitReview: (body: { targetType: 'gym' | 'trainer'; targetId: string; userId: string; stars: number; review?: string }) =>
     api.post('/ratings', body),
 };
 
@@ -174,8 +175,8 @@ export const usersApi = {
 };
 
 export const couponsApi = {
-  validate: (code: string, planId?: string) =>
-    api.post('/coupons/validate', { code, planId }),
+  validate: (code: string, amount: number, kind: string) =>
+    api.post('/coupons/validate', { code, amount, kind }),
 };
 
 export const trainersApi = {
@@ -188,11 +189,13 @@ export const trainersApi = {
 export const wellnessApi = {
   list: (params?: { city?: string; serviceType?: string }) => {
     const q = params ? '?' + Object.entries(params).filter(([,v]) => v).map(([k, v]) => `${k}=${v}`).join('&') : '';
-    return api.get(`/wellness${q}`);
+    return api.get(`/wellness/partners${q}`);
   },
-  services: (partnerId: string) => api.get(`/wellness/${partnerId}/services`),
-  book: (body: { userId: string; serviceId: string; bookingDate: string; phone: string }) =>
-    api.post('/wellness/book', body),
+  services: (partnerId: string) => api.get(`/wellness/partners/${partnerId}/services`),
+  book: (body: { userId: string; serviceId: string; bookingDate: string; phone: string }) => {
+    const { serviceId, ...rest } = body;
+    return api.post(`/wellness/services/${serviceId}/book`, rest);
+  },
 };
 
 export const slotsApi = {

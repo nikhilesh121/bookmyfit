@@ -60,12 +60,13 @@ export default function GymDashboard() {
       setGym(gymData || { id: 'demo', name: 'Demo Gym' });
 
       if (statsData) {
+        const checkinList = statsData.checkins ?? statsData.recent ?? [];
         setStats({
-          todayCheckins: statsData.todayCheckins ?? statsData.count ?? MOCK_STATS.todayCheckins,
-          activeMembers: statsData.activeMembers ?? MOCK_STATS.activeMembers,
+          todayCheckins: statsData.count ?? statsData.todayCheckins ?? MOCK_STATS.todayCheckins,
+          // activeMembers not in API response — derive from current check-in count
+          activeMembers: checkinList.length > 0 ? checkinList.length : statsData.count ?? MOCK_STATS.activeMembers,
         });
-        const raw = statsData.checkins ?? statsData.recent ?? [];
-        setCheckins(raw.length > 0 ? raw.slice(0, 5) : MOCK_CHECKINS);
+        setCheckins(checkinList.length > 0 ? checkinList.slice(0, 5) : MOCK_CHECKINS);
       } else {
         setStats(MOCK_STATS);
         setCheckins(MOCK_CHECKINS);

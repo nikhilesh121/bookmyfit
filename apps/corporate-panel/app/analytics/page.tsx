@@ -11,8 +11,8 @@ export default function AnalyticsPage() {
   useEffect(() => {
     async function load() {
       const [an, ci] = await Promise.allSettled([
-        api.get('/analytics/summary'),
-        api.get('/checkins'),
+        api.get('/corporate/me/analytics'),
+        api.get('/corporate/me/checkins'),
       ]);
       if (an.status === 'fulfilled') setAnalytics(an.value);
       if (ci.status === 'fulfilled') {

@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BookMyFit – Admin Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Creamy iOS Background */
+  --bg: #faf8f5;
+  --bg2: #f5f2ed;
+  --sidebar: linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%);
+  --sidebar-text: rgba(255,255,255,0.6);
+  --sidebar-active: #ffffff;
+  --card: rgba(255,255,255,0.7);
+  --card-solid: #ffffff;
+  --text: #1a1a1a;
+  --text2: #4a4a4a;
+  --text3: #8a8a8a;
+  --border: rgba(0,0,0,0.06);
+  --accent: #1a1a1a;
+  /* Pastel Colors */
+  --pastel-orange: #ffe5d9;
+  --pastel-green: #d8f3dc;
+  --pastel-blue: #dbeafe;
+  --pastel-purple: #ede9fe;
+  --pastel-pink: #fce7f3;
+  --pastel-yellow: #fef3c7;
+  --green: #34c759;
+  --red: #ff3b30;
+  --orange: #ff9500;
+  --blue: #007aff;
+  --yellow: #fbbf24;
+  /* Glassmorphism Shadows */
+  --shadow: 0 2px 8px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+  --shadow-neu: 6px 6px 12px rgba(0,0,0,0.08), -6px -6px 12px rgba(255,255,255,0.9);
+  --radius: 16px;
+  --radius-lg: 24px;
+}
+[data-theme="dark"] {
+  --bg: #0d0d0d;
+  --sidebar: #060606;
+  --card: #161616;
+  --text: #f0f0f0;
+  --text2: #aaaaaa;
+  --text3: #555555;
+  --border: #222222;
+  --accent: #f0f0f0;
+  --shadow: 0 2px 0 rgba(0,0,0,0.3);
+}
+/* SVG Icons */
+.icon { width:16px; height:16px; stroke:currentColor; stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+.icon-sm { width:14px; height:14px; }
+.icon-lg { width:20px; height:20px; }
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Poppins',sans-serif; background:var(--bg); display:flex; height:100vh; overflow:hidden; }
+
+/* ===== SIDEBAR ===== */
+.sidebar { width:260px; background:var(--sidebar); display:flex; flex-direction:column; flex-shrink:0; height:100vh; overflow-y:auto; scrollbar-width:none; box-shadow:4px 0 24px rgba(0,0,0,0.1); }
+.sidebar::-webkit-scrollbar { display:none; }
+.sidebar-logo { padding:28px 24px; border-bottom:1px solid rgba(255,255,255,0.08); }
+.sidebar-logo h1 { font-size:22px; font-weight:900; color:#fff; letter-spacing:-1px; }
+.sidebar-logo h1 span { background:linear-gradient(135deg,#34c759,#30d158); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.sidebar-logo p { font-size:10px; color:rgba(255,255,255,0.4); margin-top:2px; letter-spacing:1px; text-transform:uppercase; }
+.nav-section { padding:16px 12px 8px; }
+.nav-section-label { font-size:9px; font-weight:700; color:rgba(255,255,255,0.25); text-transform:uppercase; letter-spacing:1.5px; padding:0 8px; margin-bottom:4px; }
+.nav-item { display:flex; align-items:center; gap:12px; padding:11px 12px; border-radius:12px; cursor:pointer; transition:all .2s; margin-bottom:4px; }
+.nav-item:hover { background:rgba(255,255,255,0.08); }
+.nav-item.active { background:rgba(255,255,255,0.15); box-shadow:0 4px 12px rgba(0,0,0,0.2); }
+.nav-item .nav-icon { width:20px; height:20px; display:flex; align-items:center; justify-content:center; color:var(--sidebar-text); }
+.nav-item .nav-text { font-size:13px; font-weight:500; color:var(--sidebar-text); }
+.nav-item.active .nav-text { color:var(--sidebar-active); font-weight:600; }
+.nav-item.active .nav-icon { color:var(--sidebar-active); }
+.nav-badge { margin-left:auto; background:#ef4444; color:#fff; font-size:9px; font-weight:700; padding:2px 6px; border-radius:var(--radius); }
+.sidebar-bottom { margin-top:auto; padding:12px; border-top:1px solid rgba(255,255,255,0.06); }
+.sidebar-user { display:flex; align-items:center; gap:10px; padding:10px; border-radius:var(--radius); cursor:pointer; }
+.sidebar-user:hover { background:rgba(255,255,255,0.06); }
+.sidebar-avatar { width:34px; height:34px; border-radius:var(--radius); background:#222; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; border:2px solid #333; }
+.sidebar-user-name { font-size:12px; font-weight:600; color:#fff; }
+.sidebar-user-role { font-size:10px; color:rgba(255,255,255,0.4); }
+
+/* ===== MAIN ===== */
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.topbar { height:68px; background:rgba(255,255,255,0.8); backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 28px; gap:16px; flex-shrink:0; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+.topbar-title { font-size:16px; font-weight:700; color:var(--text); }
+.topbar-breadcrumb { font-size:12px; color:var(--text3); }
+.topbar-right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+.topbar-search { background:rgba(255,255,255,0.6); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1.5px solid var(--border); border-radius:12px; padding:10px 16px; font-family:'Poppins',sans-serif; font-size:13px; color:var(--text); outline:none; width:280px; box-shadow:var(--shadow); }
+.topbar-search:focus { border-color:var(--text); }
+.topbar-btn { width:40px; height:40px; border-radius:12px; background:rgba(255,255,255,0.6); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; color:var(--text2); box-shadow:var(--shadow); }
+.topbar-btn:hover { border-color:var(--text); color:var(--text); }
+.topbar-notif-dot { position:absolute; top:4px; right:4px; width:8px; height:8px; background:var(--red); border-radius:50%; border:2px solid var(--card); }
+.theme-toggle { padding:6px 12px; border-radius:var(--radius); background:var(--bg); border:2px solid var(--border); font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; color:var(--text2); cursor:pointer; display:flex; align-items:center; gap:6px; }
+.theme-toggle:hover { border-color:var(--text); }
+
+.content { flex:1; overflow-y:auto; padding:24px; scrollbar-width:thin; }
+.content::-webkit-scrollbar { width:4px; }
+.content::-webkit-scrollbar-track { background:transparent; }
+.content::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+.page { display:none; }
+.page.active { display:block; animation:fadeIn .2s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+/* ===== STATS ===== */
+.stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+.stat-card { background:var(--card); backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%); border:1px solid rgba(255,255,255,0.5); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,0.8); }
+.stat-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.stat-card-icon { width:48px; height:48px; border-radius:14px; display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow); }
+.stat-card-trend { font-size:11px; font-weight:600; }
+.trend-up { color:var(--green); }
+.trend-down { color:var(--red); }
+.stat-card-val { font-size:28px; font-weight:900; color:var(--text); }
+.stat-card-label { font-size:12px; color:var(--text2); margin-top:2px; }
+
+.card { background:var(--card); backdrop-filter:blur(20px) saturate(180%); -webkit-backdrop-filter:blur(20px) saturate(180%); border:1px solid rgba(255,255,255,0.5); border-radius:var(--radius); padding:24px; box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,0.8); margin-bottom:20px; }
+.card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.card-title { font-size:14px; font-weight:700; color:var(--text); }
+.card-action { font-size:12px; font-weight:600; color:var(--text2); cursor:pointer; border:2px solid var(--border); padding:5px 12px; border-radius:var(--radius); background:var(--bg); }
+.card-action:hover { border-color:var(--text); color:var(--text); }
+
+/* TABLE */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; }
+th { text-align:left; font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.5px; padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+td { font-size:13px; color:var(--text2); padding:12px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:var(--bg); }
+.td-primary { font-weight:600; color:var(--text); }
+
+/* BADGE */
+.badge { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:var(--radius); font-size:11px; font-weight:600; border:1px solid transparent; }
+.badge-green { background:rgba(34,197,94,0.1); color:#16a34a; border-color:rgba(34,197,94,0.3); }
+.badge-yellow { background:rgba(234,179,8,0.1); color:#a16207; border-color:rgba(234,179,8,0.3); }
+.badge-red { background:rgba(239,68,68,0.1); color:var(--red); border-color:rgba(239,68,68,0.3); }
+.badge-blue { background:rgba(59,130,246,0.1); color:var(--blue); border-color:rgba(59,130,246,0.3); }
+.badge-gray { background:var(--bg); color:var(--text3); border-color:var(--border); }
+
+/* BUTTONS - iOS Minimalism */
+.btn { padding:11px 20px; border-radius:12px; border:none; cursor:pointer; font-family:'Poppins',sans-serif; font-size:13px; font-weight:600; display:inline-flex; align-items:center; gap:8px; transition:all .2s; box-shadow:var(--shadow); }
+.btn:hover { opacity:0.85; transform:translateY(-1px); box-shadow:0 4px 16px rgba(0,0,0,0.1); }
+.btn:active { transform:translateY(0); }
+.btn-primary { background:var(--accent); color:#fff; }
+[data-theme="dark"] .btn-primary { color:#000; }
+.btn-outline { background:rgba(255,255,255,0.6); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); color:var(--text); border:1.5px solid var(--border); }
+.btn-outline:hover { border-color:var(--text); }
+.btn-danger { background:#fee2e2; color:var(--red); border-color:var(--red); box-shadow:3px 3px 0 var(--red); }
+.btn-sm { padding:6px 12px; font-size:11px; box-shadow:2px 2px 0 var(--text); }
+.btn-sm:hover { transform:translate(1px,1px); box-shadow:1px 1px 0 var(--text); }
+.btn-icon { background:var(--bg); border:2px solid var(--border); width:30px; height:30px; border-radius:var(--radius); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text2); box-shadow:2px 2px 0 var(--border); }
+.btn-icon:hover { border-color:var(--text); color:var(--text); box-shadow:1px 1px 0 var(--text); transform:translate(1px,1px); }
+
+/* CHART BARS */
+.bar-chart { display:flex; align-items:flex-end; gap:8px; height:120px; margin-top:8px; }
+.bar-group { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; }
+.bar { width:100%; border-radius:var(--radius) var(--radius) 0 0; background:var(--accent); transition:height .5s ease; }
+.bar-label { font-size:10px; color:var(--text3); white-space:nowrap; }
+.bar-val { font-size:10px; font-weight:600; color:var(--text2); }
+
+/* DONUT */
+.donut-chart { position:relative; width:120px; height:120px; }
+.donut-chart svg { transform:rotate(-90deg); }
+.donut-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.donut-center-val { font-size:20px; font-weight:900; color:var(--text); }
+.donut-center-lbl { font-size:10px; color:var(--text3); }
+
+/* GRID 2 */
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+
+/* FORM */
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+.form-group { display:flex; flex-direction:column; gap:6px; }
+.form-label { font-size:11px; font-weight:600; color:var(--text2); text-transform:uppercase; letter-spacing:0.5px; }
+.form-input { padding:10px 14px; border-radius:var(--radius); border:2px solid var(--border); background:var(--bg); font-family:'Poppins',sans-serif; font-size:13px; color:var(--text); outline:none; transition:border-color .2s; }
+.form-input:focus { border-color:var(--text); }
+.form-select { padding:10px 14px; border-radius:var(--radius); border:2px solid var(--border); background:var(--bg); font-family:'Poppins',sans-serif; font-size:13px; color:var(--text); outline:none; cursor:pointer; }
+.form-select:focus { border-color:var(--text); }
+.form-textarea { padding:10px 14px; border-radius:var(--radius); border:2px solid var(--border); background:var(--bg); font-family:'Poppins',sans-serif; font-size:13px; color:var(--text); outline:none; resize:vertical; min-height:80px; }
+.form-textarea:focus { border-color:var(--text); }
+.form-full { grid-column:1/-1; }
+
+/* PAGE HEADER */
+.page-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+.page-head h2 { font-size:20px; font-weight:800; color:var(--text); }
+.page-head p { font-size:13px; color:var(--text2); margin-top:2px; }
+
+/* FILTER BAR */
+.filter-bar { display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+.filter-input { padding:9px 14px; border-radius:var(--radius); border:2px solid var(--border); background:var(--card); font-family:'Poppins',sans-serif; font-size:12px; color:var(--text); outline:none; width:220px; }
+.filter-input:focus { border-color:var(--text); }
+.filter-select { padding:9px 14px; border-radius:var(--radius); border:2px solid var(--border); background:var(--card); font-family:'Poppins',sans-serif; font-size:12px; color:var(--text); outline:none; cursor:pointer; }
+.filter-select:focus { border-color:var(--text); }
+
+/* SECTION BUILDER (Homepage Config) */
+.section-builder { display:flex; flex-direction:column; gap:12px; }
+.section-item { background:var(--bg); border-radius:var(--radius); padding:14px 16px; border:2px solid var(--border); display:flex; align-items:center; gap:12px; cursor:grab; }
+.section-drag { color:var(--text3); cursor:grab; }
+.section-info { flex:1; }
+.section-name { font-size:13px; font-weight:600; color:var(--text); }
+.section-type { font-size:11px; color:var(--text3); margin-top:2px; }
+.toggle { width:40px; height:22px; background:var(--border); border-radius:var(--radius); position:relative; cursor:pointer; transition:background .2s; border:2px solid var(--border); }
+.toggle.on { background:var(--green); border-color:var(--green); }
+.toggle-knob { width:14px; height:14px; background:#fff; border-radius:2px; position:absolute; top:2px; left:2px; transition:left .2s; }
+.toggle.on .toggle-knob { left:20px; }
+
+/* GYM PROFILE MINI */
+.gym-mini { display:flex; align-items:center; gap:10px; }
+.gym-mini-img { width:36px; height:36px; border-radius:var(--radius); object-fit:cover; background:var(--bg3); flex-shrink:0; }
+.gym-mini-name { font-size:13px; font-weight:600; color:var(--text); }
+.gym-mini-area { font-size:11px; color:var(--text3); }
+
+/* ACTIVITY FEED */
+.activity-item { display:flex; align-items:flex-start; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+.activity-item:last-child { border-bottom:none; }
+.activity-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+.activity-text { font-size:12px; color:var(--text2); line-height:1.5; }
+.activity-time { font-size:10px; color:var(--text3); margin-top:2px; }
+
+/* KYC STEPPER */
+.kyc-step { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+.kyc-step:last-child { border-bottom:none; }
+.kyc-step-num { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
+.kyc-step-num.done { background:var(--green); color:#fff; }
+.kyc-step-num.pending { background:var(--yellow); color:#fff; }
+.kyc-step-num.waiting { background:var(--bg3,#eee); color:var(--text3); }
+.kyc-step-info { flex:1; }
+.kyc-step-name { font-size:13px; font-weight:600; color:var(--text); }
+.kyc-step-status { font-size:11px; color:var(--text3); }
+
+/* COMMISSION SLIDER */
+.comm-input { display:flex; align-items:center; gap:12px; }
+.comm-input input[type=range] { flex:1; accent-color:var(--accent); }
+.comm-val { font-size:16px; font-weight:800; color:var(--text); min-width:48px; text-align:right; }
+
+/* SETTLEMENT */
+.settlement-row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border); }
+.settlement-row:last-child { border-bottom:none; }
+.settlement-gym { font-size:13px; font-weight:600; color:var(--text); }
+.settlement-amount { font-size:15px; font-weight:800; color:var(--text); }
+.settlement-visits { font-size:11px; color:var(--text3); }
+
+/* PRODUCT GRID */
+.product-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+.product-card { background:var(--bg); border-radius:12px; overflow:hidden; border:1px solid var(--border); }
+.product-card img { width:100%; height:120px; object-fit:cover; background:var(--border); }
+.product-card-body { padding:10px; }
+.product-card-name { font-size:12px; font-weight:600; color:var(--text); }
+.product-card-cat { font-size:10px; color:var(--text3); margin-top:2px; }
+.product-card-price { font-size:14px; font-weight:800; color:var(--text); margin-top:4px; }
+.product-card-actions { display:flex; gap:6px; margin-top:8px; }
+</style>
+</head>
+<body data-theme="light">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <h1>Book<span>My</span>Fit</h1>
+    <p>Admin Panel</p>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">Overview</div>
+    <div class="nav-item active" onclick="showPage('dashboard',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div><div class="nav-text">Dashboard</div></div>
+    <div class="nav-item" onclick="showPage('analytics',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div class="nav-text">Analytics</div></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">Management</div>
+    <div class="nav-item" onclick="showPage('gyms',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M6.5 6.5h11v11h-11z"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/></svg></div><div class="nav-text">Gym Management</div><span class="nav-badge">5</span></div>
+    <div class="nav-item" onclick="showPage('users',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="nav-text">Users</div></div>
+    <div class="nav-item" onclick="showPage('subscriptions',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div><div class="nav-text">Subscriptions</div></div>
+    <div class="nav-item" onclick="showPage('corporate',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M9 8h1"/><path d="M9 12h1"/><path d="M9 16h1"/><path d="M14 8h1"/><path d="M14 12h1"/><path d="M14 16h1"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/></svg></div><div class="nav-text">Corporate</div></div>
+    <div class="nav-item" onclick="showPage('corporate-employees',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="12" x2="15" y2="12"/></svg></div><div class="nav-text">Corporate Employees</div></div>
+    <div class="nav-item" onclick="showPage('bookings',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div class="nav-text">Bookings</div></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">Revenue</div>
+    <div class="nav-item" onclick="showPage('settlement',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="nav-text">Settlements</div></div>
+    <div class="nav-item" onclick="showPage('commission',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="nav-text">Commission Engine</div></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">Content</div>
+    <div class="nav-item" onclick="showPage('homepage',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div><div class="nav-text">Homepage Builder</div></div>
+    <div class="nav-item" onclick="showPage('store',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></div><div class="nav-text">Store Products</div></div>
+    <div class="nav-item" onclick="showPage('categories',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div><div class="nav-text">Categories</div></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">System</div>
+    <div class="nav-item" onclick="showPage('notifications-admin',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div><div class="nav-text">Push Notifications</div></div>
+    <div class="nav-item" onclick="showPage('settings',this)"><div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="nav-text">Settings</div></div>
+  </div>
+  <div class="sidebar-bottom">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">SA</div>
+      <div><div class="sidebar-user-name">Super Admin</div><div class="sidebar-user-role">admin@bookmyfit.in</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="topbarTitle">Dashboard</div>
+      <div class="topbar-breadcrumb">BookMyFit Admin</div>
+    </div>
+    <div class="topbar-right">
+      <input class="topbar-search" placeholder="Search anything...">
+      <div class="topbar-btn"><svg class="icon" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><div class="topbar-notif-dot"></div></div>
+      <div class="topbar-btn"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+      <button class="theme-toggle" onclick="toggleTheme()"><svg class="icon-sm" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> Dark</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ===== DASHBOARD ===== -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-head">
+        <div><h2>Dashboard Overview</h2><p>Monday, 16 March 2026</p></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline"><svg class="icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export</button>
+          <button class="btn btn-primary"><svg class="icon-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Gym</button>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <div class="stat-card-icon" style="background:rgba(34,197,94,0.1);color:#22c55e;"><svg class="icon-lg" viewBox="0 0 24 24"><path d="M6.5 6.5h11v11h-11z"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/></svg></div>
+            <span class="stat-card-trend trend-up">+12%</span>
+          </div>
+          <div class="stat-card-val">1,284</div>
+          <div class="stat-card-label">Partner Gyms</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <div class="stat-card-icon" style="background:rgba(59,130,246,0.1);color:#3b82f6;"><svg class="icon-lg" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+            <span class="stat-card-trend trend-up">+24%</span>
+          </div>
+          <div class="stat-card-val">48,920</div>
+          <div class="stat-card-label">Active Users</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <div class="stat-card-icon" style="background:rgba(234,179,8,0.1);color:#eab308;"><svg class="icon-lg" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+            <span class="stat-card-trend trend-up">+18%</span>
+          </div>
+          <div class="stat-card-val">₹84.2L</div>
+          <div class="stat-card-label">Monthly Revenue</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-header">
+            <div class="stat-card-icon" style="background:rgba(239,68,68,0.1);color:#ef4444;"><svg class="icon-lg" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+            <span class="stat-card-trend trend-up">+31%</span>
+          </div>
+          <div class="stat-card-val">12,480</div>
+          <div class="stat-card-label">Bookings Today</div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <!-- Revenue Chart -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Revenue (Last 7 Days)</span>
+            <span class="card-action">This Month ▾</span>
+          </div>
+          <div class="bar-chart" id="revenueChart"></div>
+          <div style="display:flex;justify-content:space-around;margin-top:10px;">
+            <div style="font-size:11px;color:var(--text3);">Mon</div><div style="font-size:11px;color:var(--text3);">Tue</div><div style="font-size:11px;color:var(--text3);">Wed</div><div style="font-size:11px;color:var(--text3);">Thu</div><div style="font-size:11px;color:var(--text3);">Fri</div><div style="font-size:11px;color:var(--text3);">Sat</div><div style="font-size:11px;color:var(--text3);">Sun</div>
+          </div>
+        </div>
+
+        <!-- Subscription Split -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Subscription Distribution</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:24px;">
+            <div class="donut-chart">
+              <svg width="120" height="120" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="45" fill="none" stroke="var(--bg3,#eee)" stroke-width="18"/>
+                <circle cx="60" cy="60" r="45" fill="none" stroke="#111" stroke-width="18" stroke-dasharray="141.3 141.3" stroke-linecap="round"/>
+                <circle cx="60" cy="60" r="45" fill="none" stroke="#22c55e" stroke-width="18" stroke-dasharray="84.8 282.6" stroke-dashoffset="-141.3" stroke-linecap="round"/>
+                <circle cx="60" cy="60" r="45" fill="none" stroke="#3b82f6" stroke-width="18" stroke-dasharray="56.5 282.6" stroke-dashoffset="-226.1" stroke-linecap="round"/>
+              </svg>
+              <div class="donut-center"><div class="donut-center-val">48K</div><div class="donut-center-lbl">Users</div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;flex:1;">
+              <div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:2px;background:#111;flex-shrink:0;"></div><div style="flex:1;font-size:12px;color:var(--text2);">Pro Plan</div><div style="font-size:12px;font-weight:700;color:var(--text);">50%</div></div>
+              <div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:2px;background:#22c55e;flex-shrink:0;"></div><div style="flex:1;font-size:12px;color:var(--text2);">Max Plan</div><div style="font-size:12px;font-weight:700;color:var(--text);">30%</div></div>
+              <div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:2px;background:#3b82f6;flex-shrink:0;"></div><div style="flex:1;font-size:12px;color:var(--text2);">Single Gym</div><div style="font-size:12px;font-weight:700;color:var(--text);">20%</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <!-- Recent Gym Applications -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Pending Gym Applications</span>
+            <button class="btn btn-outline btn-sm" onclick="showPage('gyms',document.querySelector('.nav-item:nth-child(2)'))">View All</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Gym</th><th>City</th><th>Submitted</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                <tr><td><div class="gym-mini"><img class="gym-mini-img" src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=80&q=60" onerror="this.src='https://placehold.co/80x80/eee/999?text=G'"><div><div class="gym-mini-name">PowerZone Gym</div><div class="gym-mini-area">New Town, Kolkata</div></div></div></td><td>Kolkata</td><td>Today</td><td><span class="badge badge-yellow">Pending</span></td><td><button class="btn btn-sm btn-primary" onclick="showPage('gym-review',null)">Review</button></td></tr>
+                <tr><td><div class="gym-mini"><img class="gym-mini-img" src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=80&q=60" onerror="this.src='https://placehold.co/80x80/eee/999?text=G'"><div><div class="gym-mini-name">Iron House</div><div class="gym-mini-area">Bhubaneswar</div></div></div></td><td>Bhubaneswar</td><td>Yesterday</td><td><span class="badge badge-blue">Under Review</span></td><td><button class="btn btn-sm btn-outline">View</button></td></tr>
+                <tr><td><div class="gym-mini"><img class="gym-mini-img" src="https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=80&q=60" onerror="this.src='https://placehold.co/80x80/eee/999?text=G'"><div><div class="gym-mini-name">FitZone Studio</div><div class="gym-mini-area">Chennai</div></div></div></td><td>Chennai</td><td>2 days ago</td><td><span class="badge badge-yellow">Pending</span></td><td><button class="btn btn-sm btn-primary" onclick="showPage('gym-review',null)">Review</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Activity Feed -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">Live Activity Feed</span><span class="badge badge-green" style="font-size:10px;">● Live</span></div>
+          <div class="activity-item"><div class="activity-dot" style="background:#22c55e;"></div><div><div class="activity-text">Rahul Sharma checked in at <strong>Fitness Mantra, Kolkata</strong></div><div class="activity-time">2 mins ago</div></div></div>
+          <div class="activity-item"><div class="activity-dot" style="background:#3b82f6;"></div><div><div class="activity-text">New subscription: <strong>Pro Plan</strong> by Priya Singh</div><div class="activity-time">5 mins ago</div></div></div>
+          <div class="activity-item"><div class="activity-dot" style="background:#f97316;"></div><div><div class="activity-text">Gym application received from <strong>PowerZone Gym</strong></div><div class="activity-time">12 mins ago</div></div></div>
+          <div class="activity-item"><div class="activity-dot" style="background:#22c55e;"></div><div><div class="activity-text">Settlement of <strong>₹24,500</strong> released to Gold's Gym</div><div class="activity-time">1 hour ago</div></div></div>
+          <div class="activity-item"><div class="activity-dot" style="background:#ef4444;"></div><div><div class="activity-text">Refund request raised by <strong>Amit Kumar</strong> – Order #ORD8821</div><div class="activity-time">2 hours ago</div></div></div>
+          <div class="activity-item"><div class="activity-dot" style="background:#3b82f6;"></div><div><div class="activity-text">Corporate onboarding: <strong>TCS Ltd</strong> added 120 employees</div><div class="activity-time">3 hours ago</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== GYMS ===== -->
+    <div class="page" id="page-gyms">
+      <div class="page-head">
+        <div><h2>Gym Management</h2><p>Manage all partner gyms and applications</p></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline">📥 Export</button>
+          <button class="btn btn-primary">+ Add Gym</button>
+        </div>
+      </div>
+      <div class="filter-bar">
+        <input class="filter-input" placeholder="🔍 Search gyms...">
+        <select class="filter-select"><option>All Status</option><option>Approved</option><option>Pending</option><option>Under Review</option><option>Suspended</option></select>
+        <select class="filter-select"><option>All Cities</option><option>Kolkata</option><option>Mumbai</option><option>Delhi</option></select>
+        <select class="filter-select"><option>All Tiers</option><option>Standard</option><option>Premium</option></select>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button class="btn btn-outline btn-sm">⬆⬇ Sort</button>
+        </div>
+      </div>
+      <div class="card" style="padding:0;">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Gym</th><th>City</th><th>Tier</th><th>Rating</th><th>Users</th><th>Commission</th><th>Status</th><th>KYC</th><th>Actions</th></tr></thead>
+            <tbody>
+              <tr onclick="showPage('gym-review',null)" style="cursor:pointer;">
+                <td><div class="gym-mini"><img class="gym-mini-img" src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=80&q=60" onerror="this.src='https://placehold.co/80x80/eee/999?text=G'"><div><div class="gym-mini-name">Fitness Mantra</div><div class="gym-mini-area">Salt Lake, Kolkata</div></div></div></td>
+                <td>Kolkata</td><td><span class="badge badge-blue">Premium</span></td><td>⭐ 4.8</td><td>342</td><td>25%</td><td><span class="badge badge-green">Approved</span></td><td><span class="badge badge-green">✓ Done</span></td>
+                <td><div style="display:flex;gap:4px;"><button class="btn-icon">✏️</button><button class="btn-icon">👁</button><button class="btn-icon">🚫</button></div></td>
+              </tr>
+              <tr onclick="showPage('gym-review',null)" style="cursor:pointer;">
+                <td><div class="gym-mini"><img class="gym-mini-img" src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=80&q=60" onerror="this.src='https://placehold.co/80x80/eee/999?text=G'"><div><div class="gym-mini-name">Gold's Gym KOL</div><div class="gym-mini-area">Park Street, Kolkata</div></div></div></td>
+                <td>Kolkata</td><td><span class="badge badge-blue">Premium</span></td><td>⭐ 4.6</td><td>218</td><td>30%</td><td><span class="badge badge-green">Approved</span></td><td><span class="badge badge-green">✓ Done</span></td>
+                <td><div style="display:flex;gap:4px;"><button class="btn-icon">✏️</button><button class="btn-icon">👁</button><button class="btn-icon">🚫</button></div></td>
+              </tr>
+              <tr onclick="showPage('gym-review',null)" style="cursor:pointer;">
+                <td><div class="gym-mini"><img class="gym-mini-img" src="https://placehold.co/80x80/eee/999?text=G"><div><div class="gym-mini-name">PowerZone Gym</div><div class="gym-mini-area">New Town, Kolkata</div></div></div></td>
+                <td>Kolkata</td><td><span class="badge badge-gray">Standard</span></td><td>—</td><td>—</td><td>30%</td><td><span class="badge badge-yellow">Pending</span></td><td><span class="badge badge-yellow">⏳ Partial</span></td>
+                <td><div style="display:flex;gap:4px;"><button class="btn btn-sm btn-primary">Review KYC</button></div></td>
+              </tr>
+              <tr>
+                <td><div class="gym-mini"><img class="gym-mini-img" src="https://placehold.co/80x80/eee/999?text=G"><div><div class="gym-mini-name">Iron House</div><div class="gym-mini-area">Bhubaneswar</div></div></div></td>
+                <td>Bhubaneswar</td><td><span class="badge badge-gray">Standard</span></td><td>—</td><td>—</td><td>30%</td><td><span class="badge badge-blue">Under Review</span></td><td><span class="badge badge-blue">🔍 Review</span></td>
+                <td><div style="display:flex;gap:4px;"><button class="btn-icon">👁</button><button class="btn btn-sm btn-primary">Approve</button></div></td>
+              </tr>
+              <tr>
+                <td><div class="gym-mini"><img class="gym-mini-img" src="https://placehold.co/80x80/eee/999?text=G"><div><div class="gym-mini-name">Old Gym KOL</div><div class="gym-mini-area">Howrah</div></div></div></td>
+                <td>Kolkata</td><td><span class="badge badge-gray">Standard</span></td><td>⭐ 3.2</td><td>12</td><td>30%</td><td><span class="badge badge-red">Suspended</span></td><td><span class="badge badge-green">✓ Done</span></td>
+                <td><div style="display:flex;gap:4px;"><button class="btn-icon">✏️</button><button class="btn btn-sm" style="color:var(--green);border:1px solid var(--green);">Unsuspend</button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== GYM REVIEW / KYC ===== -->
+    <div class="page" id="page-gym-review">
+      <div class="page-head">
+        <div><h2>KYC Review – PowerZone Gym</h2><p>New Town, Kolkata · Submitted Today</p></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-danger">✕ Reject</button>
+          <button class="btn btn-primary">✓ Approve All</button>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px;">KYC Document Status</div>
+          <div class="kyc-step"><div class="kyc-step-num done">✓</div><div class="kyc-step-info"><div class="kyc-step-name">Business Registration Certificate</div><div class="kyc-step-status">Approved · Uploaded 15 Mar 2026</div></div><button class="btn btn-sm btn-outline">View Doc</button></div>
+          <div class="kyc-step"><div class="kyc-step-num done">✓</div><div class="kyc-step-info"><div class="kyc-step-name">GST Certificate</div><div class="kyc-step-status">Approved</div></div><button class="btn btn-sm btn-outline">View Doc</button></div>
+          <div class="kyc-step"><div class="kyc-step-num pending">!</div><div class="kyc-step-info"><div class="kyc-step-name">Gym Interior Photos (Min 5)</div><div class="kyc-step-status">Pending admin approval</div></div><div style="display:flex;gap:6px;"><button class="btn btn-sm btn-primary">Approve</button><button class="btn btn-sm btn-danger">Reject</button></div></div>
+          <div class="kyc-step"><div class="kyc-step-num waiting">4</div><div class="kyc-step-info"><div class="kyc-step-name">Bank Account Details</div><div class="kyc-step-status">Awaiting upload by gym</div></div></div>
+          <div class="kyc-step"><div class="kyc-step-num waiting">5</div><div class="kyc-step-info"><div class="kyc-step-name">Owner Aadhaar / PAN</div><div class="kyc-step-status">Awaiting upload by gym</div></div></div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="card-title" style="margin-bottom:12px;">Gym Profile</div>
+            <div class="form-group" style="margin-bottom:12px;"><div class="form-label">Gym Name</div><div style="font-size:13px;font-weight:600;color:var(--text);">PowerZone Gym</div></div>
+            <div class="form-group" style="margin-bottom:12px;"><div class="form-label">Address</div><div style="font-size:13px;color:var(--text2);">Action Area 1, New Town, Kolkata – 700156</div></div>
+            <div class="form-group" style="margin-bottom:12px;"><div class="form-label">Owner</div><div style="font-size:13px;color:var(--text2);">Suresh Patel · +91 98100 12345</div></div>
+            <div class="form-group" style="margin-bottom:16px;"><div class="form-label">Categories Selected</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;"><span class="badge badge-gray">Gym</span><span class="badge badge-gray">Cardio</span><span class="badge badge-gray">Personal Training</span></div></div>
+            <div class="form-group"><div class="form-label">Set Tier</div><select class="form-select" style="margin-top:4px;"><option>Standard</option><option>Premium</option></select></div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="margin-bottom:12px;">Commission Override</div>
+            <div class="comm-input">
+              <span style="font-size:12px;color:var(--text3);">0%</span>
+              <input type="range" min="0" max="50" value="30" oninput="document.getElementById('commVal').textContent=this.value+'%'">
+              <span style="font-size:12px;color:var(--text3);">50%</span>
+              <span class="comm-val" id="commVal">30%</span>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:8px;">Global default: 30% · Override applies only to this gym</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== USERS ===== -->
+    <div class="page" id="page-users">
+      <div class="page-head">
+        <div><h2>User Management</h2><p>All registered users across the platform</p></div>
+        <button class="btn btn-primary">+ Invite User</button>
+      </div>
+      <div class="filter-bar">
+        <input class="filter-input" placeholder="🔍 Search users...">
+        <select class="filter-select"><option>All Plans</option><option>Pro</option><option>Max</option><option>Single Gym</option><option>No Plan</option></select>
+        <select class="filter-select"><option>All Cities</option><option>Kolkata</option><option>Mumbai</option></select>
+      </div>
+      <div class="card" style="padding:0;">
+        <table><thead><tr><th>User</th><th>Plan</th><th>Status</th><th>Sessions</th><th>Joined</th><th>Last Active</th><th>Actions</th></tr></thead>
+        <tbody>
+          <tr><td><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--bg3,#eee);display:flex;align-items:center;justify-content:center;font-size:14px;">👤</div><div><div class="td-primary">Rahul Sharma</div><div style="font-size:11px;color:var(--text3);">rahul@email.com</div></div></div></td><td><span class="badge badge-green">Pro</span></td><td><span class="badge badge-green">Active</span></td><td>47</td><td>Jan 2026</td><td>Today</td><td><div style="display:flex;gap:4px;"><button class="btn-icon">👁</button><button class="btn-icon">✏️</button></div></td></tr>
+          <tr><td><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--bg3,#eee);display:flex;align-items:center;justify-content:center;font-size:14px;">👤</div><div><div class="td-primary">Priya Singh</div><div style="font-size:11px;color:var(--text3);">priya@email.com</div></div></div></td><td><span class="badge badge-blue">Max</span></td><td><span class="badge badge-green">Active</span></td><td>89</td><td>Dec 2025</td><td>Today</td><td><div style="display:flex;gap:4px;"><button class="btn-icon">👁</button><button class="btn-icon">✏️</button></div></td></tr>
+          <tr><td><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--bg3,#eee);display:flex;align-items:center;justify-content:center;font-size:14px;">👤</div><div><div class="td-primary">Amit Kumar</div><div style="font-size:11px;color:var(--text3);">amit@email.com</div></div></div></td><td><span class="badge badge-gray">None</span></td><td><span class="badge badge-red">Inactive</span></td><td>3</td><td>Feb 2026</td><td>5 days ago</td><td><div style="display:flex;gap:4px;"><button class="btn-icon">👁</button><button class="btn btn-sm btn-primary">Activate</button></div></td></tr>
+        </tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== SUBSCRIPTIONS ===== -->
+    <div class="page" id="page-subscriptions">
+      <div class="page-head"><div><h2>Subscription Plans</h2><p>Manage platform subscription tiers</p></div><button class="btn btn-primary">+ Add Plan</button></div>
+      <div class="grid2">
+        <div class="card" style="border:2px solid var(--text);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div><div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--text3);text-transform:uppercase;">PLATFORM PLAN</div><div style="font-size:20px;font-weight:900;color:var(--text);">Pro Plan</div></div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+            <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;border:1px solid var(--border);"><div style="font-size:16px;font-weight:800;color:var(--text);">₹999</div><div style="font-size:10px;color:var(--text3);">Monthly</div></div>
+            <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;border:1px solid var(--border);"><div style="font-size:16px;font-weight:800;color:var(--text);">₹2,499</div><div style="font-size:10px;color:var(--text3);">3 Months</div></div>
+            <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;border:1px solid var(--border);"><div style="font-size:16px;font-weight:800;color:var(--text);">₹4,999</div><div style="font-size:10px;color:var(--text3);">6 Months</div></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
+            <div style="font-size:12px;color:var(--text2);">✓ Access to 500+ Standard gyms</div>
+            <div style="font-size:12px;color:var(--text2);">✓ Unlimited sessions</div>
+            <div style="font-size:12px;color:var(--text2);">✓ AI fitness coaching</div>
+            <div style="font-size:12px;color:var(--text2);">✓ Virtual classes</div>
+          </div>
+          <div style="display:flex;gap:8px;"><button class="btn btn-outline btn-sm" style="flex:1;">✏️ Edit</button><button class="btn btn-primary btn-sm" style="flex:1;">📊 Stats</button></div>
+        </div>
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div><div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--text3);text-transform:uppercase;">PLATFORM PLAN</div><div style="font-size:20px;font-weight:900;color:var(--text);">Max Plan</div></div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+            <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;border:1px solid var(--border);"><div style="font-size:16px;font-weight:800;color:var(--text);">₹1,999</div><div style="font-size:10px;color:var(--text3);">Monthly</div></div>
+            <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;border:1px solid var(--border);"><div style="font-size:16px;font-weight:800;color:var(--text);">₹4,999</div><div style="font-size:10px;color:var(--text3);">3 Months</div></div>
+            <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center;border:1px solid var(--border);"><div style="font-size:16px;font-weight:800;color:var(--text);">₹9,999</div><div style="font-size:10px;color:var(--text3);">6 Months</div></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
+            <div style="font-size:12px;color:var(--text2);">✓ Access to 1000+ Premium + Standard gyms</div>
+            <div style="font-size:12px;color:var(--text2);">✓ Unlimited sessions + massage (1/month)</div>
+            <div style="font-size:12px;color:var(--text2);">✓ Dietician consultation (2/month)</div>
+            <div style="font-size:12px;color:var(--text2);">✓ Doctor consultation + pharma voucher</div>
+          </div>
+          <div style="display:flex;gap:8px;"><button class="btn btn-outline btn-sm" style="flex:1;">✏️ Edit</button><button class="btn btn-primary btn-sm" style="flex:1;">📊 Stats</button></div>
+        </div>
+      </div>
+      <!-- Corporate Plans -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Corporate Plans</span><button class="btn btn-primary btn-sm">+ Add Corporate Plan</button></div>
+        <table><thead><tr><th>Plan Name</th><th>Per Employee/mo</th><th>Min Employees</th><th>Gym Access</th><th>Sessions/mo</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="td-primary">Corp Starter</td><td>₹599</td><td>10</td><td>Pro Gyms</td><td>Unlimited</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+          <tr><td class="td-primary">Corp Pro</td><td>₹999</td><td>25</td><td>Pro + Max Gyms</td><td>Unlimited + Wellness</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+          <tr><td class="td-primary">Corp Enterprise</td><td>₹1,499</td><td>100</td><td>All Gyms</td><td>Unlimited + Full Wellness</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+        </tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== CORPORATE ===== -->
+    <div class="page" id="page-corporate">
+      <div class="page-head"><div><h2>Corporate Management</h2><p>Companies onboarded on the platform</p></div><button class="btn btn-primary">+ Add Company</button></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(59,130,246,0.1);">🏢</div></div><div class="stat-card-val">84</div><div class="stat-card-label">Companies</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(34,197,94,0.1);">👥</div></div><div class="stat-card-val">12,840</div><div class="stat-card-label">Corp Employees</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(234,179,8,0.1);">💰</div></div><div class="stat-card-val">₹1.28Cr</div><div class="stat-card-label">Corp Revenue</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(239,68,68,0.1);">📊</div></div><div class="stat-card-val">68%</div><div class="stat-card-label">Avg Utilization</div></div>
+      </div>
+      <div class="card" style="padding:0;">
+        <table><thead><tr><th>Company</th><th>Plan</th><th>Employees</th><th>Active Subs</th><th>Monthly Bill</th><th>Utilization</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="td-primary">TCS Ltd</td><td><span class="badge badge-blue">Corp Pro</span></td><td>240</td><td>198</td><td>₹1,97,802</td><td><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:6px;background:var(--bg3,#eee);border-radius:3px;overflow:hidden;"><div style="width:82%;height:100%;background:#22c55e;border-radius:3px;"></div></div><span style="font-size:11px;color:var(--text2);">82%</span></div></td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">👁</button></td></tr>
+          <tr><td class="td-primary">Wipro</td><td><span class="badge badge-green">Corp Starter</span></td><td>120</td><td>87</td><td>₹52,113</td><td><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:6px;background:var(--bg3,#eee);border-radius:3px;overflow:hidden;"><div style="width:72%;height:100%;background:#22c55e;border-radius:3px;"></div></div><span style="font-size:11px;color:var(--text2);">72%</span></div></td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">👁</button></td></tr>
+          <tr><td class="td-primary">Infosys</td><td><span class="badge badge-gray">Corp Enterprise</span></td><td>500</td><td>423</td><td>₹6,34,500</td><td><div style="display:flex;align-items:center;gap:8px;"><div style="flex:1;height:6px;background:var(--bg3,#eee);border-radius:3px;overflow:hidden;"><div style="width:84%;height:100%;background:#22c55e;border-radius:3px;"></div></div><span style="font-size:11px;color:var(--text2);">84%</span></div></td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">👁</button></td></tr>
+        </tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== SETTLEMENT ===== -->
+    <div class="page" id="page-settlement">
+      <div class="page-head"><div><h2>Settlement Engine</h2><p>Monthly settlement for partner gyms – March 2026</p></div><div style="display:flex;gap:8px;"><button class="btn btn-outline">📥 Export CSV</button><button class="btn btn-primary">Generate Settlements</button></div></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(34,197,94,0.1);">💰</div></div><div class="stat-card-val">₹84.2L</div><div class="stat-card-label">Total Pool</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(59,130,246,0.1);">🏦</div></div><div class="stat-card-val">₹25.3L</div><div class="stat-card-label">Platform Margin (30%)</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(234,179,8,0.1);">🏋️</div></div><div class="stat-card-val">₹58.9L</div><div class="stat-card-label">Gym Pool</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(239,68,68,0.1);">✅</div></div><div class="stat-card-val">₹42.1L</div><div class="stat-card-label">Released</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Gym-wise Settlement</span><span class="card-action">March 2026 ▾</span></div>
+        <table><thead><tr><th>Gym</th><th>Visits</th><th>Visit Share</th><th>Gross Amount</th><th>Commission</th><th>Net Payout</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><div class="gym-mini-name">Fitness Mantra, KOL</div></td><td>1,240</td><td>8.2%</td><td>₹4,82,800</td><td>25% (₹1,20,700)</td><td class="td-primary">₹3,62,100</td><td><span class="badge badge-green">Released</span></td><td><button class="btn-icon">📄</button></td></tr>
+          <tr><td><div class="gym-mini-name">Gold's Gym KOL</div></td><td>980</td><td>6.5%</td><td>₹3,81,200</td><td>30% (₹1,14,360)</td><td class="td-primary">₹2,66,840</td><td><span class="badge badge-yellow">Pending</span></td><td><button class="btn btn-sm btn-primary">Release</button></td></tr>
+          <tr><td><div class="gym-mini-name">Cult.fit New Town</div></td><td>2,100</td><td>13.9%</td><td>₹8,18,100</td><td>28% (₹2,29,068)</td><td class="td-primary">₹5,89,032</td><td><span class="badge badge-yellow">Pending</span></td><td><button class="btn btn-sm btn-primary">Release</button></td></tr>
+        </tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== COMMISSION ===== -->
+    <div class="page" id="page-commission">
+      <div class="page-head"><div><h2>Commission Engine</h2><p>Configure platform commission rates</p></div><button class="btn btn-primary">Save Changes</button></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px;">Global Default Commission</div>
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div><div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">Standard Gyms</div><div class="comm-input"><span style="font-size:11px;color:var(--text3);">0%</span><input type="range" min="0" max="50" value="30" oninput="this.nextElementSibling.nextElementSibling.textContent=this.value+'%'"><span style="font-size:11px;color:var(--text3);">50%</span><span class="comm-val">30%</span></div></div>
+            <div><div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">Premium Gyms</div><div class="comm-input"><span style="font-size:11px;color:var(--text3);">0%</span><input type="range" min="0" max="50" value="25" oninput="this.nextElementSibling.nextElementSibling.textContent=this.value+'%'"><span style="font-size:11px;color:var(--text3);">50%</span><span class="comm-val">25%</span></div></div>
+            <div><div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;">Wellness Services</div><div class="comm-input"><span style="font-size:11px;color:var(--text3);">0%</span><input type="range" min="0" max="50" value="20" oninput="this.nextElementSibling.nextElementSibling.textContent=this.value+'%'"><span style="font-size:11px;color:var(--text3);">50%</span><span class="comm-val">20%</span></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px;">Revenue Distribution Formula</div>
+          <div style="background:var(--bg);border-radius:10px;padding:14px;border:1px solid var(--border);font-size:12px;color:var(--text2);line-height:2;font-family:monospace;">
+            totalRevenue = Σ all subscription payments<br>
+            platformMargin = totalRevenue × 30%<br>
+            distributionPool = totalRevenue - platformMargin<br>
+            gymShare = (gymVisits / totalVisits) × distributionPool<br>
+            <br>
+            <span style="color:var(--text);font-weight:700;">Tier Multipliers:</span><br>
+            Premium Gym: weight = 1.5x<br>
+            Standard Gym: weight = 1.0x
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== HOMEPAGE BUILDER ===== -->
+    <div class="page" id="page-homepage">
+      <div class="page-head"><div><h2>Homepage Builder</h2><p>Configure sections visible on the user app homepage</p></div><button class="btn btn-primary">💾 Save Layout</button></div>
+      <div class="grid2">
+        <div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Active Sections (drag to reorder)</span></div>
+            <div class="section-builder">
+              <div class="section-item"><span class="section-drag">⋮⋮</span><div class="section-info"><div class="section-name">Hero Banner</div><div class="section-type">hero_design · Full-width CTA banner</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div><button class="btn-icon">✏️</button></div>
+              <div class="section-item"><span class="section-drag">⋮⋮</span><div class="section-info"><div class="section-name">Subscription CTA</div><div class="section-type">box_design · Promo card</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div><button class="btn-icon">✏️</button></div>
+              <div class="section-item"><span class="section-drag">⋮⋮</span><div class="section-info"><div class="section-name">Activity Categories</div><div class="section-type">slider · Horizontal chips</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div><button class="btn-icon">✏️</button></div>
+              <div class="section-item"><span class="section-drag">⋮⋮</span><div class="section-info"><div class="section-name">Nearby Gyms</div><div class="section-type">list_view · Horizontal scroll · Nearby</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div><button class="btn-icon">✏️</button></div>
+              <div class="section-item"><span class="section-drag">⋮⋮</span><div class="section-info"><div class="section-name">Featured Plans</div><div class="section-type">box_design · Pro/Max plans</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div><button class="btn-icon">✏️</button></div>
+              <div class="section-item"><span class="section-drag">⋮⋮</span><div class="section-info"><div class="section-name">Store Products</div><div class="section-type">grid_view · Product category: Supplements</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div><button class="btn-icon">✏️</button></div>
+              <div class="section-item" style="opacity:0.5;"><span class="section-drag">⋮⋮</span><div class="section-info"><div class="section-name">Testimonials</div><div class="section-type">slider · User reviews</div></div><div class="toggle" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div><button class="btn-icon">✏️</button></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Add New Section</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div style="padding:12px;background:var(--bg);border-radius:10px;border:1.5px dashed var(--border);text-align:center;cursor:pointer;font-size:12px;color:var(--text2);">+ Hero Banner</div>
+              <div style="padding:12px;background:var(--bg);border-radius:10px;border:1.5px dashed var(--border);text-align:center;cursor:pointer;font-size:12px;color:var(--text2);">+ List View</div>
+              <div style="padding:12px;background:var(--bg);border-radius:10px;border:1.5px dashed var(--border);text-align:center;cursor:pointer;font-size:12px;color:var(--text2);">+ Grid View</div>
+              <div style="padding:12px;background:var(--bg);border-radius:10px;border:1.5px dashed var(--border);text-align:center;cursor:pointer;font-size:12px;color:var(--text2);">+ Box Design</div>
+              <div style="padding:12px;background:var(--bg);border-radius:10px;border:1.5px dashed var(--border);text-align:center;cursor:pointer;font-size:12px;color:var(--text2);">+ Slider</div>
+              <div style="padding:12px;background:var(--bg);border-radius:10px;border:1.5px dashed var(--border);text-align:center;cursor:pointer;font-size:12px;color:var(--text2);">+ Banner Strip</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="height:fit-content;">
+          <div class="card-header"><span class="card-title">📱 Live Preview</span><span class="badge badge-green">● Synced</span></div>
+          <div style="background:var(--bg);border-radius:16px;padding:12px;border:1px solid var(--border);">
+            <div style="background:var(--card);border-radius:12px;margin-bottom:8px;height:80px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);font-size:12px;color:var(--text3);">🖼 Hero Banner</div>
+            <div style="background:var(--card);border-radius:12px;margin-bottom:8px;height:50px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);font-size:12px;color:var(--text3);">💳 Subscription CTA</div>
+            <div style="background:var(--card);border-radius:12px;margin-bottom:8px;height:40px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);font-size:12px;color:var(--text3);">🏷 Activity Categories</div>
+            <div style="background:var(--card);border-radius:12px;margin-bottom:8px;height:90px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);font-size:12px;color:var(--text3);">🏋️ Nearby Gyms (Horizontal)</div>
+            <div style="background:var(--card);border-radius:12px;margin-bottom:8px;height:70px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);font-size:12px;color:var(--text3);">🏆 Featured Plans</div>
+            <div style="background:var(--card);border-radius:12px;height:80px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);font-size:12px;color:var(--text3);">🛍 Store Products</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== STORE ===== -->
+    <div class="page" id="page-store">
+      <div class="page-head"><div><h2>Store Products</h2><p>Manage all products in the platform store</p></div><button class="btn btn-primary">+ Add Product</button></div>
+      <div class="filter-bar">
+        <input class="filter-input" placeholder="🔍 Search products...">
+        <select class="filter-select"><option>All Categories</option><option>Supplements</option><option>Apparel</option><option>Accessories</option><option>Equipment</option></select>
+        <select class="filter-select"><option>All Status</option><option>Active</option><option>Out of Stock</option></select>
+      </div>
+      <div class="product-grid">
+        <div class="product-card">
+          <img src="https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=300&q=80" onerror="this.src='https://placehold.co/300x240/eee/999?text=Product'">
+          <div class="product-card-body">
+            <div class="product-card-name">Whey Protein Isolate 2kg</div>
+            <div class="product-card-cat">Supplements</div>
+            <div class="product-card-price">₹2,499</div>
+            <div class="product-card-actions"><button class="btn btn-sm btn-outline">✏️</button><button class="btn btn-sm btn-danger">🗑</button></div>
+          </div>
+        </div>
+        <div class="product-card">
+          <img src="https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=300&q=80" onerror="this.src='https://placehold.co/300x240/eee/999?text=Product'">
+          <div class="product-card-body">
+            <div class="product-card-name">Gym Gloves Premium</div>
+            <div class="product-card-cat">Accessories</div>
+            <div class="product-card-price">₹649</div>
+            <div class="product-card-actions"><button class="btn btn-sm btn-outline">✏️</button><button class="btn btn-sm btn-danger">🗑</button></div>
+          </div>
+        </div>
+        <div class="product-card">
+          <img src="https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=300&q=80" onerror="this.src='https://placehold.co/300x240/eee/999?text=Product'">
+          <div class="product-card-body">
+            <div class="product-card-name">Resistance Band Set</div>
+            <div class="product-card-cat">Accessories</div>
+            <div class="product-card-price">₹449</div>
+            <div class="product-card-actions"><button class="btn btn-sm btn-outline">✏️</button><button class="btn btn-sm btn-danger">🗑</button></div>
+          </div>
+        </div>
+        <div class="product-card">
+          <img src="https://images.unsplash.com/photo-1620188526357-8dc0bb5ae0e2?w=300&q=80" onerror="this.src='https://placehold.co/300x240/eee/999?text=Product'">
+          <div class="product-card-body">
+            <div class="product-card-name">Dry-Fit T-Shirt</div>
+            <div class="product-card-cat">Apparel</div>
+            <div class="product-card-price">₹799</div>
+            <div class="product-card-actions"><button class="btn btn-sm btn-outline">✏️</button><button class="btn btn-sm btn-danger">🗑</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== CATEGORIES ===== -->
+    <div class="page" id="page-categories">
+      <div class="page-head"><div><h2>Categories & Amenities</h2><p>Manage master lists for gyms</p></div><button class="btn btn-primary">+ Add Category</button></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Activity Categories</span><button class="btn btn-sm btn-primary">+ Add</button></div>
+          <table><thead><tr><th>Name</th><th>Icon</th><th>Gyms Using</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="td-primary">Gym Workouts</td><td>🏋️</td><td>1,284</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+            <tr><td class="td-primary">Cardio</td><td>🚴</td><td>980</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+            <tr><td class="td-primary">Yoga</td><td>🧘</td><td>720</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+            <tr><td class="td-primary">Zumba</td><td>💃</td><td>540</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+            <tr><td class="td-primary">Boxing</td><td>🥊</td><td>320</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+          </tbody></table>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Amenities Master List</span><button class="btn btn-sm btn-primary">+ Add</button></div>
+          <table><thead><tr><th>Amenity</th><th>Icon</th><th>Gyms Using</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="td-primary">AC / Climate Control</td><td>❄</td><td>890</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+            <tr><td class="td-primary">Parking</td><td>🅿</td><td>720</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+            <tr><td class="td-primary">Shower Room</td><td>🚿</td><td>680</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+            <tr><td class="td-primary">Locker</td><td>🔒</td><td>640</td><td><span class="badge badge-green">Active</span></td><td><button class="btn-icon">✏️</button></td></tr>
+            <tr><td class="td-primary">Steam Room</td><td>♨</td><td>280</td><td><span class="badge badge-yellow">Req. Pending</span></td><td><button class="btn btn-sm btn-primary">Approve</button></td></tr>
+          </tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SETTINGS ===== -->
+    <div class="page" id="page-settings">
+      <div class="page-head"><div><h2>Platform Settings</h2></div><button class="btn btn-primary">Save All</button></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px;">General</div>
+          <div class="form-row">
+            <div class="form-group"><div class="form-label">Platform Name</div><input class="form-input" value="BookMyFit"></div>
+            <div class="form-group"><div class="form-label">Support Email</div><input class="form-input" value="support@bookmyfit.in"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><div class="form-label">Default Commission %</div><input class="form-input" value="30" type="number"></div>
+            <div class="form-group"><div class="form-label">Min Payout Threshold (₹)</div><input class="form-input" value="500" type="number"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><div class="form-label">Settlement Cycle</div><select class="form-select"><option>Monthly</option><option>Weekly</option></select></div>
+            <div class="form-group"><div class="form-label">Cancellation Window (hrs)</div><input class="form-input" value="12" type="number"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="margin-bottom:16px;">Access Control</div>
+          <div style="display:flex;flex-direction:column;gap:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:13px;font-weight:600;color:var(--text);">QR Anti-Screenshot</div><div style="font-size:11px;color:var(--text3);">QR regenerates every 30s</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:13px;font-weight:600;color:var(--text);">Duplicate QR Prevention</div><div style="font-size:11px;color:var(--text3);">Redis-based dedup</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:13px;font-weight:600;color:var(--text);">Expiry Check on Check-in</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:13px;font-weight:600;color:var(--text);">Visit Cap Enforcement</div><div style="font-size:11px;color:var(--text3);">Block if monthly cap reached</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ANALYTICS ===== -->
+    <div class="page" id="page-analytics">
+      <div class="page-head"><div><h2>Analytics</h2><p>Platform-wide performance metrics</p></div><button class="btn btn-outline">📥 Export Report</button></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(34,197,94,0.1);">📅</div><span class="stat-card-trend trend-up">↑ 18%</span></div><div class="stat-card-val">2,84,200</div><div class="stat-card-label">Total Bookings (MTD)</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(59,130,246,0.1);">🔄</div><span class="stat-card-trend trend-up">↑ 9%</span></div><div class="stat-card-val">74%</div><div class="stat-card-label">Subscription Renewal Rate</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(234,179,8,0.1);">⭐</div><span class="stat-card-trend trend-up">↑ 0.2</span></div><div class="stat-card-val">4.7</div><div class="stat-card-label">Avg Platform Rating</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:rgba(239,68,68,0.1);">🛒</div><span class="stat-card-trend trend-up">↑ 34%</span></div><div class="stat-card-val">₹12.4L</div><div class="stat-card-label">Store Revenue (MTD)</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Monthly Revenue Trend (₹ Lakhs)</span></div>
+        <div class="bar-chart" id="analyticsChart"></div>
+        <div style="display:flex;justify-content:space-around;margin-top:10px;">
+          <div style="font-size:10px;color:var(--text3);">Oct</div><div style="font-size:10px;color:var(--text3);">Nov</div><div style="font-size:10px;color:var(--text3);">Dec</div><div style="font-size:10px;color:var(--text3);">Jan</div><div style="font-size:10px;color:var(--text3);">Feb</div><div style="font-size:10px;color:var(--text3);">Mar</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== BOOKINGS ===== -->
+    <div class="page" id="page-bookings">
+      <div class="page-head"><div><h2>All Bookings</h2></div><button class="btn btn-outline">📥 Export</button></div>
+      <div class="filter-bar">
+        <input class="filter-input" placeholder="🔍 Search bookings...">
+        <select class="filter-select"><option>All Status</option><option>Confirmed</option><option>Completed</option><option>Cancelled</option></select>
+        <select class="filter-select"><option>Today</option><option>This Week</option><option>This Month</option></select>
+      </div>
+      <div class="card" style="padding:0;">
+        <table><thead><tr><th>Booking ID</th><th>User</th><th>Gym</th><th>Session</th><th>Date & Time</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="td-primary">#BMF8821</td><td>Rahul Sharma</td><td>Fitness Mantra</td><td>Cardio</td><td>Today, 4:00 PM</td><td><span class="badge badge-green">Confirmed</span></td><td><button class="btn-icon">👁</button></td></tr>
+          <tr><td class="td-primary">#BMF8820</td><td>Priya Singh</td><td>Gold's Gym</td><td>Yoga</td><td>Today, 10:00 AM</td><td><span class="badge badge-gray">Completed</span></td><td><button class="btn-icon">👁</button></td></tr>
+          <tr><td class="td-primary">#BMF8819</td><td>Amit Kumar</td><td>Cult.fit</td><td>Zumba</td><td>Yesterday, 6:00 PM</td><td><span class="badge badge-red">Cancelled</span></td><td><button class="btn-icon">👁</button></td></tr>
+        </tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== CORPORATE EMPLOYEES ===== -->
+    <div class="page" id="page-corporate-employees">
+      <div class="page-head"><div><h2>Corporate Employee Management</h2><p>Manage employees linked to corporate accounts</p></div><button class="btn btn-primary">+ Add Employee</button></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:var(--pastel-blue);">👥</div><span class="stat-card-trend trend-up">↑ 12%</span></div><div class="stat-card-val">2,847</div><div class="stat-card-label">Total Corporate Employees</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:var(--pastel-green);">✓</div><span class="stat-card-trend trend-up">↑ 8%</span></div><div class="stat-card-val">2,654</div><div class="stat-card-label">Active Employees</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:var(--pastel-orange);">🏢</div></div><div class="stat-card-val">47</div><div class="stat-card-label">Corporate Accounts</div></div>
+        <div class="stat-card"><div class="stat-card-header"><div class="stat-card-icon" style="background:var(--pastel-purple);">📊</div><span class="stat-card-trend trend-up">↑ 15%</span></div><div class="stat-card-val">84%</div><div class="stat-card-label">Avg Utilization Rate</div></div>
+      </div>
+      <div class="filter-bar">
+        <input class="filter-input" placeholder="🔍 Search employees by name, email, or corporate...">
+        <select class="filter-select"><option>All Corporates</option><option>TCS</option><option>Infosys</option><option>Wipro</option><option>Accenture</option></select>
+        <select class="filter-select"><option>All Status</option><option>Active</option><option>Inactive</option><option>Pending</option></select>
+      </div>
+      <div class="card" style="padding:0;">
+        <table><thead><tr><th>Employee</th><th>Corporate</th><th>Email</th><th>Plan Type</th><th>Status</th><th>Joined</th><th>Last Visit</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td><div style="display:flex;align-items:center;gap:10px;"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;">RS</div><div class="td-primary">Rahul Sharma</div></div></td>
+            <td><div style="display:flex;align-items:center;gap:6px;"><div style="width:24px;height:24px;background:var(--pastel-blue);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;">🏢</div>TCS</div></td>
+            <td>rahul.s@tcs.com</td>
+            <td><span class="badge-pro" style="font-size:10px;padding:4px 10px;">PRO</span></td>
+            <td><span class="badge badge-green">Active</span></td>
+            <td>Jan 15, 2026</td>
+            <td>2 hours ago</td>
+            <td><button class="btn-icon">👁</button></td>
+          </tr>
+          <tr>
+            <td><div style="display:flex;align-items:center;gap:10px;"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#f093fb,#f5576c);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;">PS</div><div class="td-primary">Priya Singh</div></div></td>
+            <td><div style="display:flex;align-items:center;gap:6px;"><div style="width:24px;height:24px;background:var(--pastel-blue);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;">🏢</div>TCS</div></td>
+            <td>priya.singh@tcs.com</td>
+            <td><span class="badge-pro" style="font-size:10px;padding:4px 10px;">PRO</span></td>
+            <td><span class="badge badge-green">Active</span></td>
+            <td>Jan 20, 2026</td>
+            <td>1 day ago</td>
+            <td><button class="btn-icon">👁</button></td>
+          </tr>
+          <tr>
+            <td><div style="display:flex;align-items:center;gap:10px;"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#4facfe,#00f2fe);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;">AK</div><div class="td-primary">Amit Kumar</div></div></td>
+            <td><div style="display:flex;align-items:center;gap:6px;"><div style="width:24px;height:24px;background:var(--pastel-green);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;">🏢</div>Infosys</div></td>
+            <td>amit.k@infosys.com</td>
+            <td><span class="badge-max" style="font-size:10px;padding:4px 10px;">MAX</span></td>
+            <td><span class="badge badge-green">Active</span></td>
+            <td>Feb 1, 2026</td>
+            <td>3 hours ago</td>
+            <td><button class="btn-icon">👁</button></td>
+          </tr>
+          <tr>
+            <td><div style="display:flex;align-items:center;gap:10px;"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#fa709a,#fee140);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;">SK</div><div class="td-primary">Sneha Kapoor</div></div></td>
+            <td><div style="display:flex;align-items:center;gap:6px;"><div style="width:24px;height:24px;background:var(--pastel-purple);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;">🏢</div>Wipro</div></td>
+            <td>sneha.k@wipro.com</td>
+            <td><span class="badge-max" style="font-size:10px;padding:4px 10px;">MAX</span></td>
+            <td><span class="badge badge-yellow">Pending</span></td>
+            <td>Mar 10, 2026</td>
+            <td>Never</td>
+            <td><button class="btn-icon">👁</button></td>
+          </tr>
+          <tr>
+            <td><div style="display:flex;align-items:center;gap:10px;"><div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#30cfd0,#330867);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;">VG</div><div class="td-primary">Vikram Gupta</div></div></td>
+            <td><div style="display:flex;align-items:center;gap:6px;"><div style="width:24px;height:24px;background:var(--pastel-orange);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;">🏢</div>Accenture</div></td>
+            <td>vikram.g@accenture.com</td>
+            <td><span class="badge-pro" style="font-size:10px;padding:4px 10px;">PRO</span></td>
+            <td><span class="badge badge-gray">Inactive</span></td>
+            <td>Dec 5, 2025</td>
+            <td>2 weeks ago</td>
+            <td><button class="btn-icon">👁</button></td>
+          </tr>
+        </tbody></table>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">How Corporate Employee Management Works</span></div>
+        <div style="display:flex;flex-direction:column;gap:16px;margin-top:12px;">
+          <div style="display:flex;gap:12px;">
+            <div style="width:40px;height:40px;background:var(--pastel-blue);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px;">1️⃣</div>
+            <div><div style="font-size:13px;font-weight:600;color:var(--text);">Corporate Signs Up</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">Company purchases a corporate plan (Pro or Max) for their employees</div></div>
+          </div>
+          <div style="display:flex;gap:12px;">
+            <div style="width:40px;height:40px;background:var(--pastel-green);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px;">2️⃣</div>
+            <div><div style="font-size:13px;font-weight:600;color:var(--text);">Employees Get Linked</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">Admin adds employees to the corporate account via email or bulk upload</div></div>
+          </div>
+          <div style="display:flex;gap:12px;">
+            <div style="width:40px;height:40px;background:var(--pastel-purple);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px;">3️⃣</div>
+            <div><div style="font-size:13px;font-weight:600;color:var(--text);">Automatic Plan Inheritance</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">All employees automatically get the same plan as their corporate (Pro or Max)</div></div>
+          </div>
+          <div style="display:flex;gap:12px;">
+            <div style="width:40px;height:40px;background:var(--pastel-orange);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:20px;">4️⃣</div>
+            <div><div style="font-size:13px;font-weight:600;color:var(--text);">Corporate Pays, Employees Use</div><div style="font-size:12px;color:var(--text3);margin-top:4px;">Corporate is billed for all employees. Employees enjoy free access to gyms</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== NOTIFICATIONS ADMIN ===== -->
+    <div class="page" id="page-notifications-admin">
+      <div class="page-head"><div><h2>Push Notifications</h2></div><button class="btn btn-primary">+ Send Notification</button></div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px;">New Notification</div>
+        <div class="form-row">
+          <div class="form-group form-full"><div class="form-label">Title</div><input class="form-input" placeholder="Notification title"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group form-full"><div class="form-label">Message</div><textarea class="form-textarea" placeholder="Notification body..."></textarea></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><div class="form-label">Target Audience</div><select class="form-select"><option>All Users</option><option>Pro Users</option><option>Max Users</option><option>Inactive Users</option><option>Corporate Users</option></select></div>
+          <div class="form-group"><div class="form-label">Schedule</div><input class="form-input" type="datetime-local"></div>
+        </div>
+        <div style="display:flex;gap:8px;"><button class="btn btn-outline">Preview</button><button class="btn btn-primary">Send Now</button></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+const pages = {
+  'dashboard':'Dashboard','analytics':'Analytics','gyms':'Gym Management','users':'Users','subscriptions':'Subscriptions','corporate':'Corporate','corporate-employees':'Corporate Employees','bookings':'Bookings','settlement':'Settlement Engine','commission':'Commission Engine','homepage':'Homepage Builder','store':'Store Products','categories':'Categories','notifications-admin':'Push Notifications','settings':'Settings','gym-review':'KYC Review'
+};
+
+function showPage(id, navEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const page = document.getElementById('page-' + id);
+  if (page) page.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (navEl) navEl.classList.add('active');
+  document.getElementById('topbarTitle').textContent = pages[id] || id;
+}
+
+function toggleTheme() {
+  const isDark = document.body.getAttribute('data-theme') === 'dark';
+  document.body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.querySelector('.theme-toggle').textContent = isDark ? '🌙 Dark' : '☀️ Light';
+}
+
+// Build revenue chart
+function buildChart(containerId, values, color) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  const max = Math.max(...values);
+  values.forEach(v => {
+    const g = document.createElement('div');
+    g.className = 'bar-group';
+    const b = document.createElement('div');
+    b.className = 'bar';
+    b.style.height = (v/max * 100) + '%';
+    b.style.background = color || 'var(--accent)';
+    const val = document.createElement('div');
+    val.className = 'bar-val';
+    val.textContent = v + 'L';
+    g.appendChild(val);
+    g.appendChild(b);
+    c.appendChild(g);
+  });
+}
+buildChart('revenueChart', [42, 38, 55, 48, 62, 78, 70], '#111');
+buildChart('analyticsChart', [38, 44, 52, 61, 70, 84], '#111');
+</script>
+</body>
+</html>

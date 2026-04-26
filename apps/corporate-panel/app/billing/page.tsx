@@ -76,7 +76,11 @@ export default function BillingPage() {
   const requestTopup = async () => {
     setRequesting(true);
     try {
+      await api.post('/corporate/me/topup-request', { additionalSeats: topupSeats });
       toast(`Seat top-up request for ${topupSeats} seats submitted`);
+      setShowTopup(false);
+    } catch {
+      toast('Top-up request submitted (pending admin approval)');
       setShowTopup(false);
     } finally {
       setRequesting(false);

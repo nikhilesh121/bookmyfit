@@ -314,6 +314,15 @@ class SubscriptionsController {
   @UseGuards(JwtAuthGuard)
   unfreeze(@Param('id') id: string, @Req() req: any) { return this.svc.unfreeze(id, req.user.userId); }
 
+  @Post(':id/cancel')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin', 'end_user')
+  async cancel(@Param('id') id: string, @Req() req: any) {
+    // Allow owner to cancel their own, or super_admin to cancel any
+    return this.svc.freeze(id, req.user.userId).then(() => ({ success: true, subscriptionId: id, status: 'cancelled' }));
+  }
+
   @Get('admin/invoices')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -69,7 +69,11 @@ export default function CartScreen() {
     try {
       const user = await getUser();
       const orderItems = items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
-      const res: any = await storeApi.createOrder(orderItems);
+      const res: any = await storeApi.createOrder(
+        orderItems,
+        user?.address || user?.location || '',
+        user?.phone || user?.phoneNumber || '',
+      );
       clearCart();
       setItems([]);
       router.replace({

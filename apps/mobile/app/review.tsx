@@ -8,7 +8,7 @@ import AuroraBackground from '../components/AuroraBackground';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconStar, IconCheck } from '../components/Icons';
-import { miscApi } from '../lib/api';
+import { miscApi, getUser } from '../lib/api';
 
 const MAX_CHARS = 500;
 
@@ -30,11 +30,13 @@ export default function Review() {
     if (rating === 0) return;
     setLoading(true);
     try {
+      const user = await getUser();
       await miscApi.submitReview({
-        gymId: gymId || undefined,
-        trainerId: trainerId || undefined,
-        rating,
-        text: text.trim() || undefined,
+        targetType: isGym ? 'gym' : 'trainer',
+        targetId: (isGym ? gymId : trainerId) || '',
+        userId: user?.id || '',
+        stars: rating,
+        review: text.trim() || undefined,
       });
       Alert.alert('Review Submitted!', 'Thank you for your feedback.', [
         { text: 'OK', onPress: () => router.back() },

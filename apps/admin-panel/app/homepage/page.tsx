@@ -5,8 +5,6 @@ import { api } from '../../lib/api';
 import { useToast } from '../../components/Toast';
 import { Info, ToggleLeft, ToggleRight } from 'lucide-react';
 
-const HOMEPAGE_API = 'http://localhost:3003/api/v1/homepage/config';
-
 type SectionConfig = {
   order: number;
   name: string;
@@ -64,9 +62,8 @@ export default function HomepagePage() {
 
   // Load config from backend on mount
   useEffect(() => {
-    fetch(HOMEPAGE_API)
-      .then((r) => r.json())
-      .then((data) => {
+    api.get('/homepage/config')
+      .then((data: any) => {
         if (data?.sections?.length) {
           setBackendSections(data.sections);
           setSections(backendToUi(data.sections));
@@ -76,14 +73,9 @@ export default function HomepagePage() {
   }, []);
 
   const saveToApi = useCallback(async (updated: SectionConfig[]) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('bmf_admin_token') : null;
     const newBackend = uiToBackend(updated, backendSections);
     try {
-      await fetch(HOMEPAGE_API, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ sections: newBackend }),
-      });
+      await api.put('/homepage/config', { sections: newBackend });
     } catch { /* ignore save errors */ }
   }, [backendSections]);
 

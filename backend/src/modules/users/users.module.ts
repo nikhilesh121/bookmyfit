@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Put, Body, UseGuards, Req, Query } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Body, UseGuards, Req, Query, Param } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
@@ -36,6 +36,16 @@ class UsersService {
   async update(id: string, data: Partial<UserEntity>) {
     await this.repo.update(id, { name: data.name, email: data.email, dob: data.dob, gender: data.gender });
     return this.me(id);
+  }
+
+  async suspend(id: string) {
+    await this.repo.update(id, { isActive: false } as any);
+    return { success: true, userId: id, status: 'suspended' };
+  }
+
+  async unsuspend(id: string) {
+    await this.repo.update(id, { isActive: true } as any);
+    return { success: true, userId: id, status: 'active' };
   }
 
   async getReferralCode(userId: string) {
@@ -109,6 +119,12 @@ class UsersController {
   list(@Query('page') page = 1, @Query('limit') limit = 20, @Query('search') search?: string) {
     return this.svc.list(+page, +limit, search);
   }
+
+  @Post(':id/suspend') @UseGuards(RolesGuard) @Roles('super_admin')
+  suspend(@Param('id') id: string) { return this.svc.suspend(id); }
+
+  @Post(':id/unsuspend') @UseGuards(RolesGuard) @Roles('super_admin')
+  unsuspend(@Param('id') id: string) { return this.svc.unsuspend(id); }
 }
 
 @Module({

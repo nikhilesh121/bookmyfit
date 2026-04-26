@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BookMyFit — v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400;1,700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  --serif:'Playfair Display',Georgia,serif;
+  --sans:'DM Sans',system-ui,sans-serif;
+  --accent:#3DFF54;
+  --W:390px;
+  --H:844px;
+}
+
+body{
+  background:#050505;
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:20px;
+  padding:40px 20px;
+  overflow-x:auto;
+}
+
+/* ── PHONE SHELL ── */
+.pw{position:relative;flex-shrink:0;}
+.plabel{
+  text-align:center;font-family:var(--sans);
+  font-size:10px;font-weight:500;letter-spacing:2.5px;
+  text-transform:uppercase;color:rgba(255,255,255,0.16);
+  margin-bottom:12px;
+}
+.phone{
+  width:var(--W);height:var(--H);
+  border-radius:52px;position:relative;overflow:hidden;background:#000;
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255,255,255,0.15),
+    0 0 0 8px #111,
+    0 0 0 9px rgba(255,255,255,0.07),
+    0 48px 110px rgba(0,0,0,0.95),
+    0 18px 40px rgba(0,0,0,0.7);
+}
+.di{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  width:118px;height:34px;background:#000;border-radius:18px;z-index:500;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.di-c{width:11px;height:11px;border-radius:50%;background:#1c1c1e;}
+.di-m{width:7px;height:7px;border-radius:50%;background:#111;}
+.sb{
+  position:absolute;top:0;left:0;right:0;height:52px;
+  display:flex;align-items:flex-start;justify-content:space-between;
+  padding:16px 26px 0;z-index:400;
+  font-family:var(--sans);font-size:12px;font-weight:600;
+  color:rgba(255,255,255,0.95);pointer-events:none;
+}
+.sb-r{display:flex;align-items:center;gap:6px;}
+.sb-r svg{width:13px;height:13px;stroke:rgba(255,255,255,0.9);fill:none;stroke-width:2;}
+.hb{
+  position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+  width:128px;height:5px;background:rgba(255,255,255,0.22);border-radius:3px;z-index:500;
+}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;}
+
+/* Grain */
+.grain{
+  position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0.042;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size:160px;
+}
+
+/* ══ ICON SVG HELPER ══ */
+svg.ico{display:inline-block;vertical-align:middle;flex-shrink:0;}
+
+/* ══════════════════════════════
+   S1: SPLASH
+══════════════════════════════ */
+#s1{background:#000;}
+.spl-photo{
+  position:absolute;inset:0;
+  background:url('https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&q=90&fit=crop&crop=center') center/cover no-repeat;
+  transform:scale(1.06);animation:zoom 5s ease-out forwards;
+}
+@keyframes zoom{to{transform:scale(1);}}
+/* Vivid chromatic grade over photo */
+.spl-aurora{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 8% 28%,rgba(255,20,75,0.8) 0%,transparent 52%),
+    radial-gradient(ellipse 65% 60% at 92% 8%,rgba(255,100,0,0.65) 0%,transparent 50%),
+    radial-gradient(ellipse 70% 55% at 55% 100%,rgba(70,0,215,0.72) 0%,transparent 52%),
+    radial-gradient(ellipse 50% 48% at 88% 68%,rgba(0,150,255,0.42) 0%,transparent 48%),
+    radial-gradient(ellipse 60% 42% at 8% 82%,rgba(61,255,84,0.32) 0%,transparent 45%);
+  mix-blend-mode:color;
+}
+.spl-vignette{
+  position:absolute;inset:0;
+  background:linear-gradient(to bottom,rgba(0,0,0,0.28) 0%,rgba(0,0,0,0.02) 28%,rgba(0,0,0,0.52) 65%,rgba(0,0,0,0.97) 100%);
+}
+.spl-body{
+  position:absolute;bottom:0;left:0;right:0;z-index:10;
+  padding:0 30px 68px;
+}
+.spl-eye{font-family:var(--sans);font-size:10px;font-weight:500;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:9px;animation:up .9s cubic-bezier(.16,1,.3,1) .5s both;}
+.spl-word{font-family:var(--serif);font-size:74px;font-weight:900;letter-spacing:-4px;line-height:.9;color:#fff;animation:up .9s cubic-bezier(.16,1,.3,1) .65s both;}
+.spl-word em{font-style:italic;font-weight:400;color:rgba(255,255,255,0.52);}
+.spl-sub{margin-top:13px;font-family:var(--sans);font-size:13px;font-weight:400;color:rgba(255,255,255,0.36);animation:up .9s cubic-bezier(.16,1,.3,1) .8s both;}
+.spl-bar{margin-top:28px;animation:up .9s cubic-bezier(.16,1,.3,1) .95s both;}
+.spl-track{height:1.5px;background:rgba(255,255,255,0.1);border-radius:1px;overflow:hidden;}
+.spl-fill{height:100%;background:rgba(255,255,255,0.62);width:0;animation:bw 2.4s ease 1.2s forwards;}
+@keyframes bw{to{width:100%;}}
+@keyframes up{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+
+/* ══════════════════════════════
+   S2: ONBOARDING
+══════════════════════════════ */
+#s2{background:#000;}
+.ob-photo{
+  position:absolute;inset:0;
+  background:url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=90&fit=crop') center/cover no-repeat;
+}
+.ob-aurora{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 72% 78% at -5% 48%,rgba(150,0,255,0.82) 0%,transparent 52%),
+    radial-gradient(ellipse 62% 62% at 106% 22%,rgba(255,52,12,0.68) 0%,transparent 50%),
+    radial-gradient(ellipse 52% 48% at 52% 106%,rgba(0,45,210,0.58) 0%,transparent 48%);
+  mix-blend-mode:color;
+}
+.ob-vignette{
+  position:absolute;inset:0;
+  background:linear-gradient(to bottom,rgba(0,0,0,0.16) 0%,rgba(0,0,0,0.0) 22%,rgba(0,0,0,0.45) 55%,rgba(0,0,0,0.98) 100%);
+}
+/* Floating glass pills */
+.fpill{
+  position:absolute;z-index:20;
+  display:flex;align-items:center;gap:11px;
+  background:rgba(255,255,255,0.09);
+  backdrop-filter:blur(24px) saturate(180%);
+  -webkit-backdrop-filter:blur(24px) saturate(180%);
+  border:1px solid rgba(255,255,255,0.16);
+  border-radius:18px;padding:12px 16px;
+}
+.fpill.a{top:152px;right:22px;animation:flt 3.5s ease-in-out infinite alternate;}
+.fpill.b{top:270px;left:20px;animation:flt 4s ease-in-out .8s infinite alternate;}
+@keyframes flt{0%{transform:translateY(0);}100%{transform:translateY(-10px);}}
+.fp-ic{width:35px;height:35px;border-radius:10px;background:rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;}
+.fp-val{font-family:var(--sans);font-size:22px;font-weight:700;color:#fff;line-height:1;}
+.fp-lbl{font-family:var(--sans);font-size:10px;color:rgba(255,255,255,0.42);margin-top:1px;}
+.ob-skip{position:absolute;top:56px;right:22px;z-index:30;font-family:var(--sans);font-size:12px;font-weight:500;color:rgba(255,255,255,0.3);background:none;border:none;cursor:pointer;}
+/* Bottom text */
+.ob-foot{position:absolute;bottom:0;left:0;right:0;z-index:20;padding:24px 28px 42px;}
+.ob-step{font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.28);margin-bottom:11px;}
+.ob-h{font-family:var(--serif);font-size:46px;font-weight:700;letter-spacing:-1.5px;line-height:1.0;color:#fff;margin-bottom:11px;}
+.ob-h em{font-style:italic;font-weight:400;color:rgba(255,255,255,0.52);}
+.ob-p{font-family:var(--sans);font-size:14px;font-weight:400;color:rgba(255,255,255,0.4);line-height:1.65;margin-bottom:26px;}
+.ob-controls{display:flex;align-items:center;justify-content:space-between;}
+.ob-dots{display:flex;gap:5px;align-items:center;}
+.dot{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,0.18);transition:all .35s;}
+.dot.on{width:24px;background:#fff;}
+.ob-cta{display:flex;align-items:center;gap:9px;background:#fff;border:none;border-radius:50px;padding:14px 24px;font-family:var(--sans);font-size:13px;font-weight:700;color:#000;cursor:pointer;}
+
+/* ══════════════════════════════
+   S3: HOME
+══════════════════════════════ */
+#s3{background:#060606;}
+.h-scroll{position:relative;z-index:2;flex:1;overflow-y:auto;overflow-x:hidden;}
+.h-scroll::-webkit-scrollbar{display:none;}
+
+/* Top bar */
+.topbar{padding:58px 22px 0;display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;}
+.hi{font-family:var(--sans);font-size:11px;font-weight:400;color:rgba(255,255,255,0.32);margin-bottom:4px;}
+.uname{font-family:var(--serif);font-size:26px;font-weight:700;letter-spacing:-.5px;color:#fff;line-height:1;}
+.top-r{display:flex;gap:8px;align-items:center;}
+.icbtn{
+  width:40px;height:40px;
+  background:rgba(255,255,255,0.07);
+  border:1px solid rgba(255,255,255,0.1);
+  border-radius:13px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.icbtn svg{width:17px;height:17px;stroke:rgba(255,255,255,0.6);fill:none;stroke-width:1.8;}
+.avt{
+  width:40px;height:40px;border-radius:50%;
+  background:linear-gradient(135deg,rgba(61,255,84,0.25),rgba(0,165,255,0.2));
+  border:1.5px solid rgba(61,255,84,0.32);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--sans);font-size:13px;font-weight:700;color:var(--accent);
+}
+
+/* ── HERO PLAN CARD: real photo background + aurora glass ── */
+.hero-card{
+  margin:0 20px 18px;
+  border-radius:26px;overflow:hidden;
+  height:196px;position:relative;cursor:pointer;
+}
+/* 1. Real gym photo fills the card */
+.hc-photo{
+  position:absolute;inset:0;
+  background:url('https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=700&q=85&fit=crop') center/cover no-repeat;
+}
+/* 2. Aurora colour wash over the photo */
+.hc-aurora{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 85% 100% at 0% 55%,rgba(61,255,84,0.48) 0%,transparent 52%),
+    radial-gradient(ellipse 65% 65% at 105% 0%,rgba(0,185,255,0.36) 0%,transparent 50%),
+    radial-gradient(ellipse 50% 50% at 50% 110%,rgba(100,0,200,0.28) 0%,transparent 48%);
+  mix-blend-mode:color;
+}
+/* 3. Dark gradient so text is readable */
+.hc-dark{
+  position:absolute;inset:0;
+  background:linear-gradient(145deg,rgba(0,0,0,0.42) 0%,rgba(0,0,0,0.04) 45%,rgba(0,0,0,0.58) 100%);
+}
+/* 4. Glassmorphism sheen */
+.hc-glass{
+  position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.07) 0%,rgba(255,255,255,0.01) 50%,transparent 100%);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:26px;
+}
+.hc-body{position:relative;z-index:1;height:100%;padding:20px 22px 18px;display:flex;flex-direction:column;justify-content:space-between;}
+.plan-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(61,255,84,0.16);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(61,255,84,0.32);
+  border-radius:20px;padding:5px 13px;
+  font-family:var(--sans);font-size:10px;font-weight:700;
+  color:var(--accent);letter-spacing:.5px;text-transform:uppercase;align-self:flex-start;
+}
+.plan-badge svg{width:10px;height:10px;stroke:var(--accent);fill:none;stroke-width:2.5;}
+.plan-num{font-family:var(--sans);font-size:50px;font-weight:700;letter-spacing:-2px;line-height:1;color:#fff;}
+.plan-num em{font-size:20px;font-weight:400;font-style:italic;color:rgba(255,255,255,0.58);margin-left:4px;font-family:var(--serif);}
+.plan-foot{display:flex;align-items:flex-end;justify-content:space-between;}
+.plan-gname{font-family:var(--sans);font-size:13px;font-weight:600;color:rgba(255,255,255,0.88);}
+.plan-gsub{font-family:var(--sans);font-size:10px;font-weight:400;color:rgba(255,255,255,0.36);margin-top:2px;}
+.qr-btn{
+  display:flex;align-items:center;gap:7px;
+  background:rgba(255,255,255,0.11);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:1px solid rgba(255,255,255,0.2);
+  border-radius:22px;padding:9px 15px;
+  font-family:var(--sans);font-size:11px;font-weight:700;color:#fff;cursor:pointer;
+}
+.qr-btn svg{width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2;}
+
+/* Stats */
+.srow{display:flex;gap:10px;padding:0 20px 18px;}
+.sbox{
+  flex:1;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:20px;padding:16px 13px;
+}
+.snum{font-family:var(--sans);font-size:28px;font-weight:700;letter-spacing:-.5px;line-height:1;color:#fff;margin-bottom:5px;}
+.snum.g{color:var(--accent);}
+.slbl{font-family:var(--sans);font-size:10px;font-weight:400;color:rgba(255,255,255,0.28);line-height:1.4;}
+
+/* Section */
+.sec{display:flex;align-items:baseline;justify-content:space-between;padding:4px 22px 12px;}
+.sec-t{font-family:var(--serif);font-size:21px;font-weight:700;letter-spacing:-.4px;color:#fff;}
+.sec-a{font-family:var(--sans);font-size:11px;font-weight:500;color:rgba(255,255,255,0.26);cursor:pointer;}
+
+/* ── FEATURED SLIDER ── */
+.slider-outer{overflow:hidden;position:relative;}
+.slider-track{display:flex;transition:transform .5s cubic-bezier(.4,0,.2,1);}
+/* Each slide: photo fills the whole slide, aurora + glass on top */
+.slide{
+  width:390px;height:196px;flex-shrink:0;
+  position:relative;overflow:hidden;cursor:pointer;
+}
+.sl-photo{position:absolute;inset:0;background-size:cover;background-position:center;}
+.sl-aurora{position:absolute;inset:0;mix-blend-mode:color;}
+.sl-dark{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.88) 0%,rgba(0,0,0,0.08) 52%,transparent 100%);}
+/* Glass info pill at bottom */
+.sl-info{
+  position:absolute;bottom:0;left:0;right:0;padding:18px 22px;z-index:2;
+}
+.sl-tag{
+  display:inline-flex;align-items:center;
+  background:rgba(255,255,255,0.12);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border:1px solid rgba(255,255,255,0.18);
+  border-radius:20px;padding:4px 12px;
+  font-family:var(--sans);font-size:9px;font-weight:700;
+  color:#fff;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;
+}
+.sl-tag.g{background:rgba(61,255,84,0.16);border-color:rgba(61,255,84,0.3);color:var(--accent);}
+.sl-h{font-family:var(--serif);font-size:21px;font-weight:700;letter-spacing:-.4px;color:#fff;line-height:1.1;}
+.sl-sub{font-family:var(--sans);font-size:11px;color:rgba(255,255,255,0.45);margin-top:3px;}
+.sdots{display:flex;justify-content:center;gap:5px;padding:10px 0 4px;}
+.sdot{width:5px;height:5px;border-radius:2.5px;background:rgba(255,255,255,0.18);transition:all .3s;}
+.sdot.on{width:20px;background:rgba(255,255,255,0.7);}
+
+/* ── GYM HORIZONTAL CARDS: photo bg + aurora glass ── */
+.gym-scroll{display:flex;gap:12px;padding:0 20px 26px;overflow-x:auto;}
+.gym-scroll::-webkit-scrollbar{display:none;}
+.gc{
+  width:170px;height:226px;flex-shrink:0;
+  border-radius:22px;overflow:hidden;position:relative;cursor:pointer;
+}
+/* Photo fills card entirely */
+.gc-photo{position:absolute;inset:0;background-size:cover;background-position:center;}
+/* Aurora colour wash */
+.gc-aurora{position:absolute;inset:0;mix-blend-mode:color;}
+/* Dark gradient from bottom */
+.gc-dark{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.9) 0%,rgba(0,0,0,0.18) 50%,transparent 100%);}
+/* Thin glass border */
+.gc-border{position:absolute;inset:0;border:1px solid rgba(255,255,255,0.1);border-radius:22px;}
+/* Top badge: glass pill */
+.gc-badge{
+  position:absolute;top:12px;left:12px;z-index:3;
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(0,0,0,0.35);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:1px solid rgba(255,255,255,0.18);
+  border-radius:10px;padding:4px 10px;
+  font-family:var(--sans);font-size:9px;font-weight:700;
+  color:rgba(255,255,255,0.85);letter-spacing:.5px;text-transform:uppercase;
+}
+.gc-badge.e{background:rgba(61,255,84,0.14);border-color:rgba(61,255,84,0.32);color:var(--accent);}
+.gc-badge svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2.5;}
+/* Bottom info */
+.gc-body{position:absolute;bottom:0;left:0;right:0;padding:14px 14px;z-index:2;}
+/* Glass info card inside card */
+.gc-glass-info{
+  background:rgba(255,255,255,0.08);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:14px;
+  padding:10px 12px;
+}
+.gc-name{font-family:var(--serif);font-size:17px;font-weight:700;letter-spacing:-.3px;color:#fff;margin-bottom:5px;line-height:1.1;}
+.gc-meta{display:flex;gap:8px;}
+.gcm{display:flex;align-items:center;gap:3px;font-family:var(--sans);font-size:10px;color:rgba(255,255,255,0.5);}
+.gcm.s{color:rgba(255,205,55,.9);}
+.gcm svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;}
+.gcm.s svg{fill:rgba(255,205,55,.9);}
+
+/* Tab bar */
+.tabbar{
+  position:relative;z-index:10;
+  padding:10px 18px 32px;
+  background:rgba(6,6,6,0.85);
+  backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+  border-top:1px solid rgba(255,255,255,0.06);
+  flex-shrink:0;
+}
+.tab-wrap{
+  display:flex;
+  background:rgba(255,255,255,0.055);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:18px;padding:4px;
+}
+.ti{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 4px;border-radius:14px;cursor:pointer;transition:background .18s;}
+.ti.on{background:rgba(255,255,255,0.1);}
+.ti svg{width:17px;height:17px;stroke:rgba(255,255,255,0.22);fill:none;stroke-width:1.8;transition:stroke .18s;}
+.ti.on svg{stroke:rgba(255,255,255,0.92);}
+.ti-t{font-family:var(--sans);font-size:9px;font-weight:600;color:rgba(255,255,255,0.2);letter-spacing:.2px;transition:color .18s;}
+.ti.on .ti-t{color:rgba(255,255,255,0.82);}
+
+/* ══════════════════════════════
+   S4: GYM LISTING
+══════════════════════════════ */
+#s4{background:#060606;}
+.ltop{padding:54px 22px 14px;background:rgba(6,6,6,0.95);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0;}
+.ltop-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+.back{width:38px;height:38px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.back svg{width:16px;height:16px;stroke:rgba(255,255,255,0.7);fill:none;stroke-width:2;}
+.pg-t{font-family:var(--serif);font-size:26px;font-weight:700;letter-spacing:-.5px;color:#fff;}
+.frow{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;}
+.frow::-webkit-scrollbar{display:none;}
+.fc{
+  display:flex;align-items:center;gap:5px;
+  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.09);
+  border-radius:20px;padding:7px 13px;white-space:nowrap;cursor:pointer;flex-shrink:0;
+  font-family:var(--sans);font-size:11px;font-weight:500;color:rgba(255,255,255,0.45);transition:all .18s;
+}
+.fc.on{background:rgba(61,255,84,0.1);border-color:rgba(61,255,84,0.28);color:var(--accent);}
+.fc svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;}
+.lscroll{flex:1;overflow-y:auto;padding:16px 20px 24px;}
+.lscroll::-webkit-scrollbar{display:none;}
+
+/* Gym list card — photo BG + aurora + glass info panel */
+.lcard{
+  border-radius:22px;overflow:hidden;margin-bottom:14px;
+  position:relative;cursor:pointer;
+  height:200px;
+}
+.lcard-photo{position:absolute;inset:0;background-size:cover;background-position:center;}
+.lcard-aurora{position:absolute;inset:0;mix-blend-mode:color;}
+.lcard-dark{
+  position:absolute;inset:0;
+  background:linear-gradient(to top,rgba(0,0,0,0.92) 0%,rgba(0,0,0,0.25) 55%,rgba(0,0,0,0.05) 100%);
+}
+.lcard-border{position:absolute;inset:0;border:1px solid rgba(255,255,255,0.1);border-radius:22px;}
+/* Badge */
+.lbadge{
+  position:absolute;top:14px;left:14px;z-index:3;
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(0,0,0,0.38);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:1px solid rgba(255,255,255,0.18);
+  border-radius:10px;padding:4px 11px;
+  font-family:var(--sans);font-size:9px;font-weight:700;
+  color:rgba(255,255,255,0.85);letter-spacing:.5px;text-transform:uppercase;
+}
+.lbadge.e{background:rgba(61,255,84,0.14);border-color:rgba(61,255,84,0.3);color:var(--accent);}
+.lbadge svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2.5;}
+/* Glass info panel at bottom of card */
+.lcard-panel{
+  position:absolute;bottom:0;left:0;right:0;z-index:2;
+  padding:12px 14px 14px;
+  /* the glassmorphism panel */
+  background:rgba(255,255,255,0.08);
+  backdrop-filter:blur(22px) saturate(160%);
+  -webkit-backdrop-filter:blur(22px) saturate(160%);
+  border-top:1px solid rgba(255,255,255,0.12);
+}
+.lcard-row{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:7px;}
+.lcard-name{font-family:var(--serif);font-size:19px;font-weight:700;letter-spacing:-.3px;color:#fff;}
+.lcard-price{font-family:var(--sans);font-size:18px;font-weight:700;color:var(--accent);}
+.lcard-price span{font-size:10px;font-weight:400;color:rgba(255,255,255,0.3);}
+.lcard-meta{display:flex;gap:12px;}
+.lm{display:flex;align-items:center;gap:4px;font-family:var(--sans);font-size:11px;color:rgba(255,255,255,0.45);}
+.lm.s{color:rgba(255,205,55,.85);}
+.lm svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;}
+.lm.s svg{fill:rgba(255,205,55,.85);}
+
+/* ══════════════════════════════
+   S5: GYM DETAIL
+══════════════════════════════ */
+#s5{background:#060606;}
+/* Hero: full-bleed photo + aurora + dark */
+.gdh{height:260px;position:relative;overflow:hidden;flex-shrink:0;}
+.gdh-photo{position:absolute;inset:0;background:url('https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=85&fit=crop') center/cover;}
+.gdh-aurora{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 65% 58% at 82% 12%,rgba(61,255,84,0.52) 0%,transparent 50%),
+    radial-gradient(ellipse 55% 55% at 12% 78%,rgba(0,148,255,0.36) 0%,transparent 48%);
+  mix-blend-mode:color;
+}
+.gdh-dark{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.22) 0%,rgba(0,0,0,0.06) 40%,rgba(6,6,6,0.94) 100%);}
+.gdh-btns{position:absolute;top:56px;left:20px;right:20px;display:flex;justify-content:space-between;z-index:10;}
+.cbtn{
+  width:38px;height:38px;
+  background:rgba(0,0,0,0.35);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:1px solid rgba(255,255,255,0.18);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.cbtn svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;}
+/* Info below hero */
+.gdi{padding:0 22px 12px;flex-shrink:0;}
+.gdi-badges{display:flex;gap:8px;margin-bottom:10px;}
+.gbadge{
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(61,255,84,0.1);
+  backdrop-filter:blur(12px);
+  border:1px solid rgba(61,255,84,0.24);border-radius:10px;padding:4px 11px;
+  font-family:var(--sans);font-size:10px;font-weight:700;color:var(--accent);
+}
+.gbadge svg{width:10px;height:10px;stroke:var(--accent);fill:none;stroke-width:2.5;}
+.gbadge.blue{background:rgba(0,180,255,0.08);border-color:rgba(0,180,255,0.24);color:rgba(0,195,255,0.9);}
+.gbadge.blue svg{stroke:rgba(0,195,255,0.9);}
+.gd-name{font-family:var(--serif);font-size:32px;font-weight:900;letter-spacing:-1.5px;color:#fff;line-height:.95;margin-bottom:9px;}
+.gd-meta{display:flex;gap:14px;}
+.gdm{display:flex;align-items:center;gap:5px;font-family:var(--sans);font-size:12px;color:rgba(255,255,255,0.42);}
+.gdm.s{color:rgba(255,205,55,.88);}
+.gdm svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.8;}
+.gdm.s svg{fill:rgba(255,205,55,.88);}
+/* Tabs */
+.gdtabs{display:flex;padding:0 22px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;}
+.gdt{
+  padding:10px 16px;font-family:var(--sans);font-size:12px;font-weight:600;
+  color:rgba(255,255,255,0.26);cursor:pointer;border-bottom:2px solid transparent;transition:all .18s;white-space:nowrap;
+}
+.gdt.on{color:var(--accent);border-bottom-color:var(--accent);}
+/* Scroll body */
+.gdscroll{flex:1;overflow-y:auto;padding:16px 22px 0;}
+.gdscroll::-webkit-scrollbar{display:none;}
+.gdabout{font-family:var(--sans);font-size:13px;color:rgba(255,255,255,0.42);line-height:1.68;margin-bottom:18px;}
+.sub-h{font-family:var(--sans);font-size:11px;font-weight:600;color:rgba(255,255,255,0.4);letter-spacing:.5px;margin-bottom:10px;text-transform:uppercase;}
+/* Amenities — glass cards */
+.amen{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px;}
+.am{
+  display:flex;align-items:center;gap:9px;
+  background:rgba(255,255,255,0.05);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,0.09);border-radius:14px;padding:11px 12px;
+  font-family:var(--sans);font-size:12px;color:rgba(255,255,255,0.58);
+}
+.am svg{width:14px;height:14px;stroke:var(--accent);fill:none;stroke-width:2;flex-shrink:0;}
+/* Hours card — glass */
+.hcard{
+  background:rgba(255,255,255,0.05);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:14px;margin-bottom:16px;
+}
+.hrow{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-family:var(--sans);font-size:12px;}
+.hrow:last-child{border:none;}
+.hday{color:rgba(255,255,255,0.34);}
+.htime{color:rgba(255,255,255,0.72);font-weight:500;}
+/* Sticky CTA */
+.gdsticky{
+  padding:14px 20px 34px;
+  background:rgba(6,6,6,0.9);backdrop-filter:blur(24px);
+  border-top:1px solid rgba(255,255,255,0.07);flex-shrink:0;
+}
+.pr{display:flex;align-items:baseline;gap:5px;margin-bottom:13px;}
+.pbig{font-family:var(--sans);font-size:28px;font-weight:700;color:var(--accent);}
+.pper{font-family:var(--sans);font-size:12px;color:rgba(255,255,255,0.28);}
+.ctabtn{
+  width:100%;height:52px;background:var(--accent);border:none;border-radius:30px;
+  font-family:var(--sans);font-size:14px;font-weight:700;color:#000;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:9px;
+}
+.ctabtn svg{width:16px;height:16px;stroke:#000;fill:none;stroke-width:2.5;}
+</style>
+</head>
+<body>
+
+<!-- ══ S1: SPLASH ══ -->
+<div class="pw">
+  <div class="plabel">01 — Splash</div>
+  <div class="phone">
+    <div class="di"><div class="di-m"></div><div class="di-c"></div></div>
+    <div class="hb"></div>
+    <div class="screen" id="s1">
+      <div class="spl-photo"></div>
+      <div class="spl-aurora"></div>
+      <div class="spl-vignette"></div>
+      <div class="grain"></div>
+      <div class="spl-body">
+        <div class="spl-eye">Fitness &nbsp;·&nbsp; Odisha</div>
+        <div class="spl-word">Book<em>My</em><br>Fit</div>
+        <div class="spl-sub">Your Fitness Universe, Unified.</div>
+        <div class="spl-bar"><div class="spl-track"><div class="spl-fill"></div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S2: ONBOARDING ══ -->
+<div class="pw">
+  <div class="plabel">02 — Onboarding</div>
+  <div class="phone">
+    <div class="di"><div class="di-m"></div><div class="di-c"></div></div>
+    <div class="hb"></div>
+    <div class="screen" id="s2">
+      <div class="ob-photo"></div>
+      <div class="ob-aurora"></div>
+      <div class="ob-vignette"></div>
+      <div class="grain"></div>
+      <!-- Glass pills -->
+      <div class="fpill a">
+        <div class="fp-ic">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M6.5 6.5h11v11h-11z"/><line x1="3" y1="12" x2="6.5" y2="12"/><line x1="17.5" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="6.5"/><line x1="12" y1="17.5" x2="12" y2="21"/></svg>
+        </div>
+        <div><div class="fp-val">500+</div><div class="fp-lbl">Gyms Listed</div></div>
+      </div>
+      <div class="fpill b">
+        <div class="fp-ic" style="background:rgba(61,255,84,0.15);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div><div class="fp-val" style="color:var(--accent)">12k</div><div class="fp-lbl">Active Members</div></div>
+      </div>
+      <button class="ob-skip">Skip</button>
+      <div class="ob-foot">
+        <div class="ob-step">01 / 03 &nbsp;&nbsp; Access</div>
+        <div class="ob-h">One Pass.<br><em>Every Gym.</em></div>
+        <div class="ob-p">Access hundreds of premium fitness centres across Odisha with a single flexible subscription.</div>
+        <div class="ob-controls">
+          <div class="ob-dots"><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div>
+          <button class="ob-cta">Continue &nbsp;
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S3: HOME ══ -->
+<div class="pw">
+  <div class="plabel">03 — Home</div>
+  <div class="phone">
+    <div class="di"><div class="di-m"></div><div class="di-c"></div></div>
+    <div class="hb"></div>
+    <div class="sb">
+      <span>9:41</span>
+      <div class="sb-r">
+        <svg viewBox="0 0 24 24"><polyline points="1.5 8 1.5 16"/><polyline points="5.5 5 5.5 19"/><polyline points="9.5 9 9.5 15"/><polyline points="13.5 11 13.5 13"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M1.73 10.41A16 16 0 0 1 22.27 10.41"/><path d="M5 14.07A10 10 0 0 1 19 14.07"/><path d="M8.5 17.5A5.5 5.5 0 0 1 15.5 17.5"/><circle cx="12" cy="21" r="1" fill="rgba(255,255,255,0.85)" stroke="none"/></svg>
+        <svg viewBox="0 0 24 24"><rect x="2" y="7" width="18" height="11" rx="2"/><path d="M22 11v3" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+    <div class="screen" id="s3">
+      <div class="grain"></div>
+      <div class="h-scroll">
+        <!-- Topbar -->
+        <div class="topbar">
+          <div><div class="hi">Good Morning,</div><div class="uname">Rahul Mohanty</div></div>
+          <div class="top-r">
+            <div class="icbtn">
+              <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            </div>
+            <div class="avt">RM</div>
+          </div>
+        </div>
+
+        <!-- HERO PLAN CARD -->
+        <div class="hero-card">
+          <div class="hc-photo"></div>
+          <div class="hc-aurora"></div>
+          <div class="hc-dark"></div>
+          <div class="hc-glass"></div>
+          <div class="hc-body">
+            <div class="plan-badge">
+              <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Elite &nbsp;·&nbsp; Active
+            </div>
+            <div class="plan-num">12 <em>days left</em></div>
+            <div class="plan-foot">
+              <div>
+                <div class="plan-gname">PowerZone Fitness</div>
+                <div class="plan-gsub">Elite Plan &nbsp;·&nbsp; 3 Months</div>
+              </div>
+              <div class="qr-btn">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="19" y="14" width="2" height="2"/><rect x="14" y="19" width="2" height="2"/><rect x="18" y="18" width="3" height="3"/></svg>
+                Check In
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="srow">
+          <div class="sbox"><div class="snum g">24</div><div class="slbl">Visits<br>This Month</div></div>
+          <div class="sbox"><div class="snum">3</div><div class="slbl">Active<br>Plans</div></div>
+          <div class="sbox"><div class="snum" style="font-size:20px;padding-top:6px">Elite</div><div class="slbl">Current<br>Tier</div></div>
+        </div>
+
+        <!-- FEATURED SLIDER -->
+        <div class="sec"><div class="sec-t">Featured</div><div class="sec-a">See all</div></div>
+        <div class="slider-outer">
+          <div class="slider-track" id="sltrack">
+            <div class="slide">
+              <div class="sl-photo" style="background-image:url('https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80&fit=crop')"></div>
+              <div class="sl-aurora" style="background:radial-gradient(ellipse 80% 80% at 0% 55%,rgba(61,255,84,0.55) 0%,transparent 52%),radial-gradient(ellipse 60% 60% at 100% 10%,rgba(0,180,255,0.38) 0%,transparent 50%)"></div>
+              <div class="sl-dark"></div>
+              <div class="sl-info">
+                <div class="sl-tag g">Elite Offer</div>
+                <div class="sl-h">Unlimited Access<br>This Summer</div>
+                <div class="sl-sub">PowerZone Fitness &nbsp;·&nbsp; 500+ Members</div>
+              </div>
+            </div>
+            <div class="slide">
+              <div class="sl-photo" style="background-image:url('https://images.unsplash.com/photo-1549060279-7e168fcee0c2?w=800&q=80&fit=crop')"></div>
+              <div class="sl-aurora" style="background:radial-gradient(ellipse 75% 75% at 100% 50%,rgba(255,45,18,0.65) 0%,transparent 52%),radial-gradient(ellipse 55% 55% at 0% 20%,rgba(195,0,255,0.42) 0%,transparent 50%)"></div>
+              <div class="sl-dark"></div>
+              <div class="sl-info">
+                <div class="sl-tag">New Launch</div>
+                <div class="sl-h">FitHub Pro Now<br>in Bhubaneswar</div>
+                <div class="sl-sub">Premium plan from ₹999/mo</div>
+              </div>
+            </div>
+            <div class="slide">
+              <div class="sl-photo" style="background-image:url('https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&q=80&fit=crop')"></div>
+              <div class="sl-aurora" style="background:radial-gradient(ellipse 75% 65% at 50% 0%,rgba(255,175,0,0.6) 0%,transparent 52%),radial-gradient(ellipse 55% 55% at 50% 110%,rgba(200,45,0,0.38) 0%,transparent 50%)"></div>
+              <div class="sl-dark"></div>
+              <div class="sl-info">
+                <div class="sl-tag">Weekend Deal</div>
+                <div class="sl-h">25% Off on<br>Annual Plans</div>
+                <div class="sl-sub">Code: ANNUAL25 &nbsp;·&nbsp; Valid till Apr 30</div>
+              </div>
+            </div>
+          </div>
+          <div class="sdots" id="sldots">
+            <div class="sdot on"></div><div class="sdot"></div><div class="sdot"></div>
+          </div>
+        </div>
+
+        <!-- Nearby gyms -->
+        <div class="sec" style="padding-top:18px"><div class="sec-t">Nearby Gyms</div><div class="sec-a">See all</div></div>
+        <div class="gym-scroll">
+          <!-- GYM CARD: photo bg + aurora + glass info panel -->
+          <div class="gc">
+            <div class="gc-photo" style="background-image:url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=85&fit=crop')"></div>
+            <div class="gc-aurora" style="background:radial-gradient(ellipse 80% 65% at 80% 12%,rgba(61,255,84,0.62) 0%,transparent 52%),radial-gradient(ellipse 55% 55% at 18% 80%,rgba(0,140,55,0.32) 0%,transparent 50%);mix-blend-mode:color;"></div>
+            <div class="gc-dark"></div>
+            <div class="gc-border"></div>
+            <div class="gc-badge e">
+              <svg viewBox="0 0 24 24"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"/></svg>Elite
+            </div>
+            <div class="gc-body">
+              <div class="gc-glass-info">
+                <div class="gc-name">PowerZone</div>
+                <div class="gc-meta">
+                  <div class="gcm s"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>4.8</div>
+                  <div class="gcm"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>0.8 km</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="gc">
+            <div class="gc-photo" style="background-image:url('https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=85&fit=crop')"></div>
+            <div class="gc-aurora" style="background:radial-gradient(ellipse 80% 65% at 80% 12%,rgba(155,0,255,0.68) 0%,transparent 52%),radial-gradient(ellipse 55% 55% at 18% 80%,rgba(255,28,100,0.32) 0%,transparent 50%);mix-blend-mode:color;"></div>
+            <div class="gc-dark"></div>
+            <div class="gc-border"></div>
+            <div class="gc-badge">
+              <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Premium
+            </div>
+            <div class="gc-body">
+              <div class="gc-glass-info">
+                <div class="gc-name">FitHub Pro</div>
+                <div class="gc-meta">
+                  <div class="gcm s"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>4.6</div>
+                  <div class="gcm"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>1.4 km</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="gc">
+            <div class="gc-photo" style="background-image:url('https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=85&fit=crop')"></div>
+            <div class="gc-aurora" style="background:radial-gradient(ellipse 80% 65% at 80% 12%,rgba(255,138,0,0.62) 0%,transparent 52%),radial-gradient(ellipse 55% 55% at 18% 80%,rgba(200,38,0,0.3) 0%,transparent 50%);mix-blend-mode:color;"></div>
+            <div class="gc-dark"></div>
+            <div class="gc-border"></div>
+            <div class="gc-badge">Standard</div>
+            <div class="gc-body">
+              <div class="gc-glass-info">
+                <div class="gc-name">IronBody</div>
+                <div class="gc-meta">
+                  <div class="gcm s"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>4.3</div>
+                  <div class="gcm"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>2.1 km</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab bar -->
+      <div class="tabbar">
+        <div class="tab-wrap">
+          <div class="ti on">
+            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span class="ti-t">Home</span>
+          </div>
+          <div class="ti">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span class="ti-t">Explore</span>
+          </div>
+          <div class="ti">
+            <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+            <span class="ti-t">My Plans</span>
+          </div>
+          <div class="ti">
+            <svg viewBox="0 0 24 24"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            <span class="ti-t">Store</span>
+          </div>
+          <div class="ti">
+            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span class="ti-t">Profile</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S4: GYM LISTING ══ -->
+<div class="pw">
+  <div class="plabel">04 — Gym Listing</div>
+  <div class="phone">
+    <div class="di"><div class="di-m"></div><div class="di-c"></div></div>
+    <div class="hb"></div>
+    <div class="sb"><span>9:41</span><div class="sb-r"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="18" height="11" rx="2"/><path d="M22 11v3" stroke-linecap="round"/></svg></div></div>
+    <div class="screen" id="s4">
+      <div class="ltop">
+        <div class="ltop-row">
+          <div class="back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+          <div class="pg-t">Gyms Near You</div>
+        </div>
+        <div class="frow">
+          <div class="fc on"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>All</div>
+          <div class="fc"><svg viewBox="0 0 24 24"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"/></svg>Elite</div>
+          <div class="fc"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Premium</div>
+          <div class="fc"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Nearby</div>
+          <div class="fc"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Top Rated</div>
+        </div>
+      </div>
+      <div class="lscroll">
+        <!-- LISTING CARD 1: full photo bg -->
+        <div class="lcard">
+          <div class="lcard-photo" style="background-image:url('https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=700&q=85&fit=crop')"></div>
+          <div class="lcard-aurora" style="background:radial-gradient(ellipse 70% 60% at 82% 18%,rgba(61,255,84,0.6) 0%,transparent 50%),radial-gradient(ellipse 50% 50% at 15% 75%,rgba(0,145,60,0.3) 0%,transparent 48%);mix-blend-mode:color;"></div>
+          <div class="lcard-dark"></div>
+          <div class="lcard-border"></div>
+          <div class="lbadge e"><svg viewBox="0 0 24 24"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"/></svg>Elite</div>
+          <div class="lcard-panel">
+            <div class="lcard-row">
+              <div class="lcard-name">PowerZone Fitness</div>
+              <div class="lcard-price">₹1,499<span>/mo</span></div>
+            </div>
+            <div class="lcard-meta">
+              <div class="lm s"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>4.8 (286)</div>
+              <div class="lm"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>0.8 km</div>
+              <div class="lm"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>5am–11pm</div>
+            </div>
+          </div>
+        </div>
+        <div class="lcard">
+          <div class="lcard-photo" style="background-image:url('https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=700&q=85&fit=crop')"></div>
+          <div class="lcard-aurora" style="background:radial-gradient(ellipse 70% 60% at 82% 18%,rgba(155,0,255,0.68) 0%,transparent 50%),radial-gradient(ellipse 50% 50% at 15% 75%,rgba(255,28,100,0.3) 0%,transparent 48%);mix-blend-mode:color;"></div>
+          <div class="lcard-dark"></div>
+          <div class="lcard-border"></div>
+          <div class="lbadge"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Premium</div>
+          <div class="lcard-panel">
+            <div class="lcard-row">
+              <div class="lcard-name">FitHub Pro</div>
+              <div class="lcard-price">₹999<span>/mo</span></div>
+            </div>
+            <div class="lcard-meta">
+              <div class="lm s"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>4.6 (194)</div>
+              <div class="lm"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>1.4 km</div>
+              <div class="lm"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>6am–10pm</div>
+            </div>
+          </div>
+        </div>
+        <div class="lcard">
+          <div class="lcard-photo" style="background-image:url('https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=700&q=85&fit=crop')"></div>
+          <div class="lcard-aurora" style="background:radial-gradient(ellipse 70% 60% at 82% 18%,rgba(255,138,0,0.62) 0%,transparent 50%),radial-gradient(ellipse 50% 50% at 15% 75%,rgba(200,38,0,0.3) 0%,transparent 48%);mix-blend-mode:color;"></div>
+          <div class="lcard-dark"></div>
+          <div class="lcard-border"></div>
+          <div class="lbadge">Standard</div>
+          <div class="lcard-panel">
+            <div class="lcard-row">
+              <div class="lcard-name">IronBody Gym</div>
+              <div class="lcard-price">₹599<span>/mo</span></div>
+            </div>
+            <div class="lcard-meta">
+              <div class="lm s"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>4.3 (142)</div>
+              <div class="lm"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>2.1 km</div>
+              <div class="lm"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>5am–10pm</div>
+            </div>
+          </div>
+        </div>
+        <div class="lcard">
+          <div class="lcard-photo" style="background-image:url('https://images.unsplash.com/photo-1549060279-7e168fcee0c2?w=700&q=85&fit=crop')"></div>
+          <div class="lcard-aurora" style="background:radial-gradient(ellipse 70% 60% at 82% 18%,rgba(0,175,255,0.62) 0%,transparent 50%),radial-gradient(ellipse 50% 50% at 15% 75%,rgba(0,80,200,0.28) 0%,transparent 48%);mix-blend-mode:color;"></div>
+          <div class="lcard-dark"></div>
+          <div class="lcard-border"></div>
+          <div class="lbadge e"><svg viewBox="0 0 24 24"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"/></svg>Elite</div>
+          <div class="lcard-panel">
+            <div class="lcard-row">
+              <div class="lcard-name">AquaFit Centre</div>
+              <div class="lcard-price">₹1,299<span>/mo</span></div>
+            </div>
+            <div class="lcard-meta">
+              <div class="lm s"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>4.9 (312)</div>
+              <div class="lm"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>3.2 km</div>
+              <div class="lm"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>6am–9pm</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ S5: GYM DETAIL ══ -->
+<div class="pw">
+  <div class="plabel">05 — Gym Detail</div>
+  <div class="phone">
+    <div class="di"><div class="di-m"></div><div class="di-c"></div></div>
+    <div class="hb"></div>
+    <div class="screen" id="s5">
+      <!-- Hero: real photo fills completely -->
+      <div class="gdh">
+        <div class="gdh-photo"></div>
+        <div class="gdh-aurora"></div>
+        <div class="gdh-dark"></div>
+        <div class="gdh-btns">
+          <div class="cbtn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+          <div style="display:flex;gap:8px">
+            <div class="cbtn"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+            <div class="cbtn"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></div>
+          </div>
+        </div>
+      </div>
+      <div class="gdi">
+        <div class="gdi-badges">
+          <div class="gbadge"><svg viewBox="0 0 24 24"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"/></svg>Elite Partner</div>
+          <div class="gbadge blue"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Open Now</div>
+        </div>
+        <div class="gd-name">PowerZone<br>Fitness</div>
+        <div class="gd-meta">
+          <div class="gdm s"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>4.8 (286 reviews)</div>
+          <div class="gdm"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>0.8 km</div>
+        </div>
+      </div>
+      <div class="gdtabs">
+        <div class="gdt on">Overview</div>
+        <div class="gdt">Services</div>
+        <div class="gdt">Trainers</div>
+        <div class="gdt">Reviews</div>
+      </div>
+      <div class="gdscroll">
+        <div class="gdabout">Premium multi-level gym in Bhubaneswar with state-of-the-art equipment, certified trainers, and extended access hours. Elite-tier facility with dedicated cardio, free weights, and functional zones.</div>
+        <div class="sub-h">Amenities</div>
+        <div class="amen">
+          <div class="am"><svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>High-Speed WiFi</div>
+          <div class="am"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Secure Lockers</div>
+          <div class="am"><svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Free Parking</div>
+          <div class="am"><svg viewBox="0 0 24 24"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>RO Water</div>
+          <div class="am"><svg viewBox="0 0 24 24"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>AC Throughout</div>
+          <div class="am"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>CCTV Security</div>
+        </div>
+        <div class="sub-h">Hours</div>
+        <div class="hcard">
+          <div class="hrow"><span class="hday">Mon – Fri</span><span class="htime">5:00 AM – 11:00 PM</span></div>
+          <div class="hrow"><span class="hday">Saturday</span><span class="htime">6:00 AM – 10:00 PM</span></div>
+          <div class="hrow"><span class="hday">Sunday</span><span class="htime">7:00 AM – 8:00 PM</span></div>
+        </div>
+        <div style="height:16px"></div>
+      </div>
+      <div class="gdsticky">
+        <div class="pr"><div class="pbig">₹1,499</div><div class="pper">/ month onwards</div></div>
+        <button class="ctabtn">
+          <svg viewBox="0 0 24 24" style="stroke:#000;fill:none;stroke-width:2.5;width:16px;height:16px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Choose Plan
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Slider
+(function(){
+  const track = document.getElementById('sltrack');
+  const dots = document.querySelectorAll('#sldots .sdot');
+  let cur = 0, n = 3;
+  function go(i){ cur=(i+n)%n; track.style.transform=`translateX(${-cur*390}px)`; dots.forEach((d,j)=>d.classList.toggle('on',j===cur)); }
+  setInterval(()=>go(cur+1), 3400);
+  let sx=0;
+  track.parentElement.addEventListener('touchstart',e=>{sx=e.touches[0].clientX},{passive:true});
+  track.parentElement.addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>40)go(dx<0?cur+1:cur-1);});
+})();
+
+// Tabs + filters
+document.querySelectorAll('.gdt').forEach(t=>t.addEventListener('click',()=>{t.closest('.gdtabs').querySelectorAll('.gdt').forEach(x=>x.classList.remove('on'));t.classList.add('on');}));
+document.querySelectorAll('.fc').forEach(t=>t.addEventListener('click',()=>{t.closest('.frow').querySelectorAll('.fc').forEach(x=>x.classList.remove('on'));t.classList.add('on');}));
+document.querySelectorAll('.ti').forEach(t=>t.addEventListener('click',()=>{t.closest('.tab-wrap').querySelectorAll('.ti').forEach(x=>x.classList.remove('on'));t.classList.add('on');}));
+</script>
+</body>
+</html>

@@ -73,7 +73,7 @@ export default function SettlementsPage() {
     setSettlements((prev) => prev.map((s) => s.id === id ? { ...s, status: 'approved' } : s));
   };
   const markPaid = async (id: string) => {
-    try { await api.post(`/settlements/${id}/mark-paid`); } catch { /* optimistic */ }
+    try { await api.post(`/settlements/${id}/pay`); } catch { /* optimistic */ }
     setSettlements((prev) => prev.map((s) => s.id === id ? { ...s, status: 'paid' } : s));
   };
 

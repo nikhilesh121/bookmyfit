@@ -39,6 +39,10 @@ class RatingsService {
     return this.repo.update(id, { status: approve ? 'approved' : 'rejected' });
   }
   listPending() { return this.repo.find({ where: { status: 'pending' }, order: { createdAt: 'DESC' } }); }
+  listByStatus(status?: string) {
+    const where: any = status ? { status } : {};
+    return this.repo.find({ where, order: { createdAt: 'DESC' } });
+  }
   listForGym(gymId: string) { return this.repo.find({ where: { gymId, status: 'approved' }, order: { createdAt: 'DESC' } }); }
 }
 
@@ -175,6 +179,8 @@ class RatingsController {
   @Post(':id/reject') reject(@Param('id') id: string) { return this.svc.moderate(id, false); }
   @Get('pending') pending() { return this.svc.listPending(); }
   @Get('gym/:gymId') forGym(@Param('gymId') gymId: string) { return this.svc.listForGym(gymId); }
+  /** Admin list with optional ?status=pending|approved|rejected filter */
+  @Get() list(@Query('status') status?: string) { return this.svc.listByStatus(status); }
 }
 
 @ApiTags('Coupons')

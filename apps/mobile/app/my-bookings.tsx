@@ -37,7 +37,7 @@ export default function MyBookings() {
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     try {
-      const data = await api.get('/sessions/my-bookings');
+      const data = await api.get('/slots/my-bookings');
       setBookings(Array.isArray(data) ? data : []);
     } catch {
       setBookings([]);
@@ -59,7 +59,7 @@ export default function MyBookings() {
 
   const cancelBooking = async (bookingId: string) => {
     try {
-      await api.post(`/sessions/cancel/${bookingId}`, {});
+      await api.del(`/slots/${bookingId}/book`);
       await load();
     } catch (e: any) {
       const { Alert } = require('react-native');

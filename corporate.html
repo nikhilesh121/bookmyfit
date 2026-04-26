@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BookMyFit – Corporate Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f8f8f8;--bg2:#f0f0f0;--bg3:#e8e8e8;
+  --card:#fff;--border:#e4e4e4;
+  --text:#0a0a0a;--text2:#444;--text3:#888;
+  --sidebar:#0a0a0a;--shadow:0 2px 0 rgba(0,0,0,0.1);
+  --shadow-lg:3px 3px 0 rgba(0,0,0,0.12);
+  --radius:4px;--success:#16a34a;--danger:#dc2626;--warning:#d97706;
+}
+[data-theme="dark"]{
+  --bg:#0a0a0a;--bg2:#111;--bg3:#1a1a1a;
+  --card:#161616;--border:#2a2a2a;
+  --text:#fff;--text2:#ccc;--text3:#666;--sidebar:#111;
+}
+.icon{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+.icon-sm{width:14px;height:14px;}
+.icon-lg{width:20px;height:20px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;}
+.sidebar{width:220px;background:var(--sidebar);min-height:100vh;display:flex;flex-direction:column;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.sidebar-logo{padding:20px 16px 14px;border-bottom:1px solid rgba(255,255,255,0.08);}
+.brand{font-size:17px;font-weight:900;color:#fff;}
+.company-tag{font-size:12px;font-weight:600;color:rgba(255,255,255,0.5);margin-top:4px;}
+.role-pill{display:inline-block;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.5);font-size:9px;padding:2px 7px;border-radius:4px;margin-top:6px;font-weight:700;letter-spacing:1px;}
+.nav-group{padding:10px 10px 4px;}
+.nav-label{font-size:9px;font-weight:700;color:rgba(255,255,255,0.25);letter-spacing:2px;text-transform:uppercase;padding:0 8px;margin-bottom:4px;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:7px;cursor:pointer;color:rgba(255,255,255,0.55);font-size:12px;font-weight:500;transition:all 0.15s;margin-bottom:2px;border:none;background:none;width:100%;font-family:'Poppins',sans-serif;text-align:left;}
+.nav-item:hover{background:rgba(255,255,255,0.07);color:#fff;}
+.nav-item.active{background:#fff;color:#000;font-weight:700;}
+.nav-icon{font-size:14px;width:18px;text-align:center;}
+.nav-badge{margin-left:auto;background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);padding:1px 6px;border-radius:100px;font-size:10px;}
+.nav-item.active .nav-badge{background:rgba(0,0,0,0.1);color:#333;}
+.sidebar-bottom{margin-top:auto;padding:14px 12px;border-top:1px solid rgba(255,255,255,0.08);}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:50;}
+.topbar h1{font-size:16px;font-weight:700;}
+.content{flex:1;overflow-y:auto;padding:22px 24px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;}
+.stat-val{font-size:26px;font-weight:800;}
+.stat-label{font-size:11px;color:var(--text3);margin-top:3px;}
+.stat-icon{font-size:20px;margin-bottom:8px;}
+.stat-change{font-size:11px;font-weight:600;margin-top:4px;}
+.stat-change.up{color:var(--success);}
+.stat-change.down{color:var(--danger);}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:100px;font-size:11px;font-weight:600;white-space:nowrap;}
+.badge-success{background:#dcfce7;color:#15803d;}
+.badge-danger{background:#fee2e2;color:#991b1b;}
+.badge-warning{background:#fef3c7;color:#92400e;}
+.badge-dark{background:var(--text);color:var(--card);}
+.badge-outline{border:1px solid var(--border);color:var(--text2);background:var(--bg2);}
+[data-theme="dark"] .badge-success{background:#14532d;color:#86efac;}
+[data-theme="dark"] .badge-danger{background:#7f1d1d;color:#fca5a5;}
+[data-theme="dark"] .badge-warning{background:#78350f;color:#fcd34d;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:var(--radius);font-family:'Poppins',sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--text);transition:all 0.1s;box-shadow:3px 3px 0 var(--text);}
+.btn:hover{transform:translate(1px,1px);box-shadow:2px 2px 0 var(--text);}
+.btn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--text);}
+.btn-primary{background:var(--text);color:var(--card);}
+.btn-outline{background:var(--card);color:var(--text);border:2px solid var(--border);box-shadow:3px 3px 0 var(--border);}
+.btn-outline:hover{border-color:var(--text);box-shadow:2px 2px 0 var(--text);}
+.btn-success{background:#dcfce7;color:var(--success);border-color:var(--success);box-shadow:3px 3px 0 var(--success);}
+.btn-danger{background:#fee2e2;color:var(--danger);border-color:var(--danger);box-shadow:3px 3px 0 var(--danger);}
+.btn-warning{background:#fef3c7;color:var(--warning);border-color:var(--warning);box-shadow:3px 3px 0 var(--warning);}
+.btn-sm{padding:5px 10px;font-size:11px;box-shadow:2px 2px 0 var(--text);}
+.btn-sm:hover{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--text);}
+.input{padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--bg2);color:var(--text);font-family:'Poppins',sans-serif;font-size:13px;outline:none;}
+.input:focus{border-color:var(--text);}
+select.input{cursor:pointer;}
+.section-title{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.view{display:none;}
+.view.active{display:block;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+.form-group label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead tr{border-bottom:2px solid var(--border);}
+thead th{padding:9px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;}
+tbody tr:hover{background:var(--bg2);}
+td{padding:11px 12px;vertical-align:middle;color:var(--text2);}
+td strong{color:var(--text);}
+.td-actions{display:flex;gap:5px;}
+.toggle{position:relative;display:inline-block;width:36px;height:20px;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--bg3);border-radius:20px;transition:.3s;border:1px solid var(--border);}
+.toggle-slider::before{position:absolute;content:"";height:14px;width:14px;left:2px;bottom:2px;background:var(--text3);border-radius:50%;transition:.3s;}
+.toggle input:checked+.toggle-slider{background:var(--text);border-color:var(--text);}
+.toggle input:checked+.toggle-slider::before{transform:translateX(16px);background:var(--card);}
+.alert{padding:11px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;border:1px solid;}
+.alert-info{background:#dbeafe;border-color:#bfdbfe;color:#1e40af;}
+.alert-warning{background:#fef3c7;border-color:#fde68a;color:#92400e;}
+.alert-success{background:#dcfce7;border-color:#bbf7d0;color:#15803d;}
+[data-theme="dark"] .alert-info{background:#1e3a5f;border-color:#1d4ed8;color:#93c5fd;}
+[data-theme="dark"] .alert-warning{background:#78350f;border-color:#92400e;color:#fcd34d;}
+[data-theme="dark"] .alert-success{background:#14532d;border-color:#16a34a;color:#86efac;}
+.progress-bar{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--text);border-radius:3px;}
+.tabs{display:flex;gap:2px;background:var(--bg2);border-radius:8px;padding:3px;margin-bottom:18px;border:1px solid var(--border);}
+.tab{flex:1;padding:7px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:none;font-family:'Poppins',sans-serif;color:var(--text3);text-align:center;}
+.tab.active{background:var(--card);color:var(--text);box-shadow:var(--shadow);}
+.seat-donut{width:80px;height:80px;}
+
+/* Modal overlay */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;display:none;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--card);border-radius:var(--radius);padding:24px;width:480px;max-width:90vw;border:1px solid var(--border);}
+.modal-title{font-size:16px;font-weight:800;margin-bottom:16px;}
+</style>
+</head>
+<body data-theme="light">
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand">BookMyFit</div>
+    <div class="company-tag">Infosys Ltd · Corporate</div>
+    <div class="role-pill">CORPORATE ADMIN</div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Overview</div>
+    <button class="nav-item active" onclick="sv('dashboard',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Dashboard</button>
+    <button class="nav-item" onclick="sv('employees',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Employees<span class="nav-badge">200</span></button>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Manage</div>
+    <button class="nav-item" onclick="sv('assign',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>Assign Plans</button>
+    <button class="nav-item" onclick="sv('usage',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>Usage Reports</button>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Account</div>
+    <button class="nav-item" onclick="sv('billing',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>Billing & Invoices</button>
+    <button class="nav-item" onclick="sv('settings',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Settings</button>
+  </div>
+  <div class="sidebar-bottom">
+    <div style="font-size:12px;font-weight:700;color:#fff;">Infosys Ltd</div>
+    <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;">hr@infosys.com</div>
+    <button onclick="toggleTheme()" style="margin-top:10px;background:rgba(255,255,255,0.08);border:none;color:rgba(255,255,255,0.5);font-family:'Poppins',sans-serif;font-size:11px;padding:6px 10px;border-radius:var(--radius);cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;"><svg class="icon-sm" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> Toggle Theme</button>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <h1 id="page-title">Dashboard</h1>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:12px;color:var(--text3);">Infosys Ltd · Max Plan</span>
+      <div style="background:var(--text);color:var(--card);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">HR</div>
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- ===== DASHBOARD ===== -->
+    <div class="view active" id="v-dashboard">
+      <div class="alert alert-success">✅ Your corporate plan is <strong>active</strong>. 200 Max seats purchased. Renews on <strong>Mar 31, 2026</strong>. <a href="#" onclick="sv('billing',document.querySelector('[onclick*=billing]'));return false;" style="font-weight:700;">View Invoice →</a></div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-icon">🪑</div>
+          <div class="stat-val">200</div>
+          <div class="stat-label">Total Seats Purchased</div>
+          <div class="stat-change">Max Plan · ₹1,299/seat/mo</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">✅</div>
+          <div class="stat-val">187</div>
+          <div class="stat-label">Seats Assigned</div>
+          <div class="stat-change up">93.5% utilization</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🔢</div>
+          <div class="stat-val">13</div>
+          <div class="stat-label">Unassigned Seats</div>
+          <div class="stat-change"><a href="#" onclick="sv('assign',document.querySelector('[onclick*=assign]'));return false;" style="color:inherit;text-decoration:none;">Assign now →</a></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📅</div>
+          <div class="stat-val">1,240</div>
+          <div class="stat-label">Check-ins This Month</div>
+          <div class="stat-change up">↑ 8.4% vs last month</div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <!-- Seat utilization visual -->
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Seat Utilization</div>
+          <div style="display:flex;gap:20px;align-items:center;">
+            <svg width="100" height="100" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="38" fill="none" stroke="var(--bg3)" stroke-width="14"/>
+              <circle cx="50" cy="50" r="38" fill="none" stroke="var(--text)" stroke-width="14"
+                stroke-dasharray="224 12" stroke-dashoffset="-56" transform="rotate(-90 50 50)"/>
+              <text x="50" y="55" text-anchor="middle" font-size="16" font-weight="800" fill="var(--text)" font-family="Poppins">93%</text>
+            </svg>
+            <div style="flex:1;">
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px;"><span>Assigned & Active</span><strong>162 / 187</strong></div>
+              <div class="progress-bar" style="margin-bottom:12px;"><div class="progress-fill" style="width:81%;"></div></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px;"><span>Assigned but Inactive</span><strong>25 / 187</strong></div>
+              <div class="progress-bar" style="margin-bottom:12px;"><div class="progress-fill" style="width:13%;"></div></div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px;"><span>Unassigned</span><strong>13 / 200</strong></div>
+              <div class="progress-bar"><div class="progress-fill" style="width:6.5%;background:var(--bg3);"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top active employees -->
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Most Active Employees (Mar)</div>
+          <table>
+            <thead><tr><th>#</th><th>Employee</th><th>Check-ins</th><th>Gyms Visited</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td><strong>Arjun Sharma</strong><div style="font-size:10px;color:var(--text3);">Engineering</div></td><td>24</td><td>3</td></tr>
+              <tr><td>2</td><td><strong>Priya Mehta</strong><div style="font-size:10px;color:var(--text3);">HR</div></td><td>20</td><td>2</td></tr>
+              <tr><td>3</td><td><strong>Ravi Patel</strong><div style="font-size:10px;color:var(--text3);">Finance</div></td><td>18</td><td>4</td></tr>
+              <tr><td>4</td><td><strong>Sneha Roy</strong><div style="font-size:10px;color:var(--text3);">Design</div></td><td>16</td><td>2</td></tr>
+              <tr><td>5</td><td><strong>Kiran Das</strong><div style="font-size:10px;color:var(--text3);">Engineering</div></td><td>15</td><td>5</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Check-in activity heatmap by dept -->
+      <div class="card" style="margin-top:18px;">
+        <div class="section-title" style="font-size:14px;">Department-wise Usage (March 2026)</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;">
+          <div style="padding:12px;border:1px solid var(--border);border-radius:8px;text-align:center;">
+            <div style="font-size:20px;font-weight:800;">287</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">Engineering</div>
+            <div style="font-size:10px;color:var(--success);">68 employees</div>
+          </div>
+          <div style="padding:12px;border:1px solid var(--border);border-radius:8px;text-align:center;">
+            <div style="font-size:20px;font-weight:800;">214</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">Sales</div>
+            <div style="font-size:10px;color:var(--success);">42 employees</div>
+          </div>
+          <div style="padding:12px;border:1px solid var(--border);border-radius:8px;text-align:center;">
+            <div style="font-size:20px;font-weight:800;">189</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">HR & Admin</div>
+            <div style="font-size:10px;color:var(--success);">35 employees</div>
+          </div>
+          <div style="padding:12px;border:1px solid var(--border);border-radius:8px;text-align:center;">
+            <div style="font-size:20px;font-weight:800;">312</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">Operations</div>
+            <div style="font-size:10px;color:var(--success);">58 employees</div>
+          </div>
+          <div style="padding:12px;border:1px solid var(--border);border-radius:8px;text-align:center;">
+            <div style="font-size:20px;font-weight:800;">238</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">Finance</div>
+            <div style="font-size:10px;color:var(--success);">47 employees</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== EMPLOYEES ===== -->
+    <div class="view" id="v-employees">
+      <div class="section-header">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <input class="input" placeholder="🔍 Search by name, email, phone..." style="width:240px;">
+          <select class="input"><option>All Departments</option><option>Engineering</option><option>Sales</option><option>HR & Admin</option><option>Finance</option><option>Operations</option></select>
+          <select class="input"><option>All Status</option><option>Active</option><option>Inactive</option><option>Unassigned</option></select>
+        </div>
+        <button class="btn btn-primary" onclick="showAddModal()">+ Add Employee</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Employee</th><th>Email</th><th>Department</th><th>Plan</th><th>Assigned</th><th>Check-ins</th><th>Last Active</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><div style="width:30px;height:30px;background:var(--text);color:var(--card);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">AS</div><strong>Arjun Sharma</strong></div></td>
+              <td>arjun@infosys.com</td><td>Engineering</td>
+              <td><span class="badge badge-dark">Max</span></td>
+              <td><span class="badge badge-success">Active</span></td>
+              <td>24</td><td>Today</td>
+              <td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button><button class="btn btn-danger btn-sm">Revoke</button></td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><div style="width:30px;height:30px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">PM</div><strong>Priya Mehta</strong></div></td>
+              <td>priya@infosys.com</td><td>HR</td>
+              <td><span class="badge badge-dark">Max</span></td>
+              <td><span class="badge badge-success">Active</span></td>
+              <td>20</td><td>Today</td>
+              <td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button><button class="btn btn-danger btn-sm">Revoke</button></td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><div style="width:30px;height:30px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">RP</div><strong>Ravi Patel</strong></div></td>
+              <td>ravi@infosys.com</td><td>Finance</td>
+              <td><span class="badge badge-dark">Max</span></td>
+              <td><span class="badge badge-success">Active</span></td>
+              <td>18</td><td>Mar 15</td>
+              <td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button><button class="btn btn-danger btn-sm">Revoke</button></td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><div style="width:30px;height:30px;background:#fee2e2;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#991b1b;">NK</div><strong>Neha Kumar</strong></div></td>
+              <td>neha@infosys.com</td><td>Sales</td>
+              <td>–</td>
+              <td><span class="badge badge-outline">Unassigned</span></td>
+              <td>0</td><td>–</td>
+              <td class="td-actions"><button class="btn btn-success btn-sm">Assign</button><button class="btn btn-danger btn-sm">Remove</button></td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><div style="width:30px;height:30px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">SR</div><strong>Suresh Rao</strong></div></td>
+              <td>suresh@infosys.com</td><td>Operations</td>
+              <td><span class="badge badge-dark">Max</span></td>
+              <td><span class="badge badge-warning">Inactive</span></td>
+              <td>2</td><td>Mar 8</td>
+              <td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button><button class="btn btn-danger btn-sm">Revoke</button></td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><div style="width:30px;height:30px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">KD</div><strong>Kiran Das</strong></div></td>
+              <td>kiran@infosys.com</td><td>Engineering</td>
+              <td><span class="badge badge-dark">Max</span></td>
+              <td><span class="badge badge-success">Active</span></td>
+              <td>15</td><td>Today</td>
+              <td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button><button class="btn btn-danger btn-sm">Revoke</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:12px;color:var(--text3);">Showing 6 of 200 employees</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-outline btn-sm">← Prev</button>
+            <button class="btn btn-outline btn-sm" style="background:var(--text);color:var(--card);">1</button>
+            <button class="btn btn-outline btn-sm">2</button>
+            <button class="btn btn-outline btn-sm">3</button>
+            <button class="btn btn-outline btn-sm">Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ASSIGN PLANS ===== -->
+    <div class="view" id="v-assign">
+      <div class="alert alert-info">💡 Each assigned seat uses one of your purchased plan seats. You have <strong>13 unassigned seats</strong> remaining.</div>
+      <div class="two-col">
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Bulk Assign Plans</div>
+          <div class="form-group"><label>Select Employees</label>
+            <select class="input" multiple style="height:120px;">
+              <option>Neha Kumar (neha@infosys.com)</option>
+              <option>Ramesh Gupta (ramesh@infosys.com)</option>
+              <option>Pooja Nair (pooja@infosys.com)</option>
+              <option>Vikram Singh (vikram@infosys.com)</option>
+              <option>Anita Sinha (anita@infosys.com)</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Assign Plan</label>
+            <select class="input">
+              <option>Max Plan (₹1,299/seat/mo) — recommended</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Start Date</label><input class="input" type="date" value="2026-03-16"></div>
+          <div style="padding:12px;background:var(--bg2);border-radius:8px;margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>Selected employees</span><strong>5</strong></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>Seats available</span><strong>13</strong></div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;"><span>After assignment</span><strong>8 remaining</strong></div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;">Assign Plans to Selected</button>
+        </div>
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Add Employee & Assign</div>
+          <div class="form-row">
+            <div class="form-group"><label>First Name</label><input class="input" placeholder="Rahul"></div>
+            <div class="form-group"><label>Last Name</label><input class="input" placeholder="Kumar"></div>
+          </div>
+          <div class="form-group"><label>Work Email</label><input class="input" type="email" placeholder="rahul@infosys.com"></div>
+          <div class="form-group"><label>Mobile Number</label><input class="input" placeholder="+91 98765 43210"></div>
+          <div class="form-group"><label>Department</label>
+            <select class="input"><option>Engineering</option><option>Sales</option><option>HR & Admin</option><option>Finance</option><option>Operations</option></select>
+          </div>
+          <div class="form-group"><label>Plan to Assign</label>
+            <select class="input"><option>Max Plan (₹1,299/seat/mo)</option></select>
+          </div>
+          <button class="btn btn-success" style="width:100%;">Add & Assign Plan</button>
+          <div style="margin-top:10px;text-align:center;font-size:12px;color:var(--text3);">Employee will receive an invite SMS/email to create their account.</div>
+        </div>
+      </div>
+      <!-- Recent assignments -->
+      <div class="card" style="margin-top:18px;">
+        <div class="section-title" style="font-size:14px;">Recent Assignments</div>
+        <table>
+          <thead><tr><th>Employee</th><th>Plan</th><th>Assigned On</th><th>By</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Rahul Kumar</strong></td><td><span class="badge badge-dark">Max</span></td><td>Mar 15, 2026</td><td>HR Admin</td><td><span class="badge badge-warning">Invite Pending</span></td><td class="td-actions"><button class="btn btn-outline btn-sm">Resend</button><button class="btn btn-danger btn-sm">Revoke</button></td></tr>
+            <tr><td><strong>Pooja Nair</strong></td><td><span class="badge badge-dark">Max</span></td><td>Mar 10, 2026</td><td>HR Admin</td><td><span class="badge badge-success">Active</span></td><td class="td-actions"><button class="btn btn-danger btn-sm">Revoke</button></td></tr>
+            <tr><td><strong>Vikram Singh</strong></td><td><span class="badge badge-dark">Max</span></td><td>Mar 5, 2026</td><td>HR Admin</td><td><span class="badge badge-success">Active</span></td><td class="td-actions"><button class="btn btn-danger btn-sm">Revoke</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== USAGE REPORTS ===== -->
+    <div class="view" id="v-usage">
+      <div class="section-header">
+        <div style="display:flex;gap:10px;">
+          <select class="input"><option>March 2026</option><option>February 2026</option><option>January 2026</option></select>
+          <select class="input"><option>All Departments</option><option>Engineering</option><option>Sales</option><option>HR & Admin</option><option>Finance</option></select>
+        </div>
+        <button class="btn btn-outline">📥 Export CSV</button>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-val">1,240</div><div class="stat-label">Total Check-ins (Mar)</div><div class="stat-change up">↑ 8.4% vs Feb</div></div>
+        <div class="stat-card"><div class="stat-icon">👟</div><div class="stat-val">162</div><div class="stat-label">Employees Who Worked Out</div><div class="stat-change">Out of 187 assigned</div></div>
+        <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-val">7.6</div><div class="stat-label">Avg. Sessions/Employee</div></div>
+        <div class="stat-card"><div class="stat-icon">🏢</div><div class="stat-val">28</div><div class="stat-label">Unique Gyms Visited</div></div>
+      </div>
+
+      <div class="card">
+        <div class="section-header">
+          <div class="section-title" style="margin:0;">Per-Employee Usage</div>
+          <input class="input" placeholder="🔍 Search employee..." style="width:220px;">
+        </div>
+        <table>
+          <thead><tr><th>Employee</th><th>Dept</th><th>Plan</th><th>Check-ins</th><th>Gyms Used</th><th>Last Visit</th><th>Utilization</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Arjun Sharma</strong></td><td>Engineering</td><td><span class="badge badge-dark">Max</span></td><td>24</td><td>3</td><td>Today</td>
+              <td><div class="progress-bar" style="width:100px;"><div class="progress-fill" style="width:80%;"></div></div></td>
+            </tr>
+            <tr>
+              <td><strong>Priya Mehta</strong></td><td>HR</td><td><span class="badge badge-dark">Max</span></td><td>20</td><td>2</td><td>Today</td>
+              <td><div class="progress-bar" style="width:100px;"><div class="progress-fill" style="width:67%;"></div></div></td>
+            </tr>
+            <tr>
+              <td><strong>Ravi Patel</strong></td><td>Finance</td><td><span class="badge badge-dark">Max</span></td><td>18</td><td>4</td><td>Mar 15</td>
+              <td><div class="progress-bar" style="width:100px;"><div class="progress-fill" style="width:60%;"></div></div></td>
+            </tr>
+            <tr>
+              <td><strong>Suresh Rao</strong></td><td>Operations</td><td><span class="badge badge-dark">Max</span></td><td>2</td><td>1</td><td>Mar 8</td>
+              <td><div class="progress-bar" style="width:100px;"><div class="progress-fill" style="width:7%;"></div></div></td>
+            </tr>
+            <tr>
+              <td><strong>Kiran Das</strong></td><td>Engineering</td><td><span class="badge badge-dark">Max</span></td><td>15</td><td>5</td><td>Today</td>
+              <td><div class="progress-bar" style="width:100px;"><div class="progress-fill" style="width:50%;"></div></div></td>
+            </tr>
+            <tr>
+              <td><strong>Anita Sinha</strong></td><td>HR</td><td><span class="badge badge-dark">Max</span></td><td>0</td><td>0</td><td>–</td>
+              <td><div class="progress-bar" style="width:100px;"><div class="progress-fill" style="width:0%;"></div></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Gym popularity -->
+      <div class="card" style="margin-top:18px;">
+        <div class="section-title" style="font-size:14px;">Most Popular Gyms Among Your Team</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>Fitness Mantra, Patia</span><strong>312 visits · 68 employees</strong></div><div class="progress-bar"><div class="progress-fill" style="width:100%;"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>BBSR Health Club, Bhubaneswar</span><strong>248 visits · 54 employees</strong></div><div class="progress-bar"><div class="progress-fill" style="width:79%;"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>Gold's Gym, Delhi</span><strong>189 visits · 42 employees</strong></div><div class="progress-bar"><div class="progress-fill" style="width:61%;"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span>PowerFit Studio, Mumbai</span><strong>112 visits · 28 employees</strong></div><div class="progress-bar"><div class="progress-fill" style="width:36%;"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== BILLING ===== -->
+    <div class="view" id="v-billing">
+      <div class="two-col">
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Current Subscription</div>
+          <div style="padding:16px;border:2px solid var(--text);border-radius:10px;margin-bottom:16px;">
+            <div style="font-size:18px;font-weight:800;margin-bottom:4px;">Max Plan</div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">200 seats · ₹1,299/seat/month</div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span>Monthly Cost</span><strong>₹2,59,800</strong></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;"><span>Next Renewal</span><strong>Apr 1, 2026</strong></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Payment Method</span><strong>NEFT · **** 4821</strong></div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline" style="flex:1;">➕ Add Seats</button>
+            <button class="btn btn-outline" style="flex:1;">➖ Remove Seats</button>
+          </div>
+          <div style="margin-top:10px;">
+            <button class="btn btn-primary" style="width:100%;">Renew Now (saves 10%)</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Billing Summary</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;padding:10px;background:var(--bg2);border-radius:8px;font-size:13px;"><span>200 seats × ₹1,299</span><strong>₹2,59,800</strong></div>
+            <div style="display:flex;justify-content:space-between;padding:10px;background:var(--bg2);border-radius:8px;font-size:13px;"><span>GST (18%)</span><strong>₹46,764</strong></div>
+            <div style="display:flex;justify-content:space-between;padding:12px;background:var(--text);border-radius:8px;color:var(--card);font-size:14px;font-weight:700;"><span>Monthly Total</span><strong>₹3,06,564</strong></div>
+          </div>
+          <div style="margin-top:14px;font-size:12px;color:var(--text3);padding:10px;background:var(--bg2);border-radius:8px;">
+            💡 Upgrading to 250+ seats unlocks a <strong>10% bulk discount</strong>. Contact our sales team.
+          </div>
+        </div>
+      </div>
+
+      <!-- Invoice history -->
+      <div class="card" style="margin-top:18px;">
+        <div class="section-header">
+          <div class="section-title" style="margin:0;">Invoice History</div>
+          <button class="btn btn-outline btn-sm">📥 Download All</button>
+        </div>
+        <table>
+          <thead><tr><th>Invoice #</th><th>Period</th><th>Seats</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr><td><strong>INV-2026-03</strong></td><td>March 2026</td><td>200</td><td>₹3,06,564</td><td><span class="badge badge-warning">Due Apr 1</span></td><td class="td-actions"><button class="btn btn-primary btn-sm">Pay Now</button><button class="btn btn-outline btn-sm">Download</button></td></tr>
+            <tr><td><strong>INV-2026-02</strong></td><td>February 2026</td><td>200</td><td>₹3,06,564</td><td><span class="badge badge-success">Paid</span></td><td class="td-actions"><button class="btn btn-outline btn-sm">Download</button></td></tr>
+            <tr><td><strong>INV-2026-01</strong></td><td>January 2026</td><td>195</td><td>₹2,98,138</td><td><span class="badge badge-success">Paid</span></td><td class="td-actions"><button class="btn btn-outline btn-sm">Download</button></td></tr>
+            <tr><td><strong>INV-2025-12</strong></td><td>December 2025</td><td>180</td><td>₹2,75,450</td><td><span class="badge badge-success">Paid</span></td><td class="td-actions"><button class="btn btn-outline btn-sm">Download</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== SETTINGS ===== -->
+    <div class="view" id="v-settings">
+      <div class="two-col">
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Company Information</div>
+          <div class="form-group"><label>Company Name</label><input class="input" value="Infosys Limited"></div>
+          <div class="form-group"><label>HR Contact Name</label><input class="input" value="Ananya Krishnan"></div>
+          <div class="form-group"><label>HR Email</label><input class="input" type="email" value="hr@infosys.com"></div>
+          <div class="form-group"><label>HR Phone</label><input class="input" value="+91 80 2852 0261"></div>
+          <div class="form-group"><label>Billing Address</label><textarea class="input" style="height:70px;resize:none;">Electronics City, Hosur Road, Bengaluru – 560100</textarea></div>
+          <div class="form-group"><label>GST Number</label><input class="input" value="29AAACI1681G1ZJ"></div>
+          <button class="btn btn-primary" style="width:100%;">Save Company Info</button>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:18px;">
+            <div class="section-title" style="font-size:14px;">Notifications</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:13px;">Monthly usage reports</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:13px;">Invoice due reminders</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:13px;">Seat utilization alerts</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:13px;">New employee invitations</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:13px;">Plan renewal reminders</span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="section-title" style="font-size:14px;">Access Control</div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Manage who can access this corporate admin panel</div>
+            <table>
+              <thead><tr><th>Admin</th><th>Role</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Ananya Krishnan</strong><div style="font-size:10px;color:var(--text3);">hr@infosys.com</div></td><td>Super Admin</td><td><span class="badge badge-success">Active</span></td></tr>
+                <tr><td><strong>Rajan HR</strong><div style="font-size:10px;color:var(--text3);">rajan.hr@infosys.com</div></td><td>HR Manager</td><td><span class="badge badge-success">Active</span></td></tr>
+              </tbody>
+            </table>
+            <button class="btn btn-outline btn-sm" style="margin-top:12px;width:100%;">+ Add Admin</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Add Employee Modal -->
+<div class="modal-overlay" id="add-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title">Add New Employee</div>
+    <div class="form-row">
+      <div class="form-group"><label>First Name</label><input class="input" placeholder="Rahul"></div>
+      <div class="form-group"><label>Last Name</label><input class="input" placeholder="Kumar"></div>
+    </div>
+    <div class="form-group"><label>Work Email</label><input class="input" type="email" placeholder="rahul@infosys.com"></div>
+    <div class="form-group"><label>Mobile</label><input class="input" placeholder="+91 98765 43210"></div>
+    <div class="form-group"><label>Department</label><select class="input"><option>Engineering</option><option>Sales</option><option>HR & Admin</option><option>Finance</option><option>Operations</option></select></div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="closeModal()">Add Employee</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function sv(id, btn) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('v-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const titles = {
+    dashboard: 'Dashboard', employees: 'Employee Management',
+    assign: 'Assign Plans', usage: 'Usage Reports',
+    billing: 'Billing & Invoices', settings: 'Settings'
+  };
+  document.getElementById('page-title').textContent = titles[id] || id;
+}
+function toggleTheme() {
+  document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+function activateTab(btn) {
+  btn.closest('.tabs').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+}
+function showAddModal() {
+  document.getElementById('add-modal').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('add-modal').classList.remove('show');
+}
+</script>
+</body>
+</html>

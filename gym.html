@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BookMyFit – Gym Partner Panel</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f8f8f8;--bg2:#f0f0f0;--bg3:#e8e8e8;
+  --card:#fff;--border:#e4e4e4;
+  --text:#0a0a0a;--text2:#444;--text3:#888;
+  --sidebar:#0a0a0a;--shadow:0 2px 0 rgba(0,0,0,0.1);
+  --shadow-lg:3px 3px 0 rgba(0,0,0,0.12);
+  --radius:4px;--success:#16a34a;--danger:#dc2626;--warning:#d97706;
+}
+[data-theme="dark"]{
+  --bg:#0a0a0a;--bg2:#111;--bg3:#1a1a1a;
+  --card:#161616;--border:#2a2a2a;
+  --text:#fff;--text2:#ccc;--text3:#666;--sidebar:#111;
+}
+.icon{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+.icon-sm{width:14px;height:14px;}
+.icon-lg{width:20px;height:20px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;}
+.sidebar{width:220px;background:var(--sidebar);min-height:100vh;display:flex;flex-direction:column;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.sidebar-logo{padding:20px 16px 14px;border-bottom:1px solid rgba(255,255,255,0.08);}
+.brand{font-size:17px;font-weight:900;color:#fff;}
+.gym-tag{font-size:12px;font-weight:600;color:rgba(255,255,255,0.5);margin-top:4px;}
+.role-pill{display:inline-block;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.5);font-size:9px;padding:2px 7px;border-radius:4px;margin-top:6px;font-weight:700;letter-spacing:1px;}
+.nav-group{padding:10px 10px 4px;}
+.nav-label{font-size:9px;font-weight:700;color:rgba(255,255,255,0.25);letter-spacing:2px;text-transform:uppercase;padding:0 8px;margin-bottom:4px;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:7px;cursor:pointer;color:rgba(255,255,255,0.55);font-size:12px;font-weight:500;transition:all 0.15s;margin-bottom:2px;border:none;background:none;width:100%;font-family:'Poppins',sans-serif;text-align:left;}
+.nav-item:hover{background:rgba(255,255,255,0.07);color:#fff;}
+.nav-item.active{background:#fff;color:#000;font-weight:700;}
+.nav-icon{font-size:14px;width:18px;text-align:center;}
+.sidebar-bottom{margin-top:auto;padding:14px 12px;border-top:1px solid rgba(255,255,255,0.08);}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{background:var(--card);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:50;}
+.topbar h1{font-size:16px;font-weight:700;}
+.content{flex:1;overflow-y:auto;padding:22px 24px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;}
+.stat-val{font-size:26px;font-weight:800;}
+.stat-label{font-size:11px;color:var(--text3);margin-top:3px;}
+.stat-icon{font-size:20px;margin-bottom:8px;}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:100px;font-size:11px;font-weight:600;white-space:nowrap;}
+.badge-success{background:#dcfce7;color:#15803d;}
+.badge-danger{background:#fee2e2;color:#991b1b;}
+.badge-warning{background:#fef3c7;color:#92400e;}
+.badge-dark{background:var(--text);color:var(--card);}
+.badge-outline{border:1px solid var(--border);color:var(--text2);background:var(--bg2);}
+[data-theme="dark"] .badge-success{background:#14532d;color:#86efac;}
+[data-theme="dark"] .badge-danger{background:#7f1d1d;color:#fca5a5;}
+[data-theme="dark"] .badge-warning{background:#78350f;color:#fcd34d;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:var(--radius);font-family:'Poppins',sans-serif;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--text);transition:all 0.1s;box-shadow:3px 3px 0 var(--text);}
+.btn:hover{transform:translate(1px,1px);box-shadow:2px 2px 0 var(--text);}
+.btn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--text);}
+.btn-primary{background:var(--text);color:var(--card);}
+.btn-outline{background:var(--card);color:var(--text);border:2px solid var(--border);box-shadow:3px 3px 0 var(--border);}
+.btn-outline:hover{border-color:var(--text);box-shadow:2px 2px 0 var(--text);}
+.btn-success{background:#dcfce7;color:var(--success);border-color:var(--success);box-shadow:3px 3px 0 var(--success);}
+.btn-danger{background:#fee2e2;color:var(--danger);border-color:var(--danger);box-shadow:3px 3px 0 var(--danger);}
+.btn-warning{background:#fef3c7;color:var(--warning);border-color:var(--warning);box-shadow:3px 3px 0 var(--warning);}
+.btn-sm{padding:5px 10px;font-size:11px;box-shadow:2px 2px 0 var(--text);}
+.btn-sm:hover{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--text);}
+.input{padding:8px 12px;border-radius:var(--radius);border:2px solid var(--border);background:var(--bg2);color:var(--text);font-family:'Poppins',sans-serif;font-size:13px;outline:none;}
+.input:focus{border-color:var(--text);}
+select.input{cursor:pointer;}
+.section-title{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.view{display:none;}
+.view.active{display:block;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+.form-group label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead tr{border-bottom:2px solid var(--border);}
+thead th{padding:9px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;}
+tbody tr{border-bottom:1px solid var(--border);}
+tbody tr:hover{background:var(--bg2);}
+td{padding:11px 12px;vertical-align:middle;color:var(--text2);}
+td strong{color:var(--text);}
+.td-actions{display:flex;gap:5px;}
+.toggle{position:relative;display:inline-block;width:36px;height:20px;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--bg3);border-radius:20px;transition:.3s;border:1px solid var(--border);}
+.toggle-slider::before{position:absolute;content:"";height:14px;width:14px;left:2px;bottom:2px;background:var(--text3);border-radius:50%;transition:.3s;}
+.toggle input:checked+.toggle-slider{background:var(--text);border-color:var(--text);}
+.toggle input:checked+.toggle-slider::before{transform:translateX(16px);background:var(--card);}
+.alert{padding:11px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;border:1px solid;}
+.alert-info{background:#dbeafe;border-color:#bfdbfe;color:#1e40af;}
+.alert-warning{background:#fef3c7;border-color:#fde68a;color:#92400e;}
+[data-theme="dark"] .alert-info{background:#1e3a5f;border-color:#1d4ed8;color:#93c5fd;}
+[data-theme="dark"] .alert-warning{background:#78350f;border-color:#92400e;color:#fcd34d;}
+.progress-bar{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--text);border-radius:3px;}
+.tabs{display:flex;gap:2px;background:var(--bg2);border-radius:8px;padding:3px;margin-bottom:18px;border:1px solid var(--border);}
+.tab{flex:1;padding:7px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:none;font-family:'Poppins',sans-serif;color:var(--text3);text-align:center;}
+.tab.active{background:var(--card);color:var(--text);box-shadow:var(--shadow);}
+
+/* QR Scanner */
+.scanner-wrap{text-align:center;padding:20px 0;}
+.scanner-frame{width:200px;height:200px;border:3px solid var(--text);border-radius:16px;position:relative;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.04);margin:0 auto;}
+.scan-line{position:absolute;top:20%;width:80%;height:2px;background:linear-gradient(90deg,transparent,var(--text),transparent);animation:scanMove 2s ease-in-out infinite;}
+@keyframes scanMove{0%,100%{top:20%}50%{top:75%}}
+.scan-corner{position:absolute;width:24px;height:24px;border-color:var(--text);border-style:solid;}
+.sc-tl{top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:4px 0 0 0;}
+.sc-tr{top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 4px 0 0;}
+.sc-bl{bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 4px;}
+.sc-br{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 4px 0;}
+.checkin-result{padding:16px;border-radius:10px;margin-top:16px;display:none;}
+.checkin-result.show{display:block;}
+.checkin-result.ok{background:#dcfce7;border:2px solid #16a34a;}
+.checkin-result.err{background:#fee2e2;border:2px solid #dc2626;}
+[data-theme="dark"] .checkin-result.ok{background:#14532d;border-color:#22c55e;}
+[data-theme="dark"] .checkin-result.err{background:#7f1d1d;border-color:#ef4444;}
+</style>
+</head>
+<body data-theme="light">
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand">BookMyFit</div>
+    <div class="gym-tag">Fitness Mantra · Patia</div>
+    <div class="role-pill">GYM PARTNER</div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Main</div>
+    <button class="nav-item active" onclick="sv('dashboard',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>Dashboard</button>
+    <button class="nav-item" onclick="sv('checkin',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h.01M7 12h.01M7 17h.01M12 7h.01M12 12h.01M12 17h.01M17 7h.01M17 12h.01M17 17h.01"/></svg></span>Check-in Scanner</button>
+    <button class="nav-item" onclick="sv('sessions',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>Sessions</button>
+    <button class="nav-item" onclick="sv('members',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Members</button>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Gym Setup</div>
+    <button class="nav-item" onclick="sv('profile',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9h.01M9 12h.01M9 15h.01M9 18h.01"/></svg></span>Gym Profile</button>
+    <button class="nav-item" onclick="sv('plans',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>Subscription Plans</button>
+    <button class="nav-item" onclick="sv('trainers',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Trainers (PT)</button>
+    <button class="nav-item" onclick="sv('amenities',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Amenities</button>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Finance</div>
+    <button class="nav-item" onclick="sv('settlement',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>My Settlement</button>
+    <button class="nav-item" onclick="sv('reports',this)"><span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>Reports</button>
+  </div>
+  <div class="sidebar-bottom">
+    <div style="font-size:12px;font-weight:700;color:#fff;">Fitness Mantra</div>
+    <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;">gym@fitnessmantra.com</div>
+    <button onclick="toggleTheme()" style="margin-top:10px;background:rgba(255,255,255,0.08);border:none;color:rgba(255,255,255,0.5);font-family:'Poppins',sans-serif;font-size:11px;padding:6px 10px;border-radius:var(--radius);cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;"><svg class="icon-sm" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> Toggle Theme</button>
+  </div>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+  <div class="topbar">
+    <h1 id="page-title">Dashboard</h1>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:12px;color:var(--text3);">Mon, 16 Mar 2026</span>
+      <div style="width:32px;height:32px;background:var(--text);color:var(--card);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">FM</div>
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- ===== DASHBOARD ===== -->
+    <div class="view active" id="v-dashboard">
+      <div class="alert alert-info">✅ Your gym profile is <strong>Verified</strong> and live on the platform. Tier: <strong>Premium</strong></div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-val">14</div><div class="stat-label">Today's Check-ins</div><div style="font-size:11px;color:var(--success);margin-top:3px;">↑ 3 vs yesterday</div></div>
+        <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-val">142</div><div class="stat-label">Active Members</div><div style="font-size:11px;color:var(--success);margin-top:3px;">↑ 12 this month</div></div>
+        <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-val">₹12,400</div><div class="stat-label">Revenue This Month</div><div style="font-size:11px;color:var(--text3);margin-top:3px;">After 15% commission</div></div>
+        <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-val">4.6</div><div class="stat-label">Avg. Rating</div><div style="font-size:11px;color:var(--text3);margin-top:3px;">142 reviews</div></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="section-title">Today's Sessions <button class="btn btn-outline btn-sm" onclick="sv('sessions',document.querySelector('[onclick*=sessions]'))">Manage</button></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--border);border-radius:8px;"><div><div style="font-size:13px;font-weight:700;">04:00 PM – Cardio</div><div style="font-size:11px;color:var(--text3);">Trainer: Rajan · ~60 min</div></div><span class="badge badge-success">8 booked</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--border);border-radius:8px;"><div><div style="font-size:13px;font-weight:700;">05:00 PM – Gym Workout</div><div style="font-size:11px;color:var(--text3);">Open access · walk-in</div></div><span class="badge badge-success">12 booked</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--border);border-radius:8px;"><div><div style="font-size:13px;font-weight:700;">06:00 PM – Body Tone</div><div style="font-size:11px;color:var(--text3);">Trainer: Priya · ~45 min</div></div><span class="badge badge-warning">3 booked</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--border);border-radius:8px;"><div><div style="font-size:13px;font-weight:700;">07:00 PM – HIIT</div><div style="font-size:11px;color:var(--text3);">Trainer: Rahul · ~50 min</div></div><span class="badge badge-outline">5 booked</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title">Recent Check-ins</div>
+          <table>
+            <thead><tr><th>Member</th><th>Time</th><th>Plan</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Arjun S.</strong></td><td>15:55</td><td><span class="badge badge-dark" style="font-size:10px;">Max</span></td><td><span class="badge badge-success">✓ OK</span></td></tr>
+              <tr><td><strong>Priya M.</strong></td><td>15:42</td><td><span class="badge badge-outline" style="font-size:10px;">Pro</span></td><td><span class="badge badge-success">✓ OK</span></td></tr>
+              <tr><td><strong>Ravi P.</strong></td><td>14:30</td><td><span class="badge badge-outline" style="font-size:10px;">Single</span></td><td><span class="badge badge-success">✓ OK</span></td></tr>
+              <tr><td><strong>Neha K.</strong></td><td>13:15</td><td><span class="badge badge-dark" style="font-size:10px;">Max</span></td><td><span class="badge badge-danger">Expired</span></td></tr>
+              <tr><td><strong>Suresh D.</strong></td><td>12:00</td><td><span class="badge badge-outline" style="font-size:10px;">Pro</span></td><td><span class="badge badge-success">✓ OK</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Weekly bar chart -->
+      <div class="card" style="margin-top:18px;">
+        <div class="section-title">Weekly Check-in Trend</div>
+        <div style="display:flex;align-items:flex-end;gap:10px;height:100px;">
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1;"><div style="flex:1;width:100%;background:var(--bg3);border-radius:4px 4px 0 0;" id="bar-mon"></div><div style="font-size:10px;color:var(--text3);margin-top:4px;">Mon</div></div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1;"><div style="flex:1;width:100%;background:var(--bg3);border-radius:4px 4px 0 0;" id="bar-tue"></div><div style="font-size:10px;color:var(--text3);margin-top:4px;">Tue</div></div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1;"><div style="flex:1;width:100%;background:var(--bg3);border-radius:4px 4px 0 0;" id="bar-wed"></div><div style="font-size:10px;color:var(--text3);margin-top:4px;">Wed</div></div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1;"><div style="flex:1;width:100%;background:var(--bg3);border-radius:4px 4px 0 0;" id="bar-thu"></div><div style="font-size:10px;color:var(--text3);margin-top:4px;">Thu</div></div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1;"><div style="flex:1;width:100%;background:var(--bg3);border-radius:4px 4px 0 0;" id="bar-fri"></div><div style="font-size:10px;color:var(--text3);margin-top:4px;">Fri</div></div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1;"><div style="flex:1;width:100%;background:var(--bg3);border-radius:4px 4px 0 0;" id="bar-sat"></div><div style="font-size:10px;color:var(--text3);margin-top:4px;">Sat</div></div>
+          <div style="display:flex;flex-direction:column;align-items:center;flex:1;"><div style="background:var(--text);width:100%;height:56%;border-radius:4px 4px 0 0;"></div><div style="font-size:10px;color:var(--text3);margin-top:4px;font-weight:700;">Today</div></div>
+        </div>
+        <script>
+          const bars = {mon:72,tue:55,wed:88,thu:65,fri:90,sat:100};
+          for(const [d,v] of Object.entries(bars)){const el=document.getElementById('bar-'+d);if(el)el.style.height=v+'%';}
+        </script>
+      </div>
+    </div>
+
+    <!-- ===== CHECK-IN SCANNER ===== -->
+    <div class="view" id="v-checkin">
+      <div class="two-col">
+        <div class="card" style="text-align:center;">
+          <div class="section-title" style="justify-content:center;">QR Check-in Scanner</div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:20px;">Scan member's QR code to validate check-in. QR expires in 30 seconds.</p>
+          <div class="scanner-wrap">
+            <div class="scanner-frame">
+              <div class="scan-corner sc-tl"></div>
+              <div class="scan-corner sc-tr"></div>
+              <div class="scan-corner sc-bl"></div>
+              <div class="scan-corner sc-br"></div>
+              <div class="scan-line"></div>
+              <span style="font-size:32px;opacity:0.15;">📷</span>
+            </div>
+          </div>
+          <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">
+            <button class="btn btn-success" onclick="simulateCheckin('success')">✓ Simulate Success</button>
+            <button class="btn btn-danger" onclick="simulateCheckin('fail')">✗ Simulate Fail</button>
+          </div>
+          <div id="checkin-result" class="checkin-result"></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Today's Check-in Log</div>
+          <div style="margin-bottom:12px;display:flex;gap:8px;">
+            <input class="input" placeholder="🔍 Search member..." style="flex:1;">
+            <select class="input"><option>All Plans</option><option>Max</option><option>Pro</option><option>Single</option></select>
+          </div>
+          <table>
+            <thead><tr><th>#</th><th>Member</th><th>Plan</th><th>Time</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>14</td><td><strong>Arjun Sharma</strong></td><td><span class="badge badge-dark" style="font-size:10px;">Max</span></td><td>15:55</td><td><span class="badge badge-success">Valid</span></td></tr>
+              <tr><td>13</td><td><strong>Priya Mehta</strong></td><td><span class="badge badge-outline" style="font-size:10px;">Pro</span></td><td>15:42</td><td><span class="badge badge-success">Valid</span></td></tr>
+              <tr><td>12</td><td><strong>Ravi Patel</strong></td><td><span class="badge badge-outline" style="font-size:10px;">Single</span></td><td>14:30</td><td><span class="badge badge-success">Valid</span></td></tr>
+              <tr><td>11</td><td><strong>Neha Kapoor</strong></td><td><span class="badge badge-dark" style="font-size:10px;">Max</span></td><td>13:15</td><td><span class="badge badge-danger">Expired</span></td></tr>
+              <tr><td>10</td><td><strong>Suresh Das</strong></td><td><span class="badge badge-outline" style="font-size:10px;">Pro</span></td><td>12:00</td><td><span class="badge badge-success">Valid</span></td></tr>
+              <tr><td>9</td><td><strong>Meera Joshi</strong></td><td><span class="badge badge-dark" style="font-size:10px;">Max</span></td><td>11:45</td><td><span class="badge badge-success">Valid</span></td></tr>
+              <tr><td>8</td><td><strong>Amit Roy</strong></td><td><span class="badge badge-outline" style="font-size:10px;">Single</span></td><td>10:30</td><td><span class="badge badge-warning">Daily Limit</span></td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:14px;padding:10px;background:var(--bg2);border-radius:8px;display:flex;justify-content:space-between;font-size:12px;">
+            <span style="color:var(--text3);">Total today</span>
+            <strong>14 check-ins · 1 failed · 1 limit hit</strong>
+          </div>
+        </div>
+      </div>
+      <!-- Error codes reference -->
+      <div class="card" style="margin-top:18px;">
+        <div class="section-title">Error Code Reference</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+          <div style="padding:12px;border:1px solid var(--border);border-radius:8px;"><div style="font-size:11px;font-weight:700;color:var(--danger);margin-bottom:4px;">ERR_QR_EXPIRED</div><div style="font-size:12px;color:var(--text2);">QR code older than 30 seconds. Ask member to regenerate.</div></div>
+          <div style="padding:12px;border:1px solid var(--border);border-radius:8px;"><div style="font-size:11px;font-weight:700;color:var(--danger);margin-bottom:4px;">ERR_NO_SUBSCRIPTION</div><div style="font-size:12px;color:var(--text2);">Member has no active plan. Redirect to subscribe.</div></div>
+          <div style="padding:12px;border:1px solid var(--border);border-radius:8px;"><div style="font-size:11px;font-weight:700;color:var(--danger);margin-bottom:4px;">ERR_PLAN_MISMATCH</div><div style="font-size:12px;color:var(--text2);">Member's plan does not include access to this gym.</div></div>
+          <div style="padding:12px;border:1px solid var(--border);border-radius:8px;"><div style="font-size:11px;font-weight:700;color:var(--warning);margin-bottom:4px;">ERR_DAILY_LIMIT</div><div style="font-size:12px;color:var(--text2);">Member has already checked in today at another gym.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SESSIONS ===== -->
+    <div class="view" id="v-sessions">
+      <div class="section-header">
+        <div style="display:flex;gap:10px;">
+          <select class="input"><option>Today – Mar 16</option><option>Mar 17</option><option>Mar 18</option></select>
+          <select class="input"><option>All Session Types</option><option>Cardio</option><option>Yoga</option><option>HIIT</option><option>Strength</option></select>
+        </div>
+        <button class="btn btn-primary">+ Add Session</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Time</th><th>Session Type</th><th>Trainer</th><th>Duration</th><th>Capacity</th><th>Booked</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr><td>06:00 AM</td><td><strong>Morning HIIT</strong></td><td>Rahul Singh</td><td>50 min</td><td>15</td><td>11/15</td><td><span class="badge badge-success">Active</span></td><td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button><button class="btn btn-danger btn-sm">Cancel</button></td></tr>
+            <tr><td>07:00 AM</td><td><strong>Yoga Flow</strong></td><td>Ananya Patel</td><td>60 min</td><td>10</td><td>7/10</td><td><span class="badge badge-success">Active</span></td><td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button></td></tr>
+            <tr><td>09:00 AM</td><td><strong>Open Gym</strong></td><td>– (open)</td><td>Free</td><td>30</td><td>18/30</td><td><span class="badge badge-success">Active</span></td><td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button></td></tr>
+            <tr><td>04:00 PM</td><td><strong>Cardio Blast</strong></td><td>Rajan Mishra</td><td>60 min</td><td>15</td><td>8/15</td><td><span class="badge badge-success">Active</span></td><td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button><button class="btn btn-danger btn-sm">Cancel</button></td></tr>
+            <tr><td>05:00 PM</td><td><strong>Gym Workout</strong></td><td>– (open)</td><td>Free</td><td>30</td><td>12/30</td><td><span class="badge badge-success">Active</span></td><td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button></td></tr>
+            <tr><td>06:00 PM</td><td><strong>Body Tone</strong></td><td>Priya Sharma</td><td>45 min</td><td>12</td><td>3/12</td><td><span class="badge badge-warning">Low Bookings</span></td><td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button><button class="btn btn-warning btn-sm">Notify</button></td></tr>
+            <tr><td>07:00 PM</td><td><strong>HIIT Burn</strong></td><td>Rahul Singh</td><td>50 min</td><td>15</td><td>5/15</td><td><span class="badge badge-outline">Upcoming</span></td><td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== MEMBERS ===== -->
+    <div class="view" id="v-members">
+      <div class="section-header">
+        <div style="display:flex;gap:10px;">
+          <input class="input" placeholder="🔍 Search members..." style="width:220px;">
+          <select class="input"><option>All Plans</option><option>Max</option><option>Pro</option><option>Single Gym</option></select>
+          <select class="input"><option>All Status</option><option>Active</option><option>Expired</option></select>
+        </div>
+        <div style="font-size:12px;color:var(--text3);">142 active members</div>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Member</th><th>Phone</th><th>Plan</th><th>Joined</th><th>Check-ins</th><th>Last Visit</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><div style="display:flex;align-items:center;gap:8px;"><div style="width:30px;height:30px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">A</div><strong>Arjun Sharma</strong></div></td><td>+91 98765 43210</td><td><span class="badge badge-dark">Max</span></td><td>Jan 2026</td><td>47</td><td>Today</td><td><span class="badge badge-success">Active · 18d</span></td></tr>
+            <tr><td><div style="display:flex;align-items:center;gap:8px;"><div style="width:30px;height:30px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">P</div><strong>Priya Mehta</strong></div></td><td>+91 87654 32100</td><td><span class="badge badge-outline">Pro</span></td><td>Nov 2025</td><td>62</td><td>Today</td><td><span class="badge badge-success">Active · 12d</span></td></tr>
+            <tr><td><div style="display:flex;align-items:center;gap:8px;"><div style="width:30px;height:30px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">R</div><strong>Ravi Patel</strong></div></td><td>+91 77654 12300</td><td><span class="badge badge-outline">Single Gym</span></td><td>Dec 2025</td><td>34</td><td>Today</td><td><span class="badge badge-success">Active · 29d</span></td></tr>
+            <tr><td><div style="display:flex;align-items:center;gap:8px;"><div style="width:30px;height:30px;background:#fee2e2;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#991b1b;">N</div><strong>Neha Kapoor</strong></div></td><td>+91 99012 45678</td><td><span class="badge badge-dark">Max</span></td><td>Feb 2026</td><td>18</td><td>Today</td><td><span class="badge badge-danger">Expired</span></td></tr>
+            <tr><td><div style="display:flex;align-items:center;gap:8px;"><div style="width:30px;height:30px;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">S</div><strong>Suresh Das</strong></div></td><td>+91 88123 56789</td><td><span class="badge badge-outline">Pro</span></td><td>Jan 2026</td><td>29</td><td>Today</td><td><span class="badge badge-success">Active · 6d</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== GYM PROFILE ===== -->
+    <div class="view" id="v-profile">
+      <div class="alert alert-info">ℹ️ Profile changes are reviewed by BookMyFit admin before going live. Changes typically take 24 hours.</div>
+      <div class="two-col">
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Basic Information</div>
+          <div style="position:relative;margin-bottom:16px;">
+            <img src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80" onerror="this.src='https://placehold.co/600x200'" style="width:100%;height:140px;object-fit:cover;border-radius:8px;">
+            <button class="btn btn-outline btn-sm" style="position:absolute;bottom:8px;right:8px;background:var(--card);">📷 Change Cover</button>
+          </div>
+          <div class="form-group"><label>Gym Name</label><input class="input" value="Fitness Mantra"></div>
+          <div class="form-group"><label>Tagline</label><input class="input" value="Transform Your Body, Transform Your Life"></div>
+          <div class="form-row">
+            <div class="form-group"><label>City</label><input class="input" value="Bhubaneswar"></div>
+            <div class="form-group"><label>Area</label><input class="input" value="Patia"></div>
+          </div>
+          <div class="form-group"><label>Full Address</label><textarea class="input" style="height:70px;resize:none;">Plot 42, Patia Main Road, Near Big Bazaar, Bhubaneswar – 751024</textarea></div>
+          <div class="form-row">
+            <div class="form-group"><label>Opening Time</label><input class="input" type="time" value="05:00"></div>
+            <div class="form-group"><label>Closing Time</label><input class="input" type="time" value="22:00"></div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;">Save Profile Changes</button>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:18px;">
+            <div class="section-title" style="font-size:14px;">Photos & Media</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+              <img src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&q=80" onerror="this.src='https://placehold.co/200x120'" style="width:100%;height:70px;object-fit:cover;border-radius:6px;">
+              <img src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=200&q=80" onerror="this.src='https://placehold.co/200x120'" style="width:100%;height:70px;object-fit:cover;border-radius:6px;">
+              <img src="https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=200&q=80" onerror="this.src='https://placehold.co/200x120'" style="width:100%;height:70px;object-fit:cover;border-radius:6px;">
+            </div>
+            <button class="btn btn-outline btn-sm" style="width:100%;">+ Upload Photos</button>
+          </div>
+          <div class="card">
+            <div class="section-title" style="font-size:14px;">Account Status</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;justify-content:space-between;"><span style="font-size:13px;">Verification</span><span class="badge badge-success">✓ Verified</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="font-size:13px;">Tier</span><span class="badge badge-dark">Premium</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="font-size:13px;">Listed on Platform</span><span class="badge badge-success">Live</span></div>
+              <div style="display:flex;justify-content:space-between;"><span style="font-size:13px;">Commission Rate</span><strong>15%</strong></div>
+              <div style="display:flex;justify-content:space-between;"><span style="font-size:13px;">Single Gym Plan</span><span class="badge badge-success">Enabled</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SUBSCRIPTION PLANS ===== -->
+    <div class="view" id="v-plans">
+      <div class="alert alert-info">ℹ️ You can create a <strong>Single Gym</strong> plan exclusive to your gym. Multi-gym plans (Pro, Max) are managed by BookMyFit and cannot be edited here.</div>
+      <div class="two-col">
+        <div class="card" style="border:2px solid var(--text);">
+          <div style="font-size:16px;font-weight:800;margin-bottom:4px;">Single Gym Plan</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Your custom plan · Only your gym</div>
+          <div class="form-group"><label>Plan Name</label><input class="input" value="Fitness Mantra Monthly"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+            <div class="form-group" style="margin:0;"><label>1 Day Price (₹)</label><input class="input" value="200" type="number"></div>
+            <div class="form-group" style="margin:0;"><label>30 Day Price (₹)</label><input class="input" value="1299" type="number"></div>
+            <div class="form-group" style="margin:0;"><label>90 Day Price (₹)</label><input class="input" value="3499" type="number"></div>
+            <div class="form-group" style="margin:0;"><label>180 Day Price (₹)</label><input class="input" value="6499" type="number"></div>
+            <div class="form-group" style="margin:0;"><label>365 Day Price (₹)</label><input class="input" value="10999" type="number"></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;"><span style="font-size:13px;font-weight:600;">Plan Active</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+          <button class="btn btn-primary" style="width:100%;">Save Single Gym Plan</button>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:18px;">
+            <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Pro Plan <span class="badge badge-outline" style="font-size:10px;vertical-align:middle;">Platform Managed</span></div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Standard + Premium gyms · Managed by BookMyFit</div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;"><span>30 Day Price</span><strong>₹999</strong></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;"><span>Your Pool Share</span><strong>Visit-ratio based</strong></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;"><span>Your Subscribers</span><strong>58 members</strong></div>
+          </div>
+          <div class="card">
+            <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Max Plan <span class="badge badge-dark" style="font-size:10px;vertical-align:middle;">Platform Managed</span></div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">All gyms + Wellness · Managed by BookMyFit</div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;"><span>30 Day Price</span><strong>₹1,499</strong></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;"><span>Your Pool Share</span><strong>Visit-ratio based</strong></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;"><span>Your Subscribers</span><strong>84 members</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TRAINERS ===== -->
+    <div class="view" id="v-trainers">
+      <div class="section-header">
+        <div class="section-title" style="margin:0;">Personal Trainers</div>
+        <button class="btn btn-primary">+ Add Trainer</button>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Trainer</th><th>Specialization</th><th>Rate (per session)</th><th>Certifications</th><th>Active Clients</th><th>Rating</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><img src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=40&h=40&fit=crop&q=80" onerror="this.src='https://placehold.co/40x40'" style="width:34px;height:34px;border-radius:50%;object-fit:cover;"><strong>Rahul Singh</strong></div></td>
+              <td>Strength & HIIT</td><td>₹800</td><td>ACE, NASM</td><td>12</td><td>⭐ 4.8</td>
+              <td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button><button class="btn btn-danger btn-sm">Remove</button></td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><img src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=40&h=40&fit=crop&q=80" onerror="this.src='https://placehold.co/40x40'" style="width:34px;height:34px;border-radius:50%;object-fit:cover;"><strong>Priya Sharma</strong></div></td>
+              <td>Yoga & Flexibility</td><td>₹700</td><td>RYT-200</td><td>8</td><td>⭐ 4.9</td>
+              <td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button></td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><img src="https://images.unsplash.com/photo-1506629082955-511b1aa562c8?w=40&h=40&fit=crop&q=80" onerror="this.src='https://placehold.co/40x40'" style="width:34px;height:34px;border-radius:50%;object-fit:cover;"><strong>Rajan Mishra</strong></div></td>
+              <td>Cardio & Weight Loss</td><td>₹750</td><td>ISSA</td><td>9</td><td>⭐ 4.6</td>
+              <td class="td-actions"><button class="btn btn-outline btn-sm">Edit</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== AMENITIES ===== -->
+    <div class="view" id="v-amenities">
+      <div class="two-col">
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Gym Amenities</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;">🏋️ Free Weights</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;">🚿 Changing Rooms</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;">🚿 Showers</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;">🅿️ Parking</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;">❄️ Air Conditioning</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;">🏊 Swimming Pool</span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;">🧖 Steam Room</span><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;"><span style="font-size:13px;">☕ Juice Bar</span><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:16px;width:100%;">Save Amenities</button>
+        </div>
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Equipment Available</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;">Treadmills</span><input class="input" value="8" type="number" style="width:70px;"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;">Ellipticals</span><input class="input" value="4" type="number" style="width:70px;"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;">Bikes (stationary)</span><input class="input" value="6" type="number" style="width:70px;"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);"><span style="font-size:13px;">Cable Machines</span><input class="input" value="5" type="number" style="width:70px;"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;"><span style="font-size:13px;">Smith Machines</span><input class="input" value="2" type="number" style="width:70px;"></div>
+          </div>
+          <button class="btn btn-outline" style="margin-top:16px;width:100%;">Save Equipment List</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SETTLEMENT ===== -->
+    <div class="view" id="v-settlement">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-val">₹17,522</div><div class="stat-label">Pending Settlement (Mar)</div></div>
+        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-val">₹14,200</div><div class="stat-label">Last Settled (Feb)</div></div>
+        <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-val">342</div><div class="stat-label">Verified Visits This Month</div></div>
+      </div>
+      <div class="card" style="margin-bottom:18px;">
+        <div class="section-title" style="font-size:14px;">March 2026 Settlement Breakdown</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;justify-content:space-between;padding:10px;background:var(--bg2);border-radius:8px;"><span style="font-size:13px;">Max Pool Share (based on 342 visits)</span><strong>₹8,200</strong></div>
+          <div style="display:flex;justify-content:space-between;padding:10px;background:var(--bg2);border-radius:8px;"><span style="font-size:13px;">Individual Single-Gym Subscriptions</span><strong>₹12,400</strong></div>
+          <div style="display:flex;justify-content:space-between;padding:10px;background:var(--bg2);border-radius:8px;"><span style="font-size:13px;">Gross Total</span><strong>₹20,600</strong></div>
+          <div style="display:flex;justify-content:space-between;padding:10px;background:#fee2e2;border-radius:8px;color:var(--danger);"><span style="font-size:13px;font-weight:600;">Platform Commission (15%)</span><strong>– ₹3,078</strong></div>
+          <div style="display:flex;justify-content:space-between;padding:12px 10px;background:var(--text);border-radius:8px;"><span style="font-size:14px;font-weight:700;color:var(--card);">Net Payable to You</span><strong style="color:var(--card);font-size:16px;">₹17,522</strong></div>
+        </div>
+        <div style="margin-top:14px;font-size:12px;color:var(--text3);">Settlement processed on the 1st of each month. Funds transferred to registered bank account within 2–3 business days.</div>
+      </div>
+      <div class="card">
+        <div class="section-title" style="font-size:14px;">Settlement History</div>
+        <table>
+          <thead><tr><th>Month</th><th>Visits</th><th>Gross</th><th>Commission</th><th>Net Paid</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>March 2026</td><td>342</td><td>₹20,600</td><td>₹3,078</td><td>₹17,522</td><td><span class="badge badge-warning">Pending</span></td></tr>
+            <tr><td>February 2026</td><td>289</td><td>₹16,700</td><td>₹2,505</td><td>₹14,195</td><td><span class="badge badge-success">Paid</span></td></tr>
+            <tr><td>January 2026</td><td>312</td><td>₹18,200</td><td>₹2,730</td><td>₹15,470</td><td><span class="badge badge-success">Paid</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== REPORTS ===== -->
+    <div class="view" id="v-reports">
+      <div class="tabs">
+        <button class="tab active" onclick="activateTab(this)">Monthly Overview</button>
+        <button class="tab" onclick="activateTab(this)">Member Stats</button>
+        <button class="tab" onclick="activateTab(this)">Session Performance</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-val">342</div><div class="stat-label">Total Check-ins (Mar)</div><div style="font-size:11px;color:var(--success);margin-top:3px;">↑ 18% vs Feb</div></div>
+        <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-val">142</div><div class="stat-label">Unique Members</div></div>
+        <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-val">4.6</div><div class="stat-label">Avg. Rating (142 reviews)</div></div>
+        <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-val">2.4</div><div class="stat-label">Avg. Visits/Member/Week</div></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Peak Hours Distribution</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>06–08 AM</span><span>82 visits</span></div><div class="progress-bar"><div class="progress-fill" style="width:82%;"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>08–10 AM</span><span>54 visits</span></div><div class="progress-bar"><div class="progress-fill" style="width:54%;"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>10 AM–12 PM</span><span>38 visits</span></div><div class="progress-bar"><div class="progress-fill" style="width:38%;"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>12–02 PM</span><span>22 visits</span></div><div class="progress-bar"><div class="progress-fill" style="width:22%;"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>04–06 PM</span><span>98 visits</span></div><div class="progress-bar"><div class="progress-fill" style="width:98%;"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span>06–08 PM</span><span>100 visits</span></div><div class="progress-bar"><div class="progress-fill" style="width:100%;"></div></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title" style="font-size:14px;">Plan Breakdown</div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;"><span>Max Plan</span><strong>84 members (59%)</strong></div><div class="progress-bar"><div class="progress-fill" style="width:59%;"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;"><span>Pro Plan</span><strong>36 members (25%)</strong></div><div class="progress-bar"><div class="progress-fill" style="width:25%;"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;"><span>Single Gym</span><strong>22 members (16%)</strong></div><div class="progress-bar"><div class="progress-fill" style="width:16%;"></div></div></div>
+          </div>
+          <div style="margin-top:16px;font-size:12px;color:var(--text3);background:var(--bg2);padding:10px;border-radius:8px;">
+            Pool payout based on visit-ratio. Your 342 visits = 2.4% of platform-wide Pro+Max check-ins.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function sv(id, btn) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('v-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const titles = {
+    dashboard: 'Dashboard', checkin: 'Check-in Scanner', sessions: 'Sessions',
+    members: 'Members', profile: 'Gym Profile', plans: 'Subscription Plans',
+    trainers: 'Trainers (PT)', amenities: 'Amenities', settlement: 'My Settlement', reports: 'Reports'
+  };
+  document.getElementById('page-title').textContent = titles[id] || id;
+}
+function toggleTheme() {
+  document.body.setAttribute('data-theme', document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+function activateTab(btn) {
+  btn.closest('.tabs').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+}
+let scanState = 0;
+const successScenarios = [
+  { name: 'Arjun Sharma', plan: 'Max', expiry: 'Apr 15, 2026', checkins: '12/30 this month', msg: 'Check-in successful! Access granted.' },
+  { name: 'Priya Mehta', plan: 'Pro', expiry: 'Mar 28, 2026', checkins: '8/30 this month', msg: 'Check-in successful! Access granted.' },
+];
+const failScenarios = [
+  { code: 'ERR_QR_EXPIRED', msg: 'QR code has expired. Ask member to regenerate their QR in the app (valid for 30 seconds).', name: 'Unknown Member' },
+  { code: 'ERR_PLAN_MISMATCH', msg: 'This member\'s plan does not include access to your gym.', name: 'Sneha Roy' },
+  { code: 'ERR_NO_SUBSCRIPTION', msg: 'Member has no active subscription. They need to subscribe first.', name: 'Rahul Verma' },
+  { code: 'ERR_DAILY_LIMIT', msg: 'Member has already checked in today at another gym.', name: 'Amit Das' },
+];
+function simulateCheckin(type) {
+  const el = document.getElementById('checkin-result');
+  el.className = 'checkin-result show';
+  if (type === 'success') {
+    const s = successScenarios[scanState % successScenarios.length]; scanState++;
+    el.classList.add('ok');
+    el.innerHTML = `<div style="font-size:18px;margin-bottom:8px;">✅ Access Granted</div>
+      <div style="font-size:14px;font-weight:700;">${s.name}</div>
+      <div style="font-size:12px;margin-top:4px;">Plan: <strong>${s.plan}</strong> · Expires: ${s.expiry}</div>
+      <div style="font-size:12px;margin-top:2px;">Check-ins: ${s.checkins}</div>
+      <div style="font-size:12px;color:var(--success);margin-top:6px;">${s.msg}</div>`;
+  } else {
+    const f = failScenarios[scanState % failScenarios.length]; scanState++;
+    el.classList.add('err');
+    el.innerHTML = `<div style="font-size:18px;margin-bottom:8px;">❌ Access Denied</div>
+      <div style="font-size:13px;font-weight:700;color:var(--danger);">${f.code}</div>
+      <div style="font-size:12px;margin-top:6px;">${f.msg}</div>`;
+  }
+}
+</script>
+</body>
+</html>
