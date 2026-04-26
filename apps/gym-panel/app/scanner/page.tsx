@@ -2,7 +2,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Shell from '../../components/Shell';
 import { QrCode, CheckCircle2, XCircle, Camera, CameraOff, Keyboard, Users, Clock, IndianRupee, RefreshCw } from 'lucide-react';
-import { api, getUser } from '../../lib/api';
+import { api } from '../../lib/api';
+
+/** Decode a JWT payload without verifying signature — used to extract member userId from scanned QR token */
+function decodeJwtPayload(token: string): Record<string, any> | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const padded = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
 
 type ScanResult = {
   ok: boolean;
@@ -18,7 +30,6 @@ type AttendanceRecord = ScanResult & { time: string; id: string };
 export default function ScannerPage() {
   const [mode, setMode] = useState<'camera' | 'manual'>('camera');
   const [qrToken, setQrToken] = useState('');
-  const [gymId, setGymId] = useState('');
   const [ratePerDay, setRatePerDay] = useState(50);
   const [commissionRate, setCommissionRate] = useState(15);
   const [result, setResult] = useState<ScanResult | null>(null);
@@ -36,11 +47,7 @@ export default function ScannerPage() {
   const pausedRef = useRef(false);
 
   useEffect(() => {
-    const user = getUser();
-    if (user?.gymId) setGymId(user.gymId);
     api.get<any>('/gyms/my-gym').then(data => {
-      const id = data?.id || data?._id || '';
-      if (id) setGymId(id);
       if (data?.ratePerDay) setRatePerDay(Number(data.ratePerDay));
       if (data?.commissionRate) setCommissionRate(Number(data.commissionRate));
     }).catch(() => {});
@@ -132,21 +139,33 @@ export default function ScannerPage() {
   const validateToken = useCallback(async (token?: string) => {
     const t = (token ?? qrToken).trim();
     if (!t) return;
+
+    // Decode the QR JWT to extract the member's userId
+    const payload = decodeJwtPayload(t);
+    const memberId: string | undefined = payload?.sub;
+
+    if (!memberId) {
+      showResultAndResume({ ok: false, message: 'Invalid QR — could not read member ID. Ask member to regenerate.' });
+      return;
+    }
+
     setValidating(true);
-    const gymEarnsPer = ratePerDay * (1 - commissionRate / 100);
-    const adminEarnsPer = ratePerDay * (commissionRate / 100);
     try {
-      const scanRes = await api.post<any>('/checkins/scan', { qrToken: t, gymId: gymId || undefined });
-      if (scanRes?.allowed === false) {
-        showResultAndResume({ ok: false, message: scanRes.reason || 'Check-in denied' });
+      const scanRes = await api.post<any>('/sessions/checkin', { userId: memberId });
+      if (scanRes?.success === false) {
+        showResultAndResume({ ok: false, message: scanRes.message || 'Check-in denied' });
       } else {
+        const gymEarns = scanRes?.attendance?.commissionAmount
+          ? Number(scanRes.attendance.commissionAmount)
+          : undefined;
+        const adminEarns = gymEarns != null ? ratePerDay - gymEarns : undefined;
         showResultAndResume({
           ok: true,
           userName: scanRes?.user?.name || 'Member',
-          planType: scanRes?.planType,
+          planType: scanRes?.sessionType?.name || scanRes?.planType || 'Gym Workout',
           message: scanRes?.message || 'Check-in recorded!',
-          gymEarns: scanRes?.planType !== 'individual' ? gymEarnsPer : undefined,
-          adminEarns: scanRes?.planType !== 'individual' ? adminEarnsPer : undefined,
+          gymEarns,
+          adminEarns,
         });
       }
     } catch (e: any) {
@@ -157,7 +176,7 @@ export default function ScannerPage() {
       setValidating(false);
       setQrToken('');
     }
-  }, [qrToken, gymId, ratePerDay, commissionRate, showResultAndResume]);
+  }, [qrToken, ratePerDay, showResultAndResume]);
 
   const todaySuccess = attendance.filter(a => a.ok).length;
   const todayGymEarnings = attendance.filter(a => a.ok && a.gymEarns).reduce((s, a) => s + (a.gymEarns ?? 0), 0);
