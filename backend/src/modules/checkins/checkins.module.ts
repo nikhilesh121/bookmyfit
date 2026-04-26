@@ -187,13 +187,12 @@ class CheckinsController {
   @Get('today-count') @Roles('super_admin', 'gym_owner', 'gym_staff')
   async todayCount(@Req() req: any) {
     const stats = await this.svc.todayStats(undefined, req.user.userId);
-    const count = Array.isArray(stats) ? stats.length : (stats as any)?.count ?? (stats as any)?.total ?? 0;
-    return { count };
+    return { count: (stats as any)?.count ?? 0 };
   }
 
   @Get('recent') @Roles('super_admin', 'gym_owner', 'gym_staff')
-  recent(@Req() req: any) {
-    return this.svc.listByUser ? this.svc.listAll(1, 10) : this.svc.listAll(1, 10);
+  recent() {
+    return this.svc.listAll(1, 10);
   }
 
   @Get() @Roles('super_admin', 'gym_owner', 'gym_staff')
