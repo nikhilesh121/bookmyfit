@@ -25,6 +25,7 @@
       "expo-secure-store"
     ],
     "extra": {
+      "cashfreeBaseUrl": "https://sandbox.cashfree.com",
       "apiUrl": "http://localhost:3003"
     }
   }

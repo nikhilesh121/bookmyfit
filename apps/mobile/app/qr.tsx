@@ -116,6 +116,13 @@ export default function QRScreen() {
           </View>
         )}
 
+        {/* Demo token warning */}
+        {token?.startsWith('BMF-DEMO') && (
+          <View style={s.demoWarn}>
+            <Text style={s.demoWarnText}>⚠️ Demo QR — not valid for gym check-in</Text>
+          </View>
+        )}
+
         <View style={s.qrFrame}>
           {loading || !token ? (
             <ActivityIndicator color={colors.accent} size="large" />
@@ -212,4 +219,10 @@ const s = StyleSheet.create({
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
   },
   shareBtnText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  demoWarn: {
+    width: '100%', backgroundColor: 'rgba(255,120,0,0.18)', borderWidth: 1,
+    borderColor: 'rgba(255,140,0,0.45)', borderRadius: radius.lg,
+    paddingVertical: 8, paddingHorizontal: 14, marginBottom: 10, alignItems: 'center',
+  },
+  demoWarnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#FFA040' },
 });

@@ -4,11 +4,20 @@ import { useFonts, PlayfairDisplay_700Bold, PlayfairDisplay_900Black, PlayfairDi
 import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import { View, ActivityIndicator } from 'react-native';
 import { useEffect } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import { colors } from '../theme/brand';
 import { getToken, getUser } from '../lib/api';
 
+const ONBOARDED_KEY = 'bmf_onboarded';
+
 async function resolveInitialRoute() {
   try {
+    // First-launch onboarding check
+    const onboarded = await SecureStore.getItemAsync(ONBOARDED_KEY);
+    if (!onboarded) {
+      router.replace('/onboarding');
+      return;
+    }
     const token = await getToken();
     if (!token) {
       router.replace('/login');

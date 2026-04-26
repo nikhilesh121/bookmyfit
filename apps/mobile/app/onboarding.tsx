@@ -4,7 +4,14 @@ import {
   ImageBackground, Animated, PanResponder,
 } from 'react-native';
 import { router } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { colors, fonts, radius } from '../theme/brand';
+
+const ONBOARDED_KEY = 'bmf_onboarded';
+
+async function markOnboarded() {
+  await SecureStore.setItemAsync(ONBOARDED_KEY, '1');
+}
 
 const { width, height } = Dimensions.get('window');
 
@@ -100,10 +107,10 @@ export default function Onboarding() {
             </View>
 
             {/* CTA */}
-            <TouchableOpacity style={s.btnPrimary} onPress={() => router.push('/login')}>
+            <TouchableOpacity style={s.btnPrimary} onPress={() => { markOnboarded(); router.replace('/login'); }}>
               <Text style={s.btnPrimaryText}>Get Started</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.btnGhost} onPress={() => router.push('/login')}>
+            <TouchableOpacity style={s.btnGhost} onPress={() => { markOnboarded(); router.replace('/login'); }}>
               <Text style={s.btnGhostText}>I already have an account</Text>
             </TouchableOpacity>
           </View>

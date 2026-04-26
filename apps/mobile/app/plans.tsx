@@ -139,8 +139,8 @@ export default function Plans() {
                 params: { planId: 'gym_specific', planName: `${gymName || 'Gym'} Membership`, gymId, basePrice: '599' },
               } as any);
             } else {
-              // Browse all gyms to pick one
-              router.replace('/(tabs)');
+              // No gym selected — send user to explore to pick one
+              router.push('/(tabs)/explore' as any);
             }
           }}>
             <ImageBackground

@@ -3,9 +3,13 @@ import { View, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, Text } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { router, useLocalSearchParams } from 'expo-router';
+import Constants from 'expo-constants';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft } from '../components/Icons';
 import { subscriptionsApi } from '../lib/api';
+
+const CASHFREE_BASE_URL: string =
+  (Constants.expoConfig?.extra as any)?.cashfreeBaseUrl ?? 'https://sandbox.cashfree.com';
 
 export default function PaymentWebview() {
   const { orderId, sessionId, planId, gymId, subId } = useLocalSearchParams<{
@@ -14,7 +18,7 @@ export default function PaymentWebview() {
   const [loading, setLoading] = useState(true);
   const webviewRef = useRef<any>(null);
 
-  const checkoutUrl = `https://sandbox.cashfree.com/pg/orders/pay?order_id=${orderId}`;
+  const checkoutUrl = `${CASHFREE_BASE_URL}/pg/orders/pay?order_id=${orderId}`;
 
   const handleSuccess = async () => {
     // Verify + activate subscription if subId available
