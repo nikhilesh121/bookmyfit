@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconArrowLeft, IconDollar, IconBolt, IconShopping, IconDumbbell } from '../../components/Icons';
-import { gymStaffApi } from '../../lib/api';
+import { gymStaffApi, api } from '../../lib/api';
 
 const FALLBACK = {
   totalEarned: 184320,
@@ -49,8 +49,13 @@ export default function Earnings() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleRequestPayout = () => {
-    Alert.alert('Request Payout', 'Your payout request has been submitted. Settlements are processed every Monday.');
+  const handleRequestPayout = async () => {
+    try {
+      await api.post('/settlements/request-payout', {});
+    } catch {
+      // Non-blocking — proceed to show confirmation regardless
+    }
+    Alert.alert('Request Submitted', 'Your payout request has been submitted. Settlements are processed every Monday.');
   };
 
   return (

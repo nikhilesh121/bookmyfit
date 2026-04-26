@@ -7,7 +7,7 @@ import { colors, fonts, radius } from '../theme/brand';
 import {
   IconArrowLeft, IconDumbbell, IconBolt, IconCheck, IconUser, IconStar, IconCalendar,
 } from '../components/Icons';
-import { wellnessApi } from '../lib/api';
+import { wellnessApi, usersApi } from '../lib/api';
 
 const CATEGORIES = ['All', 'Yoga', 'Meditation', 'Nutrition', 'Physio', 'Training', 'Spa'];
 
@@ -41,6 +41,7 @@ export default function Wellness() {
         const list = Array.isArray(data) ? data : data?.services || data?.data || [];
         if (list.length > 0) {
           setServices(list.map((s: any, i: number) => ({
+            id: s.id || s._id || null,
             name: s.name || STATIC_SERVICES[i]?.name || 'Service',
             desc: s.description || s.desc || STATIC_SERVICES[i]?.desc || '',
             icon: STATIC_SERVICES[i]?.icon || 'bolt',
@@ -53,6 +54,21 @@ export default function Wellness() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const handleBook = async (svc: any) => {
+    if (!svc.id) {
+      Alert.alert('Coming Soon', `${svc.name} booking will be available shortly. Stay tuned!`);
+      return;
+    }
+    try {
+      const me = await usersApi.me() as any;
+      const today = new Date().toISOString().slice(0, 10);
+      await wellnessApi.book({ userId: me.id || me._id, serviceId: svc.id, bookingDate: today, phone: me.phone || '' });
+      Alert.alert('Booking Confirmed! 🎉', `Your ${svc.name} session has been booked for today. We'll contact you to confirm the time.`);
+    } catch (err: any) {
+      Alert.alert('Booking Failed', err?.message || 'Could not complete booking. Please try again.');
+    }
+  };
 
   const filtered = activeCategory === 'All'
     ? services
@@ -134,12 +150,7 @@ export default function Wellness() {
                 <TouchableOpacity
                   style={s.bookBtn}
                   activeOpacity={0.8}
-                  onPress={() =>
-                    Alert.alert(
-                      'Coming Soon',
-                      `${svc.name} booking will be available shortly. Stay tuned!`,
-                    )
-                  }
+                  onPress={() => handleBook(svc)}
                 >
                   <Text style={s.bookBtnText}>Book Now</Text>
                 </TouchableOpacity>

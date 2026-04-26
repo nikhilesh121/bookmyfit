@@ -68,7 +68,7 @@ export default function NotificationsScreen() {
     const id = n.id || n._id;
     setNotifs((prev) => prev.map((x) => (x.id || x._id) === id ? { ...x, read: true } : x));
     try {
-      if (id && !id.startsWith('n')) await api.post(`/notifications/${id}/read`);
+      if (id) await api.post(`/notifications/${id}/read`);
     } catch {}
   };
 

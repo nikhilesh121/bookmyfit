@@ -34,10 +34,10 @@ function getMonthGroup(dateStr: string) {
 
 function calcDuration(start: string, end: string | null) {
   if (!end) return null;
-  const mins = Math.round((new Date(start).getTime() - new Date(end).getTime()) / 60000);
-  const absMins = Math.abs(mins);
-  if (absMins < 60) return `${absMins}m`;
-  return `${Math.floor(absMins / 60)}h ${absMins % 60}m`;
+  const mins = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000);
+  if (mins < 1) return null;
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
 function calcStreak(visits: any[]) {

@@ -140,7 +140,7 @@ export default function SubscriptionDetail() {
         {isActive && (
           <TouchableOpacity
             style={s.actionBtn}
-            onPress={() => router.push({ pathname: '/qr', params: { subscriptionId: subId } } as any)}
+            onPress={() => router.push({ pathname: '/qr', params: { subId: subId } } as any)}
           >
             <IconQR size={16} color="#000" />
             <Text style={s.actionBtnText}>Generate QR Code</Text>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
@@ -112,7 +112,19 @@ export default function KycTracker() {
           })}
 
           {remaining > 0 && (
-            <TouchableOpacity style={s.uploadBtn}>
+            <TouchableOpacity
+              style={s.uploadBtn}
+              onPress={() =>
+                Alert.alert(
+                  'Upload Documents',
+                  'Please email your KYC documents to kyc@bookmyfit.in or use the web portal at gym.bookmyfit.in to upload directly.',
+                  [
+                    { text: 'Open Web Portal', onPress: () => Linking.openURL('https://gym.bookmyfit.in/kyc') },
+                    { text: 'OK', style: 'cancel' },
+                  ],
+                )
+              }
+            >
               <Text style={s.uploadBtnText}>Upload Pending Documents</Text>
             </TouchableOpacity>
           )}

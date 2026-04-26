@@ -175,7 +175,7 @@ export default function Order() {
           </View>
           {couponApplied && (
             <View style={s.row}>
-              <Text style={[s.rowLabel, { color: colors.accent }]}>Discount (BMF20)</Text>
+              <Text style={[s.rowLabel, { color: colors.accent }]}>Discount ({coupon.toUpperCase()})</Text>
               <Text style={[s.rowVal, { color: colors.accent }]}>-₹{discount.toLocaleString('en-IN')}</Text>
             </View>
           )}

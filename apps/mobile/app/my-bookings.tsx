@@ -99,7 +99,7 @@ export default function MyBookings() {
             <Text style={{ fontSize: 40, marginBottom: 12 }}>📅</Text>
             <Text style={s.emptyTitle}>No {filter !== 'All' ? filter.toLowerCase() + ' ' : ''}bookings</Text>
             <Text style={s.emptyText}>Browse gyms and book a session to get started.</Text>
-            <TouchableOpacity style={s.exploreBtn} onPress={() => router.push('/explore' as any)}>
+            <TouchableOpacity style={s.exploreBtn} onPress={() => router.push('/(tabs)/explore' as any)}>
               <Text style={s.exploreBtnText}>Explore Gyms</Text>
             </TouchableOpacity>
           </View>

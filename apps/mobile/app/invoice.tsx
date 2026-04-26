@@ -10,7 +10,7 @@ import { subscriptionsApi } from '../lib/api';
 const FALLBACK_INVOICE = {
   invoiceNumber: 'BMF-2025-00142',
   invoiceDate: '2025-05-14',
-  customer: { name: 'Nitikesh D', phone: '+91 98765 43210', email: 'nitikesh@example.com' },
+  customer: { name: '—', phone: '', email: '' },
   gym: { name: 'PowerZone Fitness', city: 'Mumbai' },
   items: [
     { description: 'Elite Plan – 3 Months', quantity: 1, unitPrice: 3999, amount: 3999 },
@@ -184,13 +184,6 @@ export default function InvoiceScreen() {
           </View>
 
           <View style={s.divider} />
-
-          {/* GSTIN note */}
-          <View style={s.noteBox}>
-            <Text style={s.noteText}>
-              Note: GSTIN registration is pending. This document serves as an interim invoice. An updated GST-compliant invoice will be issued upon GSTIN registration.
-            </Text>
-          </View>
         </View>
 
         {/* Share button */}
