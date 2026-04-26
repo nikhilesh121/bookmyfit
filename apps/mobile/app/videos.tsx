@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ImageBackground, Alert, Modal, Dimensions, ActivityIndicator,
+  ImageBackground, Alert, Dimensions, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuroraBackground from '../components/AuroraBackground';
@@ -52,7 +52,6 @@ export default function Videos() {
   const [filter, setFilter] = useState('All');
   const [videos, setVideos] = useState(DUMMY_VIDEOS);
   const [loading, setLoading] = useState(false);
-  const [playModal, setPlayModal] = useState<string | null>(null);
 
   useEffect(() => {
     loadVideos();
@@ -96,7 +95,11 @@ export default function Videos() {
         { text: 'Cancel', style: 'cancel' },
       ]);
     } else {
-      setPlayModal(video.title);
+      const videoUrl = (video as any).url ?? (video as any).videoUrl ?? '';
+      router.push({
+        pathname: '/video-player',
+        params: { url: videoUrl, title: video.title, instructor: video.instructor, duration: video.duration },
+      } as any);
     }
   };
 
@@ -178,27 +181,6 @@ export default function Videos() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-
-      {/* Play Modal */}
-      <Modal
-        visible={!!playModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPlayModal(null)}
-      >
-        <View style={s.modalOverlay}>
-          <View style={s.modalCard}>
-            <View style={s.playerPlaceholder}>
-              <IconPlay size={40} color={colors.accent} />
-            </View>
-            <Text style={s.modalTitle}>{playModal}</Text>
-            <Text style={s.modalSub}>Video player coming soon</Text>
-            <TouchableOpacity style={s.modalClose} onPress={() => setPlayModal(null)}>
-              <Text style={s.modalCloseText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
     </AuroraBackground>
   );

@@ -10,6 +10,7 @@ import { colors, fonts, radius } from '../../theme/brand';
 import { IconArrowLeft, IconStar, IconShare, IconCart, IconCheck } from '../../components/Icons';
 import AuroraBackground from '../../components/AuroraBackground';
 import { api } from '../../lib/api';
+import { addToCart } from '../cart';
 
 const { width } = Dimensions.get('window');
 const HERO_HEIGHT = 300;
@@ -130,12 +131,19 @@ export default function ProductDetail() {
     if (addedState === 'adding') return;
     setAddedState('adding');
     try {
-      await api.post('/store/cart', { productId: id, quantity });
+      addToCart({
+        productId: String(id),
+        name: product?.name || product?.productName || 'Product',
+        price: product?.price ?? product?.mrp ?? 0,
+        quantity,
+        image: product?.imageUrl || product?.image,
+        category: product?.category,
+      });
       setAddedState('added');
       setTimeout(() => {
         setAddedState('idle');
-        if (navigateAfter) router.push('/order');
-      }, 2000);
+        if (navigateAfter) router.push('/cart');
+      }, 1500);
     } catch {
       setAddedState('idle');
     }
