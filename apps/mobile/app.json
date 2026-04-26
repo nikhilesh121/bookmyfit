@@ -22,7 +22,13 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "BookMyFit needs camera access to scan member QR codes at check-in."
+        }
+      ]
     ],
     "extra": {
       "cashfreeBaseUrl": "https://sandbox.cashfree.com",

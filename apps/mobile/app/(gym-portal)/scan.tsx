@@ -9,9 +9,11 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { gymStaffApi } from '../../lib/api';
 import { colors, fonts, radius, spacing } from '../../theme/brand';
 import { IconQR, IconCheck, IconClose, IconRefresh } from '../../components/Icons';
@@ -41,6 +43,9 @@ export default function ScanScreen() {
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ValidationResult | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -107,6 +112,30 @@ export default function ScanScreen() {
   const handleReset = () => {
     setToken('');
     setResult(null);
+    setScanned(false);
+  };
+
+  const handleOpenCamera = async () => {
+    if (!permission?.granted) {
+      const res = await requestPermission();
+      if (!res.granted) {
+        Alert.alert('Camera Permission', 'Camera access is required to scan QR codes.');
+        return;
+      }
+    }
+    setCameraActive(true);
+    setScanned(false);
+  };
+
+  const handleBarcodeScanned = ({ data }: { data: string }) => {
+    if (scanned) return;
+    setScanned(true);
+    setCameraActive(false);
+    setToken(data);
+    // Auto-validate after a brief moment
+    setTimeout(() => {
+      setToken(data);
+    }, 100);
   };
 
   return (
@@ -116,18 +145,40 @@ export default function ScanScreen() {
         <Text style={s.title}>Scan QR</Text>
         <Text style={s.subtitle}>Validate member access tokens</Text>
 
-        {/* Animated scan frame */}
-        <View style={s.frameContainer}>
-          <View style={s.frame}>
-            <View style={[s.corner, s.cornerTL]} />
-            <View style={[s.corner, s.cornerTR]} />
-            <View style={[s.corner, s.cornerBL]} />
-            <View style={[s.corner, s.cornerBR]} />
-            <Animated.View style={[s.framePulse, { opacity: pulseAnim }]} />
-            <IconQR size={52} color={colors.accent} />
+        {/* Camera / scan frame area */}
+        {cameraActive ? (
+          <View style={s.cameraContainer}>
+            <CameraView
+              style={s.camera}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={handleBarcodeScanned}
+            >
+              <View style={s.cameraOverlay}>
+                <View style={[s.corner, s.cornerTL]} />
+                <View style={[s.corner, s.cornerTR]} />
+                <View style={[s.corner, s.cornerBL]} />
+                <View style={[s.corner, s.cornerBR]} />
+              </View>
+            </CameraView>
+            <TouchableOpacity style={s.cancelCameraBtn} onPress={() => setCameraActive(false)}>
+              <Text style={s.cancelCameraText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={s.frameHint}>Position QR code in frame or paste token below</Text>
-        </View>
+        ) : (
+          <View style={s.frameContainer}>
+            <TouchableOpacity style={s.frame} activeOpacity={0.85} onPress={handleOpenCamera}>
+              <View style={[s.corner, s.cornerTL]} />
+              <View style={[s.corner, s.cornerTR]} />
+              <View style={[s.corner, s.cornerBL]} />
+              <View style={[s.corner, s.cornerBR]} />
+              <Animated.View style={[s.framePulse, { opacity: pulseAnim }]} />
+              <IconQR size={52} color={colors.accent} />
+              <Text style={s.tapToScanText}>Tap to scan</Text>
+            </TouchableOpacity>
+            <Text style={s.frameHint}>Tap frame to use camera, or paste token below</Text>
+          </View>
+        )}
 
         {/* Token input */}
         <View style={s.inputContainer}>
@@ -234,6 +285,18 @@ const s = StyleSheet.create({
     backgroundColor: colors.accentSoft,
   },
   frameHint: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, marginTop: 14, textAlign: 'center', maxWidth: 220 },
+  tapToScanText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent, marginTop: 8 },
+
+  cameraContainer: { width: FRAME_SIZE, alignSelf: 'center', marginBottom: spacing.xxl },
+  camera: { width: FRAME_SIZE, height: FRAME_SIZE, borderRadius: radius.lg, overflow: 'hidden' },
+  cameraOverlay: {
+    ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center',
+  },
+  cancelCameraBtn: {
+    marginTop: 10, alignSelf: 'center', paddingHorizontal: 20, paddingVertical: 8,
+    backgroundColor: colors.surface, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border,
+  },
+  cancelCameraText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.text },
 
   corner: {
     position: 'absolute',
