@@ -32,7 +32,7 @@
     ],
     "extra": {
       "cashfreeBaseUrl": "https://sandbox.cashfree.com",
-      "apiUrl": "http://localhost:3003"
+      "apiUrl": "https://bookmyfit.in"
     }
   }
 }
