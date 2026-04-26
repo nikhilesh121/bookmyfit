@@ -20,7 +20,7 @@ interface CorpForm {
 
 function OnboardContent() {
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<Tab>((searchParams.get('tab') as Tab) || 'gym');
+  const [tab, setTab] = useState<Tab>('gym');
   const [gymStep, setGymStep] = useState(1);
   const [gymForm, setGymForm] = useState<GymForm>({ name: '', email: '', password: '', confirm: '', gymName: '', city: '', area: '', address: '' });
   const [corpForm, setCorpForm] = useState<CorpForm>({ companyName: '', email: '', password: '', confirm: '', billingContact: '' });

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://bookmyfit.in'),
   title: 'BookMyFit — One App, Every Gym in India',
   description: "India's first AI-powered multi-gym fitness platform. Get unlimited access to 1,000+ premium gyms across India with a single subscription. Join the early access waitlist.",
   keywords: 'gym subscription india, multi gym access, fitness app india, gym membership app, BookMyFit, corporate wellness, gym pass india',

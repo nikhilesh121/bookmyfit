@@ -17,7 +17,11 @@
       "bundleIdentifier": "in.bookmyfit.app"
     },
     "android": {
-      "package": "in.bookmyfit.app"
+      "package": "in.bookmyfit.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -32,7 +36,12 @@
     ],
     "extra": {
       "cashfreeBaseUrl": "https://sandbox.cashfree.com",
-      "apiUrl": "https://bookmyfit.in"
-    }
+      "apiUrl": "https://bookmyfit.in",
+      "router": {},
+      "eas": {
+        "projectId": "deab094a-848d-483d-9e83-d7f69adac2da"
+      }
+    },
+    "owner": "qwegle"
   }
 }

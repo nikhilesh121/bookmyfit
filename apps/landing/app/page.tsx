@@ -1,6 +1,7 @@
 import ScrollReveal from '../components/ScrollReveal';
 import StatCounter from '../components/StatCounter';
 import EarlyAccessForm from '../components/EarlyAccessForm';
+import FaqAccordion from '../components/FaqAccordion';
 
 /* ─── SVG helpers ───────────────────────────────── */
 const Check = () => (
@@ -71,6 +72,17 @@ const TESTIMONIALS = [
 
 const CITIES = ['Mumbai','Bangalore','Delhi','Chennai','Pune','Hyderabad','Kolkata','Ahmedabad','Jaipur','Kochi','Indore','Surat','Chandigarh','Lucknow','Bhubaneswar','Coimbatore'];
 
+const FAQS = [
+  { q: 'Can I visit any gym, any time?',                ans: 'Yes. With Elite and Max plans you can visit any partner gym in any city. Individual plan gives you unlimited access to 1 gym of your choice. All plans support 1 visit per gym per day.' },
+  { q: 'How does QR check-in work?',                   ans: 'Open the BookMyFit app and tap "Check In". Your unique QR code appears — show it to the gym reception or hold it up to the scanner. Entry is verified in under 3 seconds. No tokens, no paper.' },
+  { q: 'Is there a lock-in period?',                   ans: 'No. All plans are monthly. Cancel any time from within the app before your next billing date — no questions asked, no cancellation fee.' },
+  { q: 'When does my subscription start?',             ans: 'Your subscription is active from the moment your payment is confirmed. You can walk into any partner gym right away.' },
+  { q: 'Do corporate plans work differently?',         ans: 'Yes. HR teams get a dedicated portal to add/remove employees, track usage, and manage billing. Employees download the app, log in with their work email, and get instant access. You pay only for active seats.' },
+  { q: 'How do gym owners get paid?',                  ans: 'Partner gyms receive monthly settlements directly to their bank account for every verified member visit. Payouts are transparent — view a full breakdown on your partner dashboard and raise disputes if needed.' },
+  { q: 'Which cities are covered?',                    ans: 'We are launching in Bangalore, Mumbai, Delhi, Hyderabad, Pune, and Chennai first. Expansion to 50+ cities is planned through 2025. Enter your city on the early-access form to get notified.' },
+  { q: 'Is there a free trial?',                       ans: 'Early-access members get 3 months free on any plan before full launch. Sign up above to secure your spot.' },
+];
+
 const GYM_URL  = process.env.NEXT_PUBLIC_GYM_URL  || '/onboard?tab=gym';
 const CORP_URL = process.env.NEXT_PUBLIC_CORP_URL  || '/onboard?tab=corporate';
 
@@ -95,7 +107,7 @@ export default function LandingPage() {
           Book<em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--t2)' }}>My</em>Fit
         </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-          {([['#features','Features'],['#plans','Plans'],['#for-gyms','For Gyms'],['#for-corporates','For Corporates']] as [string,string][]).map(([href, label]) => (
+          {([['#features','Features'],['#plans','Plans'],['#for-gyms','For Gyms'],['#for-corporates','Corporates'],['#faq','FAQ']] as [string,string][]).map(([href, label]) => (
             <a key={href} href={href} className="nav-link hidden sm:block">{label}</a>
           ))}
           <a href="#early-access" className="btn btn-primary" style={{ padding: '9px 22px', fontSize: 13 }}>Early Access</a>
@@ -538,6 +550,18 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── FAQ ─────────────────────────────────────── */}
+      <section id="faq" style={sec}>
+        <p className="kicker reveal">FAQ</p>
+        <h2 style={{ ...H2, marginBottom: 12, textAlign: 'center' }} className="reveal">
+          Questions <em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>answered</em>
+        </h2>
+        <p style={{ ...Sub, marginBottom: 36, textAlign: 'center', margin: '0 auto 36px' }} className="reveal">
+          Everything you need to know before you sign up.
+        </p>
+        <FaqAccordion items={FAQS} />
+      </section>
+
       {/* ── CTA ──────────────────────────────────── */}
       <section id="early-access" style={{ padding: '60px 5vw', position: 'relative', zIndex: 1 }}>
         <div className="reveal" style={{ background: 'linear-gradient(135deg, rgba(61,255,84,0.07) 0%, rgba(0,80,255,0.05) 50%, rgba(61,255,84,0.04) 100%)', border: '1px solid rgba(61,255,84,0.15)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderRadius: 32, padding: 'clamp(32px,5vw,56px) 5vw', textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
@@ -559,16 +583,54 @@ export default function LandingPage() {
       </section>
 
       {/* ── Footer ───────────────────────────────── */}
-      <footer role="contentinfo" style={{ borderTop: '1px solid var(--border)', padding: '40px 5vw', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20, position: 'relative', zIndex: 1 }}>
-        <a href="/" style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 900, color: '#fff', textDecoration: 'none' }}>
-          Book<em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--t2)' }}>My</em>Fit
-        </a>
-        <nav aria-label="Footer navigation" style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-          {([['#features','Features'],['#plans','Plans'],['#for-gyms','For Gyms'],['#for-corporates','For Corporates'],['mailto:hello@bookmyfit.in','Contact']] as [string,string][]).map(([href, label]) => (
-            <a key={href} href={href} className="nav-link">{label}</a>
-          ))}
-        </nav>
-        <p style={{ fontSize: 12, color: 'var(--t3)' }}>© 2025 BookMyFit Technologies Pvt Ltd</p>
+      <footer role="contentinfo" style={{ borderTop: '1px solid var(--border)', padding: '40px 5vw', position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 32, marginBottom: 32 }}>
+          {/* Brand */}
+          <div style={{ maxWidth: 260 }}>
+            <a href="/" style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 900, color: '#fff', textDecoration: 'none', display: 'block', marginBottom: 10 }}>
+              Book<em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--t2)' }}>My</em>Fit
+            </a>
+            <p style={{ fontSize: 13, color: 'var(--t3)', lineHeight: 1.65 }}>One QR code. Every gym in India. Unlimited access, zero friction.</p>
+            {/* Social */}
+            <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+              {[
+                { href: 'https://instagram.com/bookmyfit', label: 'Instagram', d: 'M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z' },
+                { href: 'https://twitter.com/bookmyfit', label: 'X / Twitter', d: 'M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z' },
+                { href: 'https://linkedin.com/company/bookmyfit', label: 'LinkedIn', d: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z' },
+              ].map(({ href, label, d }) => (
+                <a key={label} href={href} target="_blank" rel="noopener noreferrer" aria-label={label}
+                  style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.45)', transition: 'all 0.2s', textDecoration: 'none' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d={d} /></svg>
+                </a>
+              ))}
+            </div>
+          </div>
+          {/* Links columns */}
+          <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: 14 }}>Product</p>
+              {[['#features','Features'],['#plans','Pricing'],['#how-it-works','How it works'],['#faq','FAQ']].map(([href, label]) => (
+                <a key={href} href={href} className="nav-link" style={{ display: 'block', marginBottom: 9, fontSize: 13 }}>{label}</a>
+              ))}
+            </div>
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: 14 }}>Partners</p>
+              {[['/onboard?tab=gym','List your gym'],['/onboard?tab=corporate','Corporate plans'],['#for-gyms','Gym benefits'],['#for-corporates','HR benefits']].map(([href, label]) => (
+                <a key={href} href={href} className="nav-link" style={{ display: 'block', marginBottom: 9, fontSize: 13 }}>{label}</a>
+              ))}
+            </div>
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: 14 }}>Legal</p>
+              {[['mailto:hello@bookmyfit.in','Contact us'],['/privacy','Privacy Policy'],['/terms','Terms of Service'],['/refund','Refund Policy']].map(([href, label]) => (
+                <a key={href} href={href} className="nav-link" style={{ display: 'block', marginBottom: 9, fontSize: 13 }}>{label}</a>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <p style={{ fontSize: 12, color: 'var(--t3)' }}>© 2025 BookMyFit Technologies Pvt Ltd · All rights reserved</p>
+          <p style={{ fontSize: 12, color: 'var(--t3)' }}>Made with ❤️ in India 🇮🇳</p>
+        </div>
       </footer>
     </>
   );
