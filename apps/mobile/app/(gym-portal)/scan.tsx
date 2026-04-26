@@ -16,6 +16,18 @@ import { gymStaffApi } from '../../lib/api';
 import { colors, fonts, radius, spacing } from '../../theme/brand';
 import { IconQR, IconCheck, IconClose, IconRefresh } from '../../components/Icons';
 
+/** Decode a JWT payload without verifying signature — used to extract member userId from QR token */
+function decodeJwtPayload(token: string): Record<string, any> | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    const padded = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
 type ValidationResult = {
   success: boolean;
   memberName?: string;
@@ -29,7 +41,6 @@ export default function ScanScreen() {
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ValidationResult | null>(null);
-  const [gymId, setGymId] = useState<string | null>(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -45,7 +56,6 @@ export default function ScanScreen() {
   useFocusEffect(
     useCallback(() => {
       startPulse();
-      gymStaffApi.myGym().then((g) => setGymId(g?.id ?? null)).catch(() => setGymId(null));
     }, [startPulse])
   );
 
@@ -53,22 +63,31 @@ export default function ScanScreen() {
     const trimmed = token.trim();
     if (!trimmed) return;
 
+    // Decode the QR JWT to extract the member's userId
+    const payload = decodeJwtPayload(trimmed);
+    const memberId: string | undefined = payload?.sub;
+
+    if (!memberId) {
+      setResult({ success: false, errorMessage: 'Invalid QR code — could not read member ID.', reason: 'Token is not a valid BMF QR.' });
+      return;
+    }
+
     setLoading(true);
     setResult(null);
 
     try {
-      const data = await gymStaffApi.validateQr(trimmed, gymId ?? '');
-      if (data?.allowed === false) {
+      const data = await gymStaffApi.checkin(memberId);
+      if (data?.success === false) {
         setResult({
           success: false,
-          errorMessage: data.reason || 'Check-in denied',
-          reason: data.status || 'failed',
+          errorMessage: data.message || 'Check-in denied',
+          reason: data.reason || '',
         });
       } else {
         setResult({
           success: true,
           memberName: data.user?.name ?? data.memberName ?? 'Member',
-          planType: data.planType ?? 'Standard',
+          planType: data.sessionType?.name ?? data.planType ?? 'Gym Workout',
           checkinTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
         });
         // Auto reset after 5 seconds so next person can scan

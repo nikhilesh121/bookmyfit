@@ -155,9 +155,9 @@ export const gymStaffApi = {
   myMembers: () => api.get('/gyms/my-members'),
   myCheckins: (page = 1, limit = 20) => api.get(`/gyms/my-checkins?page=${page}&limit=${limit}`),
   todayStats: () => api.get('/checkins/today'),
-  // Uses the enforced scan endpoint: validates subscription, 1-per-day limit, records attendance
-  validateQr: (qrToken: string, gymId: string, userId?: string) =>
-    api.post('/checkins/scan', { qrToken, gymId, userId }),
+  // Decodes JWT from scanned QR to extract member userId, then calls the session
+  // attendance endpoint which marks the booking attended and creates a billing record.
+  checkin: (userId: string) => api.post('/sessions/checkin', { userId }),
   settlements: () => api.get('/settlements/my-gym'),
 };
 
