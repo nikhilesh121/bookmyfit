@@ -86,7 +86,7 @@ class CorporateService {
       userIds.length ? this.checkins.count({ where: { userId: In(userIds), status: 'success' } }) : Promise.resolve(0),
     ]);
     return {
-      corporateName: account.name,
+      corporateName: account.companyName,
       totalSeats: account.totalSeats,
       assignedSeats: account.assignedSeats,
       totalEmployees: employees.length,
