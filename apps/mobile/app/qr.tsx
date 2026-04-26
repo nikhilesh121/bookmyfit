@@ -67,7 +67,7 @@ export default function QRScreen() {
       if (id) {
         const res = await qrApi.generate(id);
         const baseToken = res.token || res.qrToken || ('BMF-' + Date.now());
-        setToken(routeGymId ? `${baseToken}|GYM:${routeGymId}` : baseToken);
+        setToken(baseToken);
       } else {
         setToken(`BMF-DEMO-${Math.random().toString(36).slice(2, 10).toUpperCase()}`);
       }
