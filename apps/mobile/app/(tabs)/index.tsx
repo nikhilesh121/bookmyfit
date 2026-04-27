@@ -11,7 +11,7 @@ import {
   IconFilter, IconChevronDown, IconDumbbell, IconBolt, IconShield,
   IconHeadphones, IconPercent,
 } from '../../components/Icons';
-import { gymsApi, getUser } from '../../lib/api';
+import { gymsApi, getUser, API_BASE } from '../../lib/api';
 import Svg, { Path, Circle, Ellipse, Rect, Line } from 'react-native-svg';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -69,6 +69,7 @@ export default function Home() {
   const [heroIdx, setHeroIdx] = useState(0);
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [products, setProducts] = useState<any[]>([]);
   const heroRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -83,6 +84,14 @@ export default function Home() {
       })
       .catch(() => setGyms(FALLBACK_GYMS))
       .finally(() => setLoading(false));
+    // Fetch store products (public endpoint)
+    fetch(`${API_BASE}/api/v1/store/products?limit=10`)
+      .then(r => r.json())
+      .then((d: any) => {
+        const list = Array.isArray(d) ? d : d?.data || d?.products || [];
+        if (list.length > 0) setProducts(list);
+      })
+      .catch(() => {});
   }, []);
 
   // Auto-advance hero
@@ -340,6 +349,49 @@ export default function Home() {
           )}
         />
 
+        {/* ── Shop Products ── */}
+        {products.length > 0 && (
+          <>
+            <View style={[s.sectionRow, { marginTop: 24 }]}>
+              <Text style={s.sectionTitle}>Shop Products</Text>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/store' as any)}>
+                <Text style={s.seeAll}>See all</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={products}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.id || item._id}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 10, paddingBottom: 4 }}
+              renderItem={({ item: p }) => {
+                const img = p.imageUrl || p.image || 'https://images.unsplash.com/photo-1593095948071-474c5cc2989d?w=300&q=80';
+                const name = p.name || 'Product';
+                const price = p.price ? `Rs.${Number(p.price).toLocaleString()}` : '';
+                const originalPrice = p.originalPrice && p.originalPrice > p.price ? p.originalPrice : null;
+                return (
+                  <TouchableOpacity
+                    style={s.productCard}
+                    onPress={() => router.push(`/product/${p.id || p._id}` as any)}
+                    activeOpacity={0.88}
+                  >
+                    <ImageBackground source={{ uri: img }} style={s.productImg} imageStyle={{ borderRadius: radius.md }} />
+                    <View style={s.productBody}>
+                      <Text style={s.productName} numberOfLines={2}>{name}</Text>
+                      <View style={s.productPriceRow}>
+                        <Text style={s.productPrice}>{price}</Text>
+                        {originalPrice && (
+                          <Text style={s.productOriginal}>Rs.{Number(originalPrice).toLocaleString()}</Text>
+                        )}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </>
+        )}
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -474,6 +526,27 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start',
   },
   viewPlansBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
+
+  // Products
+  productCard: {
+    width: 150,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  productImg: { width: 150, height: 130 },
+  productBody: { padding: 10, gap: 4 },
+  productName: { fontFamily: fonts.sansMedium, fontSize: 12, color: '#fff', lineHeight: 16 },
+  productPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  productPrice: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
+  productOriginal: { fontFamily: fonts.sans, fontSize: 11, color: colors.t3, textDecorationLine: 'line-through' },
 
   // Trust badges
   trustRow: {

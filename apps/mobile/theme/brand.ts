@@ -45,12 +45,12 @@ export const fonts = {
 };
 
 export const radius = {
-  xs: 8,
-  sm: 12,
-  md: 14,
-  lg: 18,
-  xl: 20,
-  xxl: 28,
+  xs: 4,
+  sm: 7,
+  md: 10,
+  lg: 12,
+  xl: 14,
+  xxl: 18,
   pill: 999,
 };
 
