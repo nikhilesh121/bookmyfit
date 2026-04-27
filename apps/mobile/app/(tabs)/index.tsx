@@ -288,6 +288,43 @@ export default function Home() {
           ))}
         </View>
 
+        {/* Testimonials */}
+        <View style={[s.sectionRow, { marginTop: 24 }]}>
+          <Text style={s.sectionTitle}>What members say</Text>
+        </View>
+        <FlatList
+          data={[
+            { id: '1', name: 'Priya S.', city: 'Bhubaneswar', rating: 5, text: 'Best way to stay fit in the city. Multi Gym pass lets me try a new gym every week!', avatar: 'P' },
+            { id: '2', name: 'Rahul M.', city: 'Bhubaneswar', rating: 5, text: 'Day passes are perfect. No commitment, just book and walk in!', avatar: 'R' },
+            { id: '3', name: 'Ananya K.', city: 'Cuttack', rating: 5, text: 'QR check-in is seamless. Love the Same Gym pass for my daily workouts.', avatar: 'A' },
+          ]}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 4 }}
+          snapToInterval={SCREEN_W * 0.75 + 12}
+          decelerationRate="fast"
+          renderItem={({ item: t }) => (
+            <View style={s.testimonialCard}>
+              <View style={{ flexDirection: 'row', gap: 3, marginBottom: 4 }}>
+                {Array.from({ length: t.rating }).map((_, i) => (
+                  <IconStar key={i} size={11} color="rgba(255,205,55,0.9)" />
+                ))}
+              </View>
+              <Text style={s.testimonialText}>"{t.text}"</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                <View style={s.avatarCircle}>
+                  <Text style={s.avatarText}>{t.avatar}</Text>
+                </View>
+                <View>
+                  <Text style={s.authorName}>{t.name}</Text>
+                  <Text style={s.authorCity}>{t.city}</Text>
+                </View>
+              </View>
+            </View>
+          )}
+        />
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -431,4 +468,21 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   trustLabel: { fontFamily: fonts.sansMedium, fontSize: 9, color: colors.t2, textAlign: 'center' },
+
+  // Testimonials
+  testimonialCard: {
+    width: SCREEN_W * 0.75,
+    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: radius.xl,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
+    padding: 16, gap: 6,
+  },
+  testimonialText: { fontFamily: fonts.sans, fontSize: 13, color: 'rgba(255,255,255,0.68)', lineHeight: 20, fontStyle: 'italic' },
+  avatarCircle: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: 'rgba(204,255,0,0.12)', borderWidth: 1, borderColor: 'rgba(204,255,0,0.25)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
+  authorName: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff' },
+  authorCity: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
 });

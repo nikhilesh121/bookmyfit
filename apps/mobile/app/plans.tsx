@@ -5,7 +5,14 @@ import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconCheck, IconBolt, IconDumbbell, IconStar, IconPercent, IconShield, IconHeadphones, IconChevronRight } from '../components/Icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const CARD_W = SCREEN_W * 0.72;
+const CARD_W = SCREEN_W * 0.76;
+
+const TESTIMONIALS = [
+  { id: '1', name: 'Priya S.', city: 'Bhubaneswar', rating: 5, text: 'Switched to Multi Gym — visit 3 different gyms a week now. Best fitness decision ever!', avatar: 'P' },
+  { id: '2', name: 'Rahul M.', city: 'Bhubaneswar', rating: 5, text: 'Same Gym pass at my local gym. Super easy to book slots and QR check-in is seamless.', avatar: 'R' },
+  { id: '3', name: 'Ananya K.', city: 'Cuttack', rating: 5, text: 'Day passes are perfect for travel. No commitment, just walk in and work out!', avatar: 'A' },
+  { id: '4', name: 'Dev P.', city: 'Bhubaneswar', rating: 4, text: 'Love the app design and how easy it is to find and book gyms nearby. Highly recommend.', avatar: 'D' },
+];
 
 const PLANS = [
   {
@@ -246,6 +253,38 @@ export default function PlansScreen() {
           ))}
         </View>
 
+        {/* Testimonials */}
+        <Text style={s.sectionTitle}>What members say</Text>
+        <FlatList
+          data={TESTIMONIALS}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={s.testimonialsContent}
+          snapToInterval={SCREEN_W * 0.72 + 12}
+          decelerationRate="fast"
+          renderItem={({ item: t }) => (
+            <View style={s.testimonialCard}>
+              {/* Stars */}
+              <View style={s.starsRow}>
+                {Array.from({ length: t.rating }).map((_, i) => (
+                  <IconStar key={i} size={12} color="rgba(255,205,55,0.9)" />
+                ))}
+              </View>
+              <Text style={s.testimonialText}>"{t.text}"</Text>
+              <View style={s.testimonialAuthor}>
+                <View style={s.avatarCircle}>
+                  <Text style={s.avatarText}>{t.avatar}</Text>
+                </View>
+                <View>
+                  <Text style={s.authorName}>{t.name}</Text>
+                  <Text style={s.authorCity}>{t.city}</Text>
+                </View>
+              </View>
+            </View>
+          )}
+        />
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -348,4 +387,25 @@ const s = StyleSheet.create({
   howNumText: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.accent },
   howText: { fontFamily: fonts.sans, fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 14 },
   howArrow: { position: 'absolute', top: 12, right: -8 },
+
+  // Testimonials
+  sectionTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff', paddingHorizontal: 20, marginTop: 28, marginBottom: 14 },
+  testimonialsContent: { paddingHorizontal: 20, gap: 12, paddingBottom: 4 },
+  testimonialCard: {
+    width: SCREEN_W * 0.72,
+    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: radius.xl,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    padding: 18, gap: 10,
+  },
+  starsRow: { flexDirection: 'row', gap: 3 },
+  testimonialText: { fontFamily: fonts.sans, fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 20, fontStyle: 'italic' },
+  testimonialAuthor: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  avatarCircle: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.accent },
+  authorName: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  authorCity: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
 });
