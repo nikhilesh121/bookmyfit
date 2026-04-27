@@ -36,6 +36,8 @@ function SkeletonCard() {
 export default function Subscriptions() {
   const [subs, setSubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
     subscriptionsApi.mySubscriptions()
       .then((data: any) => {
         const list = Array.isArray(data) ? data : data?.subscriptions || data?.data || [];
