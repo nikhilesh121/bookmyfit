@@ -92,40 +92,19 @@ class CheckinsService {
     if (!activeSub) return { allowed: false, reason: 'No active subscription', status: 'failed_expired' };
 
     const planType = activeSub.planType;
-    const isGymSpecific = planType === 'gym_specific' || planType === 'individual';
-    const isMultigymPro = planType === 'multigym_pro' || planType === 'pro' || planType === 'elite';
-    const isMultigymMax = planType === 'multigym_max' || planType === 'max';
+    const isSameGym = planType === 'same_gym';
+    const isMultiGym = planType === 'multi_gym';
+    const isDayPass = planType === 'day_pass';
 
-    // Gym-specific plans: user must be at their registered gym
-    if (isGymSpecific) {
+    // Same-gym plan: user must be at their registered gym
+    if (isSameGym) {
       if (!activeSub.gymIds?.includes(gymId)) {
-        return { allowed: false, reason: 'This gym is not included in your individual plan', status: 'failed_invalid' };
+        return { allowed: false, reason: 'This gym is not included in your Same Gym plan', status: 'failed_invalid' };
       }
     }
 
-    // Multi-Gym Pro: max 5 distinct gyms per subscription period
-    if (isMultigymPro) {
-      const distinctGyms = await this.repo
-        .createQueryBuilder('c')
-        .select('DISTINCT c.gymId', 'gymId')
-        .where('c.userId = :userId', { userId })
-        .andWhere('c.status = :status', { status: 'success' })
-        .andWhere('c.checkinTime >= :start', { start: activeSub.startDate })
-        .getRawMany();
-
-      const visitedGymIds = distinctGyms.map((r: any) => r.gymId);
-      if (!visitedGymIds.includes(gymId) && visitedGymIds.length >= 5) {
-        return {
-          allowed: false,
-          reason: `Multi-Gym Pro allows up to 5 distinct gyms. You have reached the limit. Upgrade to Max for unlimited access.`,
-          status: 'failed_gym_limit',
-          visitedGyms: visitedGymIds.length,
-        };
-      }
-    }
-
-    // Enforce 1 check-in per day per gym for all multi-gym plans
-    if (isMultigymPro || isMultigymMax) {
+    // Enforce 1 check-in per day per gym for multi-gym plan
+    if (isMultiGym) {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
       const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
       const todayCheckin = await this.repo.findOne({
@@ -153,9 +132,9 @@ class CheckinsService {
       checkin,
       planType,
       gymName: gym.name,
-      message: isGymSpecific
+      message: isSameGym
         ? `Welcome to ${gym.name}! Enjoy your session.`
-        : `Welcome to ${gym.name}! Session recorded (multi-gym plan).`,
+        : `Welcome to ${gym.name}! Session recorded.`,
     };
   }
 }
