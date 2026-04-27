@@ -23,10 +23,11 @@ const FALLBACK_GYMS = [
   { id: '3', name: 'Anytime Fitness', rating: 4.5, distance: '3.4 km', city: 'Bhubaneswar', amenities: ['Yoga', 'Strength'], img: 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=600&q=80', discount: '15% OFF' },
   { id: '4', name: "Gold's Gym", rating: 4.7, distance: '1.2 km', city: 'Bhubaneswar', amenities: ['Strength', 'Cardio'], img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=600&q=80', discount: null },
 ];
-const MOST_VISITED = [
-  { rank: 1, name: 'PowerZone', img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80', id: '1' },
-  { rank: 2, name: 'Iron Temple', img: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80', id: '2' },
-  { rank: 3, name: 'Anytime Fit', img: 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=400&q=80', id: '3' },
+// Most visited is built dynamically from loaded gyms — no hardcoded IDs
+const FALLBACK_IMG = [
+  'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80',
+  'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80',
+  'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=400&q=80',
 ];
 
 // ── Category icons (inline SVG) ─────────────────────────────────────────────
@@ -187,15 +188,20 @@ export default function Home() {
           </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.mostVisitedScroll} contentContainerStyle={{ gap: 12 }}>
-          {MOST_VISITED.map((g) => (
-            <TouchableOpacity key={g.id} style={s.mvCard} onPress={() => router.push(`/gym/${g.id}` as any)} activeOpacity={0.85}>
-              <ImageBackground source={{ uri: g.img }} style={s.mvPhoto} imageStyle={{ borderRadius: radius.xl }}>
-                <View style={s.mvDark} />
-                <Text style={s.mvRank}>#{g.rank}</Text>
-                <Text style={s.mvName}>{g.name}</Text>
-              </ImageBackground>
-            </TouchableOpacity>
-          ))}
+          {displayGyms.slice(0, 3).map((g: any, idx: number) => {
+            const gid = g.id || g._id;
+            const gname = (g.name || 'Gym').split(' ').slice(0, 2).join(' ');
+            const gimg = g.images?.[0] || g.coverImage || g.img || FALLBACK_IMG[idx % 3];
+            return (
+              <TouchableOpacity key={gid} style={s.mvCard} onPress={() => router.push(`/gym/${gid}` as any)} activeOpacity={0.85}>
+                <ImageBackground source={{ uri: gimg }} style={s.mvPhoto} imageStyle={{ borderRadius: radius.xl }}>
+                  <View style={s.mvDark} />
+                  <Text style={s.mvRank}>#{idx + 1}</Text>
+                  <Text style={s.mvName}>{gname}</Text>
+                </ImageBackground>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         {/* ── Popular Gyms ── */}

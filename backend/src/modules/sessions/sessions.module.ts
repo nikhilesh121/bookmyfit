@@ -757,11 +757,15 @@ export class SessionsController {
   // Public
   @Get('slots/:gymId')
   getSlots(@Param('gymId') gymId: string, @Query('date') date: string, @Query('userId') userId?: string) {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(gymId)) return [];
     return this.svc.getSlotsForGym(gymId, date || todayIST(), userId);
   }
 
   @Get('upcoming/:gymId')
   getUpcoming(@Param('gymId') gymId: string, @Query('userId') userId?: string) {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(gymId)) return [];
     return this.svc.getUpcomingForGym(gymId, userId);
   }
 
