@@ -3,7 +3,7 @@ import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIn
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
-import { IconUser, IconBell, IconLock, IconInfo, IconChevronRight, IconBolt, IconCreditCard, IconClock, IconShopping, IconCalendar } from '../../components/Icons';
+import { IconUser, IconBell, IconLock, IconInfo, IconChevronRight, IconBolt, IconCreditCard, IconClock, IconShopping, IconCalendar, IconShield } from '../../components/Icons';
 import { usersApi, logout } from '../../lib/api';
 import AuroraBackground from '../../components/AuroraBackground';
 
@@ -42,6 +42,13 @@ export default function Profile() {
     { label: 'Help & Support', icon: IconInfo, onPress: () => Alert.alert('Help & Support', 'Email us at support@bookmyfit.in') },
     { label: 'Edit Profile', icon: IconUser, onPress: () => router.push('/edit-profile') },
     { label: 'Privacy & Security', icon: IconLock, onPress: () => Alert.alert('Privacy', 'Your data is safe with us.') },
+    { label: 'Refund Policy', icon: IconShield, onPress: () => {
+      Alert.alert(
+        'No Refund Policy',
+        'All purchases on BookMyFit are final. We do not offer refunds on any passes, subscriptions, or wellness bookings once purchased.\n\nFor session bookings, you may cancel up to 2 hours before the booking time. Cancelled sessions do not entitle you to a refund — they count as used sessions.\n\nFor queries, contact support@bookmyfit.in',
+        [{ text: 'Understood' }],
+      );
+    }},
   ];
 
   return (

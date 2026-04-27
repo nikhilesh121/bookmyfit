@@ -30,7 +30,7 @@ import { SessionBookingEntity } from './database/entities/session-booking.entity
 import { AttendanceEntity } from './database/entities/attendance.entity';
 import { SeedService } from './database/seed.service';
 import { UserEntity } from './database/entities/user.entity';
-import { GymEntity } from './database/entities/gym.entity';
+import { GymEntity, MultiGymNetworkEntity } from './database/entities/gym.entity';
 import { ProductEntity } from './database/entities/store.entity';
 import { CorporateAccountEntity } from './database/entities/corporate.entity';
 import { WorkoutVideoEntity } from './database/entities/misc.entity';
@@ -41,7 +41,7 @@ import { AppConfigEntity } from './database/entities/app-config.entity';
 @Module({
   providers: [SeedService],
   imports: [
-    TypeOrmModule.forFeature([UserEntity, GymEntity, ProductEntity, CorporateAccountEntity, WorkoutVideoEntity, GymSlotEntity, SlotBookingEntity, AppConfigEntity, GymScheduleEntity, SessionTypeEntity, SessionScheduleEntity, SessionSlotEntity, SessionBookingEntity, AttendanceEntity]),
+    TypeOrmModule.forFeature([UserEntity, GymEntity, MultiGymNetworkEntity, ProductEntity, CorporateAccountEntity, WorkoutVideoEntity, GymSlotEntity, SlotBookingEntity, AppConfigEntity, GymScheduleEntity, SessionTypeEntity, SessionScheduleEntity, SessionSlotEntity, SessionBookingEntity, AttendanceEntity]),
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', '../.env'] }),
     TypeOrmModule.forRootAsync({
       useFactory: () => {

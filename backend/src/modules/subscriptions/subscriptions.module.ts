@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Put, Body, UseGuards, Req, Injectable, BadRequestException, NotFoundException, Param, Query } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Delete, Body, UseGuards, Req, Injectable, BadRequestException, NotFoundException, Param, Query } from '@nestjs/common';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
@@ -9,7 +9,7 @@ import { v4 as uuid } from 'uuid';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { AppConfigEntity } from '../../database/entities/app-config.entity';
-import { GymEntity } from '../../database/entities/gym.entity';
+import { GymEntity, MultiGymNetworkEntity } from '../../database/entities/gym.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
@@ -35,6 +35,7 @@ class SubscriptionsService {
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
     @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
     @InjectRepository(GymEntity) private readonly gymRepo: Repository<GymEntity>,
+    @InjectRepository(MultiGymNetworkEntity) private readonly networkRepo: Repository<MultiGymNetworkEntity>,
     private readonly cashfree: CashfreeService,
   ) {}
 
@@ -120,7 +121,9 @@ class SubscriptionsService {
       amount = price * (durationMonths || 1);
     } else if (dto.planType === 'day_pass') {
       if (dto.gymId) gymIds = [dto.gymId];
-      amount = dto.amountOverride || 149;
+      const gym = dto.gymId ? await this.gymRepo.findOne({ where: { id: dto.gymId } }) : null;
+      const gymDayPassPrice = gym?.dayPassPrice ? Number(gym.dayPassPrice) : null;
+      amount = dto.amountOverride || gymDayPassPrice || 149;
     } else {
       throw new BadRequestException('Invalid planType. Use day_pass, same_gym, or multi_gym');
     }
@@ -218,6 +221,24 @@ class SubscriptionsService {
       endDate: newEnd.toISOString().slice(0, 10),
     });
     return { success: true, message: 'Subscription reactivated. End date extended by 30 days.' };
+  }
+
+  async listMultiGymNetwork() {
+    const entries = await this.networkRepo.find({ where: { isActive: true } });
+    const gymIds = entries.map(e => e.gymId);
+    if (gymIds.length === 0) return [];
+    return this.gymRepo.findByIds(gymIds);
+  }
+
+  async addToNetwork(gymId: string) {
+    const existing = await this.networkRepo.findOne({ where: { gymId } });
+    if (existing) { existing.isActive = true; return this.networkRepo.save(existing); }
+    return this.networkRepo.save(this.networkRepo.create({ gymId, isActive: true }));
+  }
+
+  async removeFromNetwork(gymId: string) {
+    await this.networkRepo.update({ gymId }, { isActive: false });
+    return { success: true };
   }
 
   async generateInvoice(id: string, userId: string) {
@@ -348,6 +369,24 @@ class SubscriptionsController {
   @Roles('super_admin')
   adminInvoices() { return this.svc.adminInvoices(); }
 
+  @Get('multigym-network')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  listNetwork() { return this.svc.listMultiGymNetwork(); }
+
+  @Post('multigym-network')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  addToNetwork(@Body() body: { gymId: string }) { return this.svc.addToNetwork(body.gymId); }
+
+  @Delete('multigym-network/:gymId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  removeFromNetwork(@Param('gymId') gymId: string) { return this.svc.removeFromNetwork(gymId); }
+
   @Get(':id/invoice')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
@@ -355,7 +394,7 @@ class SubscriptionsController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SubscriptionEntity, UserEntity, AppConfigEntity, GymEntity]), PaymentsModule],
+  imports: [TypeOrmModule.forFeature([SubscriptionEntity, UserEntity, AppConfigEntity, GymEntity, MultiGymNetworkEntity]), PaymentsModule],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsService],
   exports: [SubscriptionsService],

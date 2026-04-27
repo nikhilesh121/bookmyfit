@@ -196,6 +196,15 @@ export default function Subscriptions() {
                             {planType === 'multi_gym' ? 'Find a Gym' : 'Book Slot'}
                           </Text>
                         </TouchableOpacity>
+
+                        {planType === 'multi_gym' && (
+                          <TouchableOpacity
+                            style={[s.actionBtn, { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.35)' }]}
+                            onPress={(e) => { e.stopPropagation(); router.push('/multi-gym-network' as any); }}
+                          >
+                            <Text style={[s.actionBtnText, { color: '#A78BFA' }]}>View Partner Gyms</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     )}
                   </View>

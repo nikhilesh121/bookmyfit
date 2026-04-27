@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconCalendar, IconQR, IconClock, IconPin } from '../../components/Icons';
-import { qrApi } from '../../lib/api';
+import { qrApi, api } from '../../lib/api';
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -19,12 +19,37 @@ export default function BookingsTab() {
   const [activeBooking, setActiveBooking] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  function loadBooking() {
     qrApi.getActiveBooking()
-      .then((res: any) => { if (res?.active && res.bookingQr) setActiveBooking(res.bookingQr); })
+      .then((res: any) => { if (res?.active && res.bookingQr) setActiveBooking(res.bookingQr); else setActiveBooking(null); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { loadBooking(); }, []);
+
+  function handleCancel() {
+    Alert.alert(
+      'Cancel Booking',
+      'Are you sure? This cannot be undone.',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.post(`/sessions/cancel/${activeBooking.id}`, {});
+              loadBooking();
+              Alert.alert('Cancelled', 'Your booking has been cancelled.');
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Could not cancel booking.');
+            }
+          },
+        },
+      ],
+    );
+  }
 
   const secsLeft = activeBooking
     ? Math.max(0, Math.floor((new Date(activeBooking.expiresAt).getTime() - Date.now()) / 1000))
@@ -74,6 +99,9 @@ export default function BookingsTab() {
                 <Text style={s.qrBtnText}>Show QR</Text>
               </View>
             </View>
+            <TouchableOpacity style={s.cancelBtn} onPress={(e) => { e.stopPropagation(); handleCancel(); }}>
+              <Text style={s.cancelBtnText}>Cancel Booking</Text>
+            </TouchableOpacity>
           </TouchableOpacity>
         ) : (
           <View style={s.empty}>
@@ -127,4 +155,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 28, paddingVertical: 12, marginTop: 8,
   },
   browseBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#060606' },
+  cancelBtn: {
+    borderWidth: 1, borderColor: 'rgba(255,80,80,0.4)',
+    borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 6,
+    marginTop: 8,
+  },
+  cancelBtnText: { fontFamily: fonts.sansMedium, fontSize: 12, color: 'rgba(255,100,100,0.9)' },
 });

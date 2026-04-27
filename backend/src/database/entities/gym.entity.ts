@@ -58,6 +58,12 @@ export class GymEntity {
   @Column({ type: 'numeric', precision: 10, scale: 2, default: 50 })
   ratePerDay: number; // How much BMF pays this gym per customer-visit-day (multi-gym plans)
 
+  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
+  dayPassPrice: number | null; // null = use platform default (149)
+
+  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
+  sameGymMonthlyPrice: number | null; // null = use platform default (999)
+
   @Column({ default: 100 })
   capacity: number; // max capacity for live count display
 
@@ -78,6 +84,17 @@ export class GymEntity {
 }
 
 import { Entity as GymPlanEntityDecorator, PrimaryGeneratedColumn as PGUID, Column as Col, CreateDateColumn as CDC, Index as Idx } from 'typeorm';
+
+import { Entity as E2, PrimaryGeneratedColumn as PG2, Column as C2, CreateDateColumn as CDC2, Index as I2 } from 'typeorm';
+
+/** Gyms that are part of the multi-gym pass network */
+@E2('multi_gym_network')
+export class MultiGymNetworkEntity {
+  @PG2('uuid') id: string;
+  @I2() @C2({ type: 'uuid' }) gymId: string;
+  @C2({ default: true }) isActive: boolean;
+  @CDC2() addedAt: Date;
+}
 
 /** Gym-specific individual subscription plans managed by the gym owner */
 @GymPlanEntityDecorator('gym_plans')
