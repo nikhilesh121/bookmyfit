@@ -1,81 +1,95 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Shell from '../../components/Shell';
-import { Plus, Edit3, Trash2, Check, X, MapPin, Star, Clock, Tag, Building2 } from 'lucide-react';
+import { Plus, Edit3, Trash2, Check, X, MapPin, Star, Clock, Tag, Building2, Image as ImageIcon, Percent, Activity } from 'lucide-react';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
 const token = () => typeof window !== 'undefined' ? localStorage.getItem('bmf_admin_token') : '';
 
 const SERVICE_CATEGORIES = ['Massage', 'Cupping', 'Physio', 'Spa', 'Nutrition', 'Recovery', 'Other'];
+const SERVICE_TYPES = ['Spa', 'Home', 'Physio', 'Massage', 'Yoga', 'Nutrition'];
 
 const STATIC_PARTNERS = [
-  { id: 'p1', name: 'Serenity Spa & Wellness', serviceType: 'Spa', city: 'Mumbai', area: 'Bandra', rating: 4.6, status: 'active' },
-  { id: 'p2', name: 'The Royal Spa', serviceType: 'Massage', city: 'Mumbai', area: 'Andheri', rating: 4.4, status: 'active' },
-  { id: 'p3', name: 'Bliss Physio Clinic', serviceType: 'Physio', city: 'Mumbai', area: 'Juhu', rating: 4.5, status: 'active' },
+  { id: 'p1', name: 'Serenity Spa & Wellness', serviceType: 'Spa', city: 'Mumbai', area: 'Bandra', address: 'Bandra West, Mumbai', rating: 4.6, reviewCount: 128, status: 'active', discountPercent: 20, distanceLabel: '1.2 km', photos: [], commissionRate: 25 },
+  { id: 'p2', name: 'The Royal Spa', serviceType: 'Massage', city: 'Mumbai', area: 'Andheri', address: 'Andheri West, Mumbai', rating: 4.4, reviewCount: 96, status: 'active', discountPercent: 15, distanceLabel: '2.3 km', photos: [], commissionRate: 25 },
+  { id: 'p3', name: 'Bliss Physio Clinic', serviceType: 'Physio', city: 'Mumbai', area: 'Juhu', address: 'Juhu, Mumbai', rating: 4.5, reviewCount: 84, status: 'active', discountPercent: 0, distanceLabel: '3.1 km', photos: [], commissionRate: 30 },
 ];
 
 const STATIC_SERVICES = [
-  { id: 's1', name: 'Full Body Massage', category: 'Massage', price: 1299, durationMinutes: 60, isActive: true, partnerId: 'p1' },
-  { id: 's2', name: 'Deep Tissue Massage', category: 'Massage', price: 1599, durationMinutes: 60, isActive: true, partnerId: 'p1' },
-  { id: 's3', name: 'Cupping Therapy', category: 'Cupping', price: 799, durationMinutes: 45, isActive: true, partnerId: 'p2' },
-  { id: 's4', name: 'Physiotherapy Session', category: 'Physio', price: 999, durationMinutes: 60, isActive: true, partnerId: 'p3' },
-  { id: 's5', name: 'Steam & Sauna', category: 'Spa', price: 499, durationMinutes: 45, isActive: true, partnerId: 'p1' },
+  { id: 's1', name: 'Full Body Massage', category: 'Massage', price: 1299, originalPrice: 1599, durationMinutes: 60, isActive: true, partnerId: 'p1', imageUrl: '' },
+  { id: 's2', name: 'Deep Tissue Massage', category: 'Massage', price: 1599, originalPrice: 1999, durationMinutes: 60, isActive: true, partnerId: 'p1', imageUrl: '' },
+  { id: 's3', name: 'Cupping Therapy', category: 'Cupping', price: 799, originalPrice: 999, durationMinutes: 45, isActive: true, partnerId: 'p2', imageUrl: '' },
+  { id: 's4', name: 'Physiotherapy Session', category: 'Physio', price: 999, originalPrice: 1299, durationMinutes: 60, isActive: true, partnerId: 'p3', imageUrl: '' },
+  { id: 's5', name: 'Steam & Sauna', category: 'Spa', price: 499, originalPrice: 699, durationMinutes: 45, isActive: true, partnerId: 'p1', imageUrl: '' },
 ];
 
-const card = {
+const card: React.CSSProperties = {
   background: 'rgba(255,255,255,0.04)',
   border: '1px solid rgba(255,255,255,0.08)',
   borderRadius: 16,
   padding: 24,
 };
 
-const input = {
+const input: React.CSSProperties = {
   width: '100%', background: 'rgba(255,255,255,0.06)',
   border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
   color: '#fff', padding: '10px 14px',
   fontFamily: 'DM Sans, sans-serif', fontSize: 14, outline: 'none',
-} as React.CSSProperties;
+  boxSizing: 'border-box',
+};
 
-const btn = (variant: 'green' | 'ghost' | 'red' = 'ghost') => ({
+const btn = (variant: 'green' | 'ghost' | 'red' = 'ghost'): React.CSSProperties => ({
   display: 'flex', alignItems: 'center', gap: 6,
   padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
   fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 13,
-  ...(variant === 'green' ? { background: '#CCFF00', color: '#060606' }
+  ...(variant === 'green' ? { background: '#3DFF54', color: '#060606' }
     : variant === 'red' ? { background: 'rgba(255,60,60,0.15)', color: '#ff6b6b', border: '1px solid rgba(255,60,60,0.2)' }
     : { background: 'rgba(255,255,255,0.07)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)' }),
-}) as React.CSSProperties;
+});
 
-const pill = (color: string) => ({
+const pill = (color: string): React.CSSProperties => ({
   background: `${color}22`, border: `1px solid ${color}44`,
   borderRadius: 20, padding: '3px 10px', fontSize: 11,
   fontWeight: 700, color, letterSpacing: 0.5,
-} as React.CSSProperties);
+  display: 'inline-flex', alignItems: 'center',
+});
 
-type Partner = { id: string; name: string; serviceType: string; city: string; area: string; rating: number; status: string };
-type Service = { id: string; name: string; category: string; price: number; durationMinutes: number; isActive: boolean; partnerId: string };
+type Partner = {
+  id: string; name: string; serviceType: string; city: string; area: string;
+  address: string; rating: number; reviewCount: number; status: string;
+  discountPercent: number; distanceLabel: string; photos: string[]; commissionRate: number;
+};
+type Service = {
+  id: string; name: string; category: string; price: number; originalPrice: number;
+  durationMinutes: number; isActive: boolean; partnerId: string; imageUrl: string;
+};
+
+const defaultPartnerForm = { name: '', serviceType: 'Spa', city: '', area: '', address: '', status: 'active', discountPercent: '0', distanceLabel: '', commissionRate: '25', photos: '' };
+const defaultServiceForm = { name: '', category: 'Massage', price: '', originalPrice: '', durationMinutes: '60', partnerId: '', imageUrl: '', isActive: true };
 
 export default function WellnessPage() {
-  const [tab, setTab] = useState<'services' | 'centres'>('services');
+  const [tab, setTab] = useState<'centres' | 'services'>('centres');
   const [partners, setPartners] = useState<Partner[]>(STATIC_PARTNERS);
   const [services, setServices] = useState<Service[]>(STATIC_SERVICES);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
-
-  // Service form
-  const [showSvcForm, setShowSvcForm] = useState(false);
-  const [editingSvc, setEditingSvc] = useState<Service | null>(null);
-  const [svcForm, setSvcForm] = useState({ name: '', category: 'Massage', price: '', durationMinutes: '60', partnerId: '' });
+  const [msgType, setMsgType] = useState<'success' | 'error'>('success');
 
   // Partner form
   const [showPartnerForm, setShowPartnerForm] = useState(false);
   const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
-  const [partnerForm, setPartnerForm] = useState({ name: '', serviceType: 'Spa', city: '', area: '' });
+  const [partnerForm, setPartnerForm] = useState(defaultPartnerForm);
+
+  // Service form
+  const [showSvcForm, setShowSvcForm] = useState(false);
+  const [editingSvc, setEditingSvc] = useState<Service | null>(null);
+  const [svcForm, setSvcForm] = useState(defaultServiceForm);
+  const [selectedPartnerId, setSelectedPartnerId] = useState('');
 
   useEffect(() => {
-    // Load from API
     Promise.all([
-      fetch(`${API}/api/v1/wellness/partners?page=1&limit=50`, { headers: { Authorization: `Bearer ${token()}` } }).then(r => r.json()).catch(() => null),
-      fetch(`${API}/api/v1/wellness/services/all`, { headers: { Authorization: `Bearer ${token()}` } }).then(r => r.json()).catch(() => null),
+      fetch(`${API}/api/v1/wellness/partners?page=1&limit=50`).then(r => r.json()).catch(() => null),
+      fetch(`${API}/api/v1/wellness/services/all`).then(r => r.json()).catch(() => null),
     ]).then(([partnersRes, servicesRes]) => {
       const pts = partnersRes?.data || partnersRes;
       const svcs = servicesRes;
@@ -84,231 +98,435 @@ export default function WellnessPage() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
+  const flash = (m: string, type: 'success' | 'error' = 'success') => {
+    setMsg(m); setMsgType(type); setTimeout(() => setMsg(''), 3500);
+  };
 
-  const saveService = async () => {
-    if (!svcForm.name || !svcForm.price) return flash('Please fill all required fields');
+  // Partner CRUD
+  const openAddPartner = () => {
+    setEditingPartner(null);
+    setPartnerForm(defaultPartnerForm);
+    setShowPartnerForm(true);
+  };
+  const openEditPartner = (p: Partner) => {
+    setEditingPartner(p);
+    setPartnerForm({
+      name: p.name, serviceType: p.serviceType, city: p.city, area: p.area,
+      address: p.address || '', status: p.status,
+      discountPercent: String(p.discountPercent || 0),
+      distanceLabel: p.distanceLabel || '',
+      commissionRate: String(p.commissionRate || 25),
+      photos: (p.photos || []).join(', '),
+    });
+    setShowPartnerForm(true);
+  };
+  const savePartner = async () => {
+    if (!partnerForm.name || !partnerForm.city) return flash('Please fill required fields', 'error');
+    const body = {
+      name: partnerForm.name,
+      serviceType: partnerForm.serviceType,
+      city: partnerForm.city,
+      area: partnerForm.area,
+      address: partnerForm.address || `${partnerForm.area}, ${partnerForm.city}`,
+      status: partnerForm.status,
+      discountPercent: Number(partnerForm.discountPercent) || 0,
+      distanceLabel: partnerForm.distanceLabel,
+      commissionRate: Number(partnerForm.commissionRate) || 25,
+      photos: partnerForm.photos ? partnerForm.photos.split(',').map(s => s.trim()).filter(Boolean) : [],
+      rating: editingPartner?.rating || 0,
+      reviewCount: editingPartner?.reviewCount || 0,
+      lat: 0, lng: 0,
+    };
     try {
-      const body = { ...svcForm, price: Number(svcForm.price), durationMinutes: Number(svcForm.durationMinutes), isActive: true };
+      if (editingPartner) {
+        const res = await fetch(`${API}/api/v1/wellness/partners/${editingPartner.id}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) {
+          setPartners(ps => ps.map(p => p.id === editingPartner.id ? { ...p, ...body } : p));
+          flash('Spa centre updated!');
+        } else {
+          setPartners(ps => ps.map(p => p.id === editingPartner.id ? { ...p, ...body } : p));
+          flash('Updated locally');
+        }
+      } else {
+        const res = await fetch(`${API}/api/v1/wellness/partners`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+          body: JSON.stringify(body),
+        });
+        const created = res.ok ? await res.json() : null;
+        setPartners(ps => [...ps, created?.id ? created : { ...body, id: `local_${Date.now()}` } as Partner]);
+        flash('Spa centre added!');
+      }
+    } catch {
+      if (editingPartner) {
+        setPartners(ps => ps.map(p => p.id === editingPartner.id ? { ...p, ...body } : p));
+      } else {
+        setPartners(ps => [...ps, { ...body, id: `local_${Date.now()}` } as Partner]);
+      }
+      flash('Saved locally');
+    }
+    setShowPartnerForm(false); setEditingPartner(null);
+  };
+  const deletePartner = (id: string) => {
+    setPartners(ps => ps.filter(p => p.id !== id));
+    setServices(ss => ss.filter(s => s.partnerId !== id));
+    flash('Spa centre deleted');
+  };
+
+  // Service CRUD
+  const openAddService = () => {
+    setEditingSvc(null);
+    setSvcForm({ ...defaultServiceForm, partnerId: selectedPartnerId });
+    setShowSvcForm(true);
+  };
+  const openEditService = (svc: Service) => {
+    setEditingSvc(svc);
+    setSvcForm({
+      name: svc.name, category: svc.category, price: String(svc.price),
+      originalPrice: String(svc.originalPrice || ''), durationMinutes: String(svc.durationMinutes),
+      partnerId: svc.partnerId, imageUrl: svc.imageUrl || '', isActive: svc.isActive,
+    });
+    setShowSvcForm(true);
+  };
+  const saveService = async () => {
+    if (!svcForm.name || !svcForm.price) return flash('Please fill required fields', 'error');
+    const body = {
+      partnerId: svcForm.partnerId,
+      name: svcForm.name,
+      category: svcForm.category,
+      price: Number(svcForm.price),
+      originalPrice: Number(svcForm.originalPrice) || null,
+      durationMinutes: Number(svcForm.durationMinutes),
+      isActive: svcForm.isActive,
+      imageUrl: svcForm.imageUrl || null,
+    };
+    try {
       const url = editingSvc ? `${API}/api/v1/wellness/services/${editingSvc.id}` : `${API}/api/v1/wellness/services`;
       const method = editingSvc ? 'PUT' : 'POST';
-      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` }, body: JSON.stringify(body) });
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify(body),
+      });
       if (res.ok) {
         const created = await res.json();
-        if (editingSvc) setServices(s => s.map(sv => sv.id === editingSvc.id ? { ...sv, ...svcForm, price: Number(svcForm.price), durationMinutes: Number(svcForm.durationMinutes) } : sv));
-        else setServices(s => [...s, created]);
+        if (editingSvc) {
+          setServices(ss => ss.map(s => s.id === editingSvc.id ? { ...s, ...body } : s));
+        } else {
+          setServices(ss => [...ss, created?.id ? created : { ...body, id: `local_${Date.now()}` } as Service]);
+        }
         flash('Service saved!');
-      } else flash('Save failed — using local update');
-    } catch { flash('Saved locally'); }
-    if (!editingSvc) {
-      setServices(s => [...s, { id: `local_${Date.now()}`, ...svcForm, price: Number(svcForm.price), durationMinutes: Number(svcForm.durationMinutes), isActive: true } as Service]);
+      } else {
+        if (editingSvc) {
+          setServices(ss => ss.map(s => s.id === editingSvc.id ? { ...s, ...body } : s));
+        } else {
+          setServices(ss => [...ss, { ...body, id: `local_${Date.now()}` } as Service]);
+        }
+        flash('Saved locally');
+      }
+    } catch {
+      if (editingSvc) {
+        setServices(ss => ss.map(s => s.id === editingSvc.id ? { ...s, ...body } : s));
+      } else {
+        setServices(ss => [...ss, { ...body, id: `local_${Date.now()}` } as Service]);
+      }
+      flash('Saved locally');
     }
     setShowSvcForm(false); setEditingSvc(null);
-    setSvcForm({ name: '', category: 'Massage', price: '', durationMinutes: '60', partnerId: '' });
   };
+  const toggleService = (id: string) => setServices(ss => ss.map(s => s.id === id ? { ...s, isActive: !s.isActive } : s));
+  const deleteService = (id: string) => { setServices(ss => ss.filter(s => s.id !== id)); flash('Service deleted'); };
 
-  const toggleService = (id: string) => setServices(s => s.map(sv => sv.id === id ? { ...sv, isActive: !sv.isActive } : sv));
-  const deleteService = (id: string) => setServices(s => s.filter(sv => sv.id !== id));
+  const catColor: Record<string, string> = { Massage: '#3DFF54', Cupping: '#9B5DE5', Physio: '#00AFFF', Spa: '#FFD93D', Nutrition: '#FF9F1C', Recovery: '#FF6B6B', Other: '#aaa' };
+  const statusColor: Record<string, string> = { active: '#3DFF54', pending: '#FFD93D', inactive: '#ff6b6b' };
 
-  const savePartner = async () => {
-    if (!partnerForm.name || !partnerForm.city) return flash('Please fill all required fields');
-    const body = { ...partnerForm, status: 'active', rating: 0, lat: 0, lng: 0, address: partnerForm.area + ', ' + partnerForm.city, commissionRate: 25 };
-    try {
-      const res = await fetch(`${API}/api/v1/wellness/partners`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` }, body: JSON.stringify(body) });
-      const created = await res.json();
-      setPartners(p => [...p, created.id ? created : { ...body, id: `local_${Date.now()}` }]);
-    } catch { setPartners(p => [...p, { ...body, id: `local_${Date.now()}` } as Partner]); }
-    flash('Spa centre added!'); setShowPartnerForm(false);
-    setPartnerForm({ name: '', serviceType: 'Spa', city: '', area: '' });
-  };
+  const filteredServices = selectedPartnerId
+    ? services.filter(s => s.partnerId === selectedPartnerId)
+    : services;
 
-  const catColor: Record<string, string> = { Massage: '#CCFF00', Cupping: '#9B5DE5', Physio: '#00AFFF', Spa: '#FFD93D', Nutrition: '#3DFF54', Recovery: '#FF6B6B', Other: '#aaa' };
+  const label = (text: string): React.CSSProperties => ({
+    display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11,
+    fontWeight: 700, letterSpacing: 0.5, marginBottom: 6, fontFamily: 'DM Sans, sans-serif',
+  });
 
   return (
     <Shell title="Wellness Services">
-      {/* Flash */}
-      {msg && <div style={{ position: 'fixed', top: 20, right: 20, background: '#CCFF00', color: '#060606', padding: '10px 20px', borderRadius: 10, fontWeight: 700, zIndex: 9999 }}>{msg}</div>}
+      {/* Flash message */}
+      {msg && (
+        <div style={{
+          position: 'fixed', top: 20, right: 20, zIndex: 9999,
+          background: msgType === 'success' ? '#3DFF54' : '#ff6b6b',
+          color: '#060606', padding: '10px 20px', borderRadius: 10,
+          fontWeight: 700, fontFamily: 'DM Sans, sans-serif', fontSize: 14,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+        }}>{msg}</div>
+      )}
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+      {/* Page header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: '#fff', margin: 0 }}>Wellness Services</h1>
-          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, margin: '4px 0 0' }}>Manage spa centres, services, pricing and visibility</p>
+          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: '#fff', margin: 0, letterSpacing: -0.5 }}>Wellness Services</h1>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, margin: '4px 0 0', fontFamily: 'DM Sans, sans-serif' }}>
+            Manage spa centres, services, pricing and visibility
+          </p>
         </div>
-        <button style={btn('green')} onClick={() => tab === 'services' ? setShowSvcForm(true) : setShowPartnerForm(true)}>
-          <Plus size={16} /> {tab === 'services' ? 'Add Service' : 'Add Spa Centre'}
+        <button style={btn('green')} onClick={tab === 'centres' ? openAddPartner : openAddService}>
+          <Plus size={16} />
+          {tab === 'centres' ? 'Add Spa Centre' : 'Add Service'}
         </button>
       </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-        {(['services', 'centres'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 700, fontSize: 13, background: tab === t ? '#CCFF00' : 'rgba(255,255,255,0.07)', color: tab === t ? '#060606' : '#fff' }}>
-            {t === 'services' ? `Services (${services.length})` : `Spa Centres (${partners.length})`}
+        {(['centres', 'services'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            style={{
+              padding: '9px 22px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 13,
+              background: tab === t ? '#3DFF54' : 'rgba(255,255,255,0.07)',
+              color: tab === t ? '#060606' : '#fff',
+              transition: 'all 0.15s',
+            }}
+          >
+            {t === 'centres' ? `Spa Centres (${partners.length})` : `Services (${services.length})`}
           </button>
         ))}
       </div>
 
-      {/* Services Tab */}
-      {tab === 'services' && (
+      {/* ===== SPA CENTRES TAB ===== */}
+      {tab === 'centres' && (
         <>
-          {/* Add Service Form */}
-          {showSvcForm && (
-            <div style={{ ...card, marginBottom: 20, borderColor: 'rgba(204,255,0,0.2)' }}>
-              <h3 style={{ fontFamily: 'DM Sans', fontWeight: 700, color: '#fff', marginBottom: 16 }}>{editingSvc ? 'Edit Service' : 'New Service'}</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                <div>
-                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>SERVICE NAME *</label>
-                  <input style={input} placeholder="e.g. Full Body Massage" value={svcForm.name} onChange={e => setSvcForm(f => ({ ...f, name: e.target.value }))} />
+          {/* Add/Edit Partner Form */}
+          {showPartnerForm && (
+            <div style={{ ...card, marginBottom: 20, borderColor: 'rgba(61,255,84,0.2)' }}>
+              <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: '#fff', margin: '0 0 20px', fontSize: 17 }}>
+                {editingPartner ? 'Edit Spa Centre' : 'New Spa Centre'}
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={label('NAME *')}>NAME *</label>
+                  <input style={input} placeholder="e.g. Serenity Spa & Wellness" value={partnerForm.name} onChange={e => setPartnerForm(f => ({ ...f, name: e.target.value }))} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>CATEGORY</label>
-                  <select style={{ ...input, cursor: 'pointer' }} value={svcForm.category} onChange={e => setSvcForm(f => ({ ...f, category: e.target.value }))}>
-                    {SERVICE_CATEGORIES.map(c => <option key={c} value={c} style={{ background: '#111' }}>{c}</option>)}
+                  <label style={label('SERVICE TYPE')}>SERVICE TYPE</label>
+                  <select style={{ ...input, cursor: 'pointer' }} value={partnerForm.serviceType} onChange={e => setPartnerForm(f => ({ ...f, serviceType: e.target.value }))}>
+                    {SERVICE_TYPES.map(t => <option key={t} value={t} style={{ background: '#111' }}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>PRICE (₹) *</label>
-                  <input style={input} type="number" placeholder="999" value={svcForm.price} onChange={e => setSvcForm(f => ({ ...f, price: e.target.value }))} />
+                  <label style={label('STATUS')}>STATUS</label>
+                  <select style={{ ...input, cursor: 'pointer' }} value={partnerForm.status} onChange={e => setPartnerForm(f => ({ ...f, status: e.target.value }))}>
+                    {['active', 'pending', 'inactive'].map(s => <option key={s} value={s} style={{ background: '#111' }}>{s}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>DURATION (mins)</label>
-                  <input style={input} type="number" placeholder="60" value={svcForm.durationMinutes} onChange={e => setSvcForm(f => ({ ...f, durationMinutes: e.target.value }))} />
+                  <label style={label('CITY *')}>CITY *</label>
+                  <input style={input} placeholder="e.g. Mumbai" value={partnerForm.city} onChange={e => setPartnerForm(f => ({ ...f, city: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={label('AREA')}>AREA</label>
+                  <input style={input} placeholder="e.g. Bandra West" value={partnerForm.area} onChange={e => setPartnerForm(f => ({ ...f, area: e.target.value }))} />
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>SPA CENTRE</label>
-                  <select style={{ ...input, cursor: 'pointer' }} value={svcForm.partnerId} onChange={e => setSvcForm(f => ({ ...f, partnerId: e.target.value }))}>
-                    <option value="" style={{ background: '#111' }}>— No centre (standalone service) —</option>
-                    {partners.map(p => <option key={p.id} value={p.id} style={{ background: '#111' }}>{p.name}</option>)}
-                  </select>
+                  <label style={label('FULL ADDRESS')}>FULL ADDRESS</label>
+                  <input style={input} placeholder="e.g. 123 Main St, Bandra West, Mumbai" value={partnerForm.address} onChange={e => setPartnerForm(f => ({ ...f, address: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={label('DISCOUNT %')}>DISCOUNT %</label>
+                  <input style={input} type="number" placeholder="0" value={partnerForm.discountPercent} onChange={e => setPartnerForm(f => ({ ...f, discountPercent: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={label('DISTANCE LABEL')}>DISTANCE LABEL</label>
+                  <input style={input} placeholder="e.g. 1.2 km" value={partnerForm.distanceLabel} onChange={e => setPartnerForm(f => ({ ...f, distanceLabel: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={label('COMMISSION RATE (%)')}>COMMISSION RATE (%)</label>
+                  <input style={input} type="number" placeholder="25" value={partnerForm.commissionRate} onChange={e => setPartnerForm(f => ({ ...f, commissionRate: e.target.value }))} />
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={label('PHOTO URLs (comma-separated)')}>PHOTO URLs (comma-separated)</label>
+                  <input style={input} placeholder="https://..." value={partnerForm.photos} onChange={e => setPartnerForm(f => ({ ...f, photos: e.target.value }))} />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button style={btn('green')} onClick={saveService}><Check size={14} /> Save Service</button>
-                <button style={btn()} onClick={() => { setShowSvcForm(false); setEditingSvc(null); }}><X size={14} /> Cancel</button>
+                <button style={btn('green')} onClick={savePartner}><Check size={14} /> {editingPartner ? 'Update' : 'Add Spa Centre'}</button>
+                <button style={btn()} onClick={() => { setShowPartnerForm(false); setEditingPartner(null); }}><X size={14} /> Cancel</button>
               </div>
             </div>
           )}
 
-          {/* Services List */}
+          {/* Partners table */}
           <div style={{ display: 'grid', gap: 10 }}>
-            {services.map(svc => {
-              const partner = partners.find(p => p.id === svc.partnerId);
-              const cc = catColor[svc.category] || '#aaa';
-              return (
-                <div key={svc.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16, opacity: svc.isActive ? 1 : 0.5 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                      <Text style={{ fontFamily: 'DM Sans', fontWeight: 700, fontSize: 16, color: '#fff' }}>{svc.name}</Text>
-                      <span style={pill(cc)}>{svc.category}</span>
-                      {!svc.isActive && <span style={pill('#888')}>Hidden</span>}
-                    </div>
-                    <div style={{ display: 'flex', gap: 20 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#CCFF00', fontWeight: 700, fontSize: 15 }}>
-                        ₹{svc.price.toLocaleString('en-IN')}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
-                        <Clock size={13} /> {svc.durationMinutes} min
-                      </div>
-                      {partner && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
-                          <Building2 size={13} /> {partner.name}
-                        </div>
-                      )}
-                    </div>
+            {partners.map(p => (
+              <div key={p.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                    <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 16, color: '#fff' }}>{p.name}</span>
+                    <span style={pill(statusColor[p.status] || '#aaa')}>{p.status}</span>
+                    <span style={pill('#9B5DE5')}>{p.serviceType}</span>
+                    {p.discountPercent > 0 && <span style={pill('#3DFF54')}>{p.discountPercent}% OFF</span>}
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button style={btn()} onClick={() => toggleService(svc.id)} title={svc.isActive ? 'Hide' : 'Show'}>
-                      {svc.isActive ? <><X size={13} /> Hide</> : <><Check size={13} /> Show</>}
-                    </button>
-                    <button style={btn()} onClick={() => { setEditingSvc(svc); setSvcForm({ name: svc.name, category: svc.category, price: String(svc.price), durationMinutes: String(svc.durationMinutes), partnerId: svc.partnerId || '' }); setShowSvcForm(true); }}>
-                      <Edit3 size={13} /> Edit
-                    </button>
-                    <button style={btn('red')} onClick={() => deleteService(svc.id)}><Trash2 size={13} /></button>
+                  <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.5)', fontSize: 13, fontFamily: 'DM Sans, sans-serif' }}>
+                      <MapPin size={13} /> {p.area}, {p.city}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.5)', fontSize: 13, fontFamily: 'DM Sans, sans-serif' }}>
+                      <Star size={13} /> {p.rating || '—'} ({p.reviewCount || 0} reviews)
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.5)', fontSize: 13, fontFamily: 'DM Sans, sans-serif' }}>
+                      <Percent size={13} /> {p.commissionRate || 25}% commission
+                    </span>
+                    {p.distanceLabel && (
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, fontFamily: 'DM Sans, sans-serif' }}>📍 {p.distanceLabel}</span>
+                    )}
                   </div>
                 </div>
-              );
-            })}
-            {services.length === 0 && (
-              <div style={{ ...card, textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: 48 }}>
-                No wellness services yet. Click "Add Service" to get started.
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <button style={btn()} onClick={() => openEditPartner(p)}><Edit3 size={14} /> Edit</button>
+                  <button
+                    style={{ ...btn(), background: 'rgba(255,255,255,0.05)', color: '#60A5FA', borderColor: 'rgba(96,165,250,0.2)' }}
+                    onClick={() => { setSelectedPartnerId(p.id); setTab('services'); }}
+                  >
+                    <Tag size={14} /> Services ({services.filter(s => s.partnerId === p.id).length})
+                  </button>
+                  <button style={btn('red')} onClick={() => deletePartner(p.id)}><Trash2 size={14} /></button>
+                </div>
+              </div>
+            ))}
+            {partners.length === 0 && (
+              <div style={{ ...card, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontFamily: 'DM Sans, sans-serif' }}>
+                No spa centres yet. Click "Add Spa Centre" to get started.
               </div>
             )}
           </div>
         </>
       )}
 
-      {/* Spa Centres Tab */}
-      {tab === 'centres' && (
+      {/* ===== SERVICES TAB ===== */}
+      {tab === 'services' && (
         <>
-          {showPartnerForm && (
-            <div style={{ ...card, marginBottom: 20, borderColor: 'rgba(204,255,0,0.2)' }}>
-              <h3 style={{ fontFamily: 'DM Sans', fontWeight: 700, color: '#fff', marginBottom: 16 }}>Add Spa Centre</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+          {/* Partner filter + Add button */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <label style={{ ...label('FILTER BY SPA CENTRE'), marginBottom: 6 }}>FILTER BY SPA CENTRE</label>
+              <select
+                style={{ ...input, cursor: 'pointer' }}
+                value={selectedPartnerId}
+                onChange={e => setSelectedPartnerId(e.target.value)}
+              >
+                <option value="" style={{ background: '#111' }}>— All Spa Centres —</option>
+                {partners.map(p => <option key={p.id} value={p.id} style={{ background: '#111' }}>{p.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Add/Edit Service form */}
+          {showSvcForm && (
+            <div style={{ ...card, marginBottom: 20, borderColor: 'rgba(61,255,84,0.2)' }}>
+              <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: '#fff', margin: '0 0 20px', fontSize: 17 }}>
+                {editingSvc ? 'Edit Service' : 'New Service'}
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>CENTRE NAME *</label>
-                  <input style={input} placeholder="e.g. Serenity Spa & Wellness" value={partnerForm.name} onChange={e => setPartnerForm(f => ({ ...f, name: e.target.value }))} />
+                  <label style={label('SERVICE NAME *')}>SERVICE NAME *</label>
+                  <input style={input} placeholder="e.g. Full Body Massage" value={svcForm.name} onChange={e => setSvcForm(f => ({ ...f, name: e.target.value }))} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>SERVICE TYPE</label>
-                  <select style={{ ...input, cursor: 'pointer' }} value={partnerForm.serviceType} onChange={e => setPartnerForm(f => ({ ...f, serviceType: e.target.value }))}>
+                  <label style={label('CATEGORY')}>CATEGORY</label>
+                  <select style={{ ...input, cursor: 'pointer' }} value={svcForm.category} onChange={e => setSvcForm(f => ({ ...f, category: e.target.value }))}>
                     {SERVICE_CATEGORIES.map(c => <option key={c} value={c} style={{ background: '#111' }}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>CITY *</label>
-                  <input style={input} placeholder="Mumbai" value={partnerForm.city} onChange={e => setPartnerForm(f => ({ ...f, city: e.target.value }))} />
+                  <label style={label('SPA CENTRE')}>SPA CENTRE</label>
+                  <select style={{ ...input, cursor: 'pointer' }} value={svcForm.partnerId} onChange={e => setSvcForm(f => ({ ...f, partnerId: e.target.value }))}>
+                    <option value="" style={{ background: '#111' }}>— No centre —</option>
+                    {partners.map(p => <option key={p.id} value={p.id} style={{ background: '#111' }}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={label('PRICE (₹) *')}>PRICE (₹) *</label>
+                  <input style={input} type="number" placeholder="999" value={svcForm.price} onChange={e => setSvcForm(f => ({ ...f, price: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={label('ORIGINAL PRICE (₹) — for strikethrough')}>ORIGINAL PRICE (₹)</label>
+                  <input style={input} type="number" placeholder="1299" value={svcForm.originalPrice} onChange={e => setSvcForm(f => ({ ...f, originalPrice: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={label('DURATION (minutes)')}>DURATION (minutes)</label>
+                  <input style={input} type="number" placeholder="60" value={svcForm.durationMinutes} onChange={e => setSvcForm(f => ({ ...f, durationMinutes: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={label('ACTIVE')}>ACTIVE</label>
+                  <select style={{ ...input, cursor: 'pointer' }} value={svcForm.isActive ? 'true' : 'false'} onChange={e => setSvcForm(f => ({ ...f, isActive: e.target.value === 'true' }))}>
+                    <option value="true" style={{ background: '#111' }}>Active</option>
+                    <option value="false" style={{ background: '#111' }}>Inactive</option>
+                  </select>
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>AREA / LOCALITY</label>
-                  <input style={input} placeholder="Bandra West" value={partnerForm.area} onChange={e => setPartnerForm(f => ({ ...f, area: e.target.value }))} />
+                  <label style={label('IMAGE URL')}>IMAGE URL</label>
+                  <input style={input} placeholder="https://..." value={svcForm.imageUrl} onChange={e => setSvcForm(f => ({ ...f, imageUrl: e.target.value }))} />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button style={btn('green')} onClick={savePartner}><Check size={14} /> Add Centre</button>
-                <button style={btn()} onClick={() => setShowPartnerForm(false)}><X size={14} /> Cancel</button>
+                <button style={btn('green')} onClick={saveService}><Check size={14} /> {editingSvc ? 'Update' : 'Add Service'}</button>
+                <button style={btn()} onClick={() => { setShowSvcForm(false); setEditingSvc(null); }}><X size={14} /> Cancel</button>
               </div>
             </div>
           )}
 
+          {/* Services list */}
           <div style={{ display: 'grid', gap: 10 }}>
-            {partners.map(p => {
-              const cc = catColor[p.serviceType] || '#aaa';
-              const partnerServices = services.filter(s => s.partnerId === p.id);
+            {filteredServices.map(svc => {
+              const partner = partners.find(p => p.id === svc.partnerId);
+              const cc = catColor[svc.category] || '#aaa';
               return (
-                <div key={p.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 12, background: `${cc}22`, border: `1px solid ${cc}44`, alignItems: 'center', justifyContent: 'center', display: 'flex' }}>
-                    <Building2 size={20} color={cc} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                      <span style={{ fontFamily: 'DM Sans', fontWeight: 700, fontSize: 16, color: '#fff' }}>{p.name}</span>
-                      <span style={pill(cc)}>{p.serviceType}</span>
-                      <span style={pill(p.status === 'active' ? '#3DFF54' : '#888')}>{p.status}</span>
+                <div key={svc.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16, opacity: svc.isActive ? 1 : 0.5 }}>
+                  {svc.imageUrl && (
+                    <img src={svc.imageUrl} alt={svc.name} style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 15, color: '#fff' }}>{svc.name}</span>
+                      <span style={pill(cc)}>{svc.category}</span>
+                      {!svc.isActive && <span style={pill('#ff6b6b')}>Inactive</span>}
                     </div>
-                    <div style={{ display: 'flex', gap: 16 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
-                        <MapPin size={13} /> {p.area}, {p.city}
-                      </div>
-                      {p.rating > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#FFD93D', fontSize: 13, fontWeight: 700 }}>
-                          <Star size={13} /> {p.rating}
-                        </div>
+                    <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#3DFF54', fontSize: 14, fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>
+                        ₹{svc.price}
+                        {svc.originalPrice > 0 && (
+                          <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 400, textDecoration: 'line-through', fontSize: 12 }}>₹{svc.originalPrice}</span>
+                        )}
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.5)', fontSize: 13, fontFamily: 'DM Sans, sans-serif' }}>
+                        <Clock size={13} /> {svc.durationMinutes} min
+                      </span>
+                      {partner && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.5)', fontSize: 13, fontFamily: 'DM Sans, sans-serif' }}>
+                          <Building2 size={13} /> {partner.name}
+                        </span>
                       )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
-                        <Tag size={13} /> {partnerServices.length} service{partnerServices.length !== 1 ? 's' : ''}
-                      </div>
                     </div>
                   </div>
-                  <button style={btn()} onClick={() => { setTab('services'); setShowSvcForm(true); setSvcForm(f => ({ ...f, partnerId: p.id })); }}>
-                    <Plus size={13} /> Add Service
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <button style={btn()} onClick={() => openEditService(svc)}><Edit3 size={14} /> Edit</button>
+                    <button
+                      style={{ ...btn(), background: svc.isActive ? 'rgba(255,100,100,0.1)' : 'rgba(61,255,84,0.1)', color: svc.isActive ? '#ff6b6b' : '#3DFF54', borderColor: svc.isActive ? 'rgba(255,100,100,0.2)' : 'rgba(61,255,84,0.2)' }}
+                      onClick={() => toggleService(svc.id)}
+                    >
+                      <Activity size={14} /> {svc.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button style={btn('red')} onClick={() => deleteService(svc.id)}><Trash2 size={14} /></button>
+                  </div>
                 </div>
               );
             })}
-            {partners.length === 0 && (
-              <div style={{ ...card, textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: 48 }}>
-                No spa centres yet. Click "Add Spa Centre" to get started.
+            {filteredServices.length === 0 && (
+              <div style={{ ...card, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontFamily: 'DM Sans, sans-serif' }}>
+                {selectedPartnerId ? 'No services for this spa centre. Click "Add Service" to create one.' : 'No services yet.'}
               </div>
             )}
           </div>
@@ -317,8 +535,3 @@ export default function WellnessPage() {
     </Shell>
   );
 }
-
-// Inline text helper to avoid JSX Text issues
-const Text = ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) => (
-  <span style={style}>{children}</span>
-);

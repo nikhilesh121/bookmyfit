@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Param, Body, Query, Injectable, UseGuards, Req } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Param, Body, Query, Injectable, UseGuards, Req } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
@@ -34,8 +34,10 @@ class WellnessService {
     return paginatedResponse(data, total, p, l);
   }
   createPartner(data: Partial<WellnessPartnerEntity>) { return this.partners.save(this.partners.create(data)); }
+  updatePartner(id: string, data: Partial<WellnessPartnerEntity>) { return this.partners.save({ id, ...data }); }
   listServicesOf(partnerId: string) { return this.services.find({ where: { partnerId, isActive: true } }); }
   createService(data: Partial<WellnessServiceEntity>) { return this.services.save(this.services.create(data)); }
+  updateService(id: string, data: Partial<WellnessServiceEntity>) { return this.services.save({ id, ...data }); }
 
   async listAllServices(filter: { category?: string } = {}) {
     const qb = this.services.createQueryBuilder('s')
@@ -44,6 +46,20 @@ class WellnessService {
       .andWhere("p.status = 'active'");
     if (filter.category) qb.andWhere('p."serviceType" = :cat', { cat: filter.category });
     return qb.orderBy('s.price', 'ASC').getMany();
+  }
+
+  async listPartnersWithMinPrice(filter: { city?: string; serviceType?: string } = {}, page: any = 1, limit: any = 20) {
+    const where: any = { status: 'active' };
+    if (filter.city) where.city = filter.city;
+    if (filter.serviceType) where.serviceType = filter.serviceType;
+    const { skip, take, page: p, limit: l } = paginate(page, limit);
+    const [partners, total] = await this.partners.findAndCount({ where, order: { rating: 'DESC' }, skip, take });
+    const result = await Promise.all(partners.map(async (partner) => {
+      const svcs = await this.services.find({ where: { partnerId: partner.id, isActive: true } });
+      const minPrice = svcs.length ? Math.min(...svcs.map(s => Number(s.price))) : null;
+      return { ...partner, minPrice, serviceCount: svcs.length };
+    }));
+    return paginatedResponse(result, total, p, l);
   }
 
   async book(userId: string, serviceId: string, bookingDate: string, phone: string) {
@@ -78,13 +94,18 @@ class WellnessController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.svc.listPartners({ city, serviceType: type }, +page, +limit);
+    return this.svc.listPartnersWithMinPrice({ city, serviceType: type }, +page, +limit);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   @Post('partners')
   createPartner(@Body() b: any) { return this.svc.createPartner(b); }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Put('partners/:id')
+  updatePartner(@Param('id') id: string, @Body() b: any) { return this.svc.updatePartner(id, b); }
 
   @Get('services/all')
   allServices(@Query('category') cat?: string) {
@@ -98,6 +119,11 @@ class WellnessController {
   @Roles('super_admin', 'wellness_partner')
   @Post('services')
   createService(@Body() b: any) { return this.svc.createService(b); }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin', 'wellness_partner')
+  @Put('services/:id')
+  updateService(@Param('id') id: string, @Body() b: any) { return this.svc.updateService(id, b); }
 
   @UseGuards(JwtAuthGuard)
   @Post('services/:id/book')

@@ -1,71 +1,113 @@
-import { FlatList, View, Text, TouchableOpacity, StyleSheet, TextInput, ImageBackground, ActivityIndicator } from 'react-native';
+import { FlatList, View, Text, TouchableOpacity, StyleSheet, TextInput, Image, ActivityIndicator } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
-import { IconSearch, IconStar, IconPin, IconDumbbell, IconBolt } from '../../components/Icons';
+import { IconSearch, IconStar, IconPin, IconHeart, IconChevronRight, IconBolt } from '../../components/Icons';
 import { gymsApi } from '../../lib/api';
-import AuroraBackground from '../../components/AuroraBackground';
+
+const ALPHABET = ['All', 'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
 
 const FALLBACK_GYMS = [
-  { id: '1', name: 'PowerZone Fitness', city: 'Mumbai', rating: 4.8, tier: 'Elite', distance: '0.8 km', img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80' },
-  { id: '2', name: 'FitHub Pro', city: 'Mumbai', rating: 4.6, tier: 'Premium', distance: '2.1 km', img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80' },
-  { id: '3', name: 'IronBody Gym', city: 'Bangalore', rating: 4.3, tier: 'Standard', distance: '1.4 km', img: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80' },
-  { id: '4', name: 'AquaFit Centre', city: 'Mumbai', rating: 4.5, tier: 'Premium', distance: '3.1 km', img: 'https://images.unsplash.com/photo-1549060279-7e168fcee0c2?w=400&q=80' },
-  { id: '5', name: 'CrossTown Arena', city: 'Delhi', rating: 4.7, tier: 'Elite', distance: '0.6 km', img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80' },
+  { id: '1', name: 'Anytime Fitness', city: 'Bhubaneswar', area: 'Patia', rating: 4.8, reviewCount: 128, distance: '0.8 km', discountPercent: 20, facilities: ['AC', 'Parking', 'Locker'], img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80' },
+  { id: '2', name: 'Blaze Fitness', city: 'Bhubaneswar', area: 'Saheed Nagar', rating: 4.6, reviewCount: 96, distance: '2.1 km', discountPercent: 15, facilities: ['Yoga', 'Sauna', 'Trainer'], img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80' },
+  { id: '3', name: 'CrossFit Arena', city: 'Bhubaneswar', area: 'Kharvel Nagar', rating: 4.3, reviewCount: 64, distance: '1.4 km', discountPercent: 0, facilities: ['CrossFit', 'Boxing', 'Cardio'], img: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80' },
+  { id: '4', name: 'DY Patil Gym', city: 'Mumbai', area: 'Navi Mumbai', rating: 4.5, reviewCount: 210, distance: '3.1 km', discountPercent: 0, facilities: ['Pool', 'Steam', 'Cardio'], img: 'https://images.unsplash.com/photo-1549060279-7e168fcee0c2?w=400&q=80' },
+  { id: '5', name: 'Elite Power Zone', city: 'Delhi', area: 'Connaught Place', rating: 4.7, reviewCount: 183, distance: '0.6 km', discountPercent: 10, facilities: ['Personal Training', 'Supplements'], img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80' },
+  { id: '6', name: 'FitHub Pro', city: 'Mumbai', area: 'Andheri West', rating: 4.4, reviewCount: 77, distance: '1.8 km', discountPercent: 0, facilities: ['Yoga', 'Zumba', 'AC'], img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80' },
+  { id: '7', name: 'Gold\'s Gym', city: 'Bhubaneswar', area: 'Chandrasekharpur', rating: 4.9, reviewCount: 348, distance: '2.5 km', discountPercent: 5, facilities: ['Olympic Weights', 'Cardio', 'Trainer'], img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&q=80' },
+  { id: '8', name: 'Hardcore Fitness', city: 'Bhubaneswar', area: 'Nayapalli', rating: 4.2, reviewCount: 52, distance: '4.1 km', discountPercent: 0, facilities: ['Powerlifting', 'Cardio'], img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80' },
+  { id: '9', name: 'IronBody Gym', city: 'Bangalore', area: 'Koramangala', rating: 4.6, reviewCount: 140, distance: '1.1 km', discountPercent: 0, facilities: ['AC', 'Locker', 'Parking'], img: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80' },
+  { id: '10', name: 'Jetts Fitness', city: 'Hyderabad', area: 'Banjara Hills', rating: 4.5, reviewCount: 89, distance: '2.3 km', discountPercent: 0, facilities: ['24/7', 'Cardio', 'Weights'], img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80' },
 ];
 
-const TIERS = ['All', 'Elite', 'Premium', 'Standard'];
-const TIER_COLORS: Record<string, string> = { Elite: colors.accent, Premium: 'rgba(155,0,255,0.9)', Standard: 'rgba(255,138,0,0.9)' };
-const TIER_AURORA: Record<string, string> = { Elite: 'rgba(61,255,84,0.25)', Premium: 'rgba(155,0,255,0.25)', Standard: 'rgba(255,138,0,0.22)' };
-
-function SkeletonCard() {
-  return (
-    <View style={[s.gymCard, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: colors.border, borderWidth: 1 }]} />
-  );
-}
-
-function GymCard({ g }: { g: any }) {
-  const tier = g.tier || g.tierName || 'Standard';
+function GymCard({ g, index }: { g: any; index: number }) {
+  const [liked, setLiked] = useState(false);
   const name = g.name || g.gymName || 'Gym';
-  const rating = g.rating || g.avgRating || '—';
+  const rating = g.rating || g.avgRating || '4.5';
+  const reviewCount = g.reviewCount || g.reviews || Math.floor(Math.random() * 200 + 20);
   const city = g.city || g.location?.city || '';
+  const area = g.area || g.location?.area || '';
   const dist = g.distance || (g.distanceKm ? `${g.distanceKm} km` : '');
   const img = g.images?.[0] || g.coverImage || g.img || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80';
+  const discount = g.discountPercent || (index === 0 ? 20 : index === 1 ? 15 : index === 2 ? 10 : 0);
+  const facilities: string[] = g.facilities || g.amenities || ['Cardio', 'Weights', 'AC'];
+
   return (
-    <TouchableOpacity key={g.id || g._id} onPress={() => router.push(`/gym/${g.id || g._id}`)} activeOpacity={0.9} style={s.gymCard}>
-      <ImageBackground source={{ uri: img }} style={s.gymPhoto} imageStyle={{ borderRadius: radius.xl }}>
-        <View style={[s.gymAurora, { backgroundColor: TIER_AURORA[tier] || TIER_AURORA.Standard }]} />
-        <View style={s.gymDark} />
-        <View style={s.gymBody}>
-          <View style={[s.tierBadge, { borderColor: (TIER_COLORS[tier] || '#fff') + '44' }]}>
-            <Text style={[s.tierText, { color: TIER_COLORS[tier] || '#fff' }]}>{tier}</Text>
+    <TouchableOpacity
+      style={s.gymCard}
+      activeOpacity={0.88}
+      onPress={() => router.push(`/gym/${g.id || g._id}`)}
+    >
+      {/* Left image */}
+      <View style={s.gymImgWrapper}>
+        <Image source={{ uri: img }} style={s.gymImg} />
+        {discount > 0 && (
+          <View style={s.discountBadge}>
+            <Text style={s.discountText}>{discount}% OFF</Text>
           </View>
-          <View>
-            <Text style={s.gymName}>{name}</Text>
-            <View style={s.gymMetaRow}>
-              <View style={s.metaItem}>
-                <IconStar size={11} />
-                <Text style={[s.metaText, { color: colors.star }]}>{rating}</Text>
-              </View>
-              {!!dist && (
-                <View style={s.metaItem}>
-                  <IconPin size={11} color={colors.t} />
-                  <Text style={s.metaText}>{dist}</Text>
-                </View>
-              )}
-              {!!city && <Text style={[s.metaText, { color: colors.t2 }]}>{city}</Text>}
+        )}
+        <TouchableOpacity style={s.heartBtn} onPress={() => setLiked(l => !l)}>
+          <IconHeart size={14} color={liked ? '#ff4d6d' : '#fff'} filled={liked} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Right info */}
+      <View style={s.gymInfo}>
+        {/* Row 1: name + price */}
+        <View style={s.infoRow1}>
+          <Text style={s.gymName} numberOfLines={1}>{name}</Text>
+          <View style={s.priceBlock}>
+            <Text style={s.priceFrom}>From</Text>
+            <View style={s.priceRow}>
+              <Text style={s.priceVal}>₹99</Text>
+              <Text style={s.priceUnit}>/day</Text>
             </View>
           </View>
         </View>
-      </ImageBackground>
+
+        {/* Row 2: rating */}
+        <View style={s.ratingRow}>
+          <IconStar size={12} color={colors.star} />
+          <Text style={s.ratingText}>{typeof rating === 'number' ? rating.toFixed(1) : rating}</Text>
+          <Text style={s.reviewCount}>({reviewCount})</Text>
+        </View>
+
+        {/* Row 3: location */}
+        <View style={s.locationRow}>
+          <IconPin size={12} color={colors.t2} />
+          <Text style={s.locationText} numberOfLines={1}>
+            {[area, city].filter(Boolean).join(', ')}{dist ? ` • ${dist}` : ''}
+          </Text>
+        </View>
+
+        {/* Row 4: facility tags */}
+        <View style={s.tagsRow}>
+          {facilities.slice(0, 3).map((f: string, i: number) => (
+            <View key={i} style={s.tagPill}>
+              <Text style={s.tagText}>{f}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Row 5: View Plans button */}
+        <View style={s.viewRow}>
+          <TouchableOpacity
+            style={s.viewBtn}
+            onPress={() => router.push({ pathname: '/plans', params: { gymId: String(g.id || g._id), gymName: name } })}
+          >
+            <Text style={s.viewBtnText}>View Plans</Text>
+            <IconChevronRight size={12} color="#060606" />
+          </TouchableOpacity>
+        </View>
+      </View>
     </TouchableOpacity>
   );
 }
 
 export default function Explore() {
   const [q, setQ] = useState('');
-  const [activeTier, setActiveTier] = useState('All');
+  const [selectedLetter, setSelectedLetter] = useState('All');
   const [gyms, setGyms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -79,7 +121,6 @@ export default function Explore() {
     try {
       const res: any = await gymsApi.list({
         search: q || undefined,
-        tier: activeTier !== 'All' ? activeTier : undefined,
         page: pageNum,
         limit: 20,
       });
@@ -111,16 +152,26 @@ export default function Explore() {
       loadGyms(1, true);
     }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [q, activeTier]);
+  }, [q]);
+
+  // Filter by selected letter
+  const filteredGyms = selectedLetter === 'All'
+    ? gyms
+    : gyms.filter(g => {
+        const name = (g.name || g.gymName || '').trim().toUpperCase();
+        return name.startsWith(selectedLetter);
+      });
 
   const ListHeader = () => (
     <View>
       <Text style={s.title}>Explore Gyms</Text>
-      <View style={s.searchRow}>
+
+      {/* Search bar */}
+      <View style={s.searchBar}>
         <IconSearch size={16} color={colors.t2} />
         <TextInput
           style={s.searchInput}
-          placeholder="Search gyms, city..."
+          placeholder="Search gyms, city, area..."
           placeholderTextColor={colors.t3}
           value={q}
           onChangeText={setQ}
@@ -128,117 +179,164 @@ export default function Explore() {
         {loading && <ActivityIndicator size="small" color={colors.accent} />}
       </View>
 
-      {/* Wellness & Services banner */}
+      {/* Wellness banner */}
       <TouchableOpacity style={s.wellnessBanner} activeOpacity={0.85} onPress={() => router.push('/wellness')}>
-        <View style={s.wellnessAurora} />
         <View style={s.wellnessIconBox}>
           <IconBolt size={20} color={colors.accent} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.wellnessTitle}>Wellness & Services</Text>
-          <Text style={s.wellnessSub}>Yoga, Meditation, Nutrition, Physio & more</Text>
+          <Text style={s.wellnessSub}>Spa, Massage, Yoga, Physio & more</Text>
         </View>
+        <IconChevronRight size={16} color={colors.accent} />
       </TouchableOpacity>
 
-      {/* Tier filter pills */}
-      <FlatList
-        horizontal
-        data={TIERS}
-        keyExtractor={(item) => item}
-        showsHorizontalScrollIndicator={false}
-        style={{ marginBottom: 16 }}
-        contentContainerStyle={{ gap: 8 }}
-        renderItem={({ item: tier }) => (
-          <TouchableOpacity
-            style={[s.filterPill, activeTier === tier && s.filterActive]}
-            onPress={() => setActiveTier(tier)}
-          >
-            <Text style={[s.filterText, activeTier === tier && s.filterTextActive]}>{tier}</Text>
-          </TouchableOpacity>
-        )}
-      />
-
       {/* Loading skeletons */}
-      {loading && [1, 2, 3].map((i) => <SkeletonCard key={i} />)}
+      {loading && [1, 2, 3].map((i) => (
+        <View key={i} style={[s.gymCard, { minHeight: 140, backgroundColor: 'rgba(255,255,255,0.06)' }]} />
+      ))}
     </View>
   );
 
   return (
-    <AuroraBackground>
-    <SafeAreaView style={{ flex: 1 }}>
-      <FlatList
-        data={loading ? [] : gyms}
-        keyExtractor={(item) => String(item.id || item._id)}
-        contentContainerStyle={s.container}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={ListHeader}
-        renderItem={({ item }) => <GymCard g={item} />}
-        onEndReached={() => { if (hasMore && !loadingMore) loadGyms(page + 1); }}
-        onEndReachedThreshold={0.3}
-        ListFooterComponent={
-          loadingMore
-            ? <ActivityIndicator color={colors.accent} style={{ marginVertical: 16 }} />
-            : null
-        }
-        ListEmptyComponent={
-          !loading ? (
-            <View style={s.emptyState}>
-              <IconDumbbell size={40} color={colors.accent} />
-              <Text style={s.emptyTitle}>No gyms found</Text>
-              <Text style={s.emptyBody}>Try adjusting your search or filters</Text>
-            </View>
-          ) : null
-        }
-      />
+    <SafeAreaView style={s.root}>
+      <View style={s.flex}>
+        {/* Main list */}
+        <FlatList
+          data={loading ? [] : filteredGyms}
+          keyExtractor={(item) => String(item.id || item._id)}
+          contentContainerStyle={s.container}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={ListHeader}
+          renderItem={({ item, index }) => <GymCard g={item} index={index} />}
+          onEndReached={() => { if (hasMore && !loadingMore && selectedLetter === 'All') loadGyms(page + 1); }}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={
+            loadingMore
+              ? <ActivityIndicator color={colors.accent} style={{ marginVertical: 16 }} />
+              : null
+          }
+          ListEmptyComponent={
+            !loading ? (
+              <View style={s.emptyState}>
+                <Text style={s.emptyTitle}>No gyms for "{selectedLetter}"</Text>
+                <Text style={s.emptyBody}>Try another letter or search</Text>
+              </View>
+            ) : null
+          }
+        />
+
+        {/* A-Z Alphabet sidebar on right */}
+        <View style={s.alphabetSidebar}>
+          {ALPHABET.map(letter => (
+            <TouchableOpacity
+              key={letter}
+              style={[s.letterBtn, selectedLetter === letter && s.letterBtnActive]}
+              onPress={() => setSelectedLetter(letter)}
+            >
+              <Text style={[s.letterText, selectedLetter === letter && s.letterTextActive]}>
+                {letter}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
     </SafeAreaView>
-    </AuroraBackground>
   );
 }
 
 const s = StyleSheet.create({
-  container: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 40 },
-  title: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', letterSpacing: -0.5, marginBottom: 16 },
-  searchRow: {
+  root: { flex: 1, backgroundColor: '#060606' },
+  flex: { flex: 1, position: 'relative' },
+  container: { paddingLeft: 16, paddingRight: 40, paddingTop: 12, paddingBottom: 40 },
+
+  title: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', letterSpacing: -0.5, marginBottom: 14 },
+
+  searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.md, height: 48, paddingHorizontal: 14, marginBottom: 14,
+    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 50, height: 48, paddingHorizontal: 16, marginBottom: 14,
   },
   searchInput: { flex: 1, fontFamily: fonts.sans, fontSize: 14, color: '#fff' },
-  filterPill: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-  },
-  filterActive: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
-  filterText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.t2 },
-  filterTextActive: { color: colors.accent },
-  gymCard: { height: 180, borderRadius: radius.xl, marginBottom: 12, overflow: 'hidden' },
-  gymPhoto: { flex: 1, justifyContent: 'space-between', padding: 14 },
-  gymAurora: { ...StyleSheet.absoluteFillObject },
-  gymDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
-  gymBody: { flex: 1, justifyContent: 'space-between' },
-  tierBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.4)', borderWidth: 1 },
-  tierText: { fontFamily: fonts.sansBold, fontSize: 9, letterSpacing: 1.2, textTransform: 'uppercase' },
-  gymName: { fontFamily: fonts.serif, fontSize: 22, color: '#fff', letterSpacing: -0.5 },
-  gymMetaRow: { flexDirection: 'row', gap: 12, marginTop: 4, alignItems: 'center' },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t },
-  emptyState: { alignItems: 'center', paddingTop: 60, gap: 12 },
-  emptyTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff' },
-  emptyBody: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
+
   wellnessBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.xl, padding: 14, marginBottom: 14, overflow: 'hidden',
-  },
-  wellnessAurora: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(61,255,84,0.07)',
+    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: radius.xl, padding: 14, marginBottom: 16,
   },
   wellnessIconBox: {
     width: 44, height: 44, borderRadius: radius.lg,
-    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
   wellnessTitle: { fontFamily: fonts.serif, fontSize: 15, color: '#fff', marginBottom: 2 },
   wellnessSub: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+
+  // Gym cards
+  gymCard: {
+    flexDirection: 'row', marginBottom: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden',
+    minHeight: 145,
+  },
+  gymImgWrapper: { width: 110, position: 'relative' },
+  gymImg: { width: 110, height: '100%' as any, resizeMode: 'cover' },
+  discountBadge: {
+    position: 'absolute', top: 0, left: 0,
+    backgroundColor: '#3DFF54', paddingHorizontal: 5, paddingVertical: 3,
+    borderBottomRightRadius: 7,
+  },
+  discountText: { fontFamily: fonts.sansBold, fontSize: 8, color: '#060606' },
+  heartBtn: {
+    position: 'absolute', top: 8, right: 8,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center',
+  },
+
+  gymInfo: { flex: 1, padding: 10, gap: 4 },
+  infoRow1: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
+  gymName: { flex: 1, fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  priceBlock: { alignItems: 'flex-end', flexShrink: 0 },
+  priceFrom: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
+  priceVal: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.accent },
+  priceUnit: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
+
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  ratingText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.star },
+  reviewCount: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
+
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  locationText: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, flex: 1 },
+
+  tagsRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
+  tagPill: {
+    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
+  tagText: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
+
+  viewRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 2 },
+  viewBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: '#3DFF54', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7,
+  },
+  viewBtnText: { fontFamily: fonts.sansBold, fontSize: 11, color: '#060606' },
+
+  emptyState: { alignItems: 'center', paddingTop: 40, gap: 10 },
+  emptyTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff' },
+  emptyBody: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
+
+  // A-Z Alphabet sidebar
+  alphabetSidebar: {
+    position: 'absolute', right: 0, top: 0, bottom: 0,
+    width: 28, zIndex: 10, justifyContent: 'center',
+    paddingVertical: 8, backgroundColor: 'rgba(6,6,6,0.85)',
+  },
+  letterBtn: {
+    height: 18, alignItems: 'center', justifyContent: 'center',
+  },
+  letterBtnActive: {},
+  letterText: { fontFamily: fonts.sans, fontSize: 10, color: colors.t3 },
+  letterTextActive: { color: colors.accent, fontFamily: fonts.sansBold },
 });

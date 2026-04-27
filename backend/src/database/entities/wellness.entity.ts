@@ -15,6 +15,7 @@ export class WellnessPartnerEntity {
   @Column({ type: 'text', array: true, default: [] }) photos: string[];
   @Column({ type: 'float', default: 0 }) rating: number;
   @Column({ type: 'int', default: 0 }) reviewCount: number;
+  @Column({ type: 'int', default: 0 }) discountPercent: number;
   @Column({ nullable: true, type: 'text' }) distanceLabel: string;
   @Column({ type: 'uuid', nullable: true }) ownerId: string;
   @CreateDateColumn() createdAt: Date;
@@ -27,6 +28,7 @@ export class WellnessServiceEntity {
   @Column({ length: 200 }) name: string;
   @Column({ type: 'text', nullable: true }) description: string;
   @Column({ type: 'numeric', precision: 10, scale: 2 }) price: number;
+  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true }) originalPrice: number;
   @Column() durationMinutes: number;
   @Column({ default: true }) isActive: boolean;
   @Column({ nullable: true, type: 'text' }) imageUrl: string;

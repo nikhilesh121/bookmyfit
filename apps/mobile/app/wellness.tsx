@@ -1,455 +1,478 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert,
-  Image, FlatList, Dimensions, NativeScrollEvent, NativeSyntheticEvent,
-  ActivityIndicator,
+  ScrollView, View, Text, TouchableOpacity, StyleSheet,
+  Image, FlatList, Dimensions, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import {
-  IconArrowLeft, IconSearch, IconStar, IconPin, IconChevronRight,
-  IconCheck, IconShield, IconBolt, IconHeart,
+  IconArrowLeft, IconStar, IconPin, IconHeart, IconChevronRight,
+  IconShield, IconCheck, IconBuilding, IconHeadphones, IconTag,
 } from '../components/Icons';
-import { api } from '../lib/api';
 
-const { width } = Dimensions.get('window');
-const CARD_W = width;
+const { width: W } = Dimensions.get('window');
 
+// API base
+const API = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3003';
+
+// Warm spa image map by partner name
+const SPA_IMAGES: Record<string, string> = {
+  'serenity': 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&q=80',
+  'royal': 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=600&q=80',
+  'bliss': 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=600&q=80',
+  'zen': 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=600&q=80',
+};
+const SPA_FALLBACKS = [
+  'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&q=80',
+  'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=600&q=80',
+  'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=600&q=80',
+  'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=600&q=80',
+];
+
+function getPartnerImage(partner: any, index: number): string {
+  if (partner.photos && partner.photos.length > 0) return partner.photos[0];
+  const nameLower = (partner.name || '').toLowerCase();
+  for (const key of Object.keys(SPA_IMAGES)) {
+    if (nameLower.includes(key)) return SPA_IMAGES[key];
+  }
+  return SPA_FALLBACKS[index % SPA_FALLBACKS.length];
+}
+
+// Static hero slides
 const HERO_SLIDES = [
   {
-    id: 'h1',
-    kicker: 'SELF CARE IS HEALTH CARE',
-    title: 'Relax Your Body',
-    titleAccent: 'Refresh Your Mind',
-    subtitle: 'Premium spa experiences\nfor your well-being.',
-    image: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=900&q=80',
+    uri: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=900&q=80',
+    kicker: 'PREMIUM WELLNESS',
+    title: 'Restore Your',
+    titleAccent: 'Body & Mind',
+    subtitle: 'Luxury spa & wellness services at your fingertips',
   },
   {
-    id: 'h2',
-    kicker: 'CERTIFIED THERAPISTS',
-    title: 'Heal. Recover.',
-    titleAccent: 'Feel Amazing.',
-    subtitle: 'Expert cupping, physio\nand massage services.',
-    image: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=900&q=80',
+    uri: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=900&q=80',
+    kicker: 'PROFESSIONAL CARE',
+    title: 'Expert Therapists',
+    titleAccent: 'Near You',
+    subtitle: 'Certified professionals, premium products, peaceful spaces',
   },
 ];
 
-const FALLBACK_SVC_IMAGES: Record<string, string> = {
-  'Full Body Massage':    'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80',
-  'Aroma Therapy':        'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=400&q=80',
-  'Deep Tissue Massage':  'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80',
-  'Body Scrub & Polish':  'https://images.unsplash.com/photo-1610337673044-720471f83677?w=400&q=80',
-  'Foot Reflexology':     'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80',
-  'Hot Stone Therapy':    'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=400&q=80',
-  'Cupping Therapy':      'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400&q=80',
-  'Physiotherapy':        'https://images.unsplash.com/photo-1571019614099-9fdcf8b4e43b?w=400&q=80',
-};
-
-const FALLBACK_IMG = 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400&q=80';
-
-const TRUST = [
-  { icon: 'shield', label: 'Verified\nSpa Partners' },
-  { icon: 'check', label: 'Trained &\nCertified' },
-  { icon: 'bolt', label: 'Hygienic\n& Safe' },
-  { icon: 'star', label: 'Easy\nBooking' },
-  { icon: 'clock', label: '24/7\nSupport' },
+// Static popular services with warm spa images
+const STATIC_SERVICES = [
+  { id: 's1', name: 'Full Body Massage', durationMinutes: 60, price: 1299, imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
+  { id: 's2', name: 'Aroma Therapy', durationMinutes: 60, price: 999, imageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=400&q=80' },
+  { id: 's3', name: 'Deep Tissue Massage', durationMinutes: 60, price: 1599, imageUrl: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80' },
+  { id: 's4', name: 'Body Scrub & Polish', durationMinutes: 75, price: 1199, imageUrl: 'https://images.unsplash.com/photo-1610337673044-720471f83677?w=400&q=80' },
+  { id: 's5', name: 'Foot Reflexology', durationMinutes: 45, price: 699, imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80' },
+  { id: 's6', name: 'Hot Stone Therapy', durationMinutes: 90, price: 1899, imageUrl: 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=400&q=80' },
+  { id: 's7', name: 'Cupping Therapy', durationMinutes: 45, price: 799, imageUrl: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400&q=80' },
+  { id: 's8', name: 'Swedish Massage', durationMinutes: 60, price: 1099, imageUrl: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80' },
+  { id: 's9', name: 'Sports Recovery', durationMinutes: 60, price: 1399, imageUrl: 'https://images.unsplash.com/photo-1571019614099-9fdcf8b4e43b?w=400&q=80' },
+  { id: 's10', name: 'Home Full Body Massage', durationMinutes: 90, price: 1499, imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
 ];
-
-// ── Types ────────────────────────────────────────────────────────────────────
 
 type ApiPartner = {
   id: string; name: string; serviceType: string; city: string; area: string;
-  rating: number; reviewCount: number; photos: string[]; distanceLabel?: string;
+  rating: number; reviewCount: number; distanceLabel: string; photos: string[];
+  discountPercent?: number;
 };
 type ApiService = {
   id: string; name: string; durationMinutes: number; price: number;
-  imageUrl?: string; partnerId: string; partner?: ApiPartner;
+  imageUrl?: string; partnerId: string;
 };
 
-// ── Component ────────────────────────────────────────────────────────────────
-
-export default function Wellness() {
-  const [heroIndex, setHeroIndex] = useState(0);
-  const [likedCentres, setLikedCentres] = useState<string[]>([]);
-  const [services, setServices] = useState<ApiService[]>([]);
+export default function WellnessScreen() {
   const [partners, setPartners] = useState<ApiPartner[]>([]);
+  const [services, setServices] = useState<ApiService[]>(STATIC_SERVICES);
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'spa' | 'home'>('all');
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [heroIndex, setHeroIndex] = useState(0);
   const heroRef = useRef<FlatList>(null);
+  const heroTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     Promise.all([
-      api.get('/wellness/services/all').catch(() => []),
-      api.get('/wellness/partners').catch(() => ({ data: [] })),
-    ]).then(([svcs, pRes]) => {
-      setServices(Array.isArray(svcs) ? svcs : []);
-      const pData = Array.isArray(pRes) ? pRes : (pRes?.data ?? []);
-      setPartners(pData);
-    }).finally(() => setLoading(false));
+      fetch(`${API}/api/v1/wellness/partners?page=1&limit=20`).then(r => r.json()).catch(() => null),
+      fetch(`${API}/api/v1/wellness/services/all`).then(r => r.json()).catch(() => null),
+    ]).then(([pRes, sRes]) => {
+      const pts = pRes?.data || pRes;
+      const svcs = sRes;
+      if (Array.isArray(pts) && pts.length > 0) setPartners(pts);
+      if (Array.isArray(svcs) && svcs.length > 0) setServices(svcs);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  const toggleLike = (id: string) =>
-    setLikedCentres((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  useEffect(() => {
+    heroTimer.current = setInterval(() => {
+      setHeroIndex(i => {
+        const next = (i + 1) % HERO_SLIDES.length;
+        heroRef.current?.scrollToIndex({ index: next, animated: true });
+        return next;
+      });
+    }, 4000);
+    return () => { if (heroTimer.current) clearInterval(heroTimer.current); };
+  }, []);
 
-  const handleServiceBook = (svc: ApiService) => {
-    Alert.alert(
-      'Book Service',
-      `Book ${svc.name} (${svc.durationMinutes} min — ₹${Number(svc.price).toLocaleString('en-IN')})?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Book Now', onPress: () => Alert.alert('Coming Soon', 'Online booking for this service will be available shortly.') },
-      ],
-    );
+  const toggleLike = (id: string) => {
+    setLikedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
-  const onHeroScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / width);
-    setHeroIndex(idx);
+  // Get min price for a partner from services
+  const getMinPrice = (partnerId: string): number | null => {
+    const partnerServices = services.filter(s => s.partnerId === partnerId);
+    if (partnerServices.length === 0) return null;
+    return Math.min(...partnerServices.map(s => Number(s.price)));
   };
 
-  const filteredPartners = partners.filter(p =>
-    activeFilter === 'all' ? true : p.serviceType === activeFilter
-  );
+  // Static fallback partners for demo
+  const displayPartners: ApiPartner[] = partners.length > 0 ? partners : [
+    { id: 'p1', name: 'Serenity Spa & Wellness', serviceType: 'Spa', city: 'Mumbai', area: 'Bandra', rating: 4.6, reviewCount: 128, distanceLabel: '1.2 km', photos: [], discountPercent: 20 },
+    { id: 'p2', name: 'The Royal Spa', serviceType: 'Massage', city: 'Mumbai', area: 'Andheri', rating: 4.4, reviewCount: 96, distanceLabel: '2.3 km', photos: [], discountPercent: 15 },
+    { id: 'p3', name: 'Bliss Physio Clinic', serviceType: 'Physio', city: 'Mumbai', area: 'Juhu', rating: 4.5, reviewCount: 84, distanceLabel: '3.1 km', photos: [], discountPercent: 0 },
+    { id: 'p4', name: 'Zen Wellness Studio', serviceType: 'Spa', city: 'Mumbai', area: 'Worli', rating: 4.7, reviewCount: 152, distanceLabel: '1.8 km', photos: [], discountPercent: 10 },
+  ];
 
-  const getSvcImage = (svc: ApiService) => {
-    if (svc.imageUrl) return svc.imageUrl;
-    for (const key of Object.keys(FALLBACK_SVC_IMAGES)) {
-      if (svc.name.toLowerCase().includes(key.toLowerCase())) return FALLBACK_SVC_IMAGES[key];
-    }
-    const partner = partners.find(p => p.id === svc.partnerId);
-    return partner?.photos?.[0] ?? FALLBACK_IMG;
-  };
+  const displayServices: ApiService[] = services.length > 0 ? services : STATIC_SERVICES;
 
-  const getPartnerImg = (p: ApiPartner) =>
-    p.photos?.[0] ?? FALLBACK_IMG;
-
-  const getMinPrice = (partnerId: string) => {
-    const partnerSvcs = services.filter(s => s.partnerId === partnerId);
-    if (!partnerSvcs.length) return null;
-    const min = Math.min(...partnerSvcs.map(s => Number(s.price)));
-    return `₹${min.toLocaleString('en-IN')}`;
+  // Partner tags based on service type
+  const getPartnerTags = (partner: ApiPartner) => {
+    const type = partner.serviceType?.toLowerCase() || 'spa';
+    if (type === 'physio') return ['Physiotherapy', 'Rehab', 'Sports'];
+    if (type === 'massage') return ['Massage', 'Relaxation', 'Deep Tissue'];
+    if (type === 'home') return ['Home Service', 'At-Home', 'Private'];
+    return ['Spa', 'Relaxation', 'Luxury'];
   };
 
   return (
     <SafeAreaView style={s.root}>
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <TouchableOpacity style={s.iconBtn} onPress={() => router.back()}>
-          <IconArrowLeft size={18} color="#fff" />
-        </TouchableOpacity>
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={s.headerTitle}>Spa & Recovery</Text>
-          <Text style={s.headerSub}>Relax. Rejuvenate. Refresh.</Text>
-        </View>
-        <TouchableOpacity style={s.iconBtn}>
-          <IconSearch size={18} color="#fff" />
-        </TouchableOpacity>
-      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
-        {/* ── Hero Slider ── */}
-        <FlatList
-          ref={heroRef}
-          data={HERO_SLIDES}
-          horizontal
-          pagingEnabled
-          snapToAlignment="center"
-          decelerationRate="fast"
-          showsHorizontalScrollIndicator={false}
-          onScroll={onHeroScroll}
-          scrollEventThrottle={16}
-          keyExtractor={(item) => item.id}
-          style={{ marginBottom: 0 }}
-          renderItem={({ item }) => (
-            <View style={s.heroCard}>
-              <Image source={{ uri: item.image }} style={s.heroImg} />
-              <View style={s.heroDark} />
-              <View style={s.heroContent}>
-                <Text style={s.heroKicker}>{item.kicker}</Text>
-                <Text style={s.heroTitle}>{item.title}</Text>
-                <Text style={s.heroTitleAccent}>{item.titleAccent}</Text>
-                <Text style={s.heroBody}>{item.subtitle}</Text>
-              </View>
-            </View>
-          )}
-        />
-        {/* Dots */}
-        <View style={s.dots}>
-          {HERO_SLIDES.map((_, i) => (
-            <View key={i} style={[s.dot, heroIndex === i && s.dotActive]} />
-          ))}
+        {/* Back button */}
+        <View style={s.header}>
+          <TouchableOpacity style={s.back} onPress={() => router.back()}>
+            <IconArrowLeft size={18} color="#fff" />
+          </TouchableOpacity>
         </View>
 
-        {/* ── Service Type Filter ── */}
-        <Text style={[s.sectionTitle, { paddingHorizontal: 16 }]}>Choose Your Service Type</Text>
-        <View style={s.serviceTypeRow}>
-          {(['all', 'spa', 'home'] as const).map((filter) => {
-            const labels = { all: 'All Services', spa: 'Spa Centre', home: 'Home Service' };
-            const emojis = { all: '✨', spa: '🏢', home: '🏠' };
-            const descs  = { all: 'Browse all\nwellness services', spa: 'Visit partner\nspa centres', home: 'Professional spa\nat your home' };
-            const isActive = activeFilter === filter;
-            return (
-              <TouchableOpacity
-                key={filter}
-                style={[s.typeCard, isActive && s.typeCardActive]}
-                onPress={() => setActiveFilter(filter)}
-              >
-                <View style={[s.typeIconWrap, isActive && s.typeIconActive]}>
-                  <Text style={s.typeEmoji}>{emojis[filter]}</Text>
+        {/* Hero Slider */}
+        <View style={s.heroContainer}>
+          <FlatList
+            ref={heroRef}
+            data={HERO_SLIDES}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(_, i) => String(i)}
+            onMomentumScrollEnd={e => {
+              const idx = Math.round(e.nativeEvent.contentOffset.x / W);
+              setHeroIndex(idx);
+            }}
+            renderItem={({ item }) => (
+              <View style={s.heroSlide}>
+                <Image source={{ uri: item.uri }} style={s.heroImage} />
+                <View style={s.heroOverlay} />
+                <View style={s.heroContent}>
+                  <Text style={s.heroKicker}>{item.kicker}</Text>
+                  <Text style={s.heroTitle}>{item.title}</Text>
+                  <Text style={s.heroTitleAccent}>{item.titleAccent}</Text>
+                  <Text style={s.heroSub}>{item.subtitle}</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.typeName, isActive && { color: colors.accent }]}>{labels[filter]}</Text>
-                  <Text style={s.typeDesc}>{descs[filter]}</Text>
+              </View>
+            )}
+          />
+          {/* Dots */}
+          <View style={s.heroDots}>
+            {HERO_SLIDES.map((_, i) => (
+              <View key={i} style={[s.heroDot, i === heroIndex && s.heroDotActive]} />
+            ))}
+          </View>
+        </View>
+
+        {/* Choose Your Service Type */}
+        <Text style={s.sectionTitle}>Choose Your Service Type</Text>
+        <View style={s.serviceTypeRow}>
+          {/* Spa Centre */}
+          <TouchableOpacity style={s.serviceTypeCard} activeOpacity={0.85}>
+            <View style={[s.serviceTypeIconBox, { backgroundColor: 'rgba(61,255,84,0.08)' }]}>
+              <IconBuilding size={26} color={colors.accent} />
+            </View>
+            <View style={s.serviceTypeText}>
+              <Text style={s.serviceTypeName}>Spa Centre</Text>
+              <Text style={s.serviceTypeSub}>Visit our partner spa centres</Text>
+            </View>
+            <IconChevronRight size={16} color={colors.accent} />
+          </TouchableOpacity>
+
+          {/* Home Service */}
+          <TouchableOpacity style={[s.serviceTypeCard, s.serviceTypeCardPurple]} activeOpacity={0.85}>
+            <View style={[s.serviceTypeIconBox, { backgroundColor: 'rgba(155,93,229,0.12)' }]}>
+              <IconShield size={26} color="#9B5DE5" />
+            </View>
+            <View style={s.serviceTypeText}>
+              <Text style={s.serviceTypeName}>Home Service</Text>
+              <Text style={s.serviceTypeSub}>Professional spa at your home</Text>
+            </View>
+            <IconChevronRight size={16} color="#9B5DE5" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Popular Spa Services */}
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionTitle}>Popular Spa Services</Text>
+          <TouchableOpacity><Text style={s.seeAll}>See all</Text></TouchableOpacity>
+        </View>
+        <FlatList
+          data={displayServices}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={item => item.id}
+          contentContainerStyle={s.servicesScroll}
+          renderItem={({ item: svc }) => {
+            const imgUri = svc.imageUrl || STATIC_SERVICES.find(s => s.name === svc.name)?.imageUrl || STATIC_SERVICES[0].imageUrl;
+            return (
+              <TouchableOpacity style={s.svcCard} activeOpacity={0.85}>
+                <Image source={{ uri: imgUri }} style={s.svcImage} />
+                <View style={s.svcInfo}>
+                  <Text style={s.svcName} numberOfLines={1}>{svc.name}</Text>
+                  <Text style={s.svcMeta}>{svc.durationMinutes} Min • ₹{Number(svc.price).toLocaleString('en-IN')}</Text>
                 </View>
               </TouchableOpacity>
             );
-          })}
-        </View>
+          }}
+        />
 
-        {/* ── Popular Spa Services ── */}
-        <View style={s.rowHeader}>
-          <Text style={s.sectionTitle}>Popular Services</Text>
-        </View>
-        {loading ? (
-          <ActivityIndicator color={colors.accent} style={{ marginVertical: 24 }} />
-        ) : services.length === 0 ? (
-          <View style={s.emptyBox}>
-            <Text style={s.emptyText}>✨ Services coming soon</Text>
-            <Text style={s.emptySubText}>We're onboarding wellness partners near you.</Text>
-          </View>
-        ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.servicesScroll}>
-            {services.map((svc) => (
-              <TouchableOpacity key={svc.id} style={s.svcCard} onPress={() => handleServiceBook(svc)}>
-                <Image source={{ uri: getSvcImage(svc) }} style={s.svcImg} />
-                <View style={s.svcInfo}>
-                  <Text style={s.svcName} numberOfLines={2}>{svc.name}</Text>
-                  <Text style={s.svcMeta}>
-                    {svc.durationMinutes} min{' '}
-                    <Text style={s.svcDot}>•</Text>{' '}
-                    <Text style={s.svcPrice}>₹{Number(svc.price).toLocaleString('en-IN')}</Text>
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
-
-        {/* ── Spa Centres ── */}
-        <View style={[s.rowHeader, { marginTop: 20 }]}>
-          <Text style={s.sectionTitle}>
-            {activeFilter === 'home' ? 'Home Service Providers' : activeFilter === 'spa' ? 'Top Spa Centres' : 'Top Wellness Partners'}
-          </Text>
+        {/* Top Spa Centres */}
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionTitle}>Top Spa Centres</Text>
+          <TouchableOpacity><Text style={s.seeAll}>See all</Text></TouchableOpacity>
         </View>
 
         {loading ? (
-          <ActivityIndicator color={colors.accent} style={{ marginVertical: 24 }} />
-        ) : filteredPartners.length === 0 ? (
-          <View style={s.emptyBox}>
-            <Text style={s.emptyText}>🌿 Partners coming soon</Text>
-            <Text style={s.emptySubText}>We're expanding our wellness network.</Text>
-          </View>
+          <ActivityIndicator color={colors.accent} style={{ marginTop: 20 }} />
         ) : (
-          filteredPartners.map((centre) => {
-            const img = getPartnerImg(centre);
-            const minPrice = getMinPrice(centre.id);
-            const partnerSvcCount = services.filter(s => s.partnerId === centre.id).length;
+          displayPartners.map((partner, idx) => {
+            const minPrice = getMinPrice(partner.id);
+            const imgUri = getPartnerImage(partner, idx);
+            const liked = likedIds.has(partner.id);
+            const tags = getPartnerTags(partner);
             return (
-              <View key={centre.id} style={s.centreCard}>
-                <View style={s.centreImgWrap}>
-                  <Image source={{ uri: img }} style={s.centreImg} />
-                  <TouchableOpacity style={s.heartBtn} onPress={() => toggleLike(centre.id)}>
-                    <IconHeart size={14} color={likedCentres.includes(centre.id) ? '#FF4D6D' : '#fff'} filled={likedCentres.includes(centre.id)} />
+              <TouchableOpacity
+                key={partner.id}
+                style={s.partnerCard}
+                activeOpacity={0.88}
+                onPress={() => router.push(`/wellness/${partner.id}` as any)}
+              >
+                {/* Left image */}
+                <View style={s.partnerImgWrapper}>
+                  <Image source={{ uri: imgUri }} style={s.partnerImg} />
+                  {/* Discount badge */}
+                  {!!partner.discountPercent && partner.discountPercent > 0 && (
+                    <View style={s.discountBadge}>
+                      <Text style={s.discountBadgeText}>{partner.discountPercent}% OFF</Text>
+                    </View>
+                  )}
+                  {/* Heart */}
+                  <TouchableOpacity style={s.heartBtn} onPress={() => toggleLike(partner.id)}>
+                    <IconHeart size={14} color={liked ? '#ff4d6d' : '#fff'} filled={liked} />
                   </TouchableOpacity>
                 </View>
-                <View style={s.centreInfo}>
-                  <Text style={s.centreName}>{centre.name}</Text>
-                  <View style={s.centreMetaRow}>
-                    <IconStar size={12} />
-                    <Text style={s.centreRating}>{centre.rating > 0 ? centre.rating.toFixed(1) : '4.5'}</Text>
-                    <Text style={s.centreReviews}>({centre.reviewCount > 0 ? centre.reviewCount : '—'})</Text>
-                    <Text style={s.centreDotSep}>·</Text>
-                    <IconPin size={11} color={colors.t2} />
-                    <Text style={s.centreLocation}>
-                      {centre.area}, {centre.city}{centre.distanceLabel ? ` · ${centre.distanceLabel}` : ''}
-                    </Text>
-                  </View>
-                  <View style={s.tagRow}>
-                    {partnerSvcCount > 0 && (
-                      <View style={s.tag}><Text style={s.tagText}>{partnerSvcCount} services</Text></View>
-                    )}
-                    <View style={s.tag}><Text style={s.tagText}>Expert Therapists</Text></View>
-                    <View style={s.tag}><Text style={s.tagText}>Hygienic & Safe</Text></View>
-                  </View>
-                  <View style={s.centreFooter}>
-                    <View>
-                      {minPrice && <Text style={s.centreFromLabel}>From</Text>}
-                      {minPrice && <Text style={s.centrePrice}>{minPrice}</Text>}
+
+                {/* Right info */}
+                <View style={s.partnerInfo}>
+                  {/* Row 1: name + price */}
+                  <View style={s.partnerRow1}>
+                    <Text style={s.partnerName} numberOfLines={1}>{partner.name}</Text>
+                    <View style={s.priceBlock}>
+                      <Text style={s.priceFrom}>From</Text>
+                      <Text style={s.priceVal}>{minPrice ? `₹${Number(minPrice).toLocaleString('en-IN')}` : '₹999'}</Text>
                     </View>
-                    <TouchableOpacity style={s.viewServicesBtn}>
-                      <Text style={s.viewServicesBtnText}>View Services</Text>
+                  </View>
+
+                  {/* Row 2: rating */}
+                  <View style={s.ratingRow}>
+                    <IconStar size={12} color={colors.star} />
+                    <Text style={s.ratingText}>{partner.rating?.toFixed(1) || '4.5'}</Text>
+                    <Text style={s.reviewCount}>({partner.reviewCount || 0} reviews)</Text>
+                  </View>
+
+                  {/* Row 3: location */}
+                  <View style={s.locationRow}>
+                    <IconPin size={12} color={colors.t2} />
+                    <Text style={s.locationText}>{partner.area}, {partner.city}{partner.distanceLabel ? ` • ${partner.distanceLabel}` : ''}</Text>
+                  </View>
+
+                  {/* Row 4: tags */}
+                  <View style={s.tagsRow}>
+                    {tags.slice(0, 3).map((tag, ti) => (
+                      <View key={ti} style={s.tagPill}>
+                        <Text style={s.tagText}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Row 5: View Services button */}
+                  <View style={s.viewRow}>
+                    <TouchableOpacity
+                      style={s.viewBtn}
+                      onPress={() => router.push(`/wellness/${partner.id}` as any)}
+                    >
+                      <Text style={s.viewBtnText}>View Services</Text>
+                      <IconChevronRight size={12} color="#060606" />
                     </TouchableOpacity>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}
 
-        {/* ── Trust Strip ── */}
+        {/* Trust Strip */}
         <View style={s.trustStrip}>
-          {TRUST.map((t) => (
-            <View key={t.label} style={s.trustItem}>
-              <View style={s.trustIcon}>
-                {t.icon === 'shield' && <IconShield size={18} color={colors.accent} />}
-                {t.icon === 'check' && <IconCheck size={18} color={colors.accent} />}
-                {t.icon === 'bolt' && <IconBolt size={18} color={colors.accent} />}
-                {t.icon === 'star' && <IconStar size={18} color={colors.accent} />}
-                {t.icon === 'clock' && <Text style={{ fontSize: 16 }}>🕐</Text>}
+          {[
+            { icon: 'shield', label: 'Verified Spa Partners' },
+            { icon: 'check', label: 'Trained & Certified' },
+            { icon: 'shield', label: 'Hygienic & Safe' },
+            { icon: 'bolt', label: 'Easy Booking' },
+            { icon: 'headphones', label: '24/7 Support' },
+          ].map((item, i) => (
+            <View key={i} style={s.trustItem}>
+              <View style={s.trustIconBox}>
+                <IconCheck size={12} color={colors.accent} />
               </View>
-              <Text style={s.trustLabel}>{t.label}</Text>
+              <Text style={s.trustLabel}>{item.label}</Text>
             </View>
           ))}
         </View>
 
-        <View style={{ height: 32 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// ── Styles ───────────────────────────────────────────────────────────────────
-
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#060606' },
-  scroll: { paddingBottom: 20 },
+  content: { paddingBottom: 32 },
 
-  // Header
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12, gap: 8,
-  },
-  iconBtn: {
-    width: 38, height: 38, borderRadius: radius.sm,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  back: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontFamily: fonts.sansBold, fontSize: 17, color: '#fff', letterSpacing: 0.2 },
-  headerSub: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 1 },
 
   // Hero
-  heroCard: { width: width, borderRadius: 0, overflow: 'hidden', height: 220 },
-  heroImg: { ...StyleSheet.absoluteFillObject, width: undefined, height: undefined },
-  heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.52)' },
-  heroContent: { flex: 1, padding: 20, justifyContent: 'flex-end' },
-  heroKicker: { fontFamily: fonts.sansBold, fontSize: 9, color: colors.accent, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 },
-  heroTitle: { fontFamily: fonts.sansBold, fontSize: 26, color: '#fff', lineHeight: 30 },
-  heroTitleAccent: { fontFamily: fonts.sansBold, fontSize: 26, color: colors.accent, lineHeight: 30, marginBottom: 8 },
-  heroBody: { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.75)', lineHeight: 18 },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12, marginBottom: 20, paddingHorizontal: 16 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)' },
-  dotActive: { width: 18, backgroundColor: colors.accent },
+  heroContainer: { width: W, height: 220, marginBottom: 24 },
+  heroSlide: { width: W, height: 220, overflow: 'hidden' },
+  heroImage: { width: W, height: 220, resizeMode: 'cover' },
+  heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.52)' },
+  heroContent: { position: 'absolute', bottom: 24, left: 20, right: 20 },
+  heroKicker: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
+  heroTitle: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', lineHeight: 30 },
+  heroTitleAccent: { fontFamily: fonts.serif, fontSize: 26, color: colors.accent, lineHeight: 30, marginBottom: 8 },
+  heroSub: { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.65)' },
+  heroDots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: -18, marginBottom: 8 },
+  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.3)' },
+  heroDotActive: { backgroundColor: colors.accent, width: 18 },
 
-  // Section titles
-  sectionTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: '#fff', marginBottom: 12 },
-  rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
-  viewAll: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
+  // Section headers
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
+  sectionTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff', paddingHorizontal: 16, marginBottom: 12, marginTop: 4 },
+  seeAll: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.accent },
 
-  // Service Type Cards
-  serviceTypeRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 24, flexWrap: 'wrap' },
-  typeCard: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderRadius: radius.lg, borderWidth: 1, padding: 12,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.10)',
-    minWidth: 100,
+  // Service Type cards
+  serviceTypeRow: { paddingHorizontal: 16, gap: 10, marginBottom: 28 },
+  serviceTypeCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: 'rgba(61,255,84,0.06)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.22)',
+    borderRadius: 16, padding: 16, marginBottom: 10,
   },
-  typeCardActive: { backgroundColor: 'rgba(61,255,84,0.08)', borderColor: 'rgba(61,255,84,0.30)' },
-  typeCardGreen: { backgroundColor: 'rgba(61,255,84,0.06)', borderColor: 'rgba(61,255,84,0.22)' },
-  typeCardPurple: { backgroundColor: 'rgba(155,93,229,0.08)', borderColor: 'rgba(155,93,229,0.25)' },
-  typeIconWrap: {
-    width: 36, height: 36, borderRadius: radius.sm, borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.07)',
-    alignItems: 'center', justifyContent: 'center',
+  serviceTypeCardPurple: {
+    backgroundColor: 'rgba(155,93,229,0.08)', borderColor: 'rgba(155,93,229,0.25)',
   },
-  typeIconActive: { borderColor: 'rgba(61,255,84,0.35)', backgroundColor: 'rgba(61,255,84,0.12)' },
-  typeIconPurple: { borderColor: 'rgba(155,93,229,0.35)', backgroundColor: 'rgba(155,93,229,0.12)' },
-  typeEmoji: { fontSize: 16 },
-  typeName: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff', marginBottom: 2 },
-  typeDesc: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2, lineHeight: 13 },
-
-  // Empty state
-  emptyBox: {
-    marginHorizontal: 16, marginBottom: 20, paddingVertical: 28, paddingHorizontal: 20,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.xl,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)', alignItems: 'center',
+  serviceTypeIconBox: {
+    width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
   },
-  emptyText: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', marginBottom: 6 },
-  emptySubText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, textAlign: 'center' },
+  serviceTypeText: { flex: 1 },
+  serviceTypeName: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', marginBottom: 2 },
+  serviceTypeSub: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
 
-  // Popular Services
-  servicesScroll: { paddingLeft: 16, paddingRight: 8, gap: 10 },
+  // Popular Services scroll
+  servicesScroll: { paddingHorizontal: 16, gap: 12, marginBottom: 8 },
   svcCard: {
-    width: 130, borderRadius: radius.lg, overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    width: 130, borderRadius: 12, overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
   },
-  svcImg: { width: 130, height: 110 },
-  svcInfo: { padding: 10 },
-  svcName: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff', lineHeight: 16, marginBottom: 4 },
-  svcMeta: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
-  svcDot: { color: colors.t3 },
-  svcPrice: { fontFamily: fonts.sansBold, color: colors.accent },
+  svcImage: { width: 130, height: 110, resizeMode: 'cover' },
+  svcInfo: { padding: 8 },
+  svcName: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff', marginBottom: 3 },
+  svcMeta: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
 
-  // Spa Centre Cards
-  centreCard: {
-    marginHorizontal: 16, marginBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: radius.xl, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
-    overflow: 'hidden', flexDirection: 'row',
+  // Partner cards
+  partnerCard: {
+    flexDirection: 'row', marginHorizontal: 16, marginBottom: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', overflow: 'hidden',
+    minHeight: 160,
   },
-  centreImgWrap: { width: 100, position: 'relative' },
-  centreImg: { width: 100, height: '100%' },
+  partnerImgWrapper: { width: 120, position: 'relative' },
+  partnerImg: { width: 120, height: '100%' as any, resizeMode: 'cover' },
   discountBadge: {
-    position: 'absolute', top: 8, left: 0,
-    backgroundColor: colors.accent, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4,
+    position: 'absolute', top: 0, left: 0,
+    backgroundColor: '#3DFF54', paddingHorizontal: 6, paddingVertical: 3,
+    borderBottomRightRadius: 8,
   },
-  discountText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#060606', letterSpacing: 0.3 },
+  discountBadgeText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#060606' },
   heartBtn: {
     position: 'absolute', top: 8, right: 8,
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center',
   },
-  centreInfo: { flex: 1, padding: 12 },
-  centreName: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', marginBottom: 5 },
-  centreMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 7, flexWrap: 'wrap' },
-  centreRating: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.star, marginLeft: 2 },
-  centreReviews: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
-  centreDotSep: { color: colors.t3, fontSize: 10 },
-  centreLocation: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 10 },
-  tag: {
-    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
-    flexDirection: 'row', alignItems: 'center', gap: 3,
+
+  partnerInfo: { flex: 1, padding: 12, gap: 5 },
+  partnerRow1: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
+  partnerName: { flex: 1, fontFamily: fonts.sansBold, fontSize: 14, color: '#fff' },
+  priceBlock: { alignItems: 'flex-end' },
+  priceFrom: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
+  priceVal: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.accent },
+
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  ratingText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.star },
+  reviewCount: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locationText: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, flex: 1 },
+
+  tagsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  tagPill: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
-  tagText: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
-  centreFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  centreFromLabel: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
-  centrePrice: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.accent },
-  viewServicesBtn: {
-    backgroundColor: colors.accent, paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.sm,
+  tagText: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
+
+  viewRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 },
+  viewBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#3DFF54', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
   },
-  viewServicesBtnText: { fontFamily: fonts.sansBold, fontSize: 11, color: '#060606' },
+  viewBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
 
   // Trust strip
   trustStrip: {
-    flexDirection: 'row', marginHorizontal: 16, marginTop: 20,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.lg,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
-    paddingVertical: 14, paddingHorizontal: 6,
+    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, marginTop: 24,
+    backgroundColor: 'rgba(255,255,255,0.03)', marginHorizontal: 16,
+    borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    padding: 16, gap: 10, justifyContent: 'space-around',
   },
-  trustItem: { flex: 1, alignItems: 'center', gap: 6 },
-  trustIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  trustLabel: { fontFamily: fonts.sans, fontSize: 8, color: colors.t2, textAlign: 'center', lineHeight: 11 },
+  trustItem: { alignItems: 'center', gap: 6, width: '18%' },
+  trustIconBox: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  trustLabel: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2, textAlign: 'center' },
 });
