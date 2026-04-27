@@ -80,8 +80,8 @@ export default function Subscriptions() {
               const progress = sub.progress ?? (sub.startDate && sub.endDate ? calcProgress(sub.startDate, sub.endDate) : 0.5);
               const left = sub.endDate ? daysLeft(sub.endDate) : (isActive ? 'Active' : 'Expired');
               const started = sub.startDate ? new Date(sub.startDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : '';
-              const PLAN_AURORA: Record<string, string> = { day_pass: 'rgba(255,180,0,0.5)', same_gym: 'rgba(61,255,84,0.45)', multi_gym: 'rgba(155,0,255,0.5)', expired: 'rgba(100,100,100,0.5)' };
-              const aurora = isActive ? (PLAN_AURORA[planType] || 'rgba(61,255,84,0.45)') : PLAN_AURORA.expired;
+              const PLAN_AURORA: Record<string, string> = { day_pass: 'rgba(255,180,0,0.5)', same_gym: 'rgba(0,212,106,0.45)', multi_gym: 'rgba(155,0,255,0.5)', expired: 'rgba(100,100,100,0.5)' };
+              const aurora = isActive ? (PLAN_AURORA[planType] || 'rgba(0,212,106,0.45)') : PLAN_AURORA.expired;
               // First gymId for navigation
               const gymIds: string[] = sub.gymIds || (sub.gymId ? [sub.gymId] : []);
               const firstGymId = gymIds[0] || sub.gym?._id || sub.gym?.id || '';
@@ -163,7 +163,14 @@ export default function Subscriptions() {
 const s = StyleSheet.create({
   container: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 40 },
   title: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', letterSpacing: -0.5, marginBottom: 16 },
-  subCard: { borderRadius: radius.xl, marginBottom: 14, overflow: 'hidden' },
+  subCard: {
+    borderRadius: radius.xl, marginBottom: 14, overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   subImg: { minHeight: 220 },
   subAurora: { ...StyleSheet.absoluteFillObject },
   subDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },

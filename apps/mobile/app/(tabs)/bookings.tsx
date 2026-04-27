@@ -96,8 +96,8 @@ const s = StyleSheet.create({
   pageTitle: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', marginBottom: 20 },
   centre: { paddingTop: 60, alignItems: 'center' },
   activeCard: {
-    backgroundColor: 'rgba(61,255,84,0.06)', borderRadius: radius.xl,
-    borderWidth: 1, borderColor: 'rgba(61,255,84,0.25)', padding: 20, gap: 10,
+    backgroundColor: 'rgba(0,212,106,0.06)', borderRadius: radius.xl,
+    borderWidth: 1, borderColor: 'rgba(0,212,106,0.25)', padding: 20, gap: 10,
   },
   activeTop: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },

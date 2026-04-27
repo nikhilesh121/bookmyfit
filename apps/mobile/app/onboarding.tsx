@@ -29,7 +29,7 @@ const SLIDES = [
   },
   {
     image: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=800&q=80',
-    aurora: ['rgba(61,255,84,0.20)', 'rgba(0,140,255,0.30)'],
+    aurora: ['rgba(0,212,106,0.20)', 'rgba(0,140,255,0.30)'],
     title: 'Track Progress',
     subtitle: 'See your visit history, active subscriptions, and PT sessions.',
   },

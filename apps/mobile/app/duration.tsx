@@ -193,7 +193,7 @@ const s = StyleSheet.create({
     borderRadius: radius.xl, padding: 18, marginBottom: 12, overflow: 'hidden',
   },
   optionCardActive: {
-    borderColor: colors.accent, backgroundColor: 'rgba(61,255,84,0.06)',
+    borderColor: colors.accent, backgroundColor: 'rgba(0,212,106,0.06)',
   },
   optionCardHot: {
     borderColor: 'rgba(255,107,53,0.6)', backgroundColor: 'rgba(255,107,53,0.08)',

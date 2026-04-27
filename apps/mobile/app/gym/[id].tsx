@@ -10,12 +10,12 @@ import AuroraBackground from '../../components/AuroraBackground';
 const { width } = Dimensions.get('window');
 
 const TIER_COLORS: Record<string, string> = {
-  Elite: '#3DFF54',
+  Elite: '#00D46A',
   Premium: '#9B00FF',
   Standard: '#FF8A00',
 };
 const TIER_AURORA: Record<string, string> = {
-  Elite: 'rgba(61,255,84,0.22)',
+  Elite: 'rgba(0,212,106,0.22)',
   Premium: 'rgba(155,0,255,0.22)',
   Standard: 'rgba(255,138,0,0.18)',
 };
@@ -34,6 +34,8 @@ export default function GymDetail() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [gymPlans, setGymPlans] = useState<any[]>([]);
   const [sessionSlots, setSessionSlots] = useState<any[]>([]);
+  const [sessionTypes, setSessionTypes] = useState<any[]>([]);
+  const [activeTypeFilter, setActiveTypeFilter] = useState<string>('all');
   const [slotDate, setSlotDate] = useState<string>(new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().split('T')[0]);
   const [bookingLoading, setBookingLoading] = useState<string | null>(null);
 
@@ -66,8 +68,11 @@ export default function GymDetail() {
       })
       .catch(() => setGymPlans([]));
 
-    // Load sessions for today
+    // Load sessions and session types for today
     loadSlots(id as string, new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().split('T')[0]);
+    api.get(`/sessions/types/${id}`)
+      .then((data: any) => setSessionTypes(Array.isArray(data) ? data : []))
+      .catch(() => setSessionTypes([]));
 
     api.get(`/trainers?gymId=${id}`)
       .then((data: any) => {
@@ -220,7 +225,7 @@ export default function GymDetail() {
                 <>
                   <Text style={s.sectionTitle}>Book a Session</Text>
                   {/* Date selector — today + next 6 days */}
-                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }} contentContainerStyle={{ gap: 8 }}>
                     {Array.from({ length: 7 }).map((_, d) => {
                       const dt = new Date(Date.now() + 5.5 * 3600 * 1000 + d * 86400000);
                       const ds = dt.toISOString().split('T')[0];
@@ -238,80 +243,117 @@ export default function GymDetail() {
                         </TouchableOpacity>
                       );
                     })}
-                  </View>
+                  </ScrollView>
+
+                  {/* Session type filter chips */}
+                  {sessionTypes.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 8, paddingRight: 4 }}>
+                      <TouchableOpacity
+                        style={[s.typeChip, activeTypeFilter === 'all' && s.typeChipActive]}
+                        onPress={() => setActiveTypeFilter('all')}
+                      >
+                        <Text style={[s.typeChipText, activeTypeFilter === 'all' && { color: colors.accent }]}>All</Text>
+                      </TouchableOpacity>
+                      {sessionTypes.map((st: any) => {
+                        const stColor = st.color || colors.accent;
+                        const isActive = activeTypeFilter === st.id;
+                        return (
+                          <TouchableOpacity
+                            key={st.id}
+                            style={[s.typeChip, isActive && { borderColor: stColor + '88', backgroundColor: stColor + '18' }]}
+                            onPress={() => setActiveTypeFilter(st.id)}
+                          >
+                            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: stColor, marginRight: 4 }} />
+                            <Text style={[s.typeChipText, isActive && { color: stColor }]}>{st.name}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  )}
 
                   {/* 1 session/day notice */}
                   <View style={s.noticeRow}>
-                    <Text style={s.noticeText}>📌 Max 1 session per day per gym — Gym Workout or Special Class</Text>
+                    <Text style={s.noticeText}>Max 1 session per day per gym — Gym Workout or Special Class</Text>
                   </View>
 
-                  {sessionSlots.length === 0 ? (
-                    <View style={s.glassCard}>
-                      <Text style={[s.body, { textAlign: 'center', color: colors.t2 }]}>No sessions available for this date.</Text>
-                    </View>
-                  ) : (
-                    (() => {
-                      // Group by session type
-                      const groups: Record<string, any[]> = {};
-                      for (const slot of sessionSlots) {
-                        const key = slot.sessionType?.name || 'Gym Workout';
-                        if (!groups[key]) groups[key] = [];
-                        groups[key].push(slot);
-                      }
-                      return Object.entries(groups).map(([typeName, slots]) => {
-                        const color = slots[0]?.sessionType?.color || colors.accent;
-                        const kind = slots[0]?.sessionType?.kind || 'standard';
-                        return (
-                          <View key={typeName} style={{ marginBottom: 16 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} />
-                              <Text style={[s.sectionTitle, { margin: 0, fontSize: 13 }]}>{typeName}</Text>
-                              <View style={[s.amenityPill, { borderColor: `${color}44`, backgroundColor: `${color}18` }]}>
-                                <Text style={[s.amenityText, { color }]}>{kind === 'standard' ? 'OPEN GYM' : 'CLASS'}</Text>
-                              </View>
-                            </View>
-                            {slots.map((slot: any) => {
-                              const isBooked = slot.userBooked;
-                              const isFull = slot.isFull;
-                              const hasOtherBooking = slot.userHasBookingToday && !isBooked;
-                              const isLoading = bookingLoading === slot.id;
-                              return (
-                                <View key={slot.id} style={[s.slotRow, isBooked && s.slotRowBooked]}>
-                                  <View style={{ flex: 1 }}>
-                                    <Text style={s.slotTime}>{slot.startTime} – {slot.endTime}</Text>
-                                    <Text style={s.slotCapacity}>
-                                      {isFull ? '🔴 Full' : `${slot.bookedCount}/${slot.maxCapacity} booked`}
-                                    </Text>
-                                  </View>
-                                  {isBooked ? (
-                                    <View style={[s.slotBtn, { backgroundColor: 'rgba(61,255,84,0.12)', borderColor: colors.accentBorder }]}>
-                                      <IconCheck size={14} color={colors.accent} />
-                                      <Text style={[s.slotBtnText, { color: colors.accent }]}>Booked</Text>
-                                    </View>
-                                  ) : isFull ? (
-                                    <View style={[s.slotBtn, { opacity: 0.4 }]}>
-                                      <Text style={s.slotBtnText}>Full</Text>
-                                    </View>
-                                  ) : hasOtherBooking ? (
-                                    <View style={[s.slotBtn, { opacity: 0.4 }]}>
-                                      <Text style={s.slotBtnText}>1/day limit</Text>
-                                    </View>
-                                  ) : (
-                                    <TouchableOpacity style={s.slotBtn} onPress={() => bookSlot(slot.id)} disabled={!!isLoading}>
-                                      {isLoading
-                                        ? <Text style={s.slotBtnText}>…</Text>
-                                        : <Text style={s.slotBtnText}>Book</Text>
-                                      }
-                                    </TouchableOpacity>
-                                  )}
-                                </View>
-                              );
-                            })}
+                  {(() => {
+                    const filteredSlots = activeTypeFilter === 'all'
+                      ? sessionSlots
+                      : sessionSlots.filter((slot: any) => slot.sessionType?.id === activeTypeFilter);
+
+                    if (filteredSlots.length === 0) {
+                      return (
+                        <View style={s.glassCard}>
+                          <Text style={[s.body, { textAlign: 'center', color: colors.t2 }]}>
+                            No sessions scheduled for this date. Try another date.
+                          </Text>
+                        </View>
+                      );
+                    }
+
+                    return filteredSlots.map((slot: any) => {
+                      const isBooked = slot.userBooked;
+                      const isFull = slot.isFull;
+                      const hasOtherBooking = slot.userHasBookingToday && !isBooked;
+                      const isLoading = bookingLoading === slot.id;
+                      const stColor = slot.sessionType?.color || colors.accent;
+                      const typeName = slot.sessionType?.name || 'Gym Workout';
+                      const instructor = slot.sessionType?.instructor;
+                      const durationMin = slot.sessionType?.durationMinutes;
+                      const spotsLeft = (slot.maxCapacity || 0) - (slot.bookedCount || 0);
+                      const capacityPct = slot.maxCapacity > 0 ? Math.min((slot.bookedCount || 0) / slot.maxCapacity, 1) : 0;
+
+                      return (
+                        <View key={slot.id} style={[s.slotCard, isBooked && { borderColor: stColor + '55', backgroundColor: stColor + '08' }]}>
+                          {/* Header row */}
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                            <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: stColor, marginRight: 7 }} />
+                            <Text style={[s.slotTypeName, { color: stColor }]}>{typeName.toUpperCase()}</Text>
+                            <View style={{ flex: 1 }} />
+                            <Text style={s.slotTime}>{slot.startTime} – {slot.endTime}</Text>
                           </View>
-                        );
-                      });
-                    })()
-                  )}
+                          {/* Instructor + duration */}
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                            {instructor ? (
+                              <Text style={s.slotInstructor}>Instructor: {instructor}</Text>
+                            ) : null}
+                            {durationMin ? (
+                              <Text style={s.slotDuration}>{durationMin} min</Text>
+                            ) : null}
+                          </View>
+                          {/* Capacity bar + book button */}
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <View style={{ flex: 1 }}>
+                              <View style={s.capacityBar}>
+                                <View style={[s.capacityFill, { width: `${capacityPct * 100}%` as any, backgroundColor: isFull ? '#FF4444' : stColor }]} />
+                              </View>
+                              <Text style={s.slotCapacity}>
+                                {isFull ? 'Full' : `${spotsLeft} spots left`} ({slot.bookedCount}/{slot.maxCapacity})
+                              </Text>
+                            </View>
+                            {isBooked ? (
+                              <View style={[s.slotBtn, { backgroundColor: stColor + '20', borderColor: stColor + '55' }]}>
+                                <IconCheck size={13} color={stColor} />
+                                <Text style={[s.slotBtnText, { color: stColor }]}>Booked</Text>
+                              </View>
+                            ) : isFull ? (
+                              <View style={[s.slotBtn, { opacity: 0.4 }]}>
+                                <Text style={s.slotBtnText}>Full</Text>
+                              </View>
+                            ) : hasOtherBooking ? (
+                              <View style={[s.slotBtn, { opacity: 0.4 }]}>
+                                <Text style={s.slotBtnText}>1/day limit</Text>
+                              </View>
+                            ) : (
+                              <TouchableOpacity style={[s.slotBtn, { backgroundColor: stColor, borderColor: stColor }]} onPress={() => bookSlot(slot.id)} disabled={!!isLoading}>
+                                <Text style={[s.slotBtnText, { color: '#060606' }]}>{isLoading ? '...' : 'Book Now'}</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        </View>
+                      );
+                    });
+                  })()}
 
                   {!activeSub && (
                     <TouchableOpacity style={s.cta} onPress={() => router.push({ pathname: '/plans', params: { gymId: id } } as any)}>
@@ -530,6 +572,11 @@ const s = StyleSheet.create({
   glassCard: {
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
     borderRadius: radius.xl, padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   body: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, lineHeight: 20 },
   amenityWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -543,6 +590,11 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
     borderRadius: radius.xl, padding: 14, marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   trainerAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder, alignItems: 'center', justifyContent: 'center' },
   trainerInitial: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.accent },
@@ -552,6 +604,11 @@ const s = StyleSheet.create({
   reviewCard: {
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
     borderRadius: radius.xl, padding: 14, marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   reviewHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   reviewAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
@@ -591,21 +648,44 @@ const s = StyleSheet.create({
   datePillDay: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
   datePillNum: { fontFamily: fonts.sansBold, fontSize: 16, color: '#fff', marginTop: 2 },
   noticeRow: {
-    backgroundColor: 'rgba(61,255,84,0.06)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.12)',
+    backgroundColor: 'rgba(0,212,106,0.06)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.12)',
     borderRadius: 10, padding: 10, marginBottom: 14,
   },
   noticeText: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+  // Session type filter chips
+  typeChip: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
+  },
+  typeChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  typeChipText: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t2 },
+  // Improved slot card
+  slotCard: {
+    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
+    borderRadius: radius.md, padding: 14, marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  slotTypeName: { fontFamily: fonts.sansBold, fontSize: 10, letterSpacing: 1.2 },
+  slotInstructor: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, flex: 1 },
+  slotDuration: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+  capacityBar: { height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden', marginBottom: 4 },
+  capacityFill: { height: '100%', borderRadius: 2 },
   slotRow: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
     borderRadius: radius.md, padding: 12, marginBottom: 8,
   },
-  slotRowBooked: { borderColor: 'rgba(61,255,84,0.3)', backgroundColor: 'rgba(61,255,84,0.05)' },
-  slotTime: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff' },
-  slotCapacity: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 2 },
+  slotRowBooked: { borderColor: 'rgba(0,212,106,0.3)', backgroundColor: 'rgba(0,212,106,0.05)' },
+  slotTime: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  slotCapacity: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2, marginTop: 2 },
   slotBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 16, height: 34, borderRadius: 20,
+    paddingHorizontal: 14, height: 34, borderRadius: 20,
     backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
   },
   slotBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },

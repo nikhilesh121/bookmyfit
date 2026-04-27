@@ -11,7 +11,7 @@ const FALLBACK = {
   month: 'April 2025',
   growthPercent: 18,
   breakdown: [
-    { label: 'Elite Subscriptions', subLabel: '132 members', amount: 119800, color: colors.accent, aurora: 'rgba(61,255,84,0.1)' },
+    { label: 'Elite Subscriptions', subLabel: '132 members', amount: 119800, color: colors.accent, aurora: 'rgba(0,212,106,0.1)' },
     { label: 'Premium Subscriptions', subLabel: '96 members', amount: 48960, color: 'rgba(180,100,255,0.9)', aurora: 'rgba(155,0,255,0.1)' },
     { label: 'Store Sales', subLabel: '28 orders', amount: 15560, color: 'rgba(0,200,255,0.9)', aurora: 'rgba(0,180,255,0.1)' },
   ],
@@ -205,7 +205,7 @@ const s = StyleSheet.create({
   netCard: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginTop: 12,
-    backgroundColor: 'rgba(61,255,84,0.06)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.2)',
+    backgroundColor: 'rgba(0,212,106,0.06)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.2)',
     borderRadius: radius.lg, padding: 14,
   },
   netLabel: { fontFamily: fonts.sansBold, fontSize: 14, color: 'rgba(255,255,255,0.8)' },

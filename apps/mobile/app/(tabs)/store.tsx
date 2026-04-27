@@ -19,15 +19,15 @@ const DUMMY_IMAGES: Record<string, string> = {
 };
 
 const FALLBACK_PRODUCTS = [
-  { id: 'p1', name: 'Whey Pro 2kg', brand: 'MuscleBlaze', price: 2199, category: 'Supplements', img: DUMMY_IMAGES.Supplements, aurora: 'rgba(61,255,84,0.55)' },
+  { id: 'p1', name: 'Whey Pro 2kg', brand: 'MuscleBlaze', price: 2199, category: 'Supplements', img: DUMMY_IMAGES.Supplements, aurora: 'rgba(0,212,106,0.55)' },
   { id: 'p2', name: 'Pro Shaker Cup', brand: 'GNC Sports', price: 449, category: 'Accessories', img: DUMMY_IMAGES.default, aurora: 'rgba(0,175,255,0.55)' },
   { id: 'p3', name: 'Lifting Gloves', brand: 'Harbinger', price: 799, category: 'Accessories', img: DUMMY_IMAGES.Accessories, aurora: 'rgba(155,0,255,0.55)' },
   { id: 'p4', name: 'Resistance Band Set', brand: 'Boldfit', price: 599, category: 'Equipment', img: DUMMY_IMAGES.Equipment, aurora: 'rgba(255,138,0,0.55)' },
-  { id: 'p5', name: 'BCAA 250g', brand: 'AS-IT-IS', price: 899, category: 'Supplements', img: DUMMY_IMAGES.Supplements, aurora: 'rgba(61,255,84,0.55)' },
+  { id: 'p5', name: 'BCAA 250g', brand: 'AS-IT-IS', price: 899, category: 'Supplements', img: DUMMY_IMAGES.Supplements, aurora: 'rgba(0,212,106,0.55)' },
   { id: 'p6', name: 'Training T-Shirt', brand: 'Nivia Sports', price: 649, category: 'Apparel', img: DUMMY_IMAGES.Apparel, aurora: 'rgba(0,175,255,0.55)' },
 ];
 
-const AURORA_COLORS = ['rgba(61,255,84,0.55)', 'rgba(0,175,255,0.55)', 'rgba(155,0,255,0.55)', 'rgba(255,138,0,0.55)'];
+const AURORA_COLORS = ['rgba(0,212,106,0.55)', 'rgba(0,175,255,0.55)', 'rgba(155,0,255,0.55)', 'rgba(255,138,0,0.55)'];
 
 export default function Store() {
   const [activeCat, setActiveCat] = useState('All');

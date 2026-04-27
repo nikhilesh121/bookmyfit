@@ -219,7 +219,7 @@ export default function WellnessScreen() {
         <View style={s.serviceTypeRow}>
           {/* Spa Centre */}
           <TouchableOpacity style={s.serviceTypeCard} activeOpacity={0.85}>
-            <View style={[s.serviceTypeIconBox, { backgroundColor: 'rgba(61,255,84,0.08)' }]}>
+            <View style={[s.serviceTypeIconBox, { backgroundColor: 'rgba(0,212,106,0.08)' }]}>
               <IconBuilding size={24} color={colors.accent} />
             </View>
             <Text style={s.serviceTypeName}>Spa Centre</Text>
@@ -440,7 +440,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 7, borderRadius: 50,
     backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
-  filterTabActive: { backgroundColor: 'rgba(61,255,84,0.15)', borderColor: 'rgba(61,255,84,0.4)' },
+  filterTabActive: { backgroundColor: 'rgba(0,212,106,0.15)', borderColor: 'rgba(0,212,106,0.4)' },
   filterTabText: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t2 },
   filterTabTextActive: { color: colors.accent },
 
@@ -448,7 +448,7 @@ const s = StyleSheet.create({
   serviceTypeRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 28 },
   serviceTypeCard: {
     flex: 1, gap: 4,
-    backgroundColor: 'rgba(61,255,84,0.05)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.3)',
+    backgroundColor: 'rgba(0,212,106,0.05)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.3)',
     borderRadius: 16, padding: 16,
   },
   serviceTypeCardPurple: {
@@ -479,12 +479,17 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', overflow: 'hidden',
     height: 155,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   partnerImgWrapper: { width: 120, height: 155, position: 'relative' },
   partnerImg: { width: 120, height: 155, resizeMode: 'cover' },
   discountBadge: {
     position: 'absolute', top: 0, left: 0,
-    backgroundColor: '#3DFF54', paddingHorizontal: 6, paddingVertical: 3,
+    backgroundColor: '#00D46A', paddingHorizontal: 6, paddingVertical: 3,
     borderBottomRightRadius: 8,
   },
   discountBadgeText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#060606' },
@@ -518,7 +523,7 @@ const s = StyleSheet.create({
   viewRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 },
   viewBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#3DFF54', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
+    backgroundColor: '#00D46A', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
   },
   viewBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
 
@@ -532,7 +537,7 @@ const s = StyleSheet.create({
   trustItem: { alignItems: 'center', gap: 6, width: '18%' },
   trustIconBox: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.2)',
+    backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
   trustLabel: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2, textAlign: 'center' },

@@ -337,7 +337,7 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     overflow: 'hidden',
   },
-  resultCardSuccess: { borderColor: colors.accent, backgroundColor: 'rgba(61,255,84,0.06)' },
+  resultCardSuccess: { borderColor: colors.accent, backgroundColor: 'rgba(0,212,106,0.06)' },
   resultCardFailed: { borderColor: 'rgba(255,60,60,0.5)', backgroundColor: 'rgba(255,60,60,0.06)' },
 
   resultHeader: {

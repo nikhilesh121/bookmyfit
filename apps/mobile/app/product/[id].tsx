@@ -344,8 +344,8 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 12, paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: 'rgba(61,255,84,0.13)',
-    borderWidth: 1, borderColor: 'rgba(61,255,84,0.28)',
+    backgroundColor: 'rgba(0,212,106,0.13)',
+    borderWidth: 1, borderColor: 'rgba(0,212,106,0.28)',
     marginBottom: 10,
   },
   chipText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent, letterSpacing: 0.5 },
@@ -369,8 +369,8 @@ const s = StyleSheet.create({
   },
   saveBadge: {
     paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999,
-    backgroundColor: 'rgba(61,255,84,0.13)',
-    borderWidth: 1, borderColor: 'rgba(61,255,84,0.28)',
+    backgroundColor: 'rgba(0,212,106,0.13)',
+    borderWidth: 1, borderColor: 'rgba(0,212,106,0.28)',
   },
   saveBadgeText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent },
 
@@ -403,7 +403,7 @@ const s = StyleSheet.create({
   bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
   bulletDot: {
     width: 20, height: 20, borderRadius: 10,
-    backgroundColor: 'rgba(61,255,84,0.13)',
+    backgroundColor: 'rgba(0,212,106,0.13)',
     alignItems: 'center', justifyContent: 'center', marginTop: 1,
   },
   bulletText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, flex: 1, lineHeight: 20 },
@@ -420,8 +420,8 @@ const s = StyleSheet.create({
   reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   reviewAvatar: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(61,255,84,0.13)',
-    borderWidth: 1, borderColor: 'rgba(61,255,84,0.28)',
+    backgroundColor: 'rgba(0,212,106,0.13)',
+    borderWidth: 1, borderColor: 'rgba(0,212,106,0.28)',
     alignItems: 'center', justifyContent: 'center',
   },
   reviewAvatarText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
@@ -441,7 +441,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: 'center', justifyContent: 'center',
   },
-  addCartBtnAdded: { backgroundColor: 'rgba(61,255,84,0.75)' },
+  addCartBtnAdded: { backgroundColor: 'rgba(0,212,106,0.75)' },
   addCartBtnText: { fontFamily: fonts.sansBold, fontSize: 15, color: '#000' },
   buyNowBtn: {
     flex: 1, height: 50, borderRadius: 14,

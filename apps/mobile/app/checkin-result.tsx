@@ -50,7 +50,7 @@ export default function CheckinResult() {
       {/* Aurora bg */}
       <View style={[
         s.aurora,
-        { backgroundColor: isSuccess ? 'rgba(61,255,84,0.12)' : 'rgba(255,60,60,0.10)' }
+        { backgroundColor: isSuccess ? 'rgba(0,212,106,0.12)' : 'rgba(255,60,60,0.10)' }
       ]} />
       <View style={[
         s.aurora2,

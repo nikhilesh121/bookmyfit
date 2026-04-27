@@ -208,7 +208,7 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   aurora: {
     position: 'absolute', top: 0, left: '10%', width: 300, height: 300,
-    borderRadius: 150, backgroundColor: 'rgba(61,255,84,0.08)',
+    borderRadius: 150, backgroundColor: 'rgba(0,212,106,0.08)',
   },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -232,7 +232,7 @@ const s = StyleSheet.create({
   cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 12 },
   avatar: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: colors.accentBorder,
+    backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: colors.accentBorder,
     alignItems: 'center', justifyContent: 'center',
   },
   trainerName: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.t, marginBottom: 2 },

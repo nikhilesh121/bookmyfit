@@ -137,12 +137,12 @@ const s = StyleSheet.create({
   glowCircle: {
     position: 'absolute', top: '10%', alignSelf: 'center',
     width: 280, height: 280, borderRadius: 140,
-    backgroundColor: 'rgba(61,255,84,0.08)',
+    backgroundColor: 'rgba(0,212,106,0.08)',
   },
   glowCircleInner: {
     position: 'absolute', top: '14%', alignSelf: 'center',
     width: 160, height: 160, borderRadius: 80,
-    backgroundColor: 'rgba(61,255,84,0.06)',
+    backgroundColor: 'rgba(0,212,106,0.06)',
   },
   scroll: {
     alignItems: 'center', paddingHorizontal: 24, paddingTop: 60, paddingBottom: 40,

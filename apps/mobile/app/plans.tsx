@@ -14,11 +14,11 @@ const PLANS = [
     tagline: 'Try before you commit',
     price: '₹99',
     priceUnit: '/ day',
-    accent: '#3DFF54',
-    bg: 'rgba(61,255,84,0.06)',
-    border: 'rgba(61,255,84,0.22)',
+    accent: '#00D46A',
+    bg: 'rgba(0,212,106,0.06)',
+    border: 'rgba(0,212,106,0.22)',
     img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=600&q=80',
-    cta: 'Explore Gyms',
+    cta: 'Select Gym',
     badge: null,
     features: [
       'Access to 1 gym for 1 day',
@@ -39,7 +39,7 @@ const PLANS = [
     border: 'rgba(96,165,250,0.25)',
     img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80',
     cta: 'View Plans',
-    badge: '🔥 Most Popular',
+    badge: 'Most Popular',
     features: [
       'Access to 1 selected gym',
       'Plans: 1 / 3 / 6 / 12 Months',
@@ -58,8 +58,8 @@ const PLANS = [
     bg: 'rgba(167,139,250,0.06)',
     border: 'rgba(167,139,250,0.25)',
     img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=600&q=80',
-    cta: 'Browse Gyms',
-    badge: '🔥 Best Value',
+    cta: 'Choose Plan',
+    badge: 'Best Value',
     features: [
       'Access to 100+ gyms',
       'Switch gyms anytime',
@@ -70,21 +70,25 @@ const PLANS = [
 ];
 
 const HOW_STEPS = [
-  { emoji: '📋', label: 'Choose Pass' },
-  { emoji: '📍', label: 'Select Gym' },
-  { emoji: '💳', label: 'Book & Pay' },
-  { emoji: '🏋️', label: 'Start Workout' },
+  { num: '1', label: 'Choose Pass' },
+  { num: '2', label: 'Select Gym' },
+  { num: '3', label: 'Book & Pay' },
+  { num: '4', label: 'Start Workout' },
 ];
 
 export default function PlansScreen() {
   const { gymId, gymName } = useLocalSearchParams<{ gymId?: string; gymName?: string }>();
 
   const handleSelect = (plan: typeof PLANS[0]) => {
-    if (plan.id === 'same_gym' && !gymId) {
-      Alert.alert('Select a Gym', 'Please choose a gym first to get the Same Gym Pass.', [
-        { text: 'Browse Gyms', onPress: () => router.push('/(tabs)') },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
+    if ((plan.id === 'same_gym' || plan.id === 'day_pass') && !gymId) {
+      Alert.alert(
+        'Select a Gym First',
+        `To purchase a ${plan.name}, please browse gyms and select one first.`,
+        [
+          { text: 'Browse Gyms', onPress: () => router.push('/(tabs)/explore' as any) },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
       return;
     }
     router.push({
@@ -130,7 +134,7 @@ export default function PlansScreen() {
 
         {gymId && gymName ? (
           <View style={s.gymChip}>
-            <Text style={s.gymChipText}>📍 {gymName}</Text>
+            <Text style={s.gymChipText}>{gymName}</Text>
           </View>
         ) : null}
 
@@ -198,7 +202,7 @@ export default function PlansScreen() {
           {HOW_STEPS.map((step, i) => (
             <View key={i} style={s.howItem}>
               <View style={s.howIconBox}>
-                <Text style={s.howEmoji}>{step.emoji}</Text>
+                <Text style={s.howStepNum}>{step.num}</Text>
               </View>
               <Text style={s.howLabel}>{step.label}</Text>
               {i < HOW_STEPS.length - 1 && (
@@ -265,8 +269,8 @@ const s = StyleSheet.create({
   subtitle: { fontFamily: fonts.sans, fontSize: 14, color: 'rgba(255,255,255,0.45)', paddingHorizontal: 20, marginTop: 6, marginBottom: 16 },
   gymChip: {
     alignSelf: 'flex-start', marginHorizontal: 20, marginBottom: 16,
-    backgroundColor: 'rgba(61,255,84,0.1)', borderRadius: radius.pill,
-    borderWidth: 1, borderColor: 'rgba(61,255,84,0.25)',
+    backgroundColor: 'rgba(0,212,106,0.1)', borderRadius: radius.pill,
+    borderWidth: 1, borderColor: 'rgba(0,212,106,0.25)',
     paddingHorizontal: 14, paddingVertical: 6,
   },
   gymChipText: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.accent },
@@ -276,6 +280,11 @@ const s = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 20,
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 20, borderWidth: 1, overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   cardHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -324,9 +333,10 @@ const s = StyleSheet.create({
   howItem: { flex: 1, alignItems: 'center', position: 'relative' },
   howIconBox: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.25)',
+    backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.25)',
     alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
+  howStepNum: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.accent },
   howEmoji: { fontSize: 20 },
   howLabel: { fontFamily: fonts.sans, fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center' },
   howArrow: { position: 'absolute', top: 14, right: -8 },
@@ -341,7 +351,7 @@ const s = StyleSheet.create({
   trustItem: { flex: 1, alignItems: 'center', gap: 5 },
   trustIcon: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.2)',
+    backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
   trustLabel: { fontFamily: fonts.sansMedium, fontSize: 9, color: 'rgba(255,255,255,0.45)', textAlign: 'center' },

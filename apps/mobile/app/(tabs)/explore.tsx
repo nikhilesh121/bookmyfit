@@ -287,7 +287,7 @@ const s = StyleSheet.create({
   },
   wellnessIconBox: {
     width: 44, height: 44, borderRadius: radius.lg,
-    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.2)',
+    backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
   wellnessTitle: { fontFamily: fonts.serif, fontSize: 15, color: '#fff', marginBottom: 2 },
@@ -299,12 +299,17 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden',
     height: 148,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   gymImgWrapper: { width: 110, height: 148, position: 'relative' },
   gymImg: { width: 110, height: 148, resizeMode: 'cover' },
   discountBadge: {
     position: 'absolute', top: 0, left: 0,
-    backgroundColor: '#3DFF54', paddingHorizontal: 5, paddingVertical: 3,
+    backgroundColor: '#00D46A', paddingHorizontal: 5, paddingVertical: 3,
     borderBottomRightRadius: 7,
   },
   discountText: { fontFamily: fonts.sansBold, fontSize: 8, color: '#060606' },
@@ -340,7 +345,7 @@ const s = StyleSheet.create({
   viewRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 2 },
   viewBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: '#3DFF54', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7,
+    backgroundColor: '#00D46A', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7,
   },
   viewBtnText: { fontFamily: fonts.sansBold, fontSize: 11, color: '#060606' },
 
@@ -351,7 +356,7 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
   categoryChipActive: {
-    backgroundColor: 'rgba(61,255,84,0.15)', borderColor: 'rgba(61,255,84,0.4)',
+    backgroundColor: 'rgba(0,212,106,0.15)', borderColor: 'rgba(0,212,106,0.4)',
   },
   categoryEmoji: { fontSize: 13 },
   categoryLabel: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
@@ -362,7 +367,7 @@ const s = StyleSheet.create({
   filterBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
-    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.25)',
+    backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.25)',
   },
   filterBtnText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.accent },
 

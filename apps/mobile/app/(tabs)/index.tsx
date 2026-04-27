@@ -485,7 +485,7 @@ const s = StyleSheet.create({
   trustItem: { flex: 1, alignItems: 'center', gap: 6 },
   trustIcon: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.2)',
+    backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
   trustLabel: { fontFamily: fonts.sansMedium, fontSize: 9, color: colors.t2, textAlign: 'center' },
@@ -500,7 +500,7 @@ const s = StyleSheet.create({
   testimonialText: { fontFamily: fonts.sans, fontSize: 13, color: 'rgba(255,255,255,0.68)', lineHeight: 20, fontStyle: 'italic' },
   avatarCircle: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(61,255,84,0.12)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.25)',
+    backgroundColor: 'rgba(0,212,106,0.12)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.25)',
     alignItems: 'center', justifyContent: 'center',
   },
   avatarText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
