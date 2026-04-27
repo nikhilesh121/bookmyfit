@@ -1,12 +1,18 @@
-import { FlatList, View, Text, TouchableOpacity, StyleSheet, TextInput, Image, ActivityIndicator } from 'react-native';
+import { FlatList, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput, Image, ActivityIndicator } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
-import { IconSearch, IconStar, IconPin, IconHeart, IconChevronRight, IconBolt } from '../../components/Icons';
+import { IconSearch, IconStar, IconPin, IconHeart, IconChevronRight, IconBolt, IconFilter } from '../../components/Icons';
 import { gymsApi } from '../../lib/api';
 
-const ALPHABET = ['All', 'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
+const CATEGORIES = [
+  { id: 'all', label: 'All Gyms', emoji: '🏋️' },
+  { id: 'strength', label: 'Strength', emoji: '💪' },
+  { id: 'cardio', label: 'Cardio', emoji: '🏃' },
+  { id: 'yoga', label: 'Yoga', emoji: '🧘' },
+  { id: 'crossfit', label: 'CrossFit', emoji: '🏆' },
+];
 
 const FALLBACK_GYMS = [
   { id: '1', name: 'Anytime Fitness', city: 'Bhubaneswar', area: 'Patia', rating: 4.8, reviewCount: 128, distance: '0.8 km', discountPercent: 20, facilities: ['AC', 'Parking', 'Locker'], img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80' },
@@ -107,7 +113,7 @@ function GymCard({ g, index }: { g: any; index: number }) {
 
 export default function Explore() {
   const [q, setQ] = useState('');
-  const [selectedLetter, setSelectedLetter] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [gyms, setGyms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -154,12 +160,16 @@ export default function Explore() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [q]);
 
-  // Filter by selected letter
-  const filteredGyms = selectedLetter === 'All'
+  // Filter by category
+  const filteredGyms = selectedCategory === 'all'
     ? gyms
     : gyms.filter(g => {
-        const name = (g.name || g.gymName || '').trim().toUpperCase();
-        return name.startsWith(selectedLetter);
+        const tags: string[] = [
+          ...(g.facilities || []),
+          ...(g.categories || []),
+          ...(g.tags || []),
+        ].map((t: string) => t.toLowerCase());
+        return tags.some(t => t.includes(selectedCategory));
       });
 
   const ListHeader = () => (
@@ -191,6 +201,36 @@ export default function Explore() {
         <IconChevronRight size={16} color={colors.accent} />
       </TouchableOpacity>
 
+      {/* Category filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.categoryRow}
+        style={{ marginBottom: 16 }}
+      >
+        {CATEGORIES.map(cat => (
+          <TouchableOpacity
+            key={cat.id}
+            style={[s.categoryChip, selectedCategory === cat.id && s.categoryChipActive]}
+            onPress={() => setSelectedCategory(cat.id)}
+          >
+            <Text style={s.categoryEmoji}>{cat.emoji}</Text>
+            <Text style={[s.categoryLabel, selectedCategory === cat.id && s.categoryLabelActive]}>
+              {cat.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Section header */}
+      <View style={s.sectionHeader}>
+        <Text style={s.sectionTitle}>Popular Gyms Near You</Text>
+        <TouchableOpacity style={s.filterBtn}>
+          <IconFilter size={13} color={colors.accent} />
+          <Text style={s.filterBtnText}>Filter</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Loading skeletons */}
       {loading && [1, 2, 3].map((i) => (
         <View key={i} style={[s.gymCard, { minHeight: 140, backgroundColor: 'rgba(255,255,255,0.06)' }]} />
@@ -200,55 +240,36 @@ export default function Explore() {
 
   return (
     <SafeAreaView style={s.root}>
-      <View style={s.flex}>
-        {/* Main list */}
-        <FlatList
-          data={loading ? [] : filteredGyms}
-          keyExtractor={(item) => String(item.id || item._id)}
-          contentContainerStyle={s.container}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={ListHeader}
-          renderItem={({ item, index }) => <GymCard g={item} index={index} />}
-          onEndReached={() => { if (hasMore && !loadingMore && selectedLetter === 'All') loadGyms(page + 1); }}
-          onEndReachedThreshold={0.3}
-          ListFooterComponent={
-            loadingMore
-              ? <ActivityIndicator color={colors.accent} style={{ marginVertical: 16 }} />
-              : null
-          }
-          ListEmptyComponent={
-            !loading ? (
-              <View style={s.emptyState}>
-                <Text style={s.emptyTitle}>No gyms for "{selectedLetter}"</Text>
-                <Text style={s.emptyBody}>Try another letter or search</Text>
-              </View>
-            ) : null
-          }
-        />
-
-        {/* A-Z Alphabet sidebar on right */}
-        <View style={s.alphabetSidebar}>
-          {ALPHABET.map(letter => (
-            <TouchableOpacity
-              key={letter}
-              style={[s.letterBtn, selectedLetter === letter && s.letterBtnActive]}
-              onPress={() => setSelectedLetter(letter)}
-            >
-              <Text style={[s.letterText, selectedLetter === letter && s.letterTextActive]}>
-                {letter}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
+      <FlatList
+        data={loading ? [] : filteredGyms}
+        keyExtractor={(item) => String(item.id || item._id)}
+        contentContainerStyle={s.container}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={ListHeader}
+        renderItem={({ item, index }) => <GymCard g={item} index={index} />}
+        onEndReached={() => { if (hasMore && !loadingMore && selectedCategory === 'all') loadGyms(page + 1); }}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={
+          loadingMore
+            ? <ActivityIndicator color={colors.accent} style={{ marginVertical: 16 }} />
+            : null
+        }
+        ListEmptyComponent={
+          !loading ? (
+            <View style={s.emptyState}>
+              <Text style={s.emptyTitle}>No gyms found</Text>
+              <Text style={s.emptyBody}>Try a different category or search</Text>
+            </View>
+          ) : null
+        }
+      />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#060606' },
-  flex: { flex: 1, position: 'relative' },
-  container: { paddingLeft: 16, paddingRight: 40, paddingTop: 12, paddingBottom: 40 },
+  container: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
 
   title: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', letterSpacing: -0.5, marginBottom: 14 },
 
@@ -323,20 +344,29 @@ const s = StyleSheet.create({
   },
   viewBtnText: { fontFamily: fonts.sansBold, fontSize: 11, color: '#060606' },
 
+  categoryRow: { gap: 8, paddingRight: 4 },
+  categoryChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
+  categoryChipActive: {
+    backgroundColor: 'rgba(61,255,84,0.15)', borderColor: 'rgba(61,255,84,0.4)',
+  },
+  categoryEmoji: { fontSize: 13 },
+  categoryLabel: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
+  categoryLabelActive: { color: colors.accent },
+
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionTitle: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff' },
+  filterBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
+    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.25)',
+  },
+  filterBtnText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.accent },
+
   emptyState: { alignItems: 'center', paddingTop: 40, gap: 10 },
   emptyTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff' },
   emptyBody: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
-
-  // A-Z Alphabet sidebar
-  alphabetSidebar: {
-    position: 'absolute', right: 0, top: 0, bottom: 0,
-    width: 28, zIndex: 10, justifyContent: 'center',
-    paddingVertical: 8, backgroundColor: 'rgba(6,6,6,0.85)',
-  },
-  letterBtn: {
-    height: 18, alignItems: 'center', justifyContent: 'center',
-  },
-  letterBtnActive: {},
-  letterText: { fontFamily: fonts.sans, fontSize: 10, color: colors.t3 },
-  letterTextActive: { color: colors.accent, fontFamily: fonts.sansBold },
 });

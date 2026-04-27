@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import {
   IconArrowLeft, IconStar, IconPin, IconHeart, IconChevronRight,
-  IconShield, IconCheck, IconBuilding, IconHeadphones, IconTag,
+  IconShield, IconCheck, IconBuilding, IconHeadphones, IconSearch, IconCart,
 } from '../components/Icons';
 
 const { width: W } = Dimensions.get('window');
@@ -43,10 +43,10 @@ function getPartnerImage(partner: any, index: number): string {
 const HERO_SLIDES = [
   {
     uri: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=900&q=80',
-    kicker: 'PREMIUM WELLNESS',
-    title: 'Restore Your',
-    titleAccent: 'Body & Mind',
-    subtitle: 'Luxury spa & wellness services at your fingertips',
+    kicker: 'SELF CARE IS HEALTH CARE',
+    title: 'Relax Your Body',
+    titleAccent: 'Refresh Your Mind',
+    subtitle: 'Premium spa experiences for your well-being.',
   },
   {
     uri: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=900&q=80',
@@ -87,6 +87,7 @@ export default function WellnessScreen() {
   const [loading, setLoading] = useState(true);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [heroIndex, setHeroIndex] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'spa' | 'home'>('all');
   const heroRef = useRef<FlatList>(null);
   const heroTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -138,6 +139,14 @@ export default function WellnessScreen() {
 
   const displayServices: ApiService[] = services.length > 0 ? services : STATIC_SERVICES;
 
+  const filteredPartners = activeFilter === 'all'
+    ? displayPartners
+    : displayPartners.filter(p => {
+        const type = (p.serviceType || '').toLowerCase();
+        if (activeFilter === 'home') return type === 'home' || type.includes('home');
+        return type !== 'home' && !type.includes('home');
+      });
+
   // Partner tags based on service type
   const getPartnerTags = (partner: ApiPartner) => {
     const type = partner.serviceType?.toLowerCase() || 'spa';
@@ -151,11 +160,24 @@ export default function WellnessScreen() {
     <SafeAreaView style={s.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
 
-        {/* Back button */}
+        {/* Header */}
         <View style={s.header}>
           <TouchableOpacity style={s.back} onPress={() => router.back()}>
             <IconArrowLeft size={18} color="#fff" />
           </TouchableOpacity>
+          <View style={s.headerCenter}>
+            <Text style={s.headerTitle}>Spa & Recovery</Text>
+            <Text style={s.headerSubtitle}>Relax. Rejuvenate. Refresh.</Text>
+          </View>
+          <View style={s.headerRight}>
+            <TouchableOpacity style={s.headerIcon}>
+              <IconSearch size={18} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={s.headerIcon}>
+              <IconCart size={18} color="#fff" />
+              <View style={s.cartBadge} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Hero Slider */}
@@ -198,25 +220,25 @@ export default function WellnessScreen() {
           {/* Spa Centre */}
           <TouchableOpacity style={s.serviceTypeCard} activeOpacity={0.85}>
             <View style={[s.serviceTypeIconBox, { backgroundColor: 'rgba(61,255,84,0.08)' }]}>
-              <IconBuilding size={26} color={colors.accent} />
+              <IconBuilding size={24} color={colors.accent} />
             </View>
-            <View style={s.serviceTypeText}>
-              <Text style={s.serviceTypeName}>Spa Centre</Text>
-              <Text style={s.serviceTypeSub}>Visit our partner spa centres</Text>
+            <Text style={s.serviceTypeName}>Spa Centre</Text>
+            <Text style={s.serviceTypeSub}>Visit our partner spa centres</Text>
+            <View style={{ alignSelf: 'flex-end', marginTop: 6 }}>
+              <IconChevronRight size={14} color={colors.accent} />
             </View>
-            <IconChevronRight size={16} color={colors.accent} />
           </TouchableOpacity>
 
           {/* Home Service */}
           <TouchableOpacity style={[s.serviceTypeCard, s.serviceTypeCardPurple]} activeOpacity={0.85}>
-            <View style={[s.serviceTypeIconBox, { backgroundColor: 'rgba(155,93,229,0.12)' }]}>
-              <IconShield size={26} color="#9B5DE5" />
+            <View style={[s.serviceTypeIconBox, { backgroundColor: 'rgba(130,80,255,0.12)' }]}>
+              <IconShield size={24} color="#8250FF" />
             </View>
-            <View style={s.serviceTypeText}>
-              <Text style={s.serviceTypeName}>Home Service</Text>
-              <Text style={s.serviceTypeSub}>Professional spa at your home</Text>
+            <Text style={s.serviceTypeName}>Home Service</Text>
+            <Text style={s.serviceTypeSub}>Professional spa at your home</Text>
+            <View style={{ alignSelf: 'flex-end', marginTop: 6 }}>
+              <IconChevronRight size={14} color="#8250FF" />
             </View>
-            <IconChevronRight size={16} color="#9B5DE5" />
           </TouchableOpacity>
         </View>
 
@@ -245,16 +267,31 @@ export default function WellnessScreen() {
           }}
         />
 
+        {/* Filter Tabs */}
+        <View style={s.filterTabs}>
+          {(['all', 'spa', 'home'] as const).map(f => (
+            <TouchableOpacity
+              key={f}
+              style={[s.filterTab, activeFilter === f && s.filterTabActive]}
+              onPress={() => setActiveFilter(f)}
+            >
+              <Text style={[s.filterTabText, activeFilter === f && s.filterTabTextActive]}>
+                {f === 'all' ? 'All' : f === 'spa' ? 'Spa Centre' : 'Home Service'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {/* Top Spa Centres */}
         <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>Top Spa Centres</Text>
+          <Text style={s.sectionTitle}>Top Spa Centres Near You</Text>
           <TouchableOpacity><Text style={s.seeAll}>See all</Text></TouchableOpacity>
         </View>
 
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 20 }} />
         ) : (
-          displayPartners.map((partner, idx) => {
+          filteredPartners.map((partner, idx) => {
             const minPrice = getMinPrice(partner.id);
             const imgUri = getPartnerImage(partner, idx);
             const liked = likedIds.has(partner.id);
@@ -355,14 +392,27 @@ export default function WellnessScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#060606' },
+  root: { flex: 1, backgroundColor: '#0a0a0a' },
   content: { paddingBottom: 32 },
 
-  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
   back: {
     width: 38, height: 38, borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center', justifyContent: 'center',
+  },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff' },
+  headerSubtitle: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 1 },
+  headerRight: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  headerIcon: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cartBadge: {
+    position: 'absolute', top: 8, right: 8,
+    width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent,
   },
 
   // Hero
@@ -384,22 +434,33 @@ const s = StyleSheet.create({
   sectionTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff', paddingHorizontal: 16, marginBottom: 12, marginTop: 4 },
   seeAll: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.accent },
 
-  // Service Type cards
-  serviceTypeRow: { paddingHorizontal: 16, gap: 10, marginBottom: 28 },
+  // Filter tabs
+  filterTabs: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 16, marginTop: 4 },
+  filterTab: {
+    paddingHorizontal: 16, paddingVertical: 7, borderRadius: 50,
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
+  filterTabActive: { backgroundColor: 'rgba(61,255,84,0.15)', borderColor: 'rgba(61,255,84,0.4)' },
+  filterTabText: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t2 },
+  filterTabTextActive: { color: colors.accent },
+
+  // Service Type cards — side-by-side
+  serviceTypeRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 28 },
   serviceTypeCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: 'rgba(61,255,84,0.06)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.22)',
-    borderRadius: 16, padding: 16, marginBottom: 10,
+    flex: 1, gap: 4,
+    backgroundColor: 'rgba(61,255,84,0.05)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.3)',
+    borderRadius: 16, padding: 16,
   },
   serviceTypeCardPurple: {
-    backgroundColor: 'rgba(155,93,229,0.08)', borderColor: 'rgba(155,93,229,0.25)',
+    backgroundColor: 'rgba(130,80,255,0.06)', borderColor: 'rgba(130,80,255,0.3)',
   },
   serviceTypeIconBox: {
-    width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    marginBottom: 4,
   },
   serviceTypeText: { flex: 1 },
-  serviceTypeName: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', marginBottom: 2 },
-  serviceTypeSub: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
+  serviceTypeName: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', marginBottom: 2 },
+  serviceTypeSub: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
 
   // Popular Services scroll
   servicesScroll: { paddingHorizontal: 16, gap: 12, marginBottom: 8 },
