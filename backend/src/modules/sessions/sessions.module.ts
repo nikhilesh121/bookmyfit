@@ -396,18 +396,45 @@ export class SessionsService {
     if (slot.status !== 'scheduled') throw new BadRequestException('This slot is not available');
     if (slot.bookedCount >= slot.maxCapacity) throw new BadRequestException('Slot is full');
 
-    // 1 session per day per gym
-    const dayExisting = await this.bookingRepo.findOne({
-      where: { userId, gymId: slot.gymId, slotDate: slot.date } as any,
-    });
-    if (dayExisting && dayExisting.status !== 'cancelled') {
-      throw new ConflictException('You already have a session booked at this gym for this day. Only 1 session per day is allowed.');
-    }
-
+    // Find subscription first (needed for planType-aware lock rules)
     const sub = dto.subscriptionId
       ? await this.subRepo.findOne({ where: { id: dto.subscriptionId, userId } })
       : await this.subRepo.findOne({ where: { userId, status: 'active' } as any });
     if (!sub) throw new BadRequestException('No active subscription found. Please subscribe first.');
+
+    // Validate planType against the gym being booked
+    const subGymIds: string[] = (sub.gymIds as any) || [];
+    if (sub.planType === 'same_gym') {
+      if (subGymIds.length > 0 && !subGymIds.includes(slot.gymId)) {
+        throw new BadRequestException('Your Same Gym Pass is only valid for the gym you subscribed to.');
+      }
+    } else if (sub.planType === 'day_pass') {
+      if (subGymIds.length > 0 && !subGymIds.includes(slot.gymId)) {
+        throw new BadRequestException('Your 1-Day Pass is for a different gym.');
+      }
+    }
+    // multi_gym: valid at any gym — no gym check needed
+
+    // Daily session lock — day_pass is exempt (can book multiple passes per day)
+    if (sub.planType !== 'day_pass') {
+      if (sub.planType === 'multi_gym') {
+        // Cross-gym lock for multi_gym: only 1 session per day across ALL gyms
+        const multiDayExisting = await this.bookingRepo.findOne({
+          where: { userId, slotDate: slot.date } as any,
+        });
+        if (multiDayExisting && multiDayExisting.status !== 'cancelled') {
+          throw new ConflictException('Your Multi Gym Pass allows 1 session per day across all gyms. You already have a session booked today.');
+        }
+      } else {
+        // same_gym: 1 session per day at this gym
+        const dayExisting = await this.bookingRepo.findOne({
+          where: { userId, gymId: slot.gymId, slotDate: slot.date } as any,
+        });
+        if (dayExisting && dayExisting.status !== 'cancelled') {
+          throw new ConflictException('You already have a session booked at this gym for this day. Only 1 session per day is allowed.');
+        }
+      }
+    }
 
     const booking = (await this.bookingRepo.save(
       this.bookingRepo.create({

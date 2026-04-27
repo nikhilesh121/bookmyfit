@@ -9,6 +9,7 @@ import { v4 as uuid } from 'uuid';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { AppConfigEntity } from '../../database/entities/app-config.entity';
+import { GymEntity } from '../../database/entities/gym.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
@@ -33,6 +34,7 @@ class SubscriptionsService {
     @InjectRepository(SubscriptionEntity) private readonly repo: Repository<SubscriptionEntity>,
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
     @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
+    @InjectRepository(GymEntity) private readonly gymRepo: Repository<GymEntity>,
     private readonly cashfree: CashfreeService,
   ) {}
 
@@ -70,8 +72,20 @@ class SubscriptionsService {
     };
   }
 
-  myActive(userId: string) {
-    return this.repo.find({ where: { userId }, order: { createdAt: 'DESC' }, take: 50 });
+  async myActive(userId: string) {
+    const subs = await this.repo.find({ where: { userId }, order: { createdAt: 'DESC' }, take: 50 });
+    // Enrich with gym name for same_gym and day_pass
+    const allGymIds = [...new Set(subs.flatMap((s: any) => s.gymIds || []).filter(Boolean))];
+    const gyms = allGymIds.length > 0
+      ? await this.gymRepo.createQueryBuilder('g').whereInIds(allGymIds).getMany()
+      : [];
+    const gymMap: Record<string, string> = Object.fromEntries(gyms.map((g) => [g.id, g.name]));
+    const PLAN_LABELS: Record<string, string> = { day_pass: '1-Day Pass', same_gym: 'Same Gym Pass', multi_gym: 'Multi Gym Pass' };
+    return subs.map((sub: any) => ({
+      ...sub,
+      gymName: sub.gymIds?.[0] ? (gymMap[sub.gymIds[0]] || null) : null,
+      planLabel: PLAN_LABELS[sub.planType] || sub.planType,
+    }));
   }
 
   /**
@@ -105,6 +119,7 @@ class SubscriptionsService {
       const price = config.multi_gym?.basePrice || 1499;
       amount = price * (durationMonths || 1);
     } else if (dto.planType === 'day_pass') {
+      if (dto.gymId) gymIds = [dto.gymId];
       amount = dto.amountOverride || 149;
     } else {
       throw new BadRequestException('Invalid planType. Use day_pass, same_gym, or multi_gym');
@@ -340,7 +355,7 @@ class SubscriptionsController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SubscriptionEntity, UserEntity, AppConfigEntity]), PaymentsModule],
+  imports: [TypeOrmModule.forFeature([SubscriptionEntity, UserEntity, AppConfigEntity, GymEntity]), PaymentsModule],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsService],
   exports: [SubscriptionsService],

@@ -3,7 +3,7 @@ import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground }
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
-import { IconQR, IconRefresh, IconDumbbell, IconCalendar } from '../../components/Icons';
+import { IconRefresh, IconDumbbell, IconCalendar } from '../../components/Icons';
 import { subscriptionsApi } from '../../lib/api';
 import AuroraBackground from '../../components/AuroraBackground';
 
@@ -36,8 +36,6 @@ function SkeletonCard() {
 export default function Subscriptions() {
   const [subs, setSubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
     subscriptionsApi.mySubscriptions()
       .then((data: any) => {
         const list = Array.isArray(data) ? data : data?.subscriptions || data?.data || [];
@@ -46,8 +44,6 @@ export default function Subscriptions() {
       .catch(() => setSubs(FALLBACK_SUBS))
       .finally(() => setLoading(false));
   }, []);
-
-  const TIER_AURORA: Record<string, string> = { Elite: 'rgba(61,255,84,0.56)', Premium: 'rgba(155,0,255,0.56)', Standard: 'rgba(255,138,0,0.5)', expired: 'rgba(100,100,100,0.5)' };
 
   return (
     <AuroraBackground variant="premium">
@@ -69,8 +65,12 @@ export default function Subscriptions() {
           ) : (
             subs.map((sub: any) => {
               const subId = sub.id || sub._id;
-              const gymName = sub.gym?.name || sub.gymName || 'Gym';
-              const planName = sub.plan?.name || sub.planName || 'Plan';
+              const planType: string = sub.planType || '';
+              const PLAN_LABELS: Record<string, string> = { day_pass: '1-Day Pass', same_gym: 'Same Gym Pass', multi_gym: 'Multi Gym Pass' };
+              const planName = sub.planLabel || PLAN_LABELS[planType] || sub.plan?.name || sub.planName || 'Plan';
+              const gymName = planType === 'multi_gym'
+                ? 'All Partner Gyms'
+                : (sub.gymName || sub.gym?.name || sub.gymName || 'Gym');
               const duration = sub.durationMonths ? sub.durationMonths + ' Month' + (sub.durationMonths > 1 ? 's' : '') : '';
               const status = (sub.status || 'active').toLowerCase();
               const isActive = status === 'active';
@@ -78,8 +78,8 @@ export default function Subscriptions() {
               const progress = sub.progress ?? (sub.startDate && sub.endDate ? calcProgress(sub.startDate, sub.endDate) : 0.5);
               const left = sub.endDate ? daysLeft(sub.endDate) : (isActive ? 'Active' : 'Expired');
               const started = sub.startDate ? new Date(sub.startDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : '';
-              const tier = sub.plan?.tier || sub.tier || 'Elite';
-              const aurora = isActive ? (TIER_AURORA[tier] || 'rgba(61,255,84,0.56)') : TIER_AURORA.expired;
+              const PLAN_AURORA: Record<string, string> = { day_pass: 'rgba(255,180,0,0.5)', same_gym: 'rgba(61,255,84,0.45)', multi_gym: 'rgba(155,0,255,0.5)', expired: 'rgba(100,100,100,0.5)' };
+              const aurora = isActive ? (PLAN_AURORA[planType] || 'rgba(61,255,84,0.45)') : PLAN_AURORA.expired;
               // First gymId for navigation
               const gymIds: string[] = sub.gymIds || (sub.gymId ? [sub.gymId] : []);
               const firstGymId = gymIds[0] || sub.gym?._id || sub.gym?.id || '';
@@ -124,19 +124,21 @@ export default function Subscriptions() {
                       {/* Action row */}
                       {isActive && (
                         <View style={s.actionRow}>
-                          <TouchableOpacity
-                            style={s.actionBtn}
-                            onPress={() => router.push('/qr' as any)}
-                          >
-                            <IconQR size={12} color={colors.accent} />
-                            <Text style={[s.actionBtnText, { color: colors.accent }]}>Show QR</Text>
-                          </TouchableOpacity>
+                          {/* Book Slot: for same_gym/day_pass go to specific gym; for multi_gym go to explore */}
                           <TouchableOpacity
                             style={[s.actionBtn, s.bookBtn]}
-                            onPress={() => router.push({ pathname: '/slots', params: firstGymId ? { gymId: firstGymId } : {} } as any)}
+                            onPress={() => {
+                              if (planType === 'multi_gym') {
+                                router.push('/(tabs)/explore' as any);
+                              } else if (firstGymId) {
+                                router.push({ pathname: '/gym/[id]', params: { id: firstGymId } } as any);
+                              } else {
+                                router.push('/(tabs)/explore' as any);
+                              }
+                            }}
                           >
                             <IconCalendar size={12} color="#000" />
-                            <Text style={[s.actionBtnText, { color: '#000' }]}>Book Slot</Text>
+                            <Text style={[s.actionBtnText, { color: '#000' }]}>{planType === 'multi_gym' ? 'Find Gym' : 'Book Slot'}</Text>
                           </TouchableOpacity>
                         </View>
                       )}

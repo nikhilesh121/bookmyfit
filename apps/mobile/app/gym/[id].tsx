@@ -50,7 +50,9 @@ export default function GymDetail() {
         const subs = Array.isArray(data) ? data : data?.subscriptions || data?.data || [];
         const active = subs.find((s: any) => {
           if (s.status !== 'active') return false;
-          if (!s.gymIds || s.gymIds.length === 0) return true;
+          // multi_gym: gymIds is empty = valid at any gym
+          if (s.planType === 'multi_gym' || !s.gymIds || s.gymIds.length === 0) return true;
+          // same_gym or day_pass: must match this gym
           return s.gymIds.includes(id) || s.gymId === id;
         });
         setActiveSub(active || null);
