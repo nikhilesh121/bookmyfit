@@ -5,22 +5,37 @@ const fs = require('fs');
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '../..');
 const workspaceModules = path.resolve(workspaceRoot, 'node_modules');
-// Local node_modules for packages that need different versions from workspace root
-// (e.g. React 19 for mobile vs React 18 for Next.js apps)
 const localModules = path.resolve(projectRoot, 'node_modules');
 
 const config = getDefaultConfig(projectRoot);
 
-// Watch both local and workspace node_modules; local takes precedence
 config.watchFolders = [localModules, workspaceModules];
-
-// Resolve local node_modules first so React 19 (mobile) wins over workspace React 18
 config.resolver.nodeModulesPaths = [localModules, workspaceModules];
 
-// Fix: Metro sometimes fails to resolve react-native sub-path imports (e.g.
-// react-native/Libraries/Core/InitializeCore) when the package.json exports
-// field is evaluated. Force-resolve react-native/* sub-paths directly.
+// Resolve a module name to its entry file from localModules
+function resolveLocal(moduleName) {
+  try {
+    return require.resolve(moduleName, { paths: [localModules] });
+  } catch {
+    return null;
+  }
+}
+
+// Pre-resolve the single-instance modules at startup so they're fast
+const FORCE_LOCAL = ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom'];
+const forcedPaths = {};
+for (const mod of FORCE_LOCAL) {
+  const resolved = resolveLocal(mod);
+  if (resolved) forcedPaths[mod] = resolved;
+}
+
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // Force single React instance — redirect all react imports to local copy
+  if (forcedPaths[moduleName]) {
+    return { filePath: forcedPaths[moduleName], type: 'sourceFile' };
+  }
+
+  // Fix react-native/* sub-path imports in monorepo
   if (moduleName.startsWith('react-native/') && !moduleName.includes('..')) {
     const subPath = moduleName.slice('react-native/'.length);
     for (const modules of [localModules, workspaceModules]) {
@@ -32,6 +47,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       }
     }
   }
+
   return context.resolveRequest(context, moduleName, platform);
 };
 
