@@ -42,9 +42,18 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<T
   });
 
   if (res.status === 401) {
-    await clearTokens();
-    router.replace('/login');
-    throw new Error('Session expired');
+    const body = await res.text().catch(() => '');
+    let errMsg = 'Session expired';
+    try {
+      const d = JSON.parse(body);
+      if (d?.message) errMsg = d.message;
+    } catch {}
+    // Only force-logout on non-auth endpoints (OTP/login legitimately returns 401 for bad codes)
+    if (!path.startsWith('/auth/')) {
+      await clearTokens();
+      router.replace('/login');
+    }
+    throw new Error(errMsg);
   }
 
   const text = await res.text();

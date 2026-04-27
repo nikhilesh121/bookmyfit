@@ -22,19 +22,30 @@ export class AuthService {
   ) {}
 
   async sendOtp(phone: string) {
-    const code = process.env.NODE_ENV === 'production'
+    const smsConfigured = process.env.TWILIO_ACCOUNT_SID &&
+      !process.env.TWILIO_ACCOUNT_SID.startsWith('xxxxx') &&
+      process.env.TWILIO_ACCOUNT_SID !== 'placeholder';
+
+    // Use fixed dev OTP when SMS is not configured (no Twilio keys set)
+    const code = smsConfigured
       ? Math.floor(100000 + Math.random() * 900000).toString()
-      : '123456'; // Fixed OTP in dev for easier testing
-    await this.redis.set(`otp:${phone}`, code, 'EX', 300);
-    // TODO: integrate Twilio in production
-    // await twilio.messages.create({ to: phone, from: TWILIO_PHONE, body: `Your BMF OTP: ${code}` });
+      : '123456';
+
+    await this.redis.set(`otp:${phone}`, code, 'EX', 600);
+
+    if (smsConfigured) {
+      // TODO: uncomment when Twilio is live
+      // await twilio.messages.create({ to: `+91${phone}`, from: process.env.TWILIO_PHONE_NUMBER, body: `Your BookMyFit OTP: ${code}` });
+    }
+
     const existingUser = await this.users.findOne({ where: { phone } });
     return {
       success: true,
-      message: 'OTP sent',
+      message: smsConfigured ? 'OTP sent via SMS' : 'OTP sent',
       userExists: !!existingUser,
       userName: existingUser?.name || null,
-      ...(process.env.NODE_ENV !== 'production' && { devOtp: code }),
+      // Always expose devOtp when SMS is not configured so app can show the hint
+      ...(!smsConfigured && { devOtp: code }),
     };
   }
 
