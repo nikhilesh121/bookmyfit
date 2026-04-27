@@ -203,11 +203,16 @@ export default function Home() {
             const gimg = g.images?.[0] || g.coverImage || g.img || FALLBACK_IMG[idx % 3];
             return (
               <TouchableOpacity key={gid} style={s.mvCard} onPress={() => router.push(`/gym/${gid}` as any)} activeOpacity={0.85}>
-                <ImageBackground source={{ uri: gimg }} style={s.mvPhoto} imageStyle={{ borderRadius: radius.xl }}>
-                  <View style={s.mvDark} />
-                  <Text style={s.mvRank}>#{idx + 1}</Text>
-                  <Text style={s.mvName}>{gname}</Text>
-                </ImageBackground>
+                <View style={s.mvImgWrap}>
+                  <ImageBackground source={{ uri: gimg }} style={s.mvPhoto} imageStyle={{ borderRadius: radius.lg }}>
+                    <View style={s.mvDark} />
+                    <View style={s.mvRankBadge}>
+                      <Text style={s.mvRank}>#{idx + 1}</Text>
+                    </View>
+                  </ImageBackground>
+                </View>
+                <Text style={s.mvName} numberOfLines={1}>{gname}</Text>
+                <Text style={s.mvCity} numberOfLines={1}>{g.city || g.location?.city || ''}</Text>
               </TouchableOpacity>
             );
           })}
@@ -484,11 +489,18 @@ const s = StyleSheet.create({
 
   // Most Visited
   mostVisitedScroll: { marginBottom: 6 },
-  mvCard: { width: 120, height: 150, borderRadius: radius.xl, overflow: 'hidden' },
-  mvPhoto: { flex: 1, justifyContent: 'flex-end', padding: 10 },
-  mvDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
-  mvRank: { fontFamily: fonts.serifBlack, fontSize: 36, color: 'rgba(255,255,255,0.9)', lineHeight: 38 },
-  mvName: { fontFamily: fonts.sansMedium, fontSize: 11, color: '#fff', lineHeight: 14 },
+  mvCard: { width: 118, borderRadius: radius.lg },
+  mvImgWrap: { width: 118, height: 140, borderRadius: radius.lg, overflow: 'hidden', marginBottom: 6 },
+  mvPhoto: { flex: 1 },
+  mvDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  mvRankBadge: {
+    position: 'absolute', bottom: 8, left: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 6,
+    paddingHorizontal: 7, paddingVertical: 2,
+  },
+  mvRank: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.accent },
+  mvName: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff', lineHeight: 16 },
+  mvCity: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2, lineHeight: 14 },
 
   // Gym cards (horizontal layout)
   gymCard: {
