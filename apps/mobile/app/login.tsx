@@ -2,12 +2,10 @@ import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import Constants from 'expo-constants';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowRight } from '../components/Icons';
 import AuroraBackground from '../components/AuroraBackground';
-
-const API = (Constants.expoConfig?.extra?.apiUrl) || 'http://localhost:3003';
+import { authApi } from '../lib/api';
 
 export default function Login() {
   const [phone, setPhone] = useState('');
@@ -17,12 +15,7 @@ export default function Login() {
     if (phone.length < 10) return Alert.alert('Enter a valid 10-digit phone');
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/v1/auth/otp/send`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
+      const data = await authApi.sendOtp(phone) as any;
       router.push({
         pathname: '/otp',
         params: {

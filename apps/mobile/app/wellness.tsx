@@ -7,7 +7,7 @@ import { colors, fonts, radius } from '../theme/brand';
 import {
   IconArrowLeft, IconDumbbell, IconBolt, IconCheck, IconUser, IconStar, IconCalendar,
 } from '../components/Icons';
-import { wellnessApi, usersApi } from '../lib/api';
+import { wellnessApi, getUser } from '../lib/api';
 
 const CATEGORIES = ['All', 'Yoga', 'Meditation', 'Nutrition', 'Physio', 'Training', 'Spa'];
 
@@ -19,6 +19,16 @@ const STATIC_SERVICES = [
   { name: 'Personal Training', desc: '1-on-1 sessions with certified trainers', icon: 'user', category: 'Training', price: 'From ₹1,499', aurora: 'rgba(204,255,0,0.18)' },
   { name: 'Spa & Recovery', desc: 'Post-workout recovery and relaxation', icon: 'star', category: 'Spa', price: 'From ₹1,299', aurora: 'rgba(255,200,50,0.18)' },
 ];
+
+const CATEGORY_ICON: Record<string, string> = {
+  Yoga: 'dumbbell', Meditation: 'bolt', Nutrition: 'check',
+  Physio: 'calendar', Training: 'user', Spa: 'star',
+};
+const CATEGORY_AURORA: Record<string, string> = {
+  Yoga: 'rgba(204,255,0,0.18)', Meditation: 'rgba(155,0,255,0.18)',
+  Nutrition: 'rgba(0,175,255,0.18)', Physio: 'rgba(255,138,0,0.18)',
+  Training: 'rgba(204,255,0,0.18)', Spa: 'rgba(255,200,50,0.18)',
+};
 
 function ServiceIcon({ icon, size, color }: { icon: string; size: number; color: string }) {
   if (icon === 'dumbbell') return <IconDumbbell size={size} color={color} />;
@@ -32,26 +42,43 @@ function ServiceIcon({ icon, size, color }: { icon: string; size: number; color:
 
 export default function Wellness() {
   const [activeCategory, setActiveCategory] = useState('All');
-  const [services, setServices] = useState(STATIC_SERVICES);
+  const [services, setServices] = useState(STATIC_SERVICES as any[]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Step 1: fetch active partners, then Step 2: fetch each partner's services
     wellnessApi.list()
-      .then((data: any) => {
-        const list = Array.isArray(data) ? data : data?.services || data?.data || [];
-        if (list.length > 0) {
-          setServices(list.map((s: any, i: number) => ({
-            id: s.id || s._id || null,
-            name: s.name || STATIC_SERVICES[i]?.name || 'Service',
-            desc: s.description || s.desc || STATIC_SERVICES[i]?.desc || '',
-            icon: STATIC_SERVICES[i]?.icon || 'bolt',
-            category: s.serviceType || s.category || STATIC_SERVICES[i]?.category || 'Other',
-            price: s.price ? `From ₹${s.price}` : (STATIC_SERVICES[i]?.price || ''),
-            aurora: STATIC_SERVICES[i]?.aurora || 'rgba(204,255,0,0.18)',
-          })));
-        }
+      .then(async (res: any) => {
+        const partners: any[] = Array.isArray(res) ? res : res?.data || [];
+        if (partners.length === 0) return; // keep static fallback
+
+        // Fetch services for all partners in parallel
+        const results = await Promise.allSettled(
+          partners.map((p: any) => wellnessApi.services(p.id))
+        );
+
+        const liveServices: any[] = [];
+        results.forEach((r, idx) => {
+          if (r.status === 'fulfilled') {
+            const svcList: any[] = Array.isArray(r.value) ? r.value : [];
+            svcList.forEach((svc: any) => {
+              const cat = svc.serviceType || partners[idx]?.serviceType || 'Other';
+              liveServices.push({
+                id: svc.id,
+                name: svc.name || partners[idx]?.name || 'Service',
+                desc: svc.description || svc.desc || partners[idx]?.description || '',
+                icon: CATEGORY_ICON[cat] || 'bolt',
+                category: cat,
+                price: svc.price ? `From ₹${svc.price}` : '',
+                aurora: CATEGORY_AURORA[cat] || 'rgba(204,255,0,0.18)',
+              });
+            });
+          }
+        });
+
+        if (liveServices.length > 0) setServices(liveServices);
       })
-      .catch(() => {})
+      .catch(() => {}) // silently keep static fallback on network error
       .finally(() => setLoading(false));
   }, []);
 
@@ -61,10 +88,16 @@ export default function Wellness() {
       return;
     }
     try {
-      const me = await usersApi.me() as any;
+      // Read cached user — no extra network call needed
+      const me = await getUser() as any;
+      if (!me) {
+        Alert.alert('Please log in', 'You need to be logged in to book a session.');
+        router.replace('/login');
+        return;
+      }
       const today = new Date().toISOString().slice(0, 10);
-      await wellnessApi.book({ userId: me.id || me._id, serviceId: svc.id, bookingDate: today, phone: me.phone || '' });
-      Alert.alert('Booking Confirmed! 🎉', `Your ${svc.name} session has been booked for today. We'll contact you to confirm the time.`);
+      await wellnessApi.book({ serviceId: svc.id, bookingDate: today, phone: me.phone || '' });
+      Alert.alert('Booking Confirmed! 🎉', `Your ${svc.name} session has been booked. We'll contact you shortly to confirm the time.`);
     } catch (err: any) {
       Alert.alert('Booking Failed', err?.message || 'Could not complete booking. Please try again.');
     }

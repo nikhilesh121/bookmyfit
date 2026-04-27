@@ -3,13 +3,10 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvo
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import Constants from 'expo-constants';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconCheck } from '../components/Icons';
 import AuroraBackground from '../components/AuroraBackground';
-import { setUser } from '../lib/api';
-
-const API = (Constants.expoConfig?.extra?.apiUrl) || 'http://localhost:3003';
+import { authApi, setUser } from '../lib/api';
 
 export default function OtpScreen() {
   const { phone, userExists: userExistsParam, userName: userNameParam } = useLocalSearchParams<{
@@ -26,12 +23,10 @@ export default function OtpScreen() {
     setLoading(true);
     try {
       const deviceId = `dev-${Date.now()}`;
-      const res = await fetch(`${API}/api/v1/auth/otp/verify`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code, deviceId, name: isExistingUser ? undefined : (name.trim() || 'User') }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Invalid OTP');
+      const data = await authApi.verifyOtp(
+        phone, code, deviceId,
+        isExistingUser ? undefined : (name.trim() || 'User'),
+      ) as any;
 
       // Store tokens
       await SecureStore.setItemAsync('bmf_token', data.accessToken);

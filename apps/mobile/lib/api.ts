@@ -192,7 +192,7 @@ export const wellnessApi = {
     return api.get(`/wellness/partners${q}`);
   },
   services: (partnerId: string) => api.get(`/wellness/partners/${partnerId}/services`),
-  book: (body: { userId: string; serviceId: string; bookingDate: string; phone: string }) => {
+  book: (body: { serviceId: string; bookingDate: string; phone?: string }) => {
     const { serviceId, ...rest } = body;
     return api.post(`/wellness/services/${serviceId}/book`, rest);
   },

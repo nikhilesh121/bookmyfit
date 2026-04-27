@@ -5,15 +5,17 @@ const fs = require('fs');
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '../..');
 const workspaceModules = path.resolve(workspaceRoot, 'node_modules');
-
-// apps/mobile/node_modules removed — pnpm hoisted all packages to workspace root.
-// All requires resolve to workspace/node_modules (one React, one react-native).
+// Local node_modules for packages that need different versions from workspace root
+// (e.g. React 19 for mobile vs React 18 for Next.js apps)
+const localModules = path.resolve(projectRoot, 'node_modules');
 
 const config = getDefaultConfig(projectRoot);
 
-config.watchFolders = [workspaceModules];
+// Watch both local and workspace node_modules; local takes precedence
+config.watchFolders = [localModules, workspaceModules];
 
-config.resolver.nodeModulesPaths = [workspaceModules];
+// Resolve local node_modules first so React 19 (mobile) wins over workspace React 18
+config.resolver.nodeModulesPaths = [localModules, workspaceModules];
 
 // Fix: Metro sometimes fails to resolve react-native sub-path imports (e.g.
 // react-native/Libraries/Core/InitializeCore) when the package.json exports
@@ -21,10 +23,12 @@ config.resolver.nodeModulesPaths = [workspaceModules];
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName.startsWith('react-native/') && !moduleName.includes('..')) {
     const subPath = moduleName.slice('react-native/'.length);
-    for (const ext of ['', '.js', '.native.js', '.ios.js']) {
-      const candidate = path.resolve(workspaceModules, 'react-native', subPath + ext);
-      if (fs.existsSync(candidate)) {
-        return { filePath: candidate, type: 'sourceFile' };
+    for (const modules of [localModules, workspaceModules]) {
+      for (const ext of ['', '.js', '.native.js', '.ios.js']) {
+        const candidate = path.resolve(modules, 'react-native', subPath + ext);
+        if (fs.existsSync(candidate)) {
+          return { filePath: candidate, type: 'sourceFile' };
+        }
       }
     }
   }

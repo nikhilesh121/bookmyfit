@@ -40,10 +40,7 @@ export default function Home() {
 
   useEffect(() => {
     getUser().then((u) => { if (u?.name) setUserName(u.name.split(' ')[0]); }).catch(() => {});
-  }, []);
-
-  // Fetch homepage config from backend
-  useEffect(() => {
+    // Fetch homepage config from backend
     api.get<{ sections: any[] }>('/homepage/config')
       .then((data) => { if (data?.sections) setHomepageConfig(data); })
       .catch(() => { /* show all sections by default */ });
@@ -54,10 +51,6 @@ export default function Home() {
     const section = homepageConfig.sections.find((s: any) => s.id === id);
     return section ? section.visible !== false : true;
   }
-
-  useEffect(() => {
-    getUser().then((u) => { if (u?.name) setUserName(u.name.split(' ')[0]); }).catch(() => {});
-  }, []);
 
   useEffect(() => {
     setLoadingGyms(true);

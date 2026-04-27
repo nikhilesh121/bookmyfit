@@ -1,15 +1,24 @@
-import { Module, Controller, Get, Post, Param, Body, Query, Injectable } from '@nestjs/common';
+import { Module, Controller, Get, Post, Param, Body, Query, Injectable, UseGuards, Req } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
+import { IsString, IsDateString, IsOptional, IsPhoneNumber } from 'class-validator';
 import { WellnessPartnerEntity, WellnessServiceEntity, WellnessBookingEntity } from '../../database/entities/wellness.entity';
 import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/guards/roles.decorator';
 import { v4 as uuid } from 'uuid';
 
+class BookWellnessDto {
+  @IsDateString() bookingDate: string;
+  @IsOptional() @IsString() phone?: string;
+}
+
 @Injectable()
-class WellnessService_ {
+class WellnessService {
   constructor(
     @InjectRepository(WellnessPartnerEntity) private readonly partners: Repository<WellnessPartnerEntity>,
     @InjectRepository(WellnessServiceEntity) private readonly services: Repository<WellnessServiceEntity>,
@@ -51,8 +60,11 @@ class WellnessService_ {
 @ApiTags('Wellness')
 @Controller('wellness')
 class WellnessController {
-  constructor(private readonly svc: WellnessService_) {}
-  @Get('partners') partners(
+  constructor(private readonly svc: WellnessService) {}
+
+  @UseGuards(JwtAuthGuard)
+  @Get('partners')
+  partners(
     @Query('city') city?: string,
     @Query('serviceType') type?: string,
     @Query('page') page = 1,
@@ -60,17 +72,31 @@ class WellnessController {
   ) {
     return this.svc.listPartners({ city, serviceType: type }, +page, +limit);
   }
-  @Post('partners') createPartner(@Body() b: any) { return this.svc.createPartner(b); }
-  @Get('partners/:id/services') services(@Param('id') id: string) { return this.svc.listServicesOf(id); }
-  @Post('services') createService(@Body() b: any) { return this.svc.createService(b); }
-  @Post('services/:id/book') book(@Param('id') id: string, @Body() b: any) {
-    return this.svc.book(b.userId, id, b.bookingDate, b.phone);
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Post('partners')
+  createPartner(@Body() b: any) { return this.svc.createPartner(b); }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('partners/:id/services')
+  services(@Param('id') id: string) { return this.svc.listServicesOf(id); }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin', 'wellness_partner')
+  @Post('services')
+  createService(@Body() b: any) { return this.svc.createService(b); }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('services/:id/book')
+  book(@Param('id') id: string, @Body() b: BookWellnessDto, @Req() req: any) {
+    return this.svc.book(req.user.id, id, b.bookingDate, b.phone || req.user.phone || '');
   }
 }
 
 @Module({
   imports: [TypeOrmModule.forFeature([WellnessPartnerEntity, WellnessServiceEntity, WellnessBookingEntity]), PaymentsModule],
   controllers: [WellnessController],
-  providers: [WellnessService_],
+  providers: [WellnessService],
 })
 export class WellnessModule {}
