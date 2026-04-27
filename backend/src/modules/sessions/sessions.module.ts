@@ -24,6 +24,9 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 import { EmailModule } from '../email/email.module';
 import { EmailService } from '../email/email.service';
+import { JwtModule, JwtService } from '@nestjs/jwt';
+import { BookingQrEntity } from '../../database/entities/booking-qr.entity';
+import { v4 as uuidv4 } from 'uuid';
 
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 
@@ -135,7 +138,9 @@ export class SessionsService {
     @InjectRepository(SubscriptionEntity) private readonly subRepo: Repository<SubscriptionEntity>,
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
     @InjectRepository(CheckinEntity) private readonly checkinRepo: Repository<CheckinEntity>,
+    @InjectRepository(BookingQrEntity) private readonly qrRepo: Repository<BookingQrEntity>,
     private readonly email: EmailService,
+    private readonly jwt: JwtService,
   ) {}
 
   // ── Operating Hours ──────────────────────────────────────────────────────
@@ -423,7 +428,49 @@ export class SessionsService {
     ]);
 
     this.sendBookingConfirmation({ booking, slot, sessionType, gym, user }).catch(() => {});
-    return { ...booking, slot, sessionType, gym } as any;
+
+    // Generate 2-hour booking QR
+    const BOOKING_QR_EXPIRY_HOURS = 2;
+    const jti = uuidv4();
+    const bookedAt = new Date();
+    const expiresAt = new Date(bookedAt.getTime() + BOOKING_QR_EXPIRY_HOURS * 60 * 60 * 1000);
+
+    const qrPayload = {
+      sub: userId,
+      gym: slot.gymId,
+      sid: sub.id,
+      bid: booking.id,
+      jti,
+      type: 'booking',
+    };
+    const qrToken = this.jwt.sign(qrPayload, { expiresIn: `${BOOKING_QR_EXPIRY_HOURS}h` });
+
+    const bookingQr = await this.qrRepo.save(
+      this.qrRepo.create({
+        userId,
+        gymId: slot.gymId,
+        subscriptionId: sub.id,
+        slotBookingId: booking.id,
+        qrToken,
+        expiresAt,
+        bookedAt,
+      }),
+    );
+
+    return {
+      ...booking,
+      slot,
+      sessionType,
+      gym,
+      bookingQr: {
+        id: bookingQr.id,
+        token: qrToken,
+        expiresAt: expiresAt.toISOString(),
+        bookedAt: bookedAt.toISOString(),
+        gymId: slot.gymId,
+        gymName: gym?.name ?? '',
+      },
+    } as any;
   }
 
   private async sendBookingConfirmation(ctx: {
@@ -841,8 +888,13 @@ export class SessionsController {
       GymScheduleEntity, SessionTypeEntity, SessionScheduleEntity,
       SessionSlotEntity, SessionBookingEntity, AttendanceEntity,
       GymEntity, SubscriptionEntity, UserEntity, CheckinEntity,
+      BookingQrEntity,
     ]),
     EmailModule,
+    JwtModule.register({
+      secret: process.env.QR_SECRET || 'qr-hmac-secret-change-me',
+      signOptions: { algorithm: 'HS256' },
+    }),
   ],
   controllers: [SessionsController],
   providers: [SessionsService],

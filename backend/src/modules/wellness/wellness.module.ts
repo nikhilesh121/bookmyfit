@@ -37,6 +37,19 @@ class WellnessService {
   listServicesOf(partnerId: string) { return this.services.find({ where: { partnerId, isActive: true } }); }
   createService(data: Partial<WellnessServiceEntity>) { return this.services.save(this.services.create(data)); }
 
+  async listAllServices(filter: { category?: string } = {}) {
+    const qb = this.services.createQueryBuilder('s')
+      .innerJoin(WellnessPartnerEntity, 'p', 's."partnerId" = p.id')
+      .where('s."isActive" = true')
+      .andWhere("p.status = 'active'");
+    if (filter.category) qb.andWhere('p."serviceType" = :cat', { cat: filter.category });
+    return qb
+      .select(['s.id', 's.name', 's.description', 's.price', 's."durationMinutes"', 's."partnerId"'])
+      .addSelect(['p."serviceType"', 'p.city', 'p.area'])
+      .orderBy('s.price', 'ASC')
+      .getRawMany();
+  }
+
   async book(userId: string, serviceId: string, bookingDate: string, phone: string) {
     const service = await this.services.findOne({ where: { id: serviceId } });
     if (!service) throw new Error('Service not found');
@@ -77,6 +90,12 @@ class WellnessController {
   @Roles('super_admin')
   @Post('partners')
   createPartner(@Body() b: any) { return this.svc.createPartner(b); }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('services/all')
+  allServices(@Query('category') cat?: string) {
+    return this.svc.listAllServices({ category: cat });
+  }
 
   @UseGuards(JwtAuthGuard)
   @Get('partners/:id/services')

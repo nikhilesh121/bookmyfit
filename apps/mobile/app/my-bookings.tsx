@@ -37,7 +37,7 @@ export default function MyBookings() {
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     try {
-      const data = await api.get('/slots/my-bookings');
+      const data = await api.get('/sessions/my-bookings');
       setBookings(Array.isArray(data) ? data : []);
     } catch {
       setBookings([]);

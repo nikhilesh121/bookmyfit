@@ -111,13 +111,34 @@ export default function GymDetail() {
     }
     setBookingLoading(slotId);
     try {
-      const { Alert } = require('react-native');
-      await api.post('/sessions/book', { slotId, subscriptionId: activeSub?.id || activeSub?._id });
-      Alert.alert('Booked! ✅', 'Your session is confirmed. Check My Bookings for details.');
-      loadSlots(id as string, slotDate);
+      const res: any = await api.post('/sessions/book', { slotId, subscriptionId: activeSub?.id || activeSub?._id });
+      if (res?.bookingQr) {
+        router.push({
+          pathname: '/qr',
+          params: {
+            token: res.bookingQr.token,
+            expiresAt: res.bookingQr.expiresAt,
+            bookedAt: res.bookingQr.bookedAt,
+            gymId: res.bookingQr.gymId,
+            gymName: res.bookingQr.gymName,
+          },
+        } as any);
+      } else {
+        const { Alert } = require('react-native');
+        Alert.alert('Booked! ✅', 'Your session is confirmed. Check My Bookings for details.');
+        loadSlots(id as string, slotDate);
+      }
     } catch (e: any) {
       const { Alert } = require('react-native');
-      Alert.alert('Booking Failed', e?.message || 'Could not book this slot. Please try again.');
+      const msg = (e?.message || '');
+      if (msg.includes('subscription')) {
+        Alert.alert('No Active Pass', 'You need an active pass to book sessions.', [
+          { text: 'View Plans', onPress: () => router.push({ pathname: '/plans', params: { gymId: id } } as any) },
+          { text: 'Cancel', style: 'cancel' },
+        ]);
+      } else {
+        Alert.alert('Booking Failed', msg || 'Could not book this slot. Please try again.');
+      }
     } finally {
       setBookingLoading(null);
     }

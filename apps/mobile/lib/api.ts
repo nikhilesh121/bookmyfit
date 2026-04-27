@@ -206,4 +206,5 @@ export const slotsApi = {
   book: (slotId: string, subscriptionId?: string) => api.post(`/slots/${slotId}/book`, subscriptionId ? { subscriptionId } : {}),
   cancel: (slotId: string) => api.del(`/slots/${slotId}/book`),
   myBookings: () => api.get('/slots/my-bookings'),
+  sessionsMyBookings: () => api.get('/sessions/my-bookings'),
 };

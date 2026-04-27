@@ -9,25 +9,29 @@ import {
 } from '../components/Icons';
 import { wellnessApi, getUser } from '../lib/api';
 
-const CATEGORIES = ['All', 'Yoga', 'Meditation', 'Nutrition', 'Physio', 'Training', 'Spa'];
+const CATEGORIES = ['All', 'Massage', 'Cupping', 'Physio', 'Spa', 'Nutrition', 'Recovery'];
 
 const STATIC_SERVICES = [
-  { name: 'Yoga Classes', desc: 'Find certified yoga instructors near you', icon: 'dumbbell', category: 'Yoga', price: 'From ₹499', aurora: 'rgba(204,255,0,0.18)' },
-  { name: 'Meditation Sessions', desc: 'Guided mindfulness and stress relief', icon: 'bolt', category: 'Meditation', price: 'From ₹299', aurora: 'rgba(155,0,255,0.18)' },
-  { name: 'Nutrition Consult', desc: 'Personalized diet plans by experts', icon: 'check', category: 'Nutrition', price: 'From ₹799', aurora: 'rgba(0,175,255,0.18)' },
-  { name: 'Physiotherapy', desc: 'Injury recovery and mobility training', icon: 'calendar', category: 'Physio', price: 'From ₹999', aurora: 'rgba(255,138,0,0.18)' },
-  { name: 'Personal Training', desc: '1-on-1 sessions with certified trainers', icon: 'user', category: 'Training', price: 'From ₹1,499', aurora: 'rgba(204,255,0,0.18)' },
-  { name: 'Spa & Recovery', desc: 'Post-workout recovery and relaxation', icon: 'star', category: 'Spa', price: 'From ₹1,299', aurora: 'rgba(255,200,50,0.18)' },
+  { name: 'Deep Tissue Massage', desc: 'Targeted muscle relief and deep tissue therapy by certified therapists', icon: 'star', category: 'Massage', price: 'From ₹799', aurora: 'rgba(255,200,50,0.18)' },
+  { name: 'Swedish Massage', desc: 'Full body relaxation massage for stress relief and circulation', icon: 'star', category: 'Massage', price: 'From ₹599', aurora: 'rgba(255,138,0,0.14)' },
+  { name: 'Cupping Therapy', desc: 'Traditional cupping for muscle tension, detox and recovery', icon: 'bolt', category: 'Cupping', price: 'From ₹499', aurora: 'rgba(155,0,255,0.18)' },
+  { name: 'Fire Cupping', desc: 'Ancient fire cupping technique for deep healing and pain relief', icon: 'bolt', category: 'Cupping', price: 'From ₹699', aurora: 'rgba(255,60,60,0.14)' },
+  { name: 'Physiotherapy', desc: 'Injury recovery, joint mobilisation and movement rehab by experts', icon: 'calendar', category: 'Physio', price: 'From ₹999', aurora: 'rgba(0,175,255,0.18)' },
+  { name: 'Sports Physio', desc: 'Specialised physiotherapy for athletic injuries and performance', icon: 'calendar', category: 'Physio', price: 'From ₹1,199', aurora: 'rgba(0,220,255,0.14)' },
+  { name: 'Steam & Sauna', desc: 'Post-workout steam room and sauna for muscle recovery', icon: 'check', category: 'Spa', price: 'From ₹299', aurora: 'rgba(204,255,0,0.18)' },
+  { name: 'Jacuzzi & Hydrotherapy', desc: 'Warm water therapy for joint relief and total relaxation', icon: 'check', category: 'Spa', price: 'From ₹499', aurora: 'rgba(0,255,180,0.14)' },
+  { name: 'Nutrition Consultation', desc: 'Personalized diet plans and macro coaching by certified nutritionists', icon: 'user', category: 'Nutrition', price: 'From ₹799', aurora: 'rgba(204,255,0,0.16)' },
+  { name: 'Ice Bath & Cryotherapy', desc: 'Cold exposure therapy for rapid recovery and inflammation reduction', icon: 'dumbbell', category: 'Recovery', price: 'From ₹399', aurora: 'rgba(0,175,255,0.20)' },
 ];
 
 const CATEGORY_ICON: Record<string, string> = {
-  Yoga: 'dumbbell', Meditation: 'bolt', Nutrition: 'check',
-  Physio: 'calendar', Training: 'user', Spa: 'star',
+  Massage: 'star', Cupping: 'bolt', Physio: 'calendar',
+  Spa: 'check', Nutrition: 'user', Recovery: 'dumbbell',
 };
 const CATEGORY_AURORA: Record<string, string> = {
-  Yoga: 'rgba(204,255,0,0.18)', Meditation: 'rgba(155,0,255,0.18)',
-  Nutrition: 'rgba(0,175,255,0.18)', Physio: 'rgba(255,138,0,0.18)',
-  Training: 'rgba(204,255,0,0.18)', Spa: 'rgba(255,200,50,0.18)',
+  Massage: 'rgba(255,200,50,0.18)', Cupping: 'rgba(155,0,255,0.18)',
+  Physio: 'rgba(0,175,255,0.18)', Spa: 'rgba(204,255,0,0.18)',
+  Nutrition: 'rgba(204,255,0,0.16)', Recovery: 'rgba(0,175,255,0.20)',
 };
 
 function ServiceIcon({ icon, size, color }: { icon: string; size: number; color: string }) {
@@ -119,7 +123,7 @@ export default function Wellness() {
         <TouchableOpacity style={s.back} onPress={() => router.back()}>
           <IconArrowLeft size={18} color="#fff" />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Wellness & Services</Text>
+        <Text style={s.headerTitle}>Wellness Services</Text>
         <View style={{ width: 38 }} />
       </View>
 
@@ -134,7 +138,7 @@ export default function Wellness() {
         >
           {/* Intro */}
           <Text style={s.intro}>
-            Discover wellness services curated for your fitness journey.
+            Recovery, therapy and wellness services curated for your fitness journey — from massage to physio.
           </Text>
 
           {/* Category pills */}
