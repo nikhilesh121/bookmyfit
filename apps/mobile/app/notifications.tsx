@@ -165,7 +165,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', gap: 12, padding: 14, marginBottom: 10,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg,
   },
-  cardUnread: { borderColor: colors.accentBorder, backgroundColor: 'rgba(204,255,0,0.04)' },
+  cardUnread: { borderColor: colors.accentBorder, backgroundColor: 'rgba(61,255,84,0.04)' },
   iconWrap: {
     width: 38, height: 38, borderRadius: 12,
     backgroundColor: 'rgba(0,0,0,0.3)', borderWidth: 1,

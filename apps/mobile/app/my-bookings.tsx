@@ -19,7 +19,7 @@ type Booking = {
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
-  confirmed:    { label: 'Confirmed',    color: '#CCFF00', emoji: '✅' },
+  confirmed:    { label: 'Confirmed',    color: '#3DFF54', emoji: '✅' },
   attended:     { label: 'Attended',     color: '#00D4FF', emoji: '🏋️' },
   not_attended: { label: 'Missed',       color: '#FF6B6B', emoji: '😔' },
   cancelled:    { label: 'Cancelled',    color: 'rgba(255,255,255,0.3)', emoji: '❌' },

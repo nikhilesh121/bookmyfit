@@ -47,7 +47,7 @@ export default function Subscriptions() {
       .finally(() => setLoading(false));
   }, []);
 
-  const TIER_AURORA: Record<string, string> = { Elite: 'rgba(204,255,0,0.56)', Premium: 'rgba(155,0,255,0.56)', Standard: 'rgba(255,138,0,0.5)', expired: 'rgba(100,100,100,0.5)' };
+  const TIER_AURORA: Record<string, string> = { Elite: 'rgba(61,255,84,0.56)', Premium: 'rgba(155,0,255,0.56)', Standard: 'rgba(255,138,0,0.5)', expired: 'rgba(100,100,100,0.5)' };
 
   return (
     <AuroraBackground variant="premium">
@@ -79,7 +79,7 @@ export default function Subscriptions() {
               const left = sub.endDate ? daysLeft(sub.endDate) : (isActive ? 'Active' : 'Expired');
               const started = sub.startDate ? new Date(sub.startDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : '';
               const tier = sub.plan?.tier || sub.tier || 'Elite';
-              const aurora = isActive ? (TIER_AURORA[tier] || 'rgba(204,255,0,0.56)') : TIER_AURORA.expired;
+              const aurora = isActive ? (TIER_AURORA[tier] || 'rgba(61,255,84,0.56)') : TIER_AURORA.expired;
               // First gymId for navigation
               const gymIds: string[] = sub.gymIds || (sub.gymId ? [sub.gymId] : []);
               const firstGymId = gymIds[0] || sub.gym?._id || sub.gym?.id || '';

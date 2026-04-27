@@ -320,8 +320,8 @@ const s = StyleSheet.create({
   subtitle: { fontFamily: fonts.sans, fontSize: 14, color: 'rgba(255,255,255,0.45)', paddingHorizontal: 20, marginTop: 6, marginBottom: 16 },
   gymChip: {
     alignSelf: 'flex-start', marginHorizontal: 20, marginBottom: 16,
-    backgroundColor: 'rgba(204,255,0,0.1)', borderRadius: radius.pill,
-    borderWidth: 1, borderColor: 'rgba(204,255,0,0.25)',
+    backgroundColor: 'rgba(61,255,84,0.1)', borderRadius: radius.pill,
+    borderWidth: 1, borderColor: 'rgba(61,255,84,0.25)',
     paddingHorizontal: 14, paddingVertical: 6,
   },
   gymChipText: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.accent },
@@ -370,7 +370,7 @@ const s = StyleSheet.create({
   trustItem: { flex: 1, alignItems: 'center', gap: 5 },
   trustIcon: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(204,255,0,0.1)', borderWidth: 1, borderColor: 'rgba(204,255,0,0.2)',
+    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
   trustLabel: { fontFamily: fonts.sansMedium, fontSize: 9, color: 'rgba(255,255,255,0.45)', textAlign: 'center' },
@@ -381,7 +381,7 @@ const s = StyleSheet.create({
   howItem: { flex: 1, alignItems: 'center', position: 'relative' },
   howNum: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: 'rgba(204,255,0,0.12)', borderWidth: 1.5, borderColor: 'rgba(204,255,0,0.3)',
+    backgroundColor: 'rgba(61,255,84,0.12)', borderWidth: 1.5, borderColor: 'rgba(61,255,84,0.3)',
     alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
   howNumText: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.accent },

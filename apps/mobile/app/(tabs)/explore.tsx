@@ -17,7 +17,7 @@ const FALLBACK_GYMS = [
 
 const TIERS = ['All', 'Elite', 'Premium', 'Standard'];
 const TIER_COLORS: Record<string, string> = { Elite: colors.accent, Premium: 'rgba(155,0,255,0.9)', Standard: 'rgba(255,138,0,0.9)' };
-const TIER_AURORA: Record<string, string> = { Elite: 'rgba(204,255,0,0.25)', Premium: 'rgba(155,0,255,0.25)', Standard: 'rgba(255,138,0,0.22)' };
+const TIER_AURORA: Record<string, string> = { Elite: 'rgba(61,255,84,0.25)', Premium: 'rgba(155,0,255,0.25)', Standard: 'rgba(255,138,0,0.22)' };
 
 function SkeletonCard() {
   return (
@@ -232,7 +232,7 @@ const s = StyleSheet.create({
   },
   wellnessAurora: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(204,255,0,0.07)',
+    backgroundColor: 'rgba(61,255,84,0.07)',
   },
   wellnessIconBox: {
     width: 44, height: 44, borderRadius: radius.lg,

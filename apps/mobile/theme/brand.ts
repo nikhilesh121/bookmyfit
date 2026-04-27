@@ -3,10 +3,10 @@
 
 export const colors = {
   bg: '#060606',
-  accent: '#CCFF00',           // Neon yellow-green (premium identity)
-  accentSoft: 'rgba(204,255,0,0.13)',
-  accentBorder: 'rgba(204,255,0,0.28)',
-  accentGlow: 'rgba(204,255,0,0.45)',
+  accent: '#3DFF54',           // Neon green (premium identity — matches reference)
+  accentSoft: 'rgba(61,255,84,0.13)',
+  accentBorder: 'rgba(61,255,84,0.28)',
+  accentGlow: 'rgba(61,255,84,0.45)',
   surface: 'rgba(255,255,255,0.05)',
   surfaceStrong: 'rgba(255,255,255,0.09)',
   glass: 'rgba(255,255,255,0.07)',
@@ -28,7 +28,7 @@ export const colors = {
   aurora3: 'rgba(255,80,0,0.05)',     // deep orange-red
 
   // Tier colors
-  tierElite: '#CCFF00',
+  tierElite: '#3DFF54',
   tierPremium: '#9B00FF',
   tierStandard: '#FF8A00',
   tierAqua: '#00AFFF',

@@ -48,7 +48,7 @@ const s = StyleSheet.create({
   bg: { flex: 1, backgroundColor: colors.bg },
   aurora: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(204,255,0,0.12)',
+    backgroundColor: 'rgba(61,255,84,0.12)',
   },
   dark: {
     ...StyleSheet.absoluteFillObject,

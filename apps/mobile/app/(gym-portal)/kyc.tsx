@@ -23,8 +23,8 @@ const DEFAULT_STEPS: KycStep[] = [
 ];
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  verified: { label: 'Verified', color: colors.accent, bg: 'rgba(204,255,0,0.1)' },
-  approved: { label: 'Approved', color: colors.accent, bg: 'rgba(204,255,0,0.1)' },
+  verified: { label: 'Verified', color: colors.accent, bg: 'rgba(61,255,84,0.1)' },
+  approved: { label: 'Approved', color: colors.accent, bg: 'rgba(61,255,84,0.1)' },
   in_review: { label: 'In Review', color: 'rgba(255,210,50,0.9)', bg: 'rgba(255,210,50,0.08)' },
   pending: { label: 'Pending', color: 'rgba(255,255,255,0.4)', bg: 'rgba(255,255,255,0.05)' },
   rejected: { label: 'Rejected', color: 'rgba(255,80,80,0.9)', bg: 'rgba(255,60,60,0.08)' },
@@ -148,8 +148,8 @@ const s = StyleSheet.create({
   headerTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff' },
   scroll: { paddingHorizontal: 20, paddingTop: 4 },
   progressCard: {
-    backgroundColor: 'rgba(204,255,0,0.06)',
-    borderWidth: 1, borderColor: 'rgba(204,255,0,0.18)',
+    backgroundColor: 'rgba(61,255,84,0.06)',
+    borderWidth: 1, borderColor: 'rgba(61,255,84,0.18)',
     borderRadius: radius.lg, padding: 14, marginBottom: 24,
   },
   progressLabel: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent, marginBottom: 8 },

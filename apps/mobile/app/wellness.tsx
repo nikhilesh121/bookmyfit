@@ -13,7 +13,7 @@ import {
 import { getUser, api } from '../lib/api';
 
 const { width } = Dimensions.get('window');
-const CARD_W = width - 44;
+const CARD_W = width;
 
 // ── Static data (fallback / shown while API loads) ───────────────────────────
 
@@ -78,7 +78,7 @@ export default function Wellness() {
   };
 
   const onHeroScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / CARD_W);
+    const idx = Math.round(e.nativeEvent.contentOffset.x / width);
     setHeroIndex(idx);
   };
 
@@ -273,7 +273,7 @@ const s = StyleSheet.create({
   headerSub: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 1 },
 
   // Hero
-  heroCard: { width: width - 32, marginHorizontal: 16, borderRadius: radius.xl, overflow: 'hidden', height: 200 },
+  heroCard: { width: width, borderRadius: 0, overflow: 'hidden', height: 220 },
   heroImg: { ...StyleSheet.absoluteFillObject, width: undefined, height: undefined },
   heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.52)' },
   heroContent: { flex: 1, padding: 20, justifyContent: 'flex-end' },
@@ -281,7 +281,7 @@ const s = StyleSheet.create({
   heroTitle: { fontFamily: fonts.sansBold, fontSize: 26, color: '#fff', lineHeight: 30 },
   heroTitleAccent: { fontFamily: fonts.sansBold, fontSize: 26, color: colors.accent, lineHeight: 30, marginBottom: 8 },
   heroBody: { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.75)', lineHeight: 18 },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12, marginBottom: 20 },
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12, marginBottom: 20, paddingHorizontal: 16 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)' },
   dotActive: { width: 18, backgroundColor: colors.accent },
 
@@ -296,11 +296,11 @@ const s = StyleSheet.create({
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
     borderRadius: radius.lg, borderWidth: 1, padding: 14,
   },
-  typeCardGreen: { backgroundColor: 'rgba(204,255,0,0.06)', borderColor: 'rgba(204,255,0,0.22)' },
+  typeCardGreen: { backgroundColor: 'rgba(61,255,84,0.06)', borderColor: 'rgba(61,255,84,0.22)' },
   typeCardPurple: { backgroundColor: 'rgba(155,93,229,0.08)', borderColor: 'rgba(155,93,229,0.25)' },
   typeIconWrap: {
     width: 40, height: 40, borderRadius: radius.sm, borderWidth: 1,
-    borderColor: 'rgba(204,255,0,0.28)', backgroundColor: 'rgba(204,255,0,0.10)',
+    borderColor: 'rgba(61,255,84,0.28)', backgroundColor: 'rgba(61,255,84,0.10)',
     alignItems: 'center', justifyContent: 'center',
   },
   typeIconPurple: { borderColor: 'rgba(155,93,229,0.35)', backgroundColor: 'rgba(155,93,229,0.12)' },

@@ -116,7 +116,7 @@ const s = StyleSheet.create({
   },
   headerTitle: { flex: 1, fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', marginLeft: 12 },
   securityBadge: {
-    backgroundColor: 'rgba(204,255,0,0.12)', paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: 'rgba(61,255,84,0.12)', paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 20, borderWidth: 1, borderColor: colors.accentBorder,
   },
   securityText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent, letterSpacing: 0.5 },

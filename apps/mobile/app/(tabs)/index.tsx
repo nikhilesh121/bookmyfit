@@ -52,9 +52,9 @@ function CategorySvgIcon({ type, size, color }: { type: string; size: number; co
 
 // ── Hero slides ─────────────────────────────────────────────────────────────
 const HERO_SLIDES = [
-  { img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=800&q=80', headline: 'Make Every Rep\nCount!', cta: 'Explore Gyms' },
-  { img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&q=80', headline: 'Find Your Perfect\nGym Today!', cta: 'Browse Now' },
-  { img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80', headline: 'No Long\nContracts!', cta: 'View Plans' },
+  { img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=800&q=80', headline: 'Make Every Rep', headlineAccent: 'Count!', sub: 'Find the best gyms near you\nand book your pass instantly.', cta: 'Explore Gyms' },
+  { img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&q=80', headline: 'Find Your Perfect', headlineAccent: 'Gym Today!', sub: 'Partner gyms across the city,\none subscription covers all.', cta: 'Browse Now' },
+  { img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80', headline: 'No Long', headlineAccent: 'Contracts!', sub: 'Flexible day passes, weekly\nor monthly — your choice.', cta: 'View Plans' },
 ];
 
 function SkeletonRect({ h, style }: { h: number; style?: any }) {
@@ -147,8 +147,10 @@ export default function Home() {
                 <View style={s.heroDark} />
                 <View style={s.heroContent}>
                   <Text style={s.heroHeadline}>{item.headline}</Text>
+                  <Text style={s.heroHeadlineAccent}>{item.headlineAccent}</Text>
+                  <Text style={s.heroSub}>{item.sub}</Text>
                   <TouchableOpacity style={s.heroCta} onPress={() => router.push('/(tabs)/explore')}>
-                    <Text style={s.heroCtaText}>{item.cta}</Text>
+                    <Text style={s.heroCtaText}>{item.cta} ›</Text>
                   </TouchableOpacity>
                 </View>
               </ImageBackground>
@@ -216,6 +218,7 @@ export default function Home() {
             const img = g.images?.[0] || g.coverImage || g.img || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80';
             const amenities: string[] = g.amenities || g.tags || [];
             const discount = g.discount || null;
+            const dayPassPrice = g.dayPassPrice || g.day_pass_price || '₹99';
             return (
               <TouchableOpacity
                 key={g.id || g._id}
@@ -256,12 +259,18 @@ export default function Home() {
                       ))}
                     </View>
                   )}
-                  <TouchableOpacity
-                    style={s.viewPlansBtn}
-                    onPress={() => router.push({ pathname: '/plans', params: { gymId: g.id || g._id, gymName: name } })}
-                  >
-                    <Text style={s.viewPlansBtnText}>View Plans</Text>
-                  </TouchableOpacity>
+                  <View style={s.gymCardFooter}>
+                    <View>
+                      <Text style={s.fromLabel}>From</Text>
+                      <Text style={s.fromPrice}>{dayPassPrice}<Text style={s.fromPer}> /day</Text></Text>
+                    </View>
+                    <TouchableOpacity
+                      style={s.viewPlansBtn}
+                      onPress={() => router.push({ pathname: '/plans', params: { gymId: g.id || g._id, gymName: name } })}
+                    >
+                      <Text style={s.viewPlansBtnText}>View Plans</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </TouchableOpacity>
             );
@@ -372,12 +381,14 @@ const s = StyleSheet.create({
   // Hero
   heroWrap: { paddingHorizontal: 20, marginBottom: 6 },
   heroSlide: {
-    width: SCREEN_W - 40, height: 190,
+    width: SCREEN_W - 40, height: 210,
     borderRadius: radius.xl, overflow: 'hidden', justifyContent: 'flex-end',
   },
-  heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.52)' },
-  heroContent: { padding: 18, gap: 12 },
-  heroHeadline: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', lineHeight: 32, letterSpacing: -0.5 },
+  heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
+  heroContent: { padding: 18, gap: 4 },
+  heroHeadline: { fontFamily: fonts.serif, fontSize: 28, color: '#fff', lineHeight: 34, letterSpacing: -0.5 },
+  heroHeadlineAccent: { fontFamily: fonts.serif, fontSize: 28, color: colors.accent, lineHeight: 32, letterSpacing: -0.5, marginBottom: 4 },
+  heroSub: { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 17, marginBottom: 10 },
   heroCta: {
     alignSelf: 'flex-start', borderWidth: 1.5, borderColor: '#fff',
     borderRadius: radius.pill, paddingHorizontal: 18, paddingVertical: 8,
@@ -431,10 +442,10 @@ const s = StyleSheet.create({
   gymThumb: { width: 90, height: 90, borderRadius: radius.md, overflow: 'hidden', position: 'relative' },
   discountBadge: {
     position: 'absolute', top: 6, left: 6,
-    backgroundColor: '#FF4444', borderRadius: 6,
+    backgroundColor: colors.accent, borderRadius: 6,
     paddingHorizontal: 6, paddingVertical: 3,
   },
-  discountText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#fff' },
+  discountText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#060606' },
   gymInfo: { flex: 1, justifyContent: 'space-between', gap: 4 },
   gymTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   gymName: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', flex: 1, marginRight: 6 },
@@ -448,6 +459,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 3,
   },
   tagText: { fontFamily: fonts.sansMedium, fontSize: 10, color: colors.t2 },
+  gymCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
+  fromLabel: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
+  fromPrice: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.accent },
+  fromPer: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
   viewPlansBtn: {
     backgroundColor: colors.accent, borderRadius: radius.pill,
     paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start',
@@ -464,7 +479,7 @@ const s = StyleSheet.create({
   trustItem: { flex: 1, alignItems: 'center', gap: 6 },
   trustIcon: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(204,255,0,0.1)', borderWidth: 1, borderColor: 'rgba(204,255,0,0.2)',
+    backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
   trustLabel: { fontFamily: fonts.sansMedium, fontSize: 9, color: colors.t2, textAlign: 'center' },
@@ -479,7 +494,7 @@ const s = StyleSheet.create({
   testimonialText: { fontFamily: fonts.sans, fontSize: 13, color: 'rgba(255,255,255,0.68)', lineHeight: 20, fontStyle: 'italic' },
   avatarCircle: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(204,255,0,0.12)', borderWidth: 1, borderColor: 'rgba(204,255,0,0.25)',
+    backgroundColor: 'rgba(61,255,84,0.12)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.25)',
     alignItems: 'center', justifyContent: 'center',
   },
   avatarText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
