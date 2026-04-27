@@ -15,3 +15,4 @@ backend/dist/
 # Expo generated native folders (regenerated via expo prebuild)
 apps/mobile/ios/
 apps/mobile/android/
+package-lock.json
