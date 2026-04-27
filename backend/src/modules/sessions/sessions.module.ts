@@ -334,7 +334,7 @@ export class SessionsService {
   // ── Customer: Browse & Book ──────────────────────────────────────────────
 
   async getSlotsForGym(gymId: string, date: string, userId?: string) {
-    await this.generateSlotsForGym(gymId, 1);
+    await this.generateSlotsForGym(gymId, 8); // generate 8 days so any date in the date picker works
     const slots = await this.slotRepo.find({ where: { gymId, date, status: 'scheduled' }, order: { startTime: 'ASC' } });
     const types = await this.typeRepo.find({ where: { gymId } });
 
