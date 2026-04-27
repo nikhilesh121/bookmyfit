@@ -1,14 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Dimensions,
-  ImageBackground, Animated, PanResponder,
+  ImageBackground, FlatList, NativeScrollEvent, NativeSyntheticEvent,
 } from 'react-native';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { colors, fonts, radius } from '../theme/brand';
 
 const ONBOARDED_KEY = 'bmf_onboarded';
-
 async function markOnboarded() {
   await SecureStore.setItemAsync(ONBOARDED_KEY, '1');
 }
@@ -26,7 +25,7 @@ const SLIDES = [
     image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&q=80',
     aurora: ['rgba(0,140,255,0.35)', 'rgba(120,40,200,0.30)'],
     title: 'QR Check-In',
-    subtitle: 'Dynamic 30-second QR code. No plastic cards. No queues.',
+    subtitle: 'Book a slot and get a 2-hour QR code. No plastic cards, no queues.',
   },
   {
     image: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=800&q=80',
@@ -38,129 +37,123 @@ const SLIDES = [
 
 export default function Onboarding() {
   const [current, setCurrent] = useState(0);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const panX = useRef(0);
+  const listRef = useRef<FlatList>(null);
 
-  const goTo = (idx: number) => {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => {
-      setCurrent(idx);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 280, useNativeDriver: true }).start();
-    });
+  const onMomentumScrollEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / width);
+    setCurrent(idx);
+  }, []);
+
+  const goTo = useCallback((idx: number) => {
+    listRef.current?.scrollToIndex({ index: idx, animated: true });
+    setCurrent(idx);
+  }, []);
+
+  const handleGetStarted = async () => {
+    await markOnboarded();
+    router.replace('/login');
   };
-
-  const scheduleAuto = () => {
-    clearTimeout(autoTimer.current);
-    autoTimer.current = setTimeout(() => {
-      setCurrent((c) => {
-        const next = (c + 1) % SLIDES.length;
-        goTo(next);
-        return c;
-      });
-    }, 3500);
-  };
-
-  useEffect(() => {
-    scheduleAuto();
-    return () => clearTimeout(autoTimer.current);
-  }, [current]);
-
-  const panResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 10,
-    onPanResponderGrant: () => { panX.current = 0; },
-    onPanResponderMove: (_, g) => { panX.current = g.dx; },
-    onPanResponderRelease: () => {
-      if (panX.current < -50 && current < SLIDES.length - 1) {
-        clearTimeout(autoTimer.current);
-        goTo(current + 1);
-      } else if (panX.current > 50 && current > 0) {
-        clearTimeout(autoTimer.current);
-        goTo(current - 1);
-      }
-    },
-  });
-
-  const slide = SLIDES[current];
 
   return (
-    <View style={s.root} {...panResponder.panHandlers}>
-      <ImageBackground source={{ uri: slide.image }} style={s.bg} resizeMode="cover">
-        {/* Aurora overlays */}
-        <View style={[s.aurora, { backgroundColor: slide.aurora[0], top: -80, left: -60 }]} />
-        <View style={[s.aurora, { backgroundColor: slide.aurora[1], bottom: '25%', right: -80 }]} />
-        {/* Dark overlay */}
-        <View style={s.darkOverlay} />
-
-        <Animated.View style={[s.content, { opacity: fadeAnim }]}>
-          {/* Bottom glass panel */}
-          <View style={s.panel}>
-            {/* Kicker */}
-            <Text style={s.kicker}>BOOKMYFIT</Text>
-            <Text style={s.title}>{slide.title}</Text>
-            <Text style={s.subtitle}>{slide.subtitle}</Text>
-
-            {/* Dots */}
-            <View style={s.dots}>
-              {SLIDES.map((_, i) => (
-                <View key={i} style={[s.dot, i === current && s.dotActive]} />
-              ))}
+    <View style={s.root}>
+      {/* Slides — full screen horizontal FlatList */}
+      <FlatList
+        ref={listRef}
+        data={SLIDES}
+        keyExtractor={(_, i) => String(i)}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={onMomentumScrollEnd}
+        renderItem={({ item }) => (
+          <ImageBackground source={{ uri: item.image }} style={s.slide} resizeMode="cover">
+            <View style={[s.aurora, { backgroundColor: item.aurora[0], top: -80, left: -60 }]} />
+            <View style={[s.aurora, { backgroundColor: item.aurora[1], bottom: '35%', right: -80 }]} />
+            <View style={s.darkOverlay} />
+            {/* Text content slides with the image */}
+            <View style={s.textBlock}>
+              <Text style={s.kicker}>BOOKMYFIT</Text>
+              <Text style={s.title}>{item.title}</Text>
+              <Text style={s.subtitle}>{item.subtitle}</Text>
             </View>
+          </ImageBackground>
+        )}
+      />
 
-            {/* CTA */}
-            <TouchableOpacity style={s.btnPrimary} onPress={() => { markOnboarded(); router.replace('/login'); }}>
-              <Text style={s.btnPrimaryText}>Get Started</Text>
+      {/* Fixed bottom panel — stays put while slides scroll above */}
+      <View style={s.fixedBottom}>
+        {/* Tap-to-navigate dots */}
+        <View style={s.dots}>
+          {SLIDES.map((_, i) => (
+            <TouchableOpacity key={i} onPress={() => goTo(i)} hitSlop={8}>
+              <View style={[s.dot, i === current && s.dotActive]} />
             </TouchableOpacity>
-            <TouchableOpacity style={s.btnGhost} onPress={() => { markOnboarded(); router.replace('/login'); }}>
-              <Text style={s.btnGhostText}>I already have an account</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      </ImageBackground>
+          ))}
+        </View>
+
+        <TouchableOpacity style={s.btnPrimary} onPress={handleGetStarted}>
+          <Text style={s.btnPrimaryText}>Get Started</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.btnGhost} onPress={handleGetStarted}>
+          <Text style={s.btnGhostText}>I already have an account</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  bg: { flex: 1 },
+
+  /* Each slide fills the screen */
+  slide: { width, height },
   aurora: {
     position: 'absolute', width: 340, height: 340, borderRadius: 170,
   },
-  darkOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
-  content: { flex: 1, justifyContent: 'flex-end' },
-  panel: {
-    backgroundColor: 'rgba(255,255,255,0.09)',
-    borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
-    borderTopLeftRadius: 32, borderTopRightRadius: 32,
-    paddingHorizontal: 28, paddingTop: 28, paddingBottom: 48,
+  darkOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.52)' },
+  textBlock: {
+    position: 'absolute',
+    bottom: 220,        // above the fixed panel height
+    left: 28,
+    right: 28,
   },
   kicker: {
     fontSize: 10, letterSpacing: 3, textTransform: 'uppercase',
-    color: colors.accent, fontFamily: fonts.sansBold, marginBottom: 10,
+    color: colors.accent, fontFamily: fonts.sansBold, marginBottom: 12,
   },
   title: {
-    fontFamily: fonts.serif, fontSize: 36, color: '#fff', marginBottom: 10, lineHeight: 44,
+    fontFamily: fonts.serif, fontSize: 38, color: '#fff', marginBottom: 12, lineHeight: 46,
   },
   subtitle: {
-    fontFamily: fonts.sans, fontSize: 15, color: 'rgba(255,255,255,0.65)',
-    lineHeight: 22, marginBottom: 24,
+    fontFamily: fonts.sans, fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 23,
+  },
+
+  /* Fixed bottom section */
+  fixedBottom: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(6,6,6,0.88)',
+    borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    paddingHorizontal: 28,
+    paddingTop: 22,
+    paddingBottom: 48,
   },
   dots: { flexDirection: 'row', gap: 6, marginBottom: 28 },
   dot: {
     width: 6, height: 6, borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.22)',
   },
-  dotActive: { width: 20, backgroundColor: colors.accent },
+  dotActive: { width: 22, backgroundColor: colors.accent },
   btnPrimary: {
     height: 54, borderRadius: 30, backgroundColor: colors.accent,
     alignItems: 'center', justifyContent: 'center', marginBottom: 12,
   },
   btnPrimaryText: { fontFamily: fonts.sansBold, fontSize: 16, color: '#060606' },
-  btnGhost: {
-    height: 44, alignItems: 'center', justifyContent: 'center',
-  },
+  btnGhost: { height: 44, alignItems: 'center', justifyContent: 'center' },
   btnGhostText: {
-    fontFamily: fonts.sans, fontSize: 14, color: 'rgba(255,255,255,0.55)',
+    fontFamily: fonts.sans, fontSize: 14, color: 'rgba(255,255,255,0.50)',
     textDecorationLine: 'underline',
   },
 });
+

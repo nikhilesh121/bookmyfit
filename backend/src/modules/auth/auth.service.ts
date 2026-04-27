@@ -58,6 +58,15 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
+  async setupFirstAdmin(email: string, password: string) {
+    const existing = await this.users.findOne({ where: { role: 'super_admin' } });
+    if (existing) throw new BadRequestException('Admin already exists. Use /auth/admin/login instead.');
+    const passwordHash = await bcrypt.hash(password, 10);
+    const admin = this.users.create({ email, passwordHash, name: 'Super Admin', role: 'super_admin', isActive: true });
+    await this.users.save(admin);
+    return this.issueTokens(admin);
+  }
+
   async passwordLogin(email: string, password: string) {
     const user = await this.users.findOne({ where: { email } });
     if (!user || !user.passwordHash) throw new UnauthorizedException('Invalid credentials');

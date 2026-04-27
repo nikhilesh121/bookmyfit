@@ -4,6 +4,6 @@ import AuthGuard from './AuthGuard';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  if (pathname === '/login') return <>{children}</>;
+  if (pathname === '/login' || pathname === '/signup') return <>{children}</>;
   return <AuthGuard>{children}</AuthGuard>;
 }

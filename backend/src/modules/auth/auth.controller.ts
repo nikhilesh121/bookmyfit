@@ -51,6 +51,13 @@ export class AuthController {
     return this.auth.verifyOtp(dto.phone, dto.code, dto.deviceId, dto.name);
   }
 
+  @Post('admin/setup')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'One-time setup: create first super_admin if none exists' })
+  setupAdmin(@Body() dto: AdminLoginDto) {
+    return this.auth.setupFirstAdmin(dto.email, dto.password);
+  }
+
   @Post('admin/login')
   @HttpCode(200)
   @ApiOperation({ summary: 'Admin / Gym / Corporate login (email + password)' })
