@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import Shell from '../../../components/Shell';
+import Shell from '../../components/Shell';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
 const token = () => typeof window !== 'undefined' ? localStorage.getItem('bmf_admin_token') : '';
