@@ -39,15 +39,11 @@ class WellnessService {
 
   async listAllServices(filter: { category?: string } = {}) {
     const qb = this.services.createQueryBuilder('s')
-      .innerJoin(WellnessPartnerEntity, 'p', 's."partnerId" = p.id')
+      .innerJoinAndMapOne('s.partner', WellnessPartnerEntity, 'p', 's."partnerId" = p.id')
       .where('s."isActive" = true')
       .andWhere("p.status = 'active'");
     if (filter.category) qb.andWhere('p."serviceType" = :cat', { cat: filter.category });
-    return qb
-      .select(['s.id', 's.name', 's.description', 's.price', 's."durationMinutes"', 's."partnerId"'])
-      .addSelect(['p."serviceType"', 'p.city', 'p.area'])
-      .orderBy('s.price', 'ASC')
-      .getRawMany();
+    return qb.orderBy('s.price', 'ASC').getMany();
   }
 
   async book(userId: string, serviceId: string, bookingDate: string, phone: string) {
@@ -75,7 +71,6 @@ class WellnessService {
 class WellnessController {
   constructor(private readonly svc: WellnessService) {}
 
-  @UseGuards(JwtAuthGuard)
   @Get('partners')
   partners(
     @Query('city') city?: string,
@@ -91,13 +86,11 @@ class WellnessController {
   @Post('partners')
   createPartner(@Body() b: any) { return this.svc.createPartner(b); }
 
-  @UseGuards(JwtAuthGuard)
   @Get('services/all')
   allServices(@Query('category') cat?: string) {
     return this.svc.listAllServices({ category: cat });
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('partners/:id/services')
   services(@Param('id') id: string) { return this.svc.listServicesOf(id); }
 
