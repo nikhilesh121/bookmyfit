@@ -237,7 +237,7 @@ function OnboardContent() {
         {/* Trust sidebar */}
         <div className="ob-trust" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {[
-            { icon: 'M12 3L14.5 8.5L21 9.3L16.5 13.6L17.8 20L12 16.9L6.2 20L7.5 13.6L3 9.3L9.5 8.5L12 3Z', title: 'Trusted by 500+ gyms', body: 'Across 20+ cities in India' },
+            { icon: 'M12 3L14.5 8.5L21 9.3L16.5 13.6L17.8 20L12 16.9L6.2 20L7.5 13.6L3 9.3L9.5 8.5L12 3Z', title: 'Early partner programme', body: 'Be first — launch with us' },
             { icon: 'M9 12L11 14L15 10M21 12a9 9 0 11-18 0 9 9 0 0118 0z', title: 'Zero setup fee', body: 'Go live in under 24 hours' },
             { icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', title: 'Bank-grade security', body: '256-bit SSL encryption' },
           ].map(({ icon, title, body }) => (

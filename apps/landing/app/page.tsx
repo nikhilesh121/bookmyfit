@@ -79,7 +79,7 @@ const FAQS = [
   { q: 'When does my subscription start?',             ans: 'Your subscription is active from the moment your payment is confirmed. You can walk into any partner gym right away.' },
   { q: 'Do corporate plans work differently?',         ans: 'Yes. HR teams get a dedicated portal to add/remove employees, track usage, and manage billing. Employees download the app, log in with their work email, and get instant access. You pay only for active seats.' },
   { q: 'How do gym owners get paid?',                  ans: 'Partner gyms receive monthly settlements directly to their bank account for every verified member visit. Payouts are transparent — view a full breakdown on your partner dashboard and raise disputes if needed.' },
-  { q: 'Which cities are covered?',                    ans: 'We are launching in Bangalore, Mumbai, Delhi, Hyderabad, Pune, and Chennai first. Expansion to 50+ cities is planned through 2025. Enter your city on the early-access form to get notified.' },
+  { q: 'Which cities are covered?',                    ans: 'We are launching in Bangalore, Mumbai, Delhi, Hyderabad, Pune, and Chennai first. Expansion to 50+ cities is planned through 2026–27. Enter your city on the early-access form to get notified.' },
   { q: 'Is there a free trial?',                       ans: 'Early-access members get 3 months free on any plan before full launch. Sign up above to secure your spot.' },
 ];
 
@@ -404,7 +404,7 @@ export default function LandingPage() {
             <h2 style={{ ...H2, marginBottom: 16 }} className="reveal">
               Grow your gym.<br /><em style={{ fontStyle: 'italic', fontWeight: 400, color: 'var(--accent)' }}>We bring members.</em>
             </h2>
-            <p style={{ ...Sub, marginBottom: 24 }} className="reveal">Join 1,000+ gym partners earning from every BookMyFit member who walks through your door. Zero upfront cost, zero technical complexity.</p>
+            <p style={{ ...Sub, marginBottom: 24 }} className="reveal">Partner with BookMyFit and earn from every member who walks through your door. Zero upfront cost, zero technical complexity — live within 24 hours.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
               {GYM_PERKS.map((p) => (
                 <div key={p.title} className="reveal" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
@@ -465,7 +465,7 @@ export default function LandingPage() {
           <div className="dash-card reveal float">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
               <span style={{ fontWeight: 700, fontSize: 14 }}>Corporate Portal</span>
-              <span style={{ fontSize: 11, color: 'var(--t3)' }}>Q1 2025</span>
+              <span style={{ fontSize: 11, color: 'var(--t3)' }}>Q1 2026</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 18 }}>
               {[{ l: 'Employees', v: '148' },{ l: 'Active Seats', v: '131' },{ l: 'Monthly Bill', v: '₹1.3L' }].map((s) => (
