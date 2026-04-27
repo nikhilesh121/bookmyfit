@@ -121,7 +121,7 @@ export default function LandingPage() {
 
           {/* ── Left copy ── */}
           <div style={{ flex: '1 1 480px', maxWidth: 600 }}>
-            <div className="hero-animate" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(61,255,84,0.08)', border: '1px solid rgba(61,255,84,0.2)', borderRadius: 100, padding: '6px 18px', marginBottom: 20 }}>
+            <div className="hero-animate" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(204,255,0,0.08)', border: '1px solid rgba(204,255,0,0.2)', borderRadius: 100, padding: '6px 18px', marginBottom: 20 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse-dot 1.6s ease-in-out infinite', display: 'inline-block', flexShrink: 0 }} />
               <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)' }}>Early Access — Limited Spots</span>
             </div>
@@ -171,9 +171,9 @@ export default function LandingPage() {
           {/* ── Right visual ── */}
           <div className="hero-animate hero-animate-delay-2" style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
             {/* Toast notification floating above */}
-            <div className="toast-float" style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(15,15,15,0.92)', border: '1px solid rgba(61,255,84,0.3)', borderRadius: 16, padding: '10px 16px', backdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(61,255,84,0.1)' }}>
-              <span style={{ width: 28, height: 28, background: 'rgba(61,255,84,0.12)', border: '1px solid rgba(61,255,84,0.3)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3DFF54" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <div className="toast-float" style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(15,15,15,0.92)', border: '1px solid rgba(204,255,0,0.3)', borderRadius: 16, padding: '10px 16px', backdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(204,255,0,0.1)' }}>
+              <span style={{ width: 28, height: 28, background: 'rgba(204,255,0,0.12)', border: '1px solid rgba(204,255,0,0.3)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#CCFF00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               </span>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>Check-in verified ✓</div>
@@ -182,7 +182,7 @@ export default function LandingPage() {
             </div>
 
             {/* Phone mockup */}
-            <div className="phone-frame float" style={{ width: 260, background: 'rgba(12,12,12,0.92)', border: '1.5px solid rgba(255,255,255,0.14)', borderRadius: 36, padding: '0 18px 24px', backdropFilter: 'blur(28px)', boxShadow: '0 40px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 60px rgba(61,255,84,0.07)' }}>
+            <div className="phone-frame float" style={{ width: 260, background: 'rgba(12,12,12,0.92)', border: '1.5px solid rgba(255,255,255,0.14)', borderRadius: 36, padding: '0 18px 24px', backdropFilter: 'blur(28px)', boxShadow: '0 40px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 60px rgba(204,255,0,0.07)' }}>
               {/* Notch */}
               <div style={{ width: 72, height: 22, background: 'rgba(0,0,0,0.8)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '0 0 14px 14px', margin: '0 auto 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
@@ -191,15 +191,15 @@ export default function LandingPage() {
               {/* App header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
                 <span style={{ fontFamily: 'var(--serif)', fontSize: 13, fontWeight: 700 }}>BookMyFit</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 600, color: 'var(--accent)', background: 'rgba(61,255,84,0.1)', padding: '3px 8px', borderRadius: 100 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 600, color: 'var(--accent)', background: 'rgba(204,255,0,0.1)', padding: '3px 8px', borderRadius: 100 }}>
                   <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', animation: 'pulse-dot 2s infinite' }} />Elite
                 </span>
               </div>
               {/* QR code */}
-              <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 14, marginBottom: 16, border: '1px solid rgba(61,255,84,0.12)' }}>
+              <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 14, marginBottom: 16, border: '1px solid rgba(204,255,0,0.12)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8,1fr)', gap: 3.5 }}>
                   {QR.map((v, i) => (
-                    <div key={i} style={{ aspectRatio: '1', background: v ? (i % 7 === 0 ? '#3DFF54' : 'rgba(255,255,255,0.82)') : 'transparent', borderRadius: 2 }} />
+                    <div key={i} style={{ aspectRatio: '1', background: v ? (i % 7 === 0 ? '#CCFF00' : 'rgba(255,255,255,0.82)') : 'transparent', borderRadius: 2 }} />
                   ))}
                 </div>
               </div>
@@ -211,7 +211,7 @@ export default function LandingPage() {
               </div>
               {/* Status badge */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'rgba(61,255,84,0.1)', border: '1px solid rgba(61,255,84,0.25)', borderRadius: 100, fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'rgba(204,255,0,0.1)', border: '1px solid rgba(204,255,0,0.25)', borderRadius: 100, fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0, animation: 'pulse-dot 1.8s infinite' }} />Valid today
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--t3)' }}>18 sessions this month</div>
@@ -343,9 +343,9 @@ export default function LandingPage() {
             <div key={h.n} className={`step-connector reveal reveal-delay-${i + 1}`} style={{ padding: '0 16px 0 0' }}>
               <article style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 20, padding: '28px 22px', height: '100%', position: 'relative', overflow: 'hidden', transition: 'border-color 0.3s, transform 0.3s' }}>
                 {/* Big ghost number bg */}
-                <div style={{ fontFamily: 'var(--serif)', fontSize: 96, fontWeight: 900, color: 'rgba(61,255,84,0.04)', position: 'absolute', bottom: -18, right: -4, lineHeight: 1, userSelect: 'none', pointerEvents: 'none' }}>{h.n}</div>
+                <div style={{ fontFamily: 'var(--serif)', fontSize: 96, fontWeight: 900, color: 'rgba(204,255,0,0.04)', position: 'absolute', bottom: -18, right: -4, lineHeight: 1, userSelect: 'none', pointerEvents: 'none' }}>{h.n}</div>
                 {/* Step badge */}
-                <div style={{ width: 44, height: 44, background: 'linear-gradient(135deg, rgba(61,255,84,0.18), rgba(61,255,84,0.06))', border: '1px solid rgba(61,255,84,0.28)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--serif)', fontSize: 14, fontWeight: 900, color: 'var(--accent)', marginBottom: 20 }}>{h.n}</div>
+                <div style={{ width: 44, height: 44, background: 'linear-gradient(135deg, rgba(204,255,0,0.18), rgba(204,255,0,0.06))', border: '1px solid rgba(204,255,0,0.28)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--serif)', fontSize: 14, fontWeight: 900, color: 'var(--accent)', marginBottom: 20 }}>{h.n}</div>
                 <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 10, lineHeight: 1.35 }}>{h.title}</h3>
                 <p style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.72, margin: 0 }}>{h.desc}</p>
               </article>
@@ -369,7 +369,7 @@ export default function LandingPage() {
               style={{ padding: '32px 28px', position: 'relative', display: 'flex', flexDirection: 'column' }}>
               {plan.popular && <div className="plan-badge">Most Popular</div>}
               <div style={{ marginTop: plan.popular ? 10 : 0 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: plan.popular ? 'var(--accent)' : 'rgba(255,255,255,0.35)', background: plan.popular ? 'rgba(61,255,84,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${plan.popular ? 'rgba(61,255,84,0.2)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 100, display: 'inline-block', padding: '3px 12px', marginBottom: 14 }}>{plan.sub}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: plan.popular ? 'var(--accent)' : 'rgba(255,255,255,0.35)', background: plan.popular ? 'rgba(204,255,0,0.08)' : 'rgba(255,255,255,0.04)', border: `1px solid ${plan.popular ? 'rgba(204,255,0,0.2)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 100, display: 'inline-block', padding: '3px 12px', marginBottom: 14 }}>{plan.sub}</div>
                 <div style={{ fontFamily: 'var(--serif)', fontSize: 28, fontWeight: 900, marginBottom: 4 }}>{plan.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--t3)', marginBottom: 22 }}>{plan.tagline}</div>
                 <div style={{ marginBottom: 24, display: 'flex', alignItems: 'baseline', gap: 4 }}>
@@ -380,7 +380,7 @@ export default function LandingPage() {
                 <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', flex: 1 }}>
                   {plan.features.map((f) => (
                     <li key={f} style={{ fontSize: 13, color: 'var(--t2)', display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0' }}>
-                      <span style={{ color: 'var(--accent)', flexShrink: 0, width: 16, height: 16, background: 'rgba(61,255,84,0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check /></span>{f}
+                      <span style={{ color: 'var(--accent)', flexShrink: 0, width: 16, height: 16, background: 'rgba(204,255,0,0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check /></span>{f}
                     </li>
                   ))}
                 </ul>
@@ -430,7 +430,7 @@ export default function LandingPage() {
           <div className="dash-card reveal float">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
               <span style={{ fontWeight: 700, fontSize: 14 }}>Gym Dashboard</span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--accent)', background: 'rgba(61,255,84,0.08)', padding: '3px 10px', borderRadius: 100 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--accent)', background: 'rgba(204,255,0,0.08)', padding: '3px 10px', borderRadius: 100 }}>
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)' }} />Live
               </span>
             </div>
@@ -447,10 +447,10 @@ export default function LandingPage() {
               {['Ananya K.', 'Rahul M.', 'Deepa N.'].map((n, i) => (
                 <div key={n} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: i < 2 ? '1px solid rgba(255,255,255,0.04)' : undefined }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(61,255,84,0.1)', border: '1px solid rgba(61,255,84,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>{n[0]}</div>
+                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(204,255,0,0.1)', border: '1px solid rgba(204,255,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>{n[0]}</div>
                     <span style={{ fontSize: 13 }}>{n}</span>
                   </div>
-                  <span style={{ fontSize: 11, color: 'var(--accent)', background: 'rgba(61,255,84,0.08)', padding: '2px 9px', borderRadius: 100 }}>Checked in</span>
+                  <span style={{ fontSize: 11, color: 'var(--accent)', background: 'rgba(204,255,0,0.08)', padding: '2px 9px', borderRadius: 100 }}>Checked in</span>
                 </div>
               ))}
             </div>
@@ -485,7 +485,7 @@ export default function LandingPage() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <div style={{ flex: 1, padding: '9px 0', background: 'rgba(61,255,84,0.08)', border: '1px solid rgba(61,255,84,0.18)', borderRadius: 10, fontSize: 12, fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Add seats</div>
+              <div style={{ flex: 1, padding: '9px 0', background: 'rgba(204,255,0,0.08)', border: '1px solid rgba(204,255,0,0.18)', borderRadius: 10, fontSize: 12, fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Add seats</div>
               <div style={{ flex: 1, padding: '9px 0', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, fontSize: 12, fontWeight: 600, color: 'var(--t2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>View report</div>
             </div>
           </div>
@@ -541,7 +541,7 @@ export default function LandingPage() {
                     <div style={{ fontSize: 11, color: 'var(--t3)' }}>{t.role} · {t.city}</div>
                   </div>
                 </div>
-                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--accent)', background: 'rgba(61,255,84,0.08)', border: '1px solid rgba(61,255,84,0.15)', padding: '4px 10px', borderRadius: 100, whiteSpace: 'nowrap', flexShrink: 0 }}>{t.plan}</span>
+                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '1.2px', textTransform: 'uppercase', color: 'var(--accent)', background: 'rgba(204,255,0,0.08)', border: '1px solid rgba(204,255,0,0.15)', padding: '4px 10px', borderRadius: 100, whiteSpace: 'nowrap', flexShrink: 0 }}>{t.plan}</span>
               </div>
             </article>
           ))}
@@ -562,8 +562,8 @@ export default function LandingPage() {
 
       {/* ── CTA ──────────────────────────────────── */}
       <section id="early-access" style={{ padding: '60px 5vw', position: 'relative', zIndex: 1 }}>
-        <div className="reveal" style={{ background: 'linear-gradient(135deg, rgba(61,255,84,0.07) 0%, rgba(0,80,255,0.05) 50%, rgba(61,255,84,0.04) 100%)', border: '1px solid rgba(61,255,84,0.15)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderRadius: 32, padding: 'clamp(32px,5vw,56px) 5vw', textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(61,255,84,0.08)', border: '1px solid rgba(61,255,84,0.2)', borderRadius: 100, padding: '5px 18px', fontSize: 11, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 26 }}>
+        <div className="reveal" style={{ background: 'linear-gradient(135deg, rgba(204,255,0,0.07) 0%, rgba(0,80,255,0.05) 50%, rgba(204,255,0,0.04) 100%)', border: '1px solid rgba(204,255,0,0.15)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderRadius: 32, padding: 'clamp(32px,5vw,56px) 5vw', textAlign: 'center', maxWidth: 720, margin: '0 auto' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(204,255,0,0.08)', border: '1px solid rgba(204,255,0,0.2)', borderRadius: 100, padding: '5px 18px', fontSize: 11, fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 26 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', animation: 'pulse-dot 1.6s ease-in-out infinite' }} />Limited Spots Available
           </div>
           <h2 style={{ ...H2, fontSize: 'clamp(30px,5vw,52px)', marginBottom: 16 }}>

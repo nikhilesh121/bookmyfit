@@ -261,7 +261,7 @@ export default function GymDetail() {
                                     </Text>
                                   </View>
                                   {isBooked ? (
-                                    <View style={[s.slotBtn, { backgroundColor: 'rgba(61,255,84,0.12)', borderColor: colors.accentBorder }]}>
+                                    <View style={[s.slotBtn, { backgroundColor: 'rgba(204,255,0,0.12)', borderColor: colors.accentBorder }]}>
                                       <IconCheck size={14} color={colors.accent} />
                                       <Text style={[s.slotBtnText, { color: colors.accent }]}>Booked</Text>
                                     </View>
@@ -568,7 +568,7 @@ const s = StyleSheet.create({
   datePillDay: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
   datePillNum: { fontFamily: fonts.sansBold, fontSize: 16, color: '#fff', marginTop: 2 },
   noticeRow: {
-    backgroundColor: 'rgba(61,255,84,0.06)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.12)',
+    backgroundColor: 'rgba(204,255,0,0.06)', borderWidth: 1, borderColor: 'rgba(204,255,0,0.12)',
     borderRadius: 10, padding: 10, marginBottom: 14,
   },
   noticeText: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
@@ -577,7 +577,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
     borderRadius: radius.md, padding: 12, marginBottom: 8,
   },
-  slotRowBooked: { borderColor: 'rgba(61,255,84,0.3)', backgroundColor: 'rgba(61,255,84,0.05)' },
+  slotRowBooked: { borderColor: 'rgba(204,255,0,0.3)', backgroundColor: 'rgba(204,255,0,0.05)' },
   slotTime: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff' },
   slotCapacity: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 2 },
   slotBtn: {

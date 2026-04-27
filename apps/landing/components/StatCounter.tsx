@@ -36,7 +36,7 @@ export default function StatCounter({ end, suffix = '', duration = 1800, label }
 
   return (
     <div ref={ref} style={{ padding: '20px 22px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 18, textAlign: 'center', transition: 'border-color 0.3s' }}
-      onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(61,255,84,0.35)')}
+      onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(204,255,0,0.35)')}
       onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
     >
       <div style={{ fontFamily: 'var(--serif)', fontSize: 32, fontWeight: 900, color: 'var(--accent)', lineHeight: 1, letterSpacing: '-1px' }}>

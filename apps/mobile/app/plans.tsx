@@ -150,7 +150,7 @@ export default function Plans() {
             >
               <View style={s.typeCardOverlay} />
               <View style={s.typeCardBody}>
-                <View style={[s.typeIcon, { backgroundColor: 'rgba(61,255,84,0.15)' }]}>
+                <View style={[s.typeIcon, { backgroundColor: 'rgba(204,255,0,0.15)' }]}>
                   <IconBuilding size={22} color={colors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -407,7 +407,7 @@ const s = StyleSheet.create({
   howSection: { marginTop: 20, marginBottom: 16 },
   howTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff', marginBottom: 14 },
   howRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 14 },
-  howBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(61,255,84,0.12)', borderWidth: 1, borderColor: colors.accentBorder, alignItems: 'center', justifyContent: 'center' },
+  howBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(204,255,0,0.12)', borderWidth: 1, borderColor: colors.accentBorder, alignItems: 'center', justifyContent: 'center' },
   howBadgeText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
   howRowTitle: { fontFamily: fonts.sansMedium, fontSize: 14, color: '#fff', marginBottom: 2 },
   howRowDesc: { fontFamily: fonts.sans, fontSize: 12, color: colors.t, lineHeight: 18 },
@@ -425,7 +425,7 @@ const s = StyleSheet.create({
   testimonialsTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff', marginBottom: 14 },
   testimonialCard: { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: 16, marginBottom: 12 },
   testimonialHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 },
-  testimonialAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(61,255,84,0.12)', borderWidth: 1, borderColor: colors.accentBorder, alignItems: 'center', justifyContent: 'center' },
+  testimonialAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(204,255,0,0.12)', borderWidth: 1, borderColor: colors.accentBorder, alignItems: 'center', justifyContent: 'center' },
   testimonialAvatarText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
   testimonialName: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
   testimonialRole: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 1 },

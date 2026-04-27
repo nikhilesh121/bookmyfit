@@ -78,7 +78,7 @@ function OnboardContent() {
       <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</label>
       <input type={type} placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)}
         style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '12px 16px', color: '#fff', fontSize: '0.9rem', outline: 'none', width: '100%', fontFamily: 'inherit' }}
-        onFocus={e => { e.target.style.borderColor = 'rgba(61,255,84,0.4)'; e.target.style.background = 'rgba(61,255,84,0.03)'; }}
+        onFocus={e => { e.target.style.borderColor = 'rgba(204,255,0,0.4)'; e.target.style.background = 'rgba(204,255,0,0.03)'; }}
         onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.background = 'rgba(255,255,255,0.05)'; }}
       />
     </div>
@@ -92,9 +92,9 @@ function OnboardContent() {
         input::placeholder { color: rgba(255,255,255,0.25); }
         .ob-tab { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 16px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: rgba(255,255,255,0.4); font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s; font-family: inherit; }
         .ob-tab:hover { color: rgba(255,255,255,0.8); }
-        .ob-tab.active { background: rgba(61,255,84,0.1); color: #3DFF54; border-color: rgba(61,255,84,0.25); }
-        .ob-btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px 24px; border-radius: 12px; border: none; background: #3DFF54; color: #060606; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: inherit; }
-        .ob-btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 32px rgba(61,255,84,0.3); filter: brightness(1.05); }
+        .ob-tab.active { background: rgba(204,255,0,0.1); color: #CCFF00; border-color: rgba(204,255,0,0.25); }
+        .ob-btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px 24px; border-radius: 12px; border: none; background: #CCFF00; color: #060606; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+        .ob-btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 32px rgba(204,255,0,0.3); filter: brightness(1.05); }
         .ob-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
         .ob-btn-ghost { display: flex; align-items: center; justify-content: center; padding: 13px 24px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); background: transparent; color: rgba(255,255,255,0.7); font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: all 0.2s; font-family: inherit; }
         .ob-btn-ghost:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.2); }
@@ -104,15 +104,15 @@ function OnboardContent() {
 
       {/* BG orbs */}
       <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
-        <div style={{ position: 'absolute', width: 600, height: 600, background: 'radial-gradient(circle, #3DFF54 0%, transparent 70%)', borderRadius: '50%', filter: 'blur(120px)', opacity: 0.2, top: -200, right: -100 }} />
+        <div style={{ position: 'absolute', width: 600, height: 600, background: 'radial-gradient(circle, #CCFF00 0%, transparent 70%)', borderRadius: '50%', filter: 'blur(120px)', opacity: 0.2, top: -200, right: -100 }} />
         <div style={{ position: 'absolute', width: 500, height: 500, background: 'radial-gradient(circle, #1a6e23 0%, transparent 70%)', borderRadius: '50%', filter: 'blur(120px)', opacity: 0.2, bottom: -150, left: -100 }} />
-        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(61,255,84,0.05) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(204,255,0,0.05) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
       </div>
 
       {/* Nav */}
       <nav className="ob-nav" style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 40px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(6,6,6,0.4)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" fill="#3DFF54" fillOpacity="0.15"/><path d="M7 14 C7 10 10 7 14 7 C18 7 21 10 21 14 C21 18 18 21 14 21" stroke="#3DFF54" strokeWidth="2" strokeLinecap="round"/><circle cx="14" cy="14" r="3" fill="#3DFF54"/></svg>
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" fill="#CCFF00" fillOpacity="0.15"/><path d="M7 14 C7 10 10 7 14 7 C18 7 21 10 21 14 C21 18 18 21 14 21" stroke="#CCFF00" strokeWidth="2" strokeLinecap="round"/><circle cx="14" cy="14" r="3" fill="#CCFF00"/></svg>
           <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>BookMyFit</span>
         </Link>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', fontSize: '0.875rem' }}>
@@ -128,8 +128,8 @@ function OnboardContent() {
         <div className="ob-card" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 24, padding: '36px 32px', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
           {success ? (
             <div style={{ textAlign: 'center', padding: '24px 0' }}>
-              <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(61,255,84,0.1)', border: '1px solid rgba(61,255,84,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M6 14L11 19L22 8" stroke="#3DFF54" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(204,255,0,0.1)', border: '1px solid rgba(204,255,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M6 14L11 19L22 8" stroke="#CCFF00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </div>
               <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.6rem', fontWeight: 700, color: '#fff', marginBottom: 12 }}>Registration Successful</h2>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.95rem', lineHeight: 1.6, maxWidth: 380, margin: '0 auto 32px' }}>
@@ -147,7 +147,7 @@ function OnboardContent() {
           ) : (
             <>
               <div style={{ marginBottom: 28 }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#3DFF54', marginBottom: 8 }}>Get Started</div>
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color: '#CCFF00', marginBottom: 8 }}>Get Started</div>
                 <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.6rem,4vw,2.2rem)', fontWeight: 700, color: '#fff', marginBottom: 8 }}>Join the Network</h1>
                 <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.9rem', lineHeight: 1.6 }}>Register as a gym partner or corporate client.</p>
               </div>
@@ -171,7 +171,7 @@ function OnboardContent() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     {[1, 2].map((s) => (
                       <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: gymStep >= s ? '#3DFF54' : 'rgba(255,255,255,0.06)', border: `1.5px solid ${gymStep >= s ? '#3DFF54' : 'rgba(255,255,255,0.15)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, color: gymStep >= s ? '#000' : 'rgba(255,255,255,0.3)' }}>
+                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: gymStep >= s ? '#CCFF00' : 'rgba(255,255,255,0.06)', border: `1.5px solid ${gymStep >= s ? '#CCFF00' : 'rgba(255,255,255,0.15)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700, color: gymStep >= s ? '#000' : 'rgba(255,255,255,0.3)' }}>
                           {gymStep > s ? '✓' : s}
                         </div>
                         <span style={{ fontSize: '0.8rem', color: gymStep >= s ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.3)', fontWeight: gymStep >= s ? 500 : 400 }}>{s === 1 ? 'Account' : 'Gym Details'}</span>
@@ -228,7 +228,7 @@ function OnboardContent() {
 
               <p style={{ marginTop: 22, textAlign: 'center', fontSize: '0.875rem', color: 'rgba(255,255,255,0.35)' }}>
                 Already registered?{' '}
-                <a href={`${tab === 'gym' ? GYM_PANEL : CORP_PANEL}/login`} style={{ color: '#3DFF54', textDecoration: 'none' }}>Log in to your portal →</a>
+                <a href={`${tab === 'gym' ? GYM_PANEL : CORP_PANEL}/login`} style={{ color: '#CCFF00', textDecoration: 'none' }}>Log in to your portal →</a>
               </p>
             </>
           )}
@@ -242,8 +242,8 @@ function OnboardContent() {
             { icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', title: 'Bank-grade security', body: '256-bit SSL encryption' },
           ].map(({ icon, title, body }) => (
             <div key={title} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '18px 20px', display: 'flex', alignItems: 'flex-start', gap: 14, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(61,255,84,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3DFF54" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={icon}/></svg>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(204,255,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#CCFF00" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={icon}/></svg>
               </div>
               <div>
                 <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#fff', marginBottom: 3 }}>{title}</div>
@@ -252,11 +252,11 @@ function OnboardContent() {
             </div>
           ))}
 
-          <div style={{ background: 'rgba(61,255,84,0.04)', border: '1px solid rgba(61,255,84,0.15)', borderRadius: 16, padding: '18px 20px', marginTop: 4 }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#3DFF54', marginBottom: 10 }}>What happens next</div>
+          <div style={{ background: 'rgba(204,255,0,0.04)', border: '1px solid rgba(204,255,0,0.15)', borderRadius: 16, padding: '18px 20px', marginTop: 4 }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#CCFF00', marginBottom: 10 }}>What happens next</div>
             {['Your account is created instantly', 'Team reviews gym/company details', 'Go live within 24 hours', 'Start earning or managing'].map((s, i) => (
               <div key={s} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: i < 3 ? 10 : 0 }}>
-                <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(61,255,84,0.12)', border: '1px solid rgba(61,255,84,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700, color: '#3DFF54', flexShrink: 0 }}>{i + 1}</div>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'rgba(204,255,0,0.12)', border: '1px solid rgba(204,255,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700, color: '#CCFF00', flexShrink: 0 }}>{i + 1}</div>
                 <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', lineHeight: 1.5 }}>{s}</span>
               </div>
             ))}
