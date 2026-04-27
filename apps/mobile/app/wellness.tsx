@@ -1,279 +1,375 @@
-import { useState, useEffect } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { useState, useRef } from 'react';
+import {
+  ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert,
+  Image, FlatList, Dimensions, NativeScrollEvent, NativeSyntheticEvent,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AuroraBackground from '../components/AuroraBackground';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import {
-  IconArrowLeft, IconDumbbell, IconBolt, IconCheck, IconUser, IconStar, IconCalendar,
+  IconArrowLeft, IconSearch, IconStar, IconPin, IconChevronRight,
+  IconCheck, IconShield, IconBolt, IconHeart,
 } from '../components/Icons';
-import { wellnessApi, getUser } from '../lib/api';
+import { getUser, api } from '../lib/api';
 
-const CATEGORIES = ['All', 'Massage', 'Cupping', 'Physio', 'Spa', 'Nutrition', 'Recovery'];
+const { width } = Dimensions.get('window');
+const CARD_W = width - 44;
 
-const STATIC_SERVICES = [
-  { name: 'Deep Tissue Massage', desc: 'Targeted muscle relief and deep tissue therapy by certified therapists', icon: 'star', category: 'Massage', price: 'From ₹799', aurora: 'rgba(255,200,50,0.18)' },
-  { name: 'Swedish Massage', desc: 'Full body relaxation massage for stress relief and circulation', icon: 'star', category: 'Massage', price: 'From ₹599', aurora: 'rgba(255,138,0,0.14)' },
-  { name: 'Cupping Therapy', desc: 'Traditional cupping for muscle tension, detox and recovery', icon: 'bolt', category: 'Cupping', price: 'From ₹499', aurora: 'rgba(155,0,255,0.18)' },
-  { name: 'Fire Cupping', desc: 'Ancient fire cupping technique for deep healing and pain relief', icon: 'bolt', category: 'Cupping', price: 'From ₹699', aurora: 'rgba(255,60,60,0.14)' },
-  { name: 'Physiotherapy', desc: 'Injury recovery, joint mobilisation and movement rehab by experts', icon: 'calendar', category: 'Physio', price: 'From ₹999', aurora: 'rgba(0,175,255,0.18)' },
-  { name: 'Sports Physio', desc: 'Specialised physiotherapy for athletic injuries and performance', icon: 'calendar', category: 'Physio', price: 'From ₹1,199', aurora: 'rgba(0,220,255,0.14)' },
-  { name: 'Steam & Sauna', desc: 'Post-workout steam room and sauna for muscle recovery', icon: 'check', category: 'Spa', price: 'From ₹299', aurora: 'rgba(204,255,0,0.18)' },
-  { name: 'Jacuzzi & Hydrotherapy', desc: 'Warm water therapy for joint relief and total relaxation', icon: 'check', category: 'Spa', price: 'From ₹499', aurora: 'rgba(0,255,180,0.14)' },
-  { name: 'Nutrition Consultation', desc: 'Personalized diet plans and macro coaching by certified nutritionists', icon: 'user', category: 'Nutrition', price: 'From ₹799', aurora: 'rgba(204,255,0,0.16)' },
-  { name: 'Ice Bath & Cryotherapy', desc: 'Cold exposure therapy for rapid recovery and inflammation reduction', icon: 'dumbbell', category: 'Recovery', price: 'From ₹399', aurora: 'rgba(0,175,255,0.20)' },
+// ── Static data (fallback / shown while API loads) ───────────────────────────
+
+const HERO_SLIDES = [
+  {
+    id: 'h1',
+    kicker: 'SELF CARE IS HEALTH CARE',
+    title: 'Relax Your Body',
+    titleAccent: 'Refresh Your Mind',
+    subtitle: 'Premium spa experiences\nfor your well-being.',
+    image: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=900&q=80',
+  },
+  {
+    id: 'h2',
+    kicker: 'CERTIFIED THERAPISTS',
+    title: 'Heal. Recover.',
+    titleAccent: 'Feel Amazing.',
+    subtitle: 'Expert cupping, physio\nand massage services.',
+    image: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=900&q=80',
+  },
 ];
 
-const CATEGORY_ICON: Record<string, string> = {
-  Massage: 'star', Cupping: 'bolt', Physio: 'calendar',
-  Spa: 'check', Nutrition: 'user', Recovery: 'dumbbell',
-};
-const CATEGORY_AURORA: Record<string, string> = {
-  Massage: 'rgba(255,200,50,0.18)', Cupping: 'rgba(155,0,255,0.18)',
-  Physio: 'rgba(0,175,255,0.18)', Spa: 'rgba(204,255,0,0.18)',
-  Nutrition: 'rgba(204,255,0,0.16)', Recovery: 'rgba(0,175,255,0.20)',
-};
+const POPULAR_SERVICES = [
+  { id: 's1', name: 'Full Body\nMassage', duration: '60 Min', price: '₹1,299', image: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
+  { id: 's2', name: 'Aroma\nTherapy', duration: '60 Min', price: '₹1,499', image: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=400&q=80' },
+  { id: 's3', name: 'Deep Tissue\nMassage', duration: '60 Min', price: '₹1,599', image: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80' },
+  { id: 's4', name: 'Body Scrub\n& Polish', duration: '60 Min', price: '₹1,299', image: 'https://images.unsplash.com/photo-1610337673044-720471f83677?w=400&q=80' },
+  { id: 's5', name: 'Foot\nReflexology', duration: '45 Min', price: '₹799', image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80' },
+  { id: 's6', name: 'Hot Stone\nTherapy', duration: '75 Min', price: '₹1,799', image: 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=400&q=80' },
+];
 
-function ServiceIcon({ icon, size, color }: { icon: string; size: number; color: string }) {
-  if (icon === 'dumbbell') return <IconDumbbell size={size} color={color} />;
-  if (icon === 'bolt') return <IconBolt size={size} color={color} />;
-  if (icon === 'check') return <IconCheck size={size} color={color} />;
-  if (icon === 'calendar') return <IconCalendar size={size} color={color} />;
-  if (icon === 'user') return <IconUser size={size} color={color} />;
-  if (icon === 'star') return <IconStar size={size} color={color} />;
-  return <IconBolt size={size} color={color} />;
-}
+const SPA_CENTRES = [
+  { id: 'c1', name: 'Serenity Spa & Wellness', rating: 4.6, reviews: 128, area: 'Patia', distance: '1.2 km', price: '₹999', discount: '20% OFF', image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400&q=80', tags: ['Premium Services', 'Expert Therapists', 'Hygienic & Safe'] },
+  { id: 'c2', name: 'The Royal Spa', rating: 4.4, reviews: 96, area: 'Saheed Nagar', distance: '2.4 km', price: '₹1,199', discount: '15% OFF', image: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=400&q=80', tags: ['Premium Services', 'Expert Therapists', 'Hygienic & Safe'] },
+  { id: 'c3', name: 'Bliss Spa & Relaxation', rating: 4.5, reviews: 74, area: 'Jaydev Vihar', distance: '3.1 km', price: '₹899', discount: '10% OFF', image: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80', tags: ['Premium Services', 'Expert Therapists', 'Hygienic & Safe'] },
+  { id: 'c4', name: 'Zen Wellness Studio', rating: 4.7, reviews: 201, area: 'Bhubaneswar', distance: '0.8 km', price: '₹1,099', discount: null, image: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80', tags: ['Expert Therapists', 'Hygienic & Safe'] },
+];
+
+const TRUST = [
+  { icon: 'shield', label: 'Verified\nSpa Partners' },
+  { icon: 'check', label: 'Trained &\nCertified' },
+  { icon: 'bolt', label: 'Hygienic\n& Safe' },
+  { icon: 'star', label: 'Easy\nBooking' },
+  { icon: 'clock', label: '24/7\nSupport' },
+];
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function Wellness() {
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [services, setServices] = useState(STATIC_SERVICES as any[]);
-  const [loading, setLoading] = useState(true);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [likedCentres, setLikedCentres] = useState<string[]>([]);
+  const heroRef = useRef<FlatList>(null);
 
-  useEffect(() => {
-    // Step 1: fetch active partners, then Step 2: fetch each partner's services
-    wellnessApi.list()
-      .then(async (res: any) => {
-        const partners: any[] = Array.isArray(res) ? res : res?.data || [];
-        if (partners.length === 0) return; // keep static fallback
+  const toggleLike = (id: string) =>
+    setLikedCentres((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
-        // Fetch services for all partners in parallel
-        const results = await Promise.allSettled(
-          partners.map((p: any) => wellnessApi.services(p.id))
-        );
-
-        const liveServices: any[] = [];
-        results.forEach((r, idx) => {
-          if (r.status === 'fulfilled') {
-            const svcList: any[] = Array.isArray(r.value) ? r.value : [];
-            svcList.forEach((svc: any) => {
-              const cat = svc.serviceType || partners[idx]?.serviceType || 'Other';
-              liveServices.push({
-                id: svc.id,
-                name: svc.name || partners[idx]?.name || 'Service',
-                desc: svc.description || svc.desc || partners[idx]?.description || '',
-                icon: CATEGORY_ICON[cat] || 'bolt',
-                category: cat,
-                price: svc.price ? `From ₹${svc.price}` : '',
-                aurora: CATEGORY_AURORA[cat] || 'rgba(204,255,0,0.18)',
-              });
-            });
-          }
-        });
-
-        if (liveServices.length > 0) setServices(liveServices);
-      })
-      .catch(() => {}) // silently keep static fallback on network error
-      .finally(() => setLoading(false));
-  }, []);
-
-  const handleBook = async (svc: any) => {
-    if (!svc.id) {
-      Alert.alert('Coming Soon', `${svc.name} booking will be available shortly. Stay tuned!`);
-      return;
-    }
-    try {
-      // Read cached user — no extra network call needed
-      const me = await getUser() as any;
-      if (!me) {
-        Alert.alert('Please log in', 'You need to be logged in to book a session.');
-        router.replace('/login');
-        return;
-      }
-      const today = new Date().toISOString().slice(0, 10);
-      await wellnessApi.book({ serviceId: svc.id, bookingDate: today, phone: me.phone || '' });
-      Alert.alert('Booking Confirmed! 🎉', `Your ${svc.name} session has been booked. We'll contact you shortly to confirm the time.`);
-    } catch (err: any) {
-      Alert.alert('Booking Failed', err?.message || 'Could not complete booking. Please try again.');
-    }
+  const handleServiceBook = async (svc: { name: string }) => {
+    Alert.alert('Book Service', `Book ${svc.name.replace('\n', ' ')}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Book Now', onPress: () => Alert.alert('Coming Soon', 'Online booking for this service will be available shortly.') },
+    ]);
   };
 
-  const filtered = activeCategory === 'All'
-    ? services
-    : services.filter((s) => s.category === activeCategory);
+  const onHeroScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / CARD_W);
+    setHeroIndex(idx);
+  };
 
   return (
-    <AuroraBackground>
     <SafeAreaView style={s.root}>
-      {/* Aurora glow */}
-      <View style={s.aurora1} />
-      <View style={s.aurora2} />
-
-      {/* Header */}
+      {/* ── Header ── */}
       <View style={s.header}>
-        <TouchableOpacity style={s.back} onPress={() => router.back()}>
+        <TouchableOpacity style={s.iconBtn} onPress={() => router.back()}>
           <IconArrowLeft size={18} color="#fff" />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Wellness Services</Text>
-        <View style={{ width: 38 }} />
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={s.headerTitle}>Spa & Recovery</Text>
+          <Text style={s.headerSub}>Relax. Rejuvenate. Refresh.</Text>
+        </View>
+        <TouchableOpacity style={s.iconBtn}>
+          <IconSearch size={18} color="#fff" />
+        </TouchableOpacity>
       </View>
 
-      {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={colors.accent} size="large" />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+        {/* ── Hero Slider ── */}
+        <FlatList
+          ref={heroRef}
+          data={HERO_SLIDES}
+          horizontal
+          pagingEnabled
+          snapToAlignment="center"
+          decelerationRate="fast"
+          showsHorizontalScrollIndicator={false}
+          onScroll={onHeroScroll}
+          scrollEventThrottle={16}
+          keyExtractor={(item) => item.id}
+          style={{ marginBottom: 0 }}
+          renderItem={({ item }) => (
+            <View style={s.heroCard}>
+              <Image source={{ uri: item.image }} style={s.heroImg} />
+              <View style={s.heroDark} />
+              <View style={s.heroContent}>
+                <Text style={s.heroKicker}>{item.kicker}</Text>
+                <Text style={s.heroTitle}>{item.title}</Text>
+                <Text style={s.heroTitleAccent}>{item.titleAccent}</Text>
+                <Text style={s.heroBody}>{item.subtitle}</Text>
+              </View>
+            </View>
+          )}
+        />
+        {/* Dots */}
+        <View style={s.dots}>
+          {HERO_SLIDES.map((_, i) => (
+            <View key={i} style={[s.dot, heroIndex === i && s.dotActive]} />
+          ))}
         </View>
-      ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={s.scroll}
-        >
-          {/* Intro */}
-          <Text style={s.intro}>
-            Recovery, therapy and wellness services curated for your fitness journey — from massage to physio.
-          </Text>
 
-          {/* Category pills */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ marginBottom: 20 }}
-            contentContainerStyle={{ gap: 8 }}
-          >
-            {CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat}
-                style={[s.pill, activeCategory === cat && s.pillActive]}
-                onPress={() => setActiveCategory(cat)}
-              >
-                <Text style={[s.pillText, activeCategory === cat && s.pillTextActive]}>
-                  {cat}
-                </Text>
+        {/* ── Service Type Selector ── */}
+        <Text style={[s.sectionTitle, { paddingHorizontal: 16 }]}>Choose Your Service Type</Text>
+        <View style={s.serviceTypeRow}>
+          <TouchableOpacity style={[s.typeCard, s.typeCardGreen]}>
+            <View style={s.typeIconWrap}>
+              <Text style={s.typeEmoji}>🏢</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.typeName}>Spa Centre</Text>
+              <Text style={s.typeDesc}>Visit our partner{'\n'}spa centres</Text>
+            </View>
+            <IconChevronRight size={18} color={colors.accent} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[s.typeCard, s.typeCardPurple]}>
+            <View style={[s.typeIconWrap, s.typeIconPurple]}>
+              <Text style={s.typeEmoji}>🏠</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.typeName}>Home Service</Text>
+              <Text style={s.typeDesc}>Professional spa{'\n'}at your home</Text>
+            </View>
+            <IconChevronRight size={18} color="#9B5DE5" />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Popular Spa Services ── */}
+        <View style={s.rowHeader}>
+          <Text style={s.sectionTitle}>Popular Spa Services</Text>
+          <TouchableOpacity><Text style={s.viewAll}>View All</Text></TouchableOpacity>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.servicesScroll}>
+          {POPULAR_SERVICES.map((svc) => (
+            <TouchableOpacity key={svc.id} style={s.svcCard} onPress={() => handleServiceBook(svc)}>
+              <Image source={{ uri: svc.image }} style={s.svcImg} />
+              <View style={s.svcInfo}>
+                <Text style={s.svcName}>{svc.name}</Text>
+                <Text style={s.svcMeta}>{svc.duration} <Text style={s.svcDot}>•</Text> <Text style={s.svcPrice}>{svc.price}</Text></Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* ── Spa Centres ── */}
+        <View style={s.rowHeader}>
+          <Text style={s.sectionTitle}>Top Spa Centres Near You</Text>
+          <TouchableOpacity><Text style={s.viewAll}>View All</Text></TouchableOpacity>
+        </View>
+
+        {SPA_CENTRES.map((centre) => (
+          <View key={centre.id} style={s.centreCard}>
+            {/* Image */}
+            <View style={s.centreImgWrap}>
+              <Image source={{ uri: centre.image }} style={s.centreImg} />
+              {centre.discount && (
+                <View style={s.discountBadge}>
+                  <Text style={s.discountText}>{centre.discount}</Text>
+                </View>
+              )}
+              <TouchableOpacity style={s.heartBtn} onPress={() => toggleLike(centre.id)}>
+                <IconHeart size={14} color={likedCentres.includes(centre.id) ? '#FF4D6D' : '#fff'} filled={likedCentres.includes(centre.id)} />
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            </View>
 
-          {/* Service cards */}
-          {filtered.map((svc, idx) => (
-            <View key={`${svc.name}-${idx}`} style={s.card}>
-              <View style={[s.cardAurora, { backgroundColor: svc.aurora }]} />
-              <View style={s.cardRow}>
-                {/* Icon box */}
-                <View style={s.iconBox}>
-                  <ServiceIcon icon={svc.icon} size={22} color={colors.accent} />
-                </View>
+            {/* Info */}
+            <View style={s.centreInfo}>
+              <Text style={s.centreName}>{centre.name}</Text>
 
-                {/* Info */}
-                <View style={s.cardInfo}>
-                  <View style={s.categoryBadge}>
-                    <Text style={s.categoryText}>{svc.category}</Text>
-                  </View>
-                  <Text style={s.cardName}>{svc.name}</Text>
-                  <Text style={s.cardDesc}>{svc.desc}</Text>
-                </View>
+              <View style={s.centreMetaRow}>
+                <IconStar size={12} />
+                <Text style={s.centreRating}>{centre.rating}</Text>
+                <Text style={s.centreReviews}>({centre.reviews})</Text>
+                <Text style={s.centreDotSep}>·</Text>
+                <IconPin size={11} color={colors.t2} />
+                <Text style={s.centreLocation}>{centre.area} · {centre.distance}</Text>
               </View>
 
-              {/* Footer */}
-              <View style={s.cardFooter}>
-                <Text style={s.priceText}>{svc.price}</Text>
-                <TouchableOpacity
-                  style={s.bookBtn}
-                  activeOpacity={0.8}
-                  onPress={() => handleBook(svc)}
-                >
-                  <Text style={s.bookBtnText}>Book Now</Text>
+              <View style={s.tagRow}>
+                {centre.tags.map((tag) => (
+                  <View key={tag} style={s.tag}>
+                    <Text style={s.tagText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={s.centreFooter}>
+                <View>
+                  <Text style={s.centreFromLabel}>From</Text>
+                  <Text style={s.centrePrice}>{centre.price}</Text>
+                </View>
+                <TouchableOpacity style={s.viewServicesBtn}>
+                  <Text style={s.viewServicesBtnText}>View Services</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          ))}
+          </View>
+        ))}
 
-          {filtered.length === 0 && (
-            <View style={s.empty}>
-              <IconDumbbell size={40} color={colors.accent} />
-              <Text style={s.emptyTitle}>No services found</Text>
-              <Text style={s.emptyBody}>Try a different category</Text>
+        {/* ── Trust Strip ── */}
+        <View style={s.trustStrip}>
+          {TRUST.map((t) => (
+            <View key={t.label} style={s.trustItem}>
+              <View style={s.trustIcon}>
+                {t.icon === 'shield' && <IconShield size={18} color={colors.accent} />}
+                {t.icon === 'check' && <IconCheck size={18} color={colors.accent} />}
+                {t.icon === 'bolt' && <IconBolt size={18} color={colors.accent} />}
+                {t.icon === 'star' && <IconStar size={18} color={colors.accent} />}
+                {t.icon === 'clock' && <Text style={{ fontSize: 16 }}>🕐</Text>}
+              </View>
+              <Text style={s.trustLabel}>{t.label}</Text>
             </View>
-          )}
-        </ScrollView>
-      )}
+          ))}
+        </View>
+
+        <View style={{ height: 32 }} />
+      </ScrollView>
     </SafeAreaView>
-    </AuroraBackground>
   );
 }
 
+// ── Styles ───────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
-  root: { flex: 1 },
-  aurora1: {
-    position: 'absolute', top: '10%', right: '-10%',
-    width: 260, height: 260, borderRadius: 130,
-    backgroundColor: 'rgba(204,255,0,0.10)',
-  },
-  aurora2: {
-    position: 'absolute', top: '40%', left: '-15%',
-    width: 220, height: 220, borderRadius: 110,
-    backgroundColor: 'rgba(155,0,255,0.09)',
-  },
+  root: { flex: 1, backgroundColor: '#060606' },
+  scroll: { paddingBottom: 20 },
+
+  // Header
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 22, paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 12, gap: 8,
   },
-  back: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
+  iconBtn: {
+    width: 38, height: 38, borderRadius: radius.sm,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff' },
-  scroll: { paddingHorizontal: 22, paddingBottom: 40 },
-  intro: {
-    fontFamily: fonts.sans, fontSize: 13, color: colors.t,
-    marginBottom: 18, lineHeight: 20,
+  headerTitle: { fontFamily: fonts.sansBold, fontSize: 17, color: '#fff', letterSpacing: 0.2 },
+  headerSub: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 1 },
+
+  // Hero
+  heroCard: { width: width - 32, marginHorizontal: 16, borderRadius: radius.xl, overflow: 'hidden', height: 200 },
+  heroImg: { ...StyleSheet.absoluteFillObject, width: undefined, height: undefined },
+  heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.52)' },
+  heroContent: { flex: 1, padding: 20, justifyContent: 'flex-end' },
+  heroKicker: { fontFamily: fonts.sansBold, fontSize: 9, color: colors.accent, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 },
+  heroTitle: { fontFamily: fonts.sansBold, fontSize: 26, color: '#fff', lineHeight: 30 },
+  heroTitleAccent: { fontFamily: fonts.sansBold, fontSize: 26, color: colors.accent, lineHeight: 30, marginBottom: 8 },
+  heroBody: { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.75)', lineHeight: 18 },
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12, marginBottom: 20 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)' },
+  dotActive: { width: 18, backgroundColor: colors.accent },
+
+  // Section titles
+  sectionTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: '#fff', marginBottom: 12 },
+  rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
+  viewAll: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
+
+  // Service Type Cards
+  serviceTypeRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginBottom: 24 },
+  typeCard: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderRadius: radius.lg, borderWidth: 1, padding: 14,
   },
-  pill: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill,
-    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
-  },
-  pillActive: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
-  pillText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.t2 },
-  pillTextActive: { color: colors.accent },
-  card: {
-    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
-    borderRadius: radius.xl, padding: 16, marginBottom: 12, overflow: 'hidden',
-  },
-  cardAurora: { ...StyleSheet.absoluteFillObject },
-  cardRow: { flexDirection: 'row', gap: 14, marginBottom: 14 },
-  iconBox: {
-    width: 52, height: 52, borderRadius: radius.lg,
-    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+  typeCardGreen: { backgroundColor: 'rgba(204,255,0,0.06)', borderColor: 'rgba(204,255,0,0.22)' },
+  typeCardPurple: { backgroundColor: 'rgba(155,93,229,0.08)', borderColor: 'rgba(155,93,229,0.25)' },
+  typeIconWrap: {
+    width: 40, height: 40, borderRadius: radius.sm, borderWidth: 1,
+    borderColor: 'rgba(204,255,0,0.28)', backgroundColor: 'rgba(204,255,0,0.10)',
     alignItems: 'center', justifyContent: 'center',
   },
-  cardInfo: { flex: 1, justifyContent: 'center', gap: 4 },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0,0,0,0.30)', borderRadius: radius.pill,
-    paddingHorizontal: 8, paddingVertical: 2,
+  typeIconPurple: { borderColor: 'rgba(155,93,229,0.35)', backgroundColor: 'rgba(155,93,229,0.12)' },
+  typeEmoji: { fontSize: 18 },
+  typeName: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff', marginBottom: 2 },
+  typeDesc: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2, lineHeight: 14 },
+
+  // Popular Services
+  servicesScroll: { paddingLeft: 16, paddingRight: 8, gap: 10 },
+  svcCard: {
+    width: 130, borderRadius: radius.lg, overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
   },
-  categoryText: { fontFamily: fonts.sansBold, fontSize: 9, color: colors.t2, letterSpacing: 1, textTransform: 'uppercase' },
-  cardName: { fontFamily: fonts.serif, fontSize: 17, color: '#fff' },
-  cardDesc: { fontFamily: fonts.sans, fontSize: 12, color: colors.t, lineHeight: 17 },
-  cardFooter: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12,
+  svcImg: { width: 130, height: 110 },
+  svcInfo: { padding: 10 },
+  svcName: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff', lineHeight: 16, marginBottom: 4 },
+  svcMeta: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
+  svcDot: { color: colors.t3 },
+  svcPrice: { fontFamily: fonts.sansBold, color: colors.accent },
+
+  // Spa Centre Cards
+  centreCard: {
+    marginHorizontal: 16, marginBottom: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: radius.xl, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    overflow: 'hidden', flexDirection: 'row',
   },
-  priceText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
-  bookBtn: {
-    paddingHorizontal: 18, paddingVertical: 8, borderRadius: radius.pill,
-    backgroundColor: colors.accent,
+  centreImgWrap: { width: 100, position: 'relative' },
+  centreImg: { width: 100, height: '100%' },
+  discountBadge: {
+    position: 'absolute', top: 8, left: 0,
+    backgroundColor: colors.accent, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4,
   },
-  bookBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
-  empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
-  emptyTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff' },
-  emptyBody: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
+  discountText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#060606', letterSpacing: 0.3 },
+  heartBtn: {
+    position: 'absolute', top: 8, right: 8,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center',
+  },
+  centreInfo: { flex: 1, padding: 12 },
+  centreName: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', marginBottom: 5 },
+  centreMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 7, flexWrap: 'wrap' },
+  centreRating: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.star, marginLeft: 2 },
+  centreReviews: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
+  centreDotSep: { color: colors.t3, fontSize: 10 },
+  centreLocation: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 10 },
+  tag: {
+    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+  },
+  tagText: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
+  centreFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  centreFromLabel: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
+  centrePrice: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.accent },
+  viewServicesBtn: {
+    backgroundColor: colors.accent, paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.sm,
+  },
+  viewServicesBtnText: { fontFamily: fonts.sansBold, fontSize: 11, color: '#060606' },
+
+  // Trust strip
+  trustStrip: {
+    flexDirection: 'row', marginHorizontal: 16, marginTop: 20,
+    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.lg,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
+    paddingVertical: 14, paddingHorizontal: 6,
+  },
+  trustItem: { flex: 1, alignItems: 'center', gap: 6 },
+  trustIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  trustLabel: { fontFamily: fonts.sans, fontSize: 8, color: colors.t2, textAlign: 'center', lineHeight: 11 },
 });

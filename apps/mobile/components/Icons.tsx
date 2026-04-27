@@ -4,7 +4,7 @@ import Svg, { Path, Circle, Line, Rect, Polyline, Polygon } from 'react-native-s
 const stroke = 'currentColor';
 const base = { fill: 'none', stroke: '#fff', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
 
-type Props = { size?: number; color?: string };
+type Props = { size?: number; color?: string; filled?: boolean };
 const mk = (size = 20, color = '#fff') => ({ width: size, height: size, viewBox: '0 0 24 24', ...base, stroke: color });
 
 export const IconHome = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M3 12l9-9 9 9" /><Path d="M5 10v10a1 1 0 001 1h3V14h6v7h3a1 1 0 001-1V10" /></Svg>);
@@ -43,7 +43,7 @@ export const IconTrash = ({ size, color }: Props) => (<Svg {...mk(size, color)}>
 export const IconMenu = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Line x1="3" y1="6" x2="21" y2="6" /><Line x1="3" y1="12" x2="21" y2="12" /><Line x1="3" y1="18" x2="21" y2="18" /></Svg>);
 export const IconTicket = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M15 5v2M15 11v2M15 17v2M5 5h14a2 2 0 012 2v3a2 2 0 000 4v3a2 2 0 01-2 2H5a2 2 0 01-2-2v-3a2 2 0 000-4V7a2 2 0 012-2z" /></Svg>);
 export const IconFilter = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polyline points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></Svg>);
-export const IconHeart = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" /></Svg>);
+export const IconHeart = ({ size, color, filled }: Props) => (<Svg {...mk(size, color)}><Path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill={filled ? (color || '#fff') : 'none'} /></Svg>);
 export const IconChevronDown = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polyline points="6 9 12 15 18 9" /></Svg>);
 export const IconPercent = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Line x1="19" y1="5" x2="5" y2="19" /><Circle cx="6.5" cy="6.5" r="2.5" /><Circle cx="17.5" cy="17.5" r="2.5" /></Svg>);
 export const IconShield = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></Svg>);
