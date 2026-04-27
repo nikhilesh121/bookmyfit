@@ -478,10 +478,10 @@ const s = StyleSheet.create({
     flexDirection: 'row', marginHorizontal: 16, marginBottom: 12,
     backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', overflow: 'hidden',
-    minHeight: 160,
+    height: 155,
   },
-  partnerImgWrapper: { width: 120, position: 'relative' },
-  partnerImg: { width: 120, height: '100%' as any, resizeMode: 'cover' },
+  partnerImgWrapper: { width: 120, height: 155, position: 'relative' },
+  partnerImg: { width: 120, height: 155, resizeMode: 'cover' },
   discountBadge: {
     position: 'absolute', top: 0, left: 0,
     backgroundColor: '#3DFF54', paddingHorizontal: 6, paddingVertical: 3,

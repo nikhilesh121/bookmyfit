@@ -298,10 +298,10 @@ const s = StyleSheet.create({
     flexDirection: 'row', marginBottom: 12,
     backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden',
-    minHeight: 145,
+    height: 148,
   },
-  gymImgWrapper: { width: 110, position: 'relative' },
-  gymImg: { width: 110, height: '100%' as any, resizeMode: 'cover' },
+  gymImgWrapper: { width: 110, height: 148, position: 'relative' },
+  gymImg: { width: 110, height: 148, resizeMode: 'cover' },
   discountBadge: {
     position: 'absolute', top: 0, left: 0,
     backgroundColor: '#3DFF54', paddingHorizontal: 5, paddingVertical: 3,
