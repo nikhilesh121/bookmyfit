@@ -126,7 +126,7 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   avatarText: { fontFamily: fonts.sansBold, fontSize: 24, color: colors.accent },
-  name: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', letterSpacing: -0.5, marginBottom: 4 },
+  name: { fontFamily: fonts.sansBold, fontSize: 22, color: '#fff', letterSpacing: -0.5, marginBottom: 4 },
   email: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
   badges: { flexDirection: 'row', gap: 8, marginTop: 12 },
   badgeGreen: {
@@ -145,7 +145,7 @@ const s = StyleSheet.create({
     flex: 1, alignItems: 'center', paddingVertical: 14,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg,
   },
-  statNum: { fontFamily: fonts.sansBold, fontSize: 16, color: '#fff', marginBottom: 4 },
+  statNum: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', marginBottom: 4 },
   statLabel: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2, textAlign: 'center', lineHeight: 14 },
   sectionLabel: {
     fontFamily: fonts.sansBold, fontSize: 10, color: colors.t2,
@@ -159,7 +159,7 @@ const s = StyleSheet.create({
   menuBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
   menuIconWrap: {
     width: 32, height: 32, borderRadius: 10,
-    backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', marginRight: 12,
+    backgroundColor: colors.surfaceStrong, alignItems: 'center', justifyContent: 'center', marginRight: 12,
   },
   menuText: { flex: 1, fontFamily: fonts.sans, fontSize: 14, color: '#fff' },
   logout: {

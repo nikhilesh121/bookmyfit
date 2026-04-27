@@ -265,6 +265,7 @@ export default function WellnessDetailScreen() {
                   onChangeText={setBookingDate}
                   keyboardType="numbers-and-punctuation"
                 />
+                <Text style={s.inputHint}>Format: 2026-04-28</Text>
 
                 <Text style={s.inputLabel}>Time</Text>
                 <TextInput
@@ -275,6 +276,7 @@ export default function WellnessDetailScreen() {
                   onChangeText={setBookingTime}
                   keyboardType="numbers-and-punctuation"
                 />
+                <Text style={s.inputHint}>Format: 14:00</Text>
 
                 <TouchableOpacity
                   style={[s.confirmBtn, booking && { opacity: 0.6 }]}
@@ -333,8 +335,8 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4,
   },
-  metaText: { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.7)' },
-  address: { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 4 },
+  metaText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t },
+  address: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, marginTop: 4 },
 
   sectionTitle: {
     fontFamily: fonts.sansBold, fontSize: 18, color: '#fff',
@@ -362,12 +364,12 @@ const s = StyleSheet.create({
     letterSpacing: 1.5, marginBottom: 4,
   },
   svcName: { fontFamily: fonts.sansBold, fontSize: 16, color: '#fff', marginBottom: 4 },
-  svcDesc: { fontFamily: fonts.sans, fontSize: 13, color: 'rgba(255,255,255,0.55)', marginBottom: 6 },
+  svcDesc: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2, marginBottom: 6 },
   svcDur: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
-  svcDurText: { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.5)' },
+  svcDurText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
   svcPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   svcPrice: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.accent },
-  svcOriginal: { fontFamily: fonts.sans, fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecorationLine: 'line-through' },
+  svcOriginal: { fontFamily: fonts.sans, fontSize: 13, color: colors.t3, textDecorationLine: 'line-through' },
   discBadge: { backgroundColor: 'rgba(0,212,106,0.15)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   discText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent },
   bookBtn: {
@@ -382,7 +384,7 @@ const s = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: '#111', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, paddingBottom: 40,
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
@@ -391,7 +393,7 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center', marginBottom: 20,
   },
   sheetTitle: { fontFamily: fonts.sansBold, fontSize: 20, color: '#fff', marginBottom: 4 },
-  sheetSvc: { fontFamily: fonts.sans, fontSize: 15, color: 'rgba(255,255,255,0.7)', marginBottom: 2 },
+  sheetSvc: { fontFamily: fonts.sans, fontSize: 15, color: colors.t, marginBottom: 2 },
   sheetPrice: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.accent, marginBottom: 20 },
   inputLabel: { fontFamily: fonts.sans, fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 6 },
   input: {
@@ -400,13 +402,14 @@ const s = StyleSheet.create({
     color: '#fff', fontFamily: fonts.sans, fontSize: 15, marginBottom: 14,
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
+  inputHint: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: -10, marginBottom: 8 },
   confirmBtn: {
     backgroundColor: colors.accent, borderRadius: 12,
     paddingVertical: 14, alignItems: 'center', marginTop: 4, marginBottom: 10,
   },
   confirmBtnText: { fontFamily: fonts.sansBold, fontSize: 16, color: '#060606' },
   cancelBtn: { alignItems: 'center', paddingVertical: 8 },
-  cancelBtnText: { fontFamily: fonts.sans, fontSize: 14, color: 'rgba(255,255,255,0.45)' },
+  cancelBtnText: { fontFamily: fonts.sans, fontSize: 14, color: colors.t2 },
 
   // Success
   successBox: { alignItems: 'center', paddingVertical: 20 },
@@ -415,7 +418,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
   successTitle: { fontFamily: fonts.sansBold, fontSize: 22, color: '#fff', marginBottom: 8 },
-  successSub: { fontFamily: fonts.sans, fontSize: 14, color: 'rgba(255,255,255,0.6)', marginBottom: 4 },
+  successSub: { fontFamily: fonts.sans, fontSize: 14, color: colors.t2, marginBottom: 4 },
   doneBtn: {
     marginTop: 20, backgroundColor: colors.accent, borderRadius: 12,
     paddingVertical: 13, paddingHorizontal: 40, alignItems: 'center',

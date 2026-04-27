@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import {
   IconArrowLeft, IconStar, IconPin, IconHeart, IconChevronRight,
-  IconShield, IconCheck, IconBuilding, IconHeadphones, IconSearch, IconCart,
+  IconShield, IconCheck, IconBuilding, IconHeadphones, IconSearch, IconCart, IconBolt,
 } from '../components/Icons';
 
 const { width: W } = Dimensions.get('window');
@@ -231,13 +231,13 @@ export default function WellnessScreen() {
 
           {/* Home Service */}
           <TouchableOpacity style={[s.serviceTypeCard, s.serviceTypeCardPurple]} activeOpacity={0.85}>
-            <View style={[s.serviceTypeIconBox, { backgroundColor: 'rgba(130,80,255,0.12)' }]}>
-              <IconShield size={24} color="#8250FF" />
+            <View style={[s.serviceTypeIconBox, { backgroundColor: 'rgba(155,0,255,0.12)' }]}>
+              <IconShield size={24} color={colors.tierPremium} />
             </View>
             <Text style={s.serviceTypeName}>Home Service</Text>
             <Text style={s.serviceTypeSub}>Professional spa at your home</Text>
             <View style={{ alignSelf: 'flex-end', marginTop: 6 }}>
-              <IconChevronRight size={14} color="#8250FF" />
+              <IconChevronRight size={14} color={colors.tierPremium} />
             </View>
           </TouchableOpacity>
         </View>
@@ -378,7 +378,10 @@ export default function WellnessScreen() {
           ].map((item, i) => (
             <View key={i} style={s.trustItem}>
               <View style={s.trustIconBox}>
-                <IconCheck size={12} color={colors.accent} />
+                {item.icon === 'shield' && <IconShield size={12} color={colors.accent} />}
+                {item.icon === 'check' && <IconCheck size={12} color={colors.accent} />}
+                {item.icon === 'bolt' && <IconBolt size={12} color={colors.accent} />}
+                {item.icon === 'headphones' && <IconHeadphones size={12} color={colors.accent} />}
               </View>
               <Text style={s.trustLabel}>{item.label}</Text>
             </View>
@@ -392,7 +395,7 @@ export default function WellnessScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0a0a0a' },
+  root: { flex: 1, backgroundColor: colors.bg },
   content: { paddingBottom: 32 },
 
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
@@ -402,7 +405,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff' },
+  headerTitle: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
   headerSubtitle: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 1 },
   headerRight: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   headerIcon: {
@@ -431,7 +434,7 @@ const s = StyleSheet.create({
 
   // Section headers
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 12 },
-  sectionTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff', paddingHorizontal: 16, marginBottom: 12, marginTop: 4 },
+  sectionTitle: { fontFamily: fonts.sansBold, fontSize: 20, color: '#fff', paddingHorizontal: 16, marginBottom: 12, marginTop: 4 },
   seeAll: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.accent },
 
   // Filter tabs

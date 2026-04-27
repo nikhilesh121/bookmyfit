@@ -32,7 +32,7 @@ const FALLBACK_IMG = [
 
 // ── Category icons (inline SVG) ─────────────────────────────────────────────
 const CATEGORIES = [
-  { id: 'all', label: 'All Gyms', color: '#4ADE80', bg: 'rgba(74,222,128,0.15)', icon: 'dumbbell' },
+  { id: 'all', label: 'All Gyms', color: colors.accent, bg: colors.accentSoft, icon: 'dumbbell' },
   { id: 'strength', label: 'Strength', color: '#FB923C', bg: 'rgba(251,146,60,0.15)', icon: 'strength' },
   { id: 'cardio', label: 'Cardio', color: '#FB923C', bg: 'rgba(251,146,60,0.15)', icon: 'cardio' },
   { id: 'yoga', label: 'Yoga', color: '#22D3EE', bg: 'rgba(34,211,238,0.15)', icon: 'yoga' },
@@ -160,7 +160,7 @@ export default function Home() {
                   <Text style={s.heroHeadlineAccent}>{item.headlineAccent}</Text>
                   <Text style={s.heroSub}>{item.sub}</Text>
                   <TouchableOpacity style={s.heroCta} onPress={() => router.push('/(tabs)/explore')}>
-                    <Text style={s.heroCtaText}>{item.cta} ›</Text>
+                    <Text style={s.heroCtaText}>{item.cta}</Text>
                   </TouchableOpacity>
                 </View>
               </ImageBackground>
@@ -196,7 +196,7 @@ export default function Home() {
             <Text style={s.seeAll}>See all</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.mostVisitedScroll} contentContainerStyle={{ gap: 12 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.mostVisitedScroll} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 10 }}>
           {displayGyms.slice(0, 3).map((g: any, idx: number) => {
             const gid = g.id || g._id;
             const gname = (g.name || 'Gym').split(' ').slice(0, 2).join(' ');
@@ -472,7 +472,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, marginBottom: 12, marginTop: 10,
   },
-  sectionTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff' },
+  sectionTitle: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
   seeAll: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
   filterBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -483,7 +483,7 @@ const s = StyleSheet.create({
   filterText: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t2 },
 
   // Most Visited
-  mostVisitedScroll: { paddingLeft: 20, marginBottom: 6 },
+  mostVisitedScroll: { marginBottom: 6 },
   mvCard: { width: 120, height: 150, borderRadius: radius.xl, overflow: 'hidden' },
   mvPhoto: { flex: 1, justifyContent: 'flex-end', padding: 10 },
   mvDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },

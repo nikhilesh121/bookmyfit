@@ -102,7 +102,7 @@ const s = StyleSheet.create({
   activeTop: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
   statusText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent, letterSpacing: 1, textTransform: 'uppercase' },
-  gymNameText: { fontFamily: fonts.serif, fontSize: 22, color: '#fff' },
+  gymNameText: { fontFamily: fonts.sansBold, fontSize: 22, color: '#fff' },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   metaText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
   timerRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

@@ -132,7 +132,7 @@ export default function GymDetail() {
         } as any);
       } else {
         const { Alert } = require('react-native');
-        Alert.alert('Booked! ✅', 'Your session is confirmed. Check My Bookings for details.');
+        Alert.alert('Booked', 'Your session is confirmed. Check My Bookings for details.');
         loadSlots(id as string, slotDate);
       }
     } catch (e: any) {
@@ -500,7 +500,7 @@ export default function GymDetail() {
                       <Text style={s.footPer}>/mo</Text>
                     </Text>
                     {gymPlans.some((p: any) => p.isDayPass || p.name?.toLowerCase().includes('day')) && (
-                      <Text style={[s.footPer, { color: '#ff6b35', fontSize: 10 }]}>🌶️ Day pass available</Text>
+                      <Text style={[s.footPer, { color: '#ff6b35', fontSize: 10 }]}>Day pass available</Text>
                     )}
                   </>
                 ) : (
@@ -566,8 +566,8 @@ const s = StyleSheet.create({
   tabText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.t2 },
   tabTextActive: { color: colors.accent },
   sectionTitle: {
-    fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent,
-    letterSpacing: 1.5, textTransform: 'uppercase', marginTop: 22, marginBottom: 10,
+    fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent,
+    letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 22, marginBottom: 10,
   },
   glassCard: {
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,

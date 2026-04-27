@@ -5,13 +5,14 @@ import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconSearch, IconStar, IconPin, IconHeart, IconChevronRight, IconBolt, IconFilter } from '../../components/Icons';
 import { gymsApi } from '../../lib/api';
+import Svg, { Path, Circle } from 'react-native-svg';
 
 const CATEGORIES = [
-  { id: 'all', label: 'All Gyms', emoji: '🏋️' },
-  { id: 'strength', label: 'Strength', emoji: '💪' },
-  { id: 'cardio', label: 'Cardio', emoji: '🏃' },
-  { id: 'yoga', label: 'Yoga', emoji: '🧘' },
-  { id: 'crossfit', label: 'CrossFit', emoji: '🏆' },
+  { id: 'all', label: 'All Gyms', icon: 'dumbbell', color: colors.accent },
+  { id: 'strength', label: 'Strength', icon: 'strength', color: '#FB923C' },
+  { id: 'cardio', label: 'Cardio', icon: 'cardio', color: '#FB923C' },
+  { id: 'yoga', label: 'Yoga', icon: 'yoga', color: '#22D3EE' },
+  { id: 'crossfit', label: 'CrossFit', icon: 'crossfit', color: '#A78BFA' },
 ];
 
 const FALLBACK_GYMS = [
@@ -26,6 +27,16 @@ const FALLBACK_GYMS = [
   { id: '9', name: 'IronBody Gym', city: 'Bangalore', area: 'Koramangala', rating: 4.6, reviewCount: 140, distance: '1.1 km', discountPercent: 0, facilities: ['AC', 'Locker', 'Parking'], img: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80' },
   { id: '10', name: 'Jetts Fitness', city: 'Hyderabad', area: 'Banjara Hills', rating: 4.5, reviewCount: 89, distance: '2.3 km', discountPercent: 0, facilities: ['24/7', 'Cardio', 'Weights'], img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80' },
 ];
+
+function CategorySvgIcon({ type, size, color }: { type: string; size: number; color: string }) {
+  const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  if (type === 'dumbbell') return <Svg {...p}><Path d="M6.5 6.5h11M6.5 17.5h11M2 10v4M22 10v4M5 8v8M19 8v8" /></Svg>;
+  if (type === 'strength') return <Svg {...p}><Path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill={color} /></Svg>;
+  if (type === 'cardio') return <Svg {...p}><Path d="M3 12h3l3-9 3 18 3-9h3" /></Svg>;
+  if (type === 'yoga') return <Svg {...p}><Circle cx="12" cy="5" r="2" /><Path d="M12 7v4M8 11c0 2 1.5 4 4 4s4-2 4-4M9 21l3-6 3 6" /></Svg>;
+  if (type === 'crossfit') return <Svg {...p}><Path d="M17 3l-5 5-5-5M17 21l-5-5-5 5M3 7l5 5-5 5M21 7l-5 5 5 5" /></Svg>;
+  return <Svg {...p}><Circle cx="5" cy="12" r="1.5" fill={color} stroke="none" /><Circle cx="12" cy="12" r="1.5" fill={color} stroke="none" /><Circle cx="19" cy="12" r="1.5" fill={color} stroke="none" /></Svg>;
+}
 
 function GymCard({ g, index }: { g: any; index: number }) {
   const [liked, setLiked] = useState(false);
@@ -214,7 +225,7 @@ export default function Explore() {
             style={[s.categoryChip, selectedCategory === cat.id && s.categoryChipActive]}
             onPress={() => setSelectedCategory(cat.id)}
           >
-            <Text style={s.categoryEmoji}>{cat.emoji}</Text>
+            <CategorySvgIcon type={cat.icon} size={16} color={selectedCategory === cat.id ? cat.color : colors.t2} />
             <Text style={[s.categoryLabel, selectedCategory === cat.id && s.categoryLabelActive]}>
               {cat.label}
             </Text>
@@ -233,7 +244,7 @@ export default function Explore() {
 
       {/* Loading skeletons */}
       {loading && [1, 2, 3].map((i) => (
-        <View key={i} style={[s.gymCard, { minHeight: 140, backgroundColor: 'rgba(255,255,255,0.06)' }]} />
+        <View key={i} style={[s.gymCard, { height: 148, backgroundColor: 'rgba(255,255,255,0.06)' }]} />
       ))}
     </View>
   );

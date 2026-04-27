@@ -2,7 +2,7 @@ import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert, Dimensions
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
-import { IconArrowLeft, IconCheck, IconBolt, IconDumbbell, IconStar, IconPercent, IconShield, IconHeadphones, IconChevronRight, IconCalendar, IconPin, IconCreditCard } from '../components/Icons';
+import { IconArrowLeft, IconCheck, IconBolt, IconDumbbell, IconStar, IconPercent, IconShield, IconHeadphones, IconChevronRight, IconCalendar, IconPin, IconCreditCard, IconArrowRight } from '../components/Icons';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -207,7 +207,7 @@ export default function PlansScreen() {
               <Text style={s.howLabel}>{step.label}</Text>
               {i < HOW_STEPS.length - 1 && (
                 <View style={s.howArrow}>
-                  <Text style={s.howArrowText}>→</Text>
+                  <IconArrowRight size={14} color={colors.t3} />
                 </View>
               )}
             </View>
@@ -337,7 +337,6 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
   howStepNum: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.accent },
-  howEmoji: { fontSize: 20 },
   howLabel: { fontFamily: fonts.sans, fontSize: 10, color: 'rgba(255,255,255,0.5)', textAlign: 'center' },
   howArrow: { position: 'absolute', top: 14, right: -8 },
   howArrowText: { fontSize: 14, color: 'rgba(255,255,255,0.2)' },
