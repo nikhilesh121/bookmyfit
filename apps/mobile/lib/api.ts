@@ -106,17 +106,12 @@ export const subscriptionsApi = {
   }) => api.post('/subscriptions/purchase', body),
   /** Legacy alias used in order.tsx - maps planId to planType */
   createOrder: (body: { planId: string; gymId?: string; durationMonths: number; couponCode?: string; ptAddon?: boolean; totalAmount?: number; isDayPass?: boolean }) => {
-    const planTypeMap: Record<string, string> = {
-      multigym_elite: 'multigym_elite',
-      multigym_max: 'multigym_max',
-    };
-    const planType = planTypeMap[body.planId] || 'gym_specific';
+    const planType = body.planId === 'multi_gym' ? 'multi_gym' : body.planId === 'day_pass' ? 'day_pass' : 'same_gym';
     return api.post('/subscriptions/purchase', {
       planType,
-      gymId: planType === 'gym_specific' ? body.gymId : undefined,
-      durationMonths: body.durationMonths,
-      amountOverride: planType === 'gym_specific' ? body.totalAmount : undefined,
-      isDayPass: body.isDayPass || body.durationMonths === 0,
+      gymId: planType === 'same_gym' ? body.gymId : undefined,
+      durationMonths: body.isDayPass || planType === 'day_pass' ? 0 : body.durationMonths,
+      amountOverride: planType === 'same_gym' || planType === 'day_pass' ? body.totalAmount : undefined,
       couponCode: body.couponCode,
       ptAddon: body.ptAddon,
     });
@@ -133,8 +128,7 @@ export const gymPlansApi = {
 };
 
 export const qrApi = {
-  generate: (subscriptionId: string) =>
-    api.post('/qr/generate', { subscriptionId }),
+  getActiveBooking: () => api.get('/slots/active-booking'),
   validate: (qrToken: string, gymId: string) =>
     api.post('/qr/validate', { qrToken, gymId }),
 };
@@ -200,7 +194,7 @@ export const wellnessApi = {
 
 export const slotsApi = {
   list: (gymId: string, date: string) => api.get(`/slots?gymId=${gymId}&date=${date}`),
-  book: (slotId: string) => api.post(`/slots/${slotId}/book`),
+  book: (slotId: string, subscriptionId?: string) => api.post(`/slots/${slotId}/book`, subscriptionId ? { subscriptionId } : {}),
   cancel: (slotId: string) => api.del(`/slots/${slotId}/book`),
   myBookings: () => api.get('/slots/my-bookings'),
 };

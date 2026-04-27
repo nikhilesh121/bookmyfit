@@ -12,32 +12,27 @@ const PT_PRICE = 1600;
 const GST_RATE = 0.18;
 
 export default function Duration() {
-  const { planId, planName, gymId, maxGyms, basePrice } = useLocalSearchParams<{
-    planId: string; planName: string; gymId?: string; maxGyms?: string; basePrice?: string;
+  const { planId, planName, gymId, gymName, basePrice, isDayPass: isDayPassParam } = useLocalSearchParams<{
+    planId: string; planName: string; gymId?: string; gymName?: string; basePrice?: string; isDayPass?: string;
   }>();
 
   const monthlyBase = Number(basePrice) || 999;
-  const isMultigym = planId?.startsWith('multigym_');
-  const dayPassPrice = Math.round(monthlyBase / 20 * 1.5); // ~4.5% of monthly, premium per-day rate
+  const isPlanDayPass = planId === 'day_pass' || isDayPassParam === 'true';
 
   // Build duration options relative to the plan's monthly base price
-  const DURATIONS = useMemo(() => [
-    {
-      months: 0,
-      label: '1 Day Pass',
-      sublabel: '🌶️ HOT',
-      price: dayPassPrice,
-      save: null,
-      isDayPass: true,
-      hot: true,
-    },
-    { months: 1, label: '1 Month', sublabel: 'Most flexible', price: monthlyBase, save: null, isDayPass: false, hot: false },
-    { months: 3, label: '3 Months', sublabel: 'Popular choice', price: Math.round(monthlyBase * 3 * 0.92), save: 'Save 8%', isDayPass: false, hot: false },
-    { months: 6, label: '6 Months', sublabel: 'Best value', price: Math.round(monthlyBase * 6 * 0.85), save: 'Save 15%', isDayPass: false, hot: false },
-    { months: 12, label: '12 Months', sublabel: 'Maximum savings', price: Math.round(monthlyBase * 12 * 0.75), save: 'Save 25%', isDayPass: false, hot: false },
-  ], [monthlyBase, dayPassPrice]);
+  const DURATIONS = useMemo(() => {
+    if (isPlanDayPass) {
+      return [{ months: 0, label: '1 Day Pass', sublabel: 'Single visit', price: monthlyBase, save: null, isDayPass: true, hot: false }];
+    }
+    return [
+      { months: 1, label: '1 Month', sublabel: 'Most flexible', price: monthlyBase, save: null, isDayPass: false, hot: false },
+      { months: 3, label: '3 Months', sublabel: 'Popular choice', price: Math.round(monthlyBase * 3 * 0.92), save: 'Save 8%', isDayPass: false, hot: false },
+      { months: 6, label: '6 Months', sublabel: 'Best value', price: Math.round(monthlyBase * 6 * 0.85), save: 'Save 15%', isDayPass: false, hot: false },
+      { months: 12, label: '12 Months', sublabel: 'Maximum savings', price: Math.round(monthlyBase * 12 * 0.75), save: 'Save 25%', isDayPass: false, hot: false },
+    ];
+  }, [monthlyBase, isPlanDayPass]);
 
-  const [selected, setSelected] = useState(1); // default: 1 Month
+  const [selected, setSelected] = useState(0); // default: first option
   const [ptAddon, setPtAddon] = useState(false);
 
   const dur = DURATIONS[selected];
@@ -57,7 +52,6 @@ export default function Duration() {
         durationMonths: String(dur.months),
         totalAmount: String(total),
         ptAddon: ptAddon && !dur.isDayPass ? 'true' : 'false',
-        maxGyms: maxGyms || '1',
         isDayPass: dur.isDayPass ? 'true' : 'false',
       },
     });
@@ -167,7 +161,7 @@ export default function Duration() {
         </View>
         <TouchableOpacity style={s.btnPrimary} onPress={handleCheckout}>
           <Text style={s.btnPrimaryText}>
-            {dur.isDayPass ? '🌶️ Get Day Pass' : 'Proceed to Checkout'}
+            {dur.isDayPass ? 'Buy Day Pass' : 'Proceed to Checkout'}
           </Text>
         </TouchableOpacity>
       </View>

@@ -8,9 +8,9 @@ import { subscriptionsApi } from '../../lib/api';
 import AuroraBackground from '../../components/AuroraBackground';
 
 const FALLBACK_SUBS = [
-  { id: 's1', gymIds: [], gym: { name: 'PowerZone Fitness', coverImage: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80' }, plan: { name: 'Elite Plan' }, durationMonths: 3, startDate: '2025-04-14', endDate: '2025-07-14', status: 'active', progress: 0.6 },
-  { id: 's2', gymIds: [], gym: { name: 'FitHub Pro', coverImage: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=600&q=80' }, plan: { name: 'Individual Plan' }, durationMonths: 1, startDate: '2025-03-28', endDate: '2025-04-28', status: 'active', progress: 0.8 },
-  { id: 's3', gymIds: [], gym: { name: 'IronBody Gym', coverImage: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=600&q=80' }, plan: { name: 'Individual Plan' }, durationMonths: 1, startDate: '2025-03-01', endDate: '2025-03-31', status: 'expired', progress: 1 },
+  { id: 's1', gymIds: [], gym: { name: 'PowerZone Fitness', coverImage: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80' }, plan: { name: 'Multi Gym Pass' }, durationMonths: 3, startDate: '2025-04-14', endDate: '2025-07-14', status: 'active', progress: 0.6 },
+  { id: 's2', gymIds: [], gym: { name: 'FitHub Pro', coverImage: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=600&q=80' }, plan: { name: 'Same Gym Pass' }, durationMonths: 1, startDate: '2025-03-28', endDate: '2025-04-28', status: 'active', progress: 0.8 },
+  { id: 's3', gymIds: [], gym: { name: 'IronBody Gym', coverImage: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=600&q=80' }, plan: { name: 'Same Gym Pass' }, durationMonths: 1, startDate: '2025-03-01', endDate: '2025-03-31', status: 'expired', progress: 1 },
 ];
 
 function calcProgress(startDate: string, endDate: string) {
@@ -126,7 +126,7 @@ export default function Subscriptions() {
                         <View style={s.actionRow}>
                           <TouchableOpacity
                             style={s.actionBtn}
-                            onPress={() => router.push({ pathname: '/qr', params: firstGymId ? { gymId: firstGymId, subId } : { subId } } as any)}
+                            onPress={() => router.push('/qr' as any)}
                           >
                             <IconQR size={12} color={colors.accent} />
                             <Text style={[s.actionBtnText, { color: colors.accent }]}>Show QR</Text>

@@ -79,7 +79,7 @@ export class QrService {
       throw new UnauthorizedException('Subscription not active');
     }
 
-    if (sub.planType === 'individual' && !sub.gymIds?.includes(gymId)) {
+    if (sub.planType === 'same_gym' && !sub.gymIds?.includes(gymId)) {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'Gym not in plan');
       throw new UnauthorizedException('This plan does not cover this gym');
     }

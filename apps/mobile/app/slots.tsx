@@ -101,10 +101,23 @@ export default function SlotsScreen() {
   const handleBook = async (slotId: string) => {
     setBookingId(slotId);
     try {
-      await slotsApi.book(slotId);
-      Alert.alert('Booked!', 'Your slot has been confirmed.', [{ text: 'OK' }]);
-      loadSlots(selectedDay);
-      loadMyBookings();
+      const res: any = await slotsApi.book(slotId);
+      if (res?.bookingQr) {
+        router.replace({
+          pathname: '/qr',
+          params: {
+            token: res.bookingQr.token,
+            expiresAt: res.bookingQr.expiresAt,
+            bookedAt: res.bookingQr.bookedAt,
+            gymId: res.bookingQr.gymId,
+            gymName: res.bookingQr.gymName,
+          },
+        });
+      } else {
+        Alert.alert('Booking Confirmed!', 'Your slot has been booked.');
+        loadSlots(selectedDay);
+        loadMyBookings();
+      }
     } catch (e: any) {
       Alert.alert('Booking Failed', e?.message || 'Please try again.');
     } finally {

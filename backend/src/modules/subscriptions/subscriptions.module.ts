@@ -14,22 +14,15 @@ import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
 
 /**
- * Default Multi-Gym plan pricing. Admin can override via /subscriptions/multigym-config.
- * Individual gym plans are managed entirely by the gym owner in gym-plans module.
+ * Default plan pricing. Admin can override multi_gym and day_pass via /subscriptions/multigym-config.
+ * Same-gym plans are managed entirely by the gym owner in gym-plans module.
  */
 const DEFAULT_MULTIGYM_CONFIG = {
-  elite: {
-    name: 'Multi-Gym Elite',
-    subtitle: 'Access any 5 gyms on BookMyFit',
+  multi_gym: {
+    name: 'Multi Gym Pass',
+    subtitle: 'Unlimited access to every partner gym',
     basePrice: 1499,
-    gymLimit: 5,
-    features: ['Access any 5 distinct gyms', 'QR Check-in', 'Unlimited visits per gym', '1 visit/day per gym', 'All Standard & Premium gyms'],
-  },
-  max: {
-    name: 'Multi-Gym Max',
-    subtitle: 'Unlimited access to every gym',
-    basePrice: 3999,
-    gymLimit: null, // unlimited
+    gymLimit: null,
     features: ['Unlimited gyms, unlimited visits', 'QR Check-in', 'Priority support', 'All gym tiers', 'PT session add-on eligible'],
   },
 };
@@ -58,11 +51,22 @@ class SubscriptionsService {
   async plans() {
     const config = await this.getMultigymConfig();
     return {
-      multigym: {
-        elite: { ...config.elite, planType: 'multigym_elite' },
-        max: { ...config.max, planType: 'multigym_max' },
+      day_pass: {
+        planType: 'day_pass',
+        name: '1-Day Pass',
+        description: 'Drop in to any partner gym for a day',
+        basePrice: 149,
+        features: ['Single visit', 'Any partner gym', 'Valid for 24 hours', 'No commitment'],
       },
-      note: 'Individual gym plans are set by each gym. Browse gyms to see their plans.',
+      same_gym: {
+        planType: 'same_gym',
+        name: 'Same Gym Pass',
+        description: 'Unlimited access to your chosen gym',
+        basePrice: 599,
+        features: ['Unlimited visits', 'One gym of your choice', 'Monthly subscription', 'Slot booking'],
+        note: 'Gym-specific pricing may vary. Browse gyms to see their plans.',
+      },
+      multi_gym: { ...config.multi_gym, planType: 'multi_gym', name: 'Multi Gym Pass', basePrice: config.multi_gym?.basePrice || 1499 },
     };
   }
 
@@ -72,43 +76,43 @@ class SubscriptionsService {
 
   /**
    * Creates a subscription + Cashfree payment order.
-   * - multigym_elite / multigym_max: no gym selection required.
-   * - gym_specific: requires gymId and optionally gymPlanId.
-   * - durationMonths = 0 means 1-day pass.
+   * - day_pass: no gym required, durationMonths=0.
+   * - same_gym: requires gymId.
+   * - multi_gym: no gym selection required.
    */
   async purchase(userId: string, phone: string, email: string | undefined, dto: {
-    planType: 'multigym_elite' | 'multigym_max' | 'gym_specific';
+    planType: 'day_pass' | 'same_gym' | 'multi_gym';
     durationMonths: number;
     gymId?: string;
     gymPlanId?: string;
     amountOverride?: number;
     isDayPass?: boolean;
+    ptAddon?: boolean;
+    couponCode?: string;
   }) {
     const config = await this.getMultigymConfig();
     let amount: number;
     let gymIds: string[] = [];
     let gymPlanId: string | undefined;
-    const isDayPass = dto.isDayPass || dto.durationMonths === 0;
-    const durationMonths = isDayPass ? 0 : (dto.durationMonths || 1);
+    const durationMonths = dto.planType === 'day_pass' ? 0 : (dto.durationMonths || 1);
 
-    if (dto.planType === 'gym_specific') {
-      if (!dto.gymId) throw new BadRequestException('gymId required for gym-specific plan');
+    if (dto.planType === 'same_gym') {
+      if (!dto.gymId) throw new BadRequestException('gymId required for Same Gym Pass');
       gymIds = [dto.gymId];
       gymPlanId = dto.gymPlanId;
-      amount = dto.amountOverride || 0; // gym sets the price, mobile sends totalAmount
-    } else if (dto.planType === 'multigym_elite') {
-      const elitePrice = (config.elite?.basePrice || DEFAULT_MULTIGYM_CONFIG.elite.basePrice);
-      amount = isDayPass ? Math.round(elitePrice / 20) : elitePrice * durationMonths;
-    } else if (dto.planType === 'multigym_max') {
-      const maxPrice = (config.max?.basePrice || DEFAULT_MULTIGYM_CONFIG.max.basePrice);
-      amount = isDayPass ? Math.round(maxPrice / 20) : maxPrice * durationMonths;
+      amount = dto.amountOverride || 0;
+    } else if (dto.planType === 'multi_gym') {
+      const price = config.multi_gym?.basePrice || 1499;
+      amount = price * (durationMonths || 1);
+    } else if (dto.planType === 'day_pass') {
+      amount = dto.amountOverride || 149;
     } else {
-      throw new BadRequestException('Invalid planType. Use multigym_elite, multigym_max, or gym_specific');
+      throw new BadRequestException('Invalid planType. Use day_pass, same_gym, or multi_gym');
     }
 
     const startDate = new Date();
     const endDate = new Date();
-    if (isDayPass) {
+    if (dto.planType === 'day_pass') {
       endDate.setDate(endDate.getDate() + 1);
     } else {
       endDate.setMonth(endDate.getMonth() + durationMonths);
@@ -218,9 +222,9 @@ class SubscriptionsService {
     const cgst = Math.round(gstAmount / 2);
     const sgst = Math.round(gstAmount / 2);
     const planLabels: Record<string, string> = {
-      multigym_elite: 'Multi-Gym Elite',
-      multigym_max: 'Multi-Gym Max',
-      gym_specific: 'Individual Gym Plan',
+      day_pass: '1-Day Pass',
+      same_gym: 'Same Gym Pass',
+      multi_gym: 'Multi Gym Pass',
     };
     const planName = planLabels[sub.planType] || sub.planType || 'Standard';
     return {

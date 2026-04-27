@@ -1,228 +1,264 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
-import { qrApi, subscriptionsApi, gymsApi } from '../lib/api';
-import { colors, fonts, radius } from '../theme/brand';
-import { IconArrowLeft, IconBolt, IconRefresh } from '../components/Icons';
 import AuroraBackground from '../components/AuroraBackground';
+import { IconArrowLeft, IconClock, IconCheck } from '../components/Icons';
+import { colors, fonts, radius } from '../theme/brand';
+import { qrApi } from '../lib/api';
 
-// expo-screen-capture requires a dev build — gracefully skip in Expo Go
-let usePreventScreenCapture: (() => void) | null = null;
-try {
-  usePreventScreenCapture = require('expo-screen-capture').usePreventScreenCapture;
-} catch {}
+function formatTime(totalSeconds: number): string {
+  if (totalSeconds <= 0) return '00:00:00';
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 
-export default function QRScreen() {
-  if (usePreventScreenCapture) usePreventScreenCapture();
-  const params = useLocalSearchParams<{ gymId?: string; subId?: string }>();
-  const routeGymId = params.gymId as string | undefined;
-  const routeSubId = params.subId as string | undefined;
+function formatDateTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
 
-  const [token, setToken] = useState<string | null>(null);
-  const [remaining, setRemaining] = useState(30);
-  const [loading, setLoading] = useState(false);
-  const [subId, setSubId] = useState<string | null>(routeSubId || null);
-  const [gymName, setGymName] = useState<string | null>(null);
-  const [planName, setPlanName] = useState<string | null>(null);
+export default function QrScreen() {
+  const params = useLocalSearchParams<{
+    token?: string; expiresAt?: string; gymId?: string; gymName?: string; bookedAt?: string;
+  }>();
 
-  // Fetch gym name if gymId provided
+  const [token, setToken] = useState<string | null>(params.token || null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(params.expiresAt || null);
+  const [bookedAt, setBookedAt] = useState<string | null>(params.bookedAt || null);
+  const [gymName, setGymName] = useState<string>(params.gymName || '');
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [loading, setLoading] = useState(!params.token);
+  const [noBooking, setNoBooking] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Load active booking if no params provided
   useEffect(() => {
-    if (!routeGymId) return;
-    gymsApi.getById(routeGymId)
-      .then((data: any) => {
-        const gName = data?.gym?.name || data?.name;
-        if (gName) setGymName(gName);
-      })
-      .catch(() => {});
-  }, [routeGymId]);
-
-  useEffect(() => {
-    if (routeSubId) {
-      setSubId(routeSubId);
-      generateWithId(routeSubId);
-    } else {
-      subscriptionsApi.mySubscriptions()
-        .then((data: any) => {
-          const subs = Array.isArray(data) ? data : data?.subscriptions || data?.data || [];
-          const active = subs.find((s: any) => s.status === 'active');
-          if (active) {
-            const id = active._id || active.id;
-            const pName = active.plan?.name || active.planType || null;
-            setSubId(id);
-            setPlanName(pName);
-            generateWithId(id);
-          } else {
-            generateWithId(null);
-          }
-        })
-        .catch(() => generateWithId(null));
+    if (!params.token) {
+      qrApi.getActiveBooking().then((res: any) => {
+        if (res?.active && res.bookingQr) {
+          setToken(res.bookingQr.token);
+          setExpiresAt(res.bookingQr.expiresAt);
+          setBookedAt(res.bookingQr.bookedAt);
+          setGymName(res.bookingQr.gymName || '');
+        } else {
+          setNoBooking(true);
+        }
+      }).catch(() => setNoBooking(true)).finally(() => setLoading(false));
     }
   }, []);
 
-  const generateWithId = async (id: string | null) => {
-    setLoading(true);
-    try {
-      if (id) {
-        const res = await qrApi.generate(id);
-        const baseToken = res.token || res.qrToken || ('BMF-' + Date.now());
-        setToken(baseToken);
-      } else {
-        setToken(`BMF-DEMO-${Math.random().toString(36).slice(2, 10).toUpperCase()}`);
-      }
-      setRemaining(30);
-    } catch {
-      setToken(`BMF-DEMO-${Math.random().toString(36).slice(2, 10).toUpperCase()}`);
-      setRemaining(30);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Countdown timer
   useEffect(() => {
-    if (!token) return;
-    const timer = setInterval(() => {
-      setRemaining((r) => {
-        if (r <= 1) {
-          generateWithId(subId);
-          return 30;
-        }
-        return r - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [token, subId]);
+    if (!expiresAt) return;
+    const tick = () => {
+      const diff = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
+      setSecondsLeft(diff);
+    };
+    tick();
+    intervalRef.current = setInterval(tick, 1000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [expiresAt]);
+
+  const isExpired = secondsLeft <= 0 && expiresAt !== null;
+  const validUntil = expiresAt ? formatDateTime(expiresAt) : '';
+  const bookedAtFormatted = bookedAt ? formatDateTime(bookedAt) : '';
+
+  if (loading) {
+    return (
+      <AuroraBackground>
+        <SafeAreaView style={s.root}>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator color={colors.accent} size="large" />
+            <Text style={[s.sub, { marginTop: 16 }]}>Loading your session QR…</Text>
+          </View>
+        </SafeAreaView>
+      </AuroraBackground>
+    );
+  }
+
+  if (noBooking || !token) {
+    return (
+      <AuroraBackground>
+        <SafeAreaView style={s.root}>
+          <View style={s.header}>
+            <TouchableOpacity style={s.back} onPress={() => router.back()}>
+              <IconArrowLeft size={18} color="#fff" />
+            </TouchableOpacity>
+            <Text style={s.title}>Session QR</Text>
+            <View style={{ width: 38 }} />
+          </View>
+          <View style={s.empty}>
+            <View style={s.emptyIcon}>
+              <IconClock size={32} color={colors.t2} />
+            </View>
+            <Text style={s.emptyTitle}>No Active Session</Text>
+            <Text style={s.emptySub}>Book a gym slot to get your session QR code.</Text>
+            <TouchableOpacity style={s.bookBtn} onPress={() => router.push('/(tabs)')}>
+              <Text style={s.bookBtnText}>Browse Gyms</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </AuroraBackground>
+    );
+  }
 
   return (
-    <AuroraBackground variant="default">
-      <SafeAreaView style={s.container}>
+    <AuroraBackground>
+      <SafeAreaView style={s.root}>
+        {/* Header */}
         <View style={s.header}>
           <TouchableOpacity style={s.back} onPress={() => router.back()}>
             <IconArrowLeft size={18} color="#fff" />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>Check-In QR</Text>
+          <Text style={s.title}>Session QR</Text>
           <View style={{ width: 38 }} />
         </View>
 
-        <View style={s.badge}>
-          <IconBolt size={10} color={colors.accent} />
-          <Text style={s.badgeText}>BMF Member Pass</Text>
-        </View>
+        <View style={s.content}>
+          {/* Gym name */}
+          {gymName ? (
+            <View style={s.gymBadge}>
+              <Text style={s.gymBadgeText}>{gymName}</Text>
+            </View>
+          ) : null}
 
-        {!!gymName && (
-          <View style={s.gymBadge}>
-            <Text style={s.gymBadgeText}>{gymName}</Text>
+          {/* Booking info */}
+          {bookedAt && (
+            <Text style={s.bookingInfo}>
+              Booked at {bookedAtFormatted} · Valid until {validUntil}
+            </Text>
+          )}
+
+          {/* QR box */}
+          <View style={s.qrBox}>
+            {isExpired && (
+              <View style={s.expiredOverlay}>
+                <Text style={s.expiredText}>Session Expired</Text>
+              </View>
+            )}
+            <QRCode
+              value={token}
+              size={220}
+              color={isExpired ? '#444' : '#fff'}
+              backgroundColor="transparent"
+            />
           </View>
-        )}
 
-        {/* Demo token warning */}
-        {token?.startsWith('BMF-DEMO') && (
-          <View style={s.demoWarn}>
-            <Text style={s.demoWarnText}>⚠️ Demo QR — not valid for gym check-in</Text>
-          </View>
-        )}
+          {/* 2-hour notice */}
+          <Text style={s.notice}>
+            Use it within 2 hours from your booking time
+          </Text>
 
-        <View style={s.qrFrame}>
-          {loading || !token ? (
-            <ActivityIndicator color={colors.accent} size="large" />
+          {/* Timer */}
+          {!isExpired ? (
+            <View style={s.timerBox}>
+              <IconClock size={16} color={secondsLeft < 600 ? '#FF4444' : colors.accent} />
+              <Text style={[s.timerText, secondsLeft < 600 && { color: '#FF4444' }]}>
+                {formatTime(secondsLeft)}
+              </Text>
+              <Text style={s.timerLabel}>remaining</Text>
+            </View>
           ) : (
-            <View style={s.qrInner}>
-              <QRCode
-                value={token}
-                size={180}
-                color="#000000"
-                backgroundColor="#FFFFFF"
-                logo={undefined}
-                logoSize={0}
-                quietZone={8}
-              />
+            <View style={[s.timerBox, { borderColor: 'rgba(255,68,68,0.3)' }]}>
+              <Text style={[s.timerText, { color: '#FF4444' }]}>Expired</Text>
             </View>
           )}
-        </View>
 
-        {/* Timer ring */}
-        <View style={s.timerWrap}>
-          <View style={[s.timerCircle, { borderColor: remaining > 10 ? colors.accentBorder : 'rgba(255,80,80,0.5)' }]}>
-            <Text style={[s.timerNum, { color: remaining > 10 ? colors.accent : 'rgba(255,120,120,1)' }]}>{remaining}</Text>
+          {/* Instructions */}
+          <View style={s.steps}>
+            {[
+              'Walk into your booked gym',
+              'Show this QR to the gym staff',
+              'Staff scans to mark your check-in',
+            ].map((step, i) => (
+              <View key={i} style={s.step}>
+                <View style={s.stepNum}><Text style={s.stepNumText}>{i + 1}</Text></View>
+                <Text style={s.stepText}>{step}</Text>
+              </View>
+            ))}
           </View>
-          <Text style={s.timerLabel}>Refreshes every 30 seconds</Text>
-        </View>
 
-        {/* Token preview */}
-        <View style={s.memberCard}>
-          <Text style={s.memberLabel}>Token Preview</Text>
-          <Text style={s.memberId} numberOfLines={1}>
-            {token ? token.slice(0, 28) + (token.length > 28 ? '…' : '') : '-'}
-          </Text>
-          {!!planName && <Text style={s.planLabel}>{planName}</Text>}
+          {isExpired && (
+            <TouchableOpacity style={s.bookBtn} onPress={() => router.push('/slots' as any)}>
+              <Text style={s.bookBtnText}>Book Another Slot</Text>
+            </TouchableOpacity>
+          )}
         </View>
-
-        <TouchableOpacity style={s.shareBtn} onPress={() => generateWithId(subId)}>
-          <IconRefresh size={14} color="#fff" />
-          <Text style={s.shareBtnText}>Refresh Token</Text>
-        </TouchableOpacity>
       </SafeAreaView>
     </AuroraBackground>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 22, alignItems: 'center' },
+  root: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    width: '100%', marginTop: 8, marginBottom: 20,
+    paddingHorizontal: 22, paddingVertical: 12,
   },
   back: {
-    width: 38, height: 38, borderRadius: 12, backgroundColor: colors.glass,
-    borderWidth: 1, borderColor: colors.borderGlass, alignItems: 'center', justifyContent: 'center',
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff' },
-  badge: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
-    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, marginBottom: 10,
-  },
-  badgeText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent, letterSpacing: 0.5 },
+  title: { fontFamily: fonts.serif, fontSize: 18, color: '#fff' },
+  content: { flex: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 12 },
   gymBadge: {
-    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
-    paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, marginBottom: 14,
+    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+    borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 6, marginBottom: 8,
   },
-  gymBadgeText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t },
-  qrFrame: {
-    width: 220, height: 220, borderRadius: radius.xl,
-    backgroundColor: '#ffffff',
-    borderWidth: 3, borderColor: colors.accentBorder,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 18,
-    shadowColor: colors.accent, shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 0 },
+  gymBadgeText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
+  bookingInfo: {
+    fontFamily: fonts.sans, fontSize: 12, color: colors.t2,
+    marginBottom: 20, textAlign: 'center',
   },
-  qrInner: { alignItems: 'center', justifyContent: 'center' },
-  timerWrap: { alignItems: 'center', gap: 6, marginBottom: 14 },
-  timerCircle: {
-    width: 52, height: 52, borderRadius: 26,
-    borderWidth: 2,
-    alignItems: 'center', justifyContent: 'center',
+  qrBox: {
+    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 24,
+    padding: 24, borderWidth: 1, borderColor: colors.borderGlass,
+    marginBottom: 16, position: 'relative', overflow: 'hidden',
   },
-  timerNum: { fontFamily: fonts.sansBold, fontSize: 18 },
+  expiredOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(10,10,10,0.75)',
+    alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 24,
+  },
+  expiredText: { fontFamily: fonts.sansBold, fontSize: 18, color: '#FF4444' },
+  notice: {
+    fontFamily: fonts.sans, fontSize: 12, color: colors.t2,
+    textAlign: 'center', marginBottom: 16, lineHeight: 18,
+  },
+  timerBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.accentBorder,
+    paddingHorizontal: 20, paddingVertical: 10, marginBottom: 24,
+  },
+  timerText: { fontFamily: fonts.sansBold, fontSize: 22, color: colors.accent, letterSpacing: 2 },
   timerLabel: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
-  memberCard: {
-    width: '100%', backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
-    borderRadius: radius.xl, padding: 14, alignItems: 'center', marginBottom: 14,
+  steps: { width: '100%', gap: 10, marginBottom: 24 },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  stepNum: {
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+    alignItems: 'center', justifyContent: 'center',
   },
-  memberLabel: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginBottom: 4 },
-  memberId: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff', letterSpacing: 0.8 },
-  planLabel: { fontFamily: fonts.sans, fontSize: 10, color: colors.t3, marginTop: 4 },
-  shareBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    width: '100%', height: 48, borderRadius: radius.xl,
-    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
+  stepNumText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent },
+  stepText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, flex: 1 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 24 },
+  emptyIcon: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: colors.borderGlass,
+    alignItems: 'center', justifyContent: 'center',
   },
-  shareBtnText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
-  demoWarn: {
-    width: '100%', backgroundColor: 'rgba(255,120,0,0.18)', borderWidth: 1,
-    borderColor: 'rgba(255,140,0,0.45)', borderRadius: radius.lg,
-    paddingVertical: 8, paddingHorizontal: 14, marginBottom: 10, alignItems: 'center',
+  emptyTitle: { fontFamily: fonts.serif, fontSize: 22, color: '#fff', textAlign: 'center' },
+  emptySub: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2, textAlign: 'center', lineHeight: 20 },
+  bookBtn: {
+    backgroundColor: colors.accent, borderRadius: radius.pill,
+    paddingHorizontal: 28, paddingVertical: 14, marginTop: 8,
   },
-  demoWarnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#FFA040' },
+  bookBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#060606' },
+  sub: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
 });

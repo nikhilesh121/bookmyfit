@@ -8,7 +8,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 
  *
  * Legacy values (individual/pro/max/elite) kept for DB backward-compat but not used in new code.
  */
-export type PlanType = 'gym_specific' | 'multigym_pro' | 'multigym_max' | 'individual' | 'pro' | 'max' | 'elite';
+export type PlanType = 'day_pass' | 'same_gym' | 'multi_gym';
 export type SubscriptionStatus = 'active' | 'expired' | 'cancelled' | 'frozen';
 
 @Entity('subscriptions')
@@ -20,8 +20,7 @@ export class SubscriptionEntity {
   @Column({ type: 'uuid' })
   userId: string;
 
-  @Column({ length: 30, nullable: true, default: 'individual' })
-  planType: PlanType;
+  @Column({ length: 30, nullable: true, default: 'same_gym' }) planType: PlanType;
 
   @Column()
   durationMonths: number;

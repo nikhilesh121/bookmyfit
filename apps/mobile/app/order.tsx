@@ -19,12 +19,12 @@ export default function Order() {
     }>();
 
   const hasPt = ptAddon === 'true';
-  const isDayPassRoute = isDayPassParam === 'true';
+  const isDayPassRoute = isDayPassParam === 'true' || planId === 'day_pass';
   const months = Number(durationMonths) || 1;
   const total = Number(totalAmount) || 0;
   const gst = Math.round(total / (1 + GST_RATE) * GST_RATE);
   const planBase = total - gst - (hasPt ? 1600 : 0);
-  const isMultigym = planId?.startsWith('multigym_');
+  const isMultigym = planId === 'multi_gym';
 
   const [coupon, setCoupon] = useState('');
   const [discount, setDiscount] = useState(0);

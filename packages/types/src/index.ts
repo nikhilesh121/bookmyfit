@@ -37,7 +37,7 @@ export interface Gym {
 }
 
 // ============ Subscription Types ============
-export type PlanType = 'individual' | 'pro' | 'max' | 'elite';
+export type PlanType = 'day_pass' | 'same_gym' | 'multi_gym';
 export type SubscriptionStatus = 'active' | 'expired' | 'cancelled' | 'frozen';
 
 export interface Subscription {
@@ -50,6 +50,15 @@ export interface Subscription {
   status: SubscriptionStatus;
   amountPaid: number;
   gymIds?: string[];
+}
+
+export interface BookingQr {
+  id: string;
+  token: string;
+  expiresAt: string;
+  bookedAt: string;
+  gymId: string;
+  gymName: string;
 }
 
 export interface SubscriptionPlan {

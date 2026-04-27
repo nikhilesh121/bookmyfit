@@ -7,6 +7,17 @@ import { IconQR, IconStar, IconPin, IconBell, IconDumbbell, IconBolt } from '../
 import { gymsApi, getUser, api } from '../../lib/api';
 import AuroraBackground from '../../components/AuroraBackground';
 
+const HOME_CATEGORIES = [
+  { id: 'yoga', label: 'Yoga', emoji: '🧘', color: 'rgba(204,255,0,0.15)', border: 'rgba(204,255,0,0.3)' },
+  { id: 'hiit', label: 'HIIT', emoji: '⚡', color: 'rgba(255,138,0,0.15)', border: 'rgba(255,138,0,0.3)' },
+  { id: 'crossfit', label: 'CrossFit', emoji: '🏋️', color: 'rgba(0,175,255,0.15)', border: 'rgba(0,175,255,0.3)' },
+  { id: 'strength', label: 'Strength', emoji: '💪', color: 'rgba(155,0,255,0.15)', border: 'rgba(155,0,255,0.3)' },
+  { id: 'cardio', label: 'Cardio', emoji: '🏃', color: 'rgba(255,60,60,0.15)', border: 'rgba(255,60,60,0.3)' },
+  { id: 'boxing', label: 'Boxing', emoji: '🥊', color: 'rgba(255,200,50,0.15)', border: 'rgba(255,200,50,0.3)' },
+  { id: 'pilates', label: 'Pilates', emoji: '🤸', color: 'rgba(0,220,180,0.15)', border: 'rgba(0,220,180,0.3)' },
+  { id: '', label: 'All', emoji: '🎯', color: 'rgba(255,255,255,0.08)', border: 'rgba(255,255,255,0.15)' },
+];
+
 const FALLBACK_GYMS = [
   { id: '1', name: 'PowerZone', tier: 'Elite', rating: 4.8, distance: '0.8 km', img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80' },
   { id: '2', name: 'Iron Temple', tier: 'Premium', rating: 4.6, distance: '2.1 km', img: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80' },
@@ -37,6 +48,7 @@ export default function Home() {
   const [userName, setUserName] = useState('');
   const [recommended, setRecommended] = useState<any[]>([]);
   const [homepageConfig, setHomepageConfig] = useState<{ sections: any[] } | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string>('');
 
   useEffect(() => {
     getUser().then((u) => { if (u?.name) setUserName(u.name.split(' ')[0]); }).catch(() => {});
@@ -78,6 +90,12 @@ export default function Home() {
   }, []);
 
   const displayGyms = gyms.length > 0 ? gyms : FALLBACK_GYMS;
+  const filteredGyms = activeCategory
+    ? displayGyms.filter((g: any) => {
+        const cats: string[] = g.categories || g.amenities || [];
+        return cats.some((c: string) => c.toLowerCase().includes(activeCategory.toLowerCase()));
+      })
+    : displayGyms;
 
   return (
     <AuroraBackground>
@@ -131,6 +149,29 @@ export default function Home() {
             <Text style={s.tileText}>My subs</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Circular category filter icons */}
+        <View style={s.sectionHeader}>
+          <Text style={s.sectionTitle}>Workout Style</Text>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }} contentContainerStyle={{ gap: 12 }}>
+          {HOME_CATEGORIES.map((cat) => {
+            const isActive = activeCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id || 'all'}
+                style={[s.catCircleWrap, { opacity: activeCategory && !isActive ? 0.6 : 1 }]}
+                onPress={() => setActiveCategory(isActive ? '' : cat.id)}
+                activeOpacity={0.8}
+              >
+                <View style={[s.catCircle, { backgroundColor: cat.color, borderColor: isActive ? cat.border : 'rgba(255,255,255,0.1)', borderWidth: isActive ? 2 : 1 }]}>
+                  <Text style={s.catEmoji}>{cat.emoji}</Text>
+                </View>
+                <Text style={[s.catCircleLabel, isActive && { color: '#fff' }]}>{cat.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
         {/* Categories */}
         {isSectionVisible('categories') && categories.length > 0 && (
@@ -211,7 +252,16 @@ export default function Home() {
         {loadingGyms ? (
           [1, 2, 3].map((i) => <SkeletonRect key={i} h={180} style={{ marginBottom: 12, borderRadius: radius.xl }} />)
         ) : (
-          displayGyms.map((g: any) => {
+          displayGyms.length === 0 ? null :
+          filteredGyms.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+              <Text style={{ fontFamily: fonts.sans, fontSize: 14, color: colors.t2 }}>No gyms found for this category.</Text>
+              <TouchableOpacity onPress={() => setActiveCategory('')} style={{ marginTop: 12 }}>
+                <Text style={{ fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent }}>Clear filter</Text>
+              </TouchableOpacity>
+            </View>
+          ) :
+          filteredGyms.map((g: any) => {
             const tier = g.tier || g.tierName || 'Standard';
             const name = g.name || g.gymName || 'Gym';
             const rating = g.rating || g.avgRating || '—';
@@ -260,6 +310,13 @@ const s = StyleSheet.create({
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
   },
   catPillText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.t2 },
+  catCircleWrap: { alignItems: 'center', gap: 6, minWidth: 56 },
+  catCircle: {
+    width: 52, height: 52, borderRadius: 26,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  catEmoji: { fontSize: 22 },
+  catCircleLabel: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2, textAlign: 'center' },
   scroll: { flex: 1 },
   container: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 40 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },

@@ -1,21 +1,32 @@
 import {
   Module, Controller, Get, Post, Delete, Param, Body, Query,
-  Injectable, UseGuards, Req, NotFoundException, BadRequestException,
+  Injectable, UseGuards, Req, NotFoundException, BadRequestException, ConflictException,
 } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { JwtModule, JwtService } from '@nestjs/jwt';
+import { Repository, IsNull } from 'typeorm';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { v4 as uuidv4 } from 'uuid';
 import { GymSlotEntity } from '../../database/entities/gym-slot.entity';
 import { SlotBookingEntity } from '../../database/entities/slot-booking.entity';
+import { SubscriptionEntity } from '../../database/entities/subscription.entity';
+import { BookingQrEntity } from '../../database/entities/booking-qr.entity';
+import { GymEntity } from '../../database/entities/gym.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
+
+const BOOKING_QR_EXPIRY_HOURS = 2;
 
 @Injectable()
 class SlotsService {
   constructor(
     @InjectRepository(GymSlotEntity) private readonly slotRepo: Repository<GymSlotEntity>,
     @InjectRepository(SlotBookingEntity) private readonly bookingRepo: Repository<SlotBookingEntity>,
+    @InjectRepository(SubscriptionEntity) private readonly subRepo: Repository<SubscriptionEntity>,
+    @InjectRepository(BookingQrEntity) private readonly qrRepo: Repository<BookingQrEntity>,
+    @InjectRepository(GymEntity) private readonly gymRepo: Repository<GymEntity>,
+    private readonly jwt: JwtService,
   ) {}
 
   listSlots(gymId: string, date: string) {
@@ -26,16 +37,76 @@ class SlotsService {
     return this.slotRepo.save(this.slotRepo.create(data));
   }
 
-  async bookSlot(slotId: string, userId: string) {
+  async bookSlot(slotId: string, userId: string, subscriptionId?: string) {
     const slot = await this.slotRepo.findOne({ where: { id: slotId } });
     if (!slot) throw new NotFoundException('Slot not found');
     if (slot.booked >= slot.capacity) throw new BadRequestException('Slot is full');
+
     const existing = await this.bookingRepo.findOne({ where: { slotId, userId, status: 'confirmed' } });
-    if (existing) throw new BadRequestException('Already booked');
+    if (existing) throw new BadRequestException('Already booked this slot');
+
+    // Find the user's active subscription
+    const sub = subscriptionId
+      ? await this.subRepo.findOne({ where: { id: subscriptionId, userId } })
+      : await this.subRepo.findOne({ where: { userId, status: 'active' } as any });
+    if (!sub) throw new BadRequestException('No active subscription found. Please subscribe first.');
+
+    // Session lock: same_gym and multi_gym users may only have 1 active booking at a time
+    if (sub.planType !== 'day_pass') {
+      const now = new Date();
+      const activeQr = await this.qrRepo.findOne({
+        where: { userId, usedAt: IsNull() },
+        order: { createdAt: 'DESC' },
+      });
+      if (activeQr && new Date(activeQr.expiresAt) > now) {
+        throw new ConflictException(
+          'You already have an active gym session. Please use your current QR code or wait for it to expire before booking again.',
+        );
+      }
+    }
+
+    // Create the slot booking
     slot.booked += 1;
     if (slot.booked >= slot.capacity) slot.status = 'full';
     await this.slotRepo.save(slot);
-    return this.bookingRepo.save(this.bookingRepo.create({ slotId, userId, gymId: slot.gymId }));
+
+    const booking = await this.bookingRepo.save(
+      this.bookingRepo.create({ slotId, userId, gymId: slot.gymId }),
+    );
+
+    // Generate 2-hour booking QR
+    const jti = uuidv4();
+    const bookedAt = new Date();
+    const expiresAt = new Date(bookedAt.getTime() + BOOKING_QR_EXPIRY_HOURS * 60 * 60 * 1000);
+
+    const qrPayload = {
+      sub: userId,
+      gym: slot.gymId,
+      sid: sub.id,
+      bid: booking.id,
+      jti,
+      type: 'booking',
+    };
+    const qrToken = this.jwt.sign(qrPayload, { expiresIn: `${BOOKING_QR_EXPIRY_HOURS}h` });
+
+    const bookingQr = await this.qrRepo.save(
+      this.qrRepo.create({ userId, gymId: slot.gymId, subscriptionId: sub.id, slotBookingId: booking.id, qrToken, expiresAt, bookedAt }),
+    );
+
+    const gym = await this.gymRepo.findOne({ where: { id: slot.gymId } });
+
+    return {
+      ...booking,
+      slot,
+      bookingQr: {
+        id: bookingQr.id,
+        token: qrToken,
+        expiresAt: expiresAt.toISOString(),
+        bookedAt: bookedAt.toISOString(),
+        gymId: slot.gymId,
+        gymName: gym?.name ?? '',
+      },
+    };
   }
 
   async cancelBooking(slotId: string, userId: string) {
@@ -59,6 +130,30 @@ class SlotsService {
       take: 50,
     });
   }
+
+  /** Returns the user's currently active booking QR (not expired, not used), or null */
+  async getActiveBooking(userId: string) {
+    const now = new Date();
+    const qrs = await this.qrRepo.find({
+      where: { userId, usedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+      take: 5,
+    });
+    const active = qrs.find(q => new Date(q.expiresAt) > now);
+    if (!active) return { active: false };
+    const gym = await this.gymRepo.findOne({ where: { id: active.gymId } });
+    return {
+      active: true,
+      bookingQr: {
+        id: active.id,
+        token: active.qrToken,
+        expiresAt: active.expiresAt.toISOString(),
+        bookedAt: active.bookedAt ? active.bookedAt.toISOString() : active.createdAt.toISOString(),
+        gymId: active.gymId,
+        gymName: gym?.name ?? '',
+      },
+    };
+  }
 }
 
 @ApiTags('Slots')
@@ -70,6 +165,11 @@ class SlotsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   myBookings(@Req() req: any) { return this.svc.myBookings(req.user.userId); }
+
+  @Get('active-booking')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  activeBooking(@Req() req: any) { return this.svc.getActiveBooking(req.user.userId); }
 
   @Get()
   listSlots(@Query('gymId') gymId: string, @Query('date') date: string) {
@@ -87,8 +187,8 @@ class SlotsController {
   @Post(':id/book')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  bookSlot(@Param('id') id: string, @Req() req: any) {
-    return this.svc.bookSlot(id, req.user.userId);
+  bookSlot(@Param('id') id: string, @Req() req: any, @Body() body: { subscriptionId?: string }) {
+    return this.svc.bookSlot(id, req.user.userId, body?.subscriptionId);
   }
 
   @Delete(':id/book')
@@ -100,7 +200,13 @@ class SlotsController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([GymSlotEntity, SlotBookingEntity])],
+  imports: [
+    TypeOrmModule.forFeature([GymSlotEntity, SlotBookingEntity, SubscriptionEntity, BookingQrEntity, GymEntity]),
+    JwtModule.register({
+      secret: process.env.QR_SECRET || 'qr-hmac-secret-change-me',
+      signOptions: { algorithm: 'HS256' },
+    }),
+  ],
   controllers: [SlotsController],
   providers: [SlotsService],
   exports: [SlotsService],
