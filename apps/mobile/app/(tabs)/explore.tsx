@@ -167,7 +167,6 @@ export default function ExploreHub() {
             </ImageBackground>
           </TouchableOpacity>
         ))}
-        </View>
 
         {/* ── Small service cards ── */}
         <Text style={s.sectionTitle2}>More Services</Text>
