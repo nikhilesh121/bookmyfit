@@ -25,12 +25,14 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 const FALLBACK_GYMS: NearbyGym[] = [
-  { id: '1', name: 'Iron Temple Gym',        address: 'Sahid Nagar',      latitude: 20.2961, longitude: 85.8245, rating: 4.8, tier: 'elite' },
-  { id: '2', name: 'FitZone Premier',         address: 'Patia',            latitude: 20.3495, longitude: 85.8163, rating: 4.6, tier: 'pro' },
-  { id: '3', name: 'PowerHouse Fitness',      address: 'Jaydev Vihar',     latitude: 20.3112, longitude: 85.8130, rating: 4.5, tier: 'pro' },
-  { id: '4', name: 'Zen Yoga & Wellness',     address: 'Nayapalli',        latitude: 20.2868, longitude: 85.8004, rating: 4.7, tier: 'individual' },
-  { id: '5', name: 'CrossFit Bhubaneswar',    address: 'Khandagiri',       latitude: 20.2524, longitude: 85.7793, rating: 4.4, tier: 'pro' },
-  { id: '6', name: 'The Muscle Factory',      address: 'Chandrasekharpur', latitude: 20.3212, longitude: 85.8235, rating: 4.3, tier: 'individual' },
+  { id: 'bf67d2fc-4b70-43e3-93c4-da533e5caa09', name: "Cult.fit Bhubaneswar",       address: 'Patia',            latitude: 20.3413, longitude: 85.8157, rating: 4.8, tier: 'elite' },
+  { id: 'c5b25fd2-c918-4bf4-a7c5-35170f0155b1', name: "Gold's Gym Bhubaneswar",     address: 'Chandrasekharpur', latitude: 20.3110, longitude: 85.8186, rating: 4.7, tier: 'elite' },
+  { id: '547b28de-54cf-4f3a-a036-c1f9294066e6', name: 'CrossFit Bhubaneswar',       address: 'Jaydev Vihar',     latitude: 20.3006, longitude: 85.8290, rating: 4.6, tier: 'pro' },
+  { id: '9275177c-765d-4ad8-ac13-6cda17ba4edc', name: 'Fitness First Bhubaneswar',  address: 'IRC Village',      latitude: 20.2996, longitude: 85.8220, rating: 4.5, tier: 'pro' },
+  { id: '554d5de4-38c0-4b87-a2f4-51e0124e859f', name: 'Anytime Fitness',            address: 'Saheed Nagar',     latitude: 20.2888, longitude: 85.8480, rating: 4.5, tier: 'pro' },
+  { id: '28ec2ef5-a659-41f3-aef2-0a0be52f4f16', name: 'Iron House Gym',             address: 'Nayapalli',        latitude: 20.2820, longitude: 85.8276, rating: 4.4, tier: 'individual' },
+  { id: 'f25d299d-8f81-4dbb-a8aa-8980a5c61769', name: 'PowerHouse Fitness',         address: 'Khandagiri',       latitude: 20.2489, longitude: 85.7829, rating: 4.3, tier: 'individual' },
+  { id: 'bf3669fb-302b-47a0-be49-34d38233116f', name: 'Flex Fitness Studio',        address: 'Damana',           latitude: 20.3149, longitude: 85.8170, rating: 4.2, tier: 'individual' },
 ];
 
 // Bhubaneswar bounding box
@@ -185,7 +187,7 @@ export default function NearbyScreen() {
                       <Text style={s.ratingText}>{item.rating.toFixed(1)}</Text>
                     </View>
                   )}
-                  <TouchableOpacity style={[s.viewBtn, sel && { borderColor: tc, backgroundColor: tc + '18' }]} onPress={() => router.push(`/gym/${item.id}` as any)} activeOpacity={0.85}>
+                  <TouchableOpacity style={[s.viewBtn, sel && { borderColor: tc, backgroundColor: tc + '18' }]} onPress={() => router.push({ pathname: '/gym/[id]', params: { id: item.id, fallbackName: item.name, fallbackAddress: item.address || 'Bhubaneswar', fallbackRating: String(item.rating || ''), fallbackTier: item.tier || 'pro' } } as any)} activeOpacity={0.85}>
                     <Text style={[s.viewBtnText, sel && { color: tc }]}>View Details</Text>
                   </TouchableOpacity>
                 </View>

@@ -25,7 +25,7 @@ function SkeletonRect({ h, style }: { h: number; style?: any }) {
 }
 
 export default function GymDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, fallbackName, fallbackAddress, fallbackRating, fallbackTier } = useLocalSearchParams<{ id: string; fallbackName?: string; fallbackAddress?: string; fallbackRating?: string; fallbackTier?: string }>();
   const [gym, setGym] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'About' | 'Sessions' | 'Trainers' | 'Reviews'>('About');
@@ -34,7 +34,13 @@ export default function GymDetail() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [gymPlans, setGymPlans] = useState<any[]>([]);
   const [sessionSlots, setSessionSlots] = useState<any[]>([]);
-  const [sessionTypes, setSessionTypes] = useState<any[]>([]);
+  const FALLBACK_SESSION_TYPES = [
+    { id: 'gym', name: 'Gym Workout', color: '#3DFF54' },
+    { id: 'cardio', name: 'Cardio', color: '#FB923C' },
+    { id: 'yoga', name: 'Yoga', color: '#22D3EE' },
+    { id: 'hiit', name: 'HIIT', color: '#F59E0B' },
+  ];
+  const [sessionTypes, setSessionTypes] = useState<any[]>(FALLBACK_SESSION_TYPES);
   const [activeTypeFilter, setActiveTypeFilter] = useState<string>('all');
   const [slotDate, setSlotDate] = useState<string>(new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().split('T')[0]);
   const [bookingLoading, setBookingLoading] = useState<string | null>(null);
@@ -43,7 +49,10 @@ export default function GymDetail() {
     if (!id) return;
     setLoading(true);
     gymsApi.getById(id as string)
-      .then((data: any) => setGym(data?.gym || data))
+      .then((data: any) => {
+        const g = data?.gym || data;
+        setGym(g && (g.id || g._id) ? g : null);
+      })
       .catch(() => setGym(null))
       .finally(() => setLoading(false));
 
@@ -71,8 +80,12 @@ export default function GymDetail() {
     // Load sessions and session types for today
     loadSlots(id as string, new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().split('T')[0]);
     api.get(`/sessions/types/${id}`)
-      .then((data: any) => setSessionTypes(Array.isArray(data) ? data : []))
-      .catch(() => setSessionTypes([]));
+      .then((data: any) => {
+        const list = (Array.isArray(data) ? data : []).filter((t: any) => t.id !== 'all');
+        if (list.length > 0) setSessionTypes(list);
+        // else keep FALLBACK_SESSION_TYPES
+      })
+      .catch(() => { /* keep fallback */ });
 
     api.get(`/trainers?gymId=${id}`)
       .then((data: any) => {
@@ -89,11 +102,11 @@ export default function GymDetail() {
       .catch(() => setReviews([]));
   }, [id]);
 
-  const tier = gym?.tier || gym?.tierName || 'Elite';
-  const name = gym?.name || 'Gym';
-  const rating = gym?.rating || gym?.avgRating || '—';
+  const tier = gym?.tier || gym?.tierName || fallbackTier || 'Elite';
+  const name = gym?.name || fallbackName || 'Gym';
+  const rating = gym?.rating || gym?.avgRating || (fallbackRating ? Number(fallbackRating) : '—');
   const reviewCount = gym?.reviewCount || gym?.ratingsCount || '—';
-  const address = gym?.address || gym?.location?.address || 'Address unavailable';
+  const address = gym?.address || gym?.location?.address || fallbackAddress || 'Bhubaneswar';
   const hours = gym?.openingHours || gym?.timings || '5am – 11pm';
   const description = gym?.description || 'Fully equipped gym with state-of-the-art cardio machines, free weights, functional training zone, and certified personal trainers. Built for every fitness level.';
   const amenities: string[] = gym?.amenities || ['AC', 'Parking', 'Shower', 'Locker', 'Steam Room', 'Pool'];

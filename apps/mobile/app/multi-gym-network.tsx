@@ -9,12 +9,14 @@ import { gymsApi } from '../lib/api';
 const { width: W } = Dimensions.get('window');
 
 const FALLBACK_GYMS = [
-  { id: '1', name: 'PowerZone Fitness', city: 'Bhubaneswar', area: 'Saheed Nagar', rating: 4.8, images: ['https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80'], amenities: ['AC', 'Parking', 'Pool'] },
-  { id: '2', name: 'Iron Temple', city: 'Bhubaneswar', area: 'Nayapalli', rating: 4.6, images: ['https://images.unsplash.com/photo-1532384661954-a0e26f4f065c?w=600&q=80'], amenities: ['AC', 'Shower', 'Locker'] },
-  { id: '3', name: 'Anytime Fitness', city: 'Bhubaneswar', area: 'Jaydev Vihar', rating: 4.5, images: ['https://images.unsplash.com/photo-1549476464-37392f717541?w=600&q=80'], amenities: ['AC', 'Parking'] },
-  { id: '4', name: "Gold's Gym", city: 'Bhubaneswar', area: 'Chandrasekharpur', rating: 4.7, images: ['https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=600&q=80'], amenities: ['AC', 'Steam', 'Pool'] },
-  { id: '5', name: 'FitHub Pro', city: 'Bhubaneswar', area: 'Patia', rating: 4.4, images: ['https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80'], amenities: ['AC', 'Shower'] },
-  { id: '6', name: 'ZenFit Studio', city: 'Bhubaneswar', area: 'IRC Village', rating: 4.3, images: ['https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=600&q=80'], amenities: ['AC', 'Yoga'] },
+  { id: 'bf67d2fc-4b70-43e3-93c4-da533e5caa09', name: "Cult.fit Bhubaneswar",      city: 'Bhubaneswar', area: 'Patia',            rating: 4.8, images: ['https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80'], amenities: ['AC', 'Parking', 'Pool'] },
+  { id: 'c5b25fd2-c918-4bf4-a7c5-35170f0155b1', name: "Gold's Gym Bhubaneswar",    city: 'Bhubaneswar', area: 'Chandrasekharpur', rating: 4.7, images: ['https://images.unsplash.com/photo-1532384661954-a0e26f4f065c?w=600&q=80'], amenities: ['AC', 'Sauna', 'Steam Room'] },
+  { id: '547b28de-54cf-4f3a-a036-c1f9294066e6', name: 'CrossFit Bhubaneswar',      city: 'Bhubaneswar', area: 'Jaydev Vihar',     rating: 4.6, images: ['https://images.unsplash.com/photo-1549476464-37392f717541?w=600&q=80'], amenities: ['AC', 'Parking'] },
+  { id: '554d5de4-38c0-4b87-a2f4-51e0124e859f', name: 'Anytime Fitness',           city: 'Bhubaneswar', area: 'Saheed Nagar',     rating: 4.5, images: ['https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=600&q=80'], amenities: ['AC', '24/7 Access'] },
+  { id: '9275177c-765d-4ad8-ac13-6cda17ba4edc', name: 'Fitness First Bhubaneswar', city: 'Bhubaneswar', area: 'IRC Village',      rating: 4.5, images: ['https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80'], amenities: ['AC', 'Pool', 'Yoga'] },
+  { id: '28ec2ef5-a659-41f3-aef2-0a0be52f4f16', name: 'Iron House Gym',            city: 'Bhubaneswar', area: 'Nayapalli',        rating: 4.4, images: ['https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=600&q=80'], amenities: ['AC', 'Shower', 'Locker'] },
+  { id: 'f25d299d-8f81-4dbb-a8aa-8980a5c61769', name: 'PowerHouse Fitness',        city: 'Bhubaneswar', area: 'Khandagiri',       rating: 4.3, images: ['https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=600&q=80'], amenities: ['AC', 'Shower'] },
+  { id: 'bf3669fb-302b-47a0-be49-34d38233116f', name: 'Flex Fitness Studio',       city: 'Bhubaneswar', area: 'Damana',           rating: 4.2, images: ['https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=600&q=80'], amenities: ['AC', 'Zumba'] },
 ];
 
 function SkRow() {
