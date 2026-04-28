@@ -8,43 +8,55 @@ import { IconArrowLeft, IconCheck } from '../components/Icons';
 import AuroraBackground from '../components/AuroraBackground';
 import { authApi, setUser } from '../lib/api';
 
+// Expo Router can return string | string[] — always coerce to string
+function str(v: string | string[] | undefined): string {
+  if (Array.isArray(v)) return v[0] ?? '';
+  return v ?? '';
+}
+
 export default function OtpScreen() {
-  const { phone, userExists: userExistsParam, userName: userNameParam } = useLocalSearchParams<{
-    phone: string; userExists?: string; userName?: string;
-  }>();
+  const raw = useLocalSearchParams();
+  const phone         = str(raw.phone);
+  const userExistsParam = str(raw.userExists);
+  const userNameParam   = str(raw.userName);
+
   const isExistingUser = userExistsParam === 'true';
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
   const verify = async () => {
-    if (code.length < 4) return Alert.alert('Enter OTP');
-    if (!isExistingUser && !name.trim()) return Alert.alert('Enter your name');
+    if (code.length < 4) return Alert.alert('Enter OTP', 'Please enter the 6-digit OTP.');
+    if (!isExistingUser && !name.trim()) return Alert.alert('Enter your name', 'Please enter your name to create your account.');
     setLoading(true);
     try {
       const deviceId = `dev-${Date.now()}`;
-      const data = await authApi.verifyOtp(
+      const data: any = await authApi.verifyOtp(
         phone, code, deviceId,
         isExistingUser ? undefined : (name.trim() || 'User'),
-      ) as any;
+      );
+
+      if (!data?.accessToken) throw new Error('Login failed — no token returned. Please try again.');
 
       // Store tokens
       await SecureStore.setItemAsync('bmf_token', data.accessToken);
       if (data.refreshToken) await SecureStore.setItemAsync('bmf_refresh', data.refreshToken);
 
-      // Store user object (with phone fallback)
-      const user = data.user || { phone, name: isExistingUser ? (userNameParam || 'Member') : (name.trim() || 'User') };
+      // Store user object
+      const user = data.user ?? { phone, name: isExistingUser ? (userNameParam || 'Member') : (name.trim() || 'User'), role: 'end_user' };
       await setUser(user);
 
       const role = user?.role;
       if (role === 'gym_owner' || role === 'gym_staff') {
-        router.replace('/(gym-portal)');
+        router.replace('/(gym-portal)' as any);
       } else {
-        router.replace('/(tabs)');
+        router.replace('/(tabs)' as any);
       }
     } catch (err: any) {
-      Alert.alert('Error', err.message);
-    } finally { setLoading(false); }
+      Alert.alert('Verification Failed', err?.message ?? 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

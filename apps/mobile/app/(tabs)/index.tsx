@@ -5,7 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { colors, fonts, radius } from '../../theme/brand';
 import {
   IconBell, IconPin, IconStar, IconChevronDown,
@@ -97,23 +97,24 @@ export default function Home() {
   const heroRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    // Load saved city first
-    AsyncStorage.getItem('bmf_city').then((saved) => {
-      if (saved) setCity(saved);
-      else {
-        // Auto-detect from GPS
+    // Load saved city first, fall back to GPS detection
+    SecureStore.getItemAsync('bmf_city').then((saved) => {
+      if (saved) {
+        setCity(saved);
+      } else {
+        // Auto-detect from GPS (fire-and-forget, no crash if denied)
         (async () => {
           try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') return;
             const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             const [geo] = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-            const c = geo?.city || geo?.subregion || geo?.region || 'Bhubaneswar';
-            setCity(c);
+            const c = geo?.city || geo?.subregion || geo?.region;
+            if (c) setCity(c);
           } catch {}
         })();
       }
-    });
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -193,7 +194,7 @@ export default function Home() {
                   style={[s.cityRow, city === c && s.cityRowActive]}
                   onPress={() => {
                     setCity(c);
-                    AsyncStorage.setItem('bmf_city', c);
+                    SecureStore.setItemAsync('bmf_city', c).catch(() => {});
                     setShowCityPicker(false);
                   }}
                 >
