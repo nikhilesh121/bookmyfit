@@ -76,7 +76,11 @@ export default function Subscriptions() {
     <AuroraBackground variant="premium">
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
-          <Text style={s.title}>My Memberships</Text>
+          {/* Header */}
+          <View style={s.pageHeader}>
+            <Text style={s.pageTitle}>My Memberships</Text>
+            <Text style={s.pageSub}>Your active passes & subscriptions</Text>
+          </View>
 
           {loading ? (
             [1, 2, 3].map((i) => <SkeletonCard key={i} />)
@@ -224,7 +228,9 @@ export default function Subscriptions() {
 
 const s = StyleSheet.create({
   container: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
-  title: { fontFamily: fonts.sansBold, fontSize: 26, color: '#fff', letterSpacing: -0.5, marginBottom: 16 },
+  pageHeader: { marginBottom: 20 },
+  pageTitle: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', letterSpacing: -0.5 },
+  pageSub: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, marginTop: 4 },
 
   subCard: {
     marginHorizontal: 0, marginBottom: 16,

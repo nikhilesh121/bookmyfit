@@ -31,12 +31,12 @@ const SORTS = [
 ];
 
 const FALLBACK_GYMS = [
-  { id: '1', name: 'PowerZone Fitness',  rating: 4.8, distance: '0.8 km', city: 'Bhubaneswar', amenities: ['Strength', 'Cardio'],    images: ['https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&q=80'], dayPassPrice: 99, discount: '20% OFF' },
-  { id: '2', name: 'Iron Temple',         rating: 4.6, distance: '2.1 km', city: 'Bhubaneswar', amenities: ['CrossFit', 'HIIT'],       images: ['https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&q=80'], dayPassPrice: 149, discount: null },
-  { id: '3', name: 'Anytime Fitness',     rating: 4.5, distance: '3.4 km', city: 'Bhubaneswar', amenities: ['Yoga', 'Strength'],       images: ['https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=600&q=80'], dayPassPrice: 99,  discount: '15% OFF' },
-  { id: '4', name: "Gold's Gym",          rating: 4.7, distance: '1.2 km', city: 'Bhubaneswar', amenities: ['Strength', 'Cardio'],    images: ['https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=600&q=80'], dayPassPrice: 199, discount: null },
-  { id: '5', name: 'FitHub Pro',          rating: 4.4, distance: '2.8 km', city: 'Bhubaneswar', amenities: ['HIIT', 'Cardio'],         images: ['https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80'], dayPassPrice: 129, discount: '10% OFF' },
-  { id: '6', name: 'ZenFit Studio',       rating: 4.3, distance: '4.0 km', city: 'Bhubaneswar', amenities: ['Yoga', 'Pilates'],        images: ['https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600&q=80'], dayPassPrice: 199, discount: null },
+  { id: '1', name: "Gold's Gym Bhubaneswar",       rating: 4.7, distance: '1.2 km', city: 'Bhubaneswar', amenities: ['Strength', 'Cardio'],    images: ['https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80'], dayPassPrice: 199, discount: null },
+  { id: '2', name: 'Anytime Fitness Bhubaneswar',  rating: 4.5, distance: '2.1 km', city: 'Bhubaneswar', amenities: ['CrossFit', 'HIIT'],       images: ['https://images.unsplash.com/photo-1532384661954-a0e26f4f065c?w=600&q=80'], dayPassPrice: 149, discount: null },
+  { id: '3', name: 'Cult.fit Bhubaneswar',         rating: 4.8, distance: '3.4 km', city: 'Bhubaneswar', amenities: ['Yoga', 'Strength'],       images: ['https://images.unsplash.com/photo-1549476464-37392f717541?w=600&q=80'], dayPassPrice: 99,  discount: '20% OFF' },
+  { id: '4', name: 'CrossFit Bhubaneswar',         rating: 4.6, distance: '2.8 km', city: 'Bhubaneswar', amenities: ['Strength', 'Cardio'],    images: ['https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80'], dayPassPrice: 199, discount: null },
+  { id: '5', name: 'Iron House Gym',               rating: 4.4, distance: '1.8 km', city: 'Bhubaneswar', amenities: ['HIIT', 'Cardio'],         images: ['https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=600&q=80'], dayPassPrice: 129, discount: '10% OFF' },
+  { id: '6', name: 'Fitness First Bhubaneswar',    rating: 4.5, distance: '4.0 km', city: 'Bhubaneswar', amenities: ['Yoga', 'Pilates'],        images: ['https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=600&q=80'], dayPassPrice: 199, discount: null },
 ];
 
 function Sk({ h, br = 12, style }: { h: number; br?: number; style?: any }) {
@@ -63,12 +63,25 @@ export default function GymListingPage() {
       if (cat !== 'all') params.category = cat;
       const res: any = await gymsApi.list(params);
       const list = Array.isArray(res) ? res : res?.gyms || res?.data || [];
-      if (list.length === 0 && pg === 1) { setGyms(FALLBACK_GYMS); setHasMore(false); return; }
+      const filtered = cat === 'all'
+        ? FALLBACK_GYMS
+        : FALLBACK_GYMS.filter(g =>
+            g.amenities.some((a: string) => a.toLowerCase() === cat.toLowerCase()) ||
+            (g as any).categories?.some((c: string) => c.toLowerCase() === cat.toLowerCase())
+          );
+      if (list.length === 0 && pg === 1) { setGyms(filtered); setHasMore(false); return; }
       if (pg === 1) setGyms(list); else setGyms((prev) => [...prev, ...list]);
       setHasMore(list.length >= 15);
       pageRef.current = pg;
     } catch {
-      if (pg === 1) setGyms(FALLBACK_GYMS);
+      if (pg === 1) {
+        const filtered = cat === 'all'
+          ? FALLBACK_GYMS
+          : FALLBACK_GYMS.filter(g =>
+              g.amenities.some((a: string) => a.toLowerCase() === cat.toLowerCase())
+            );
+        setGyms(filtered);
+      }
       setHasMore(false);
     } finally {
       setLoading(false);
@@ -264,7 +277,7 @@ const s = StyleSheet.create({
   sortBtnText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
 
   // Chips
-  chip:          { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  chip:          { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 68 },
   chipActive:    { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
   chipDot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
   chipText:      { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t2 },

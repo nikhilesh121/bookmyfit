@@ -23,6 +23,7 @@ export class SeedService implements OnApplicationBootstrap {
     if (process.env.SEED_ON_BOOT === 'false') return;
     await this.seedUsers();
     await this.seedGyms();
+    await this.seedBBSRGyms();
     await this.seedProducts();
     await this.seedCorporates();
     await this.seedVideos();
@@ -110,6 +111,25 @@ export class SeedService implements OnApplicationBootstrap {
     ];
     await this.videos.save(this.videos.create(items as any));
     this.log.log(`Seeded ${items.length} workout videos`);
+  }
+
+  private async seedBBSRGyms() {
+    const bbsrGyms = [
+      { name: "Gold's Gym Bhubaneswar", city: 'Bhubaneswar', area: 'Chandrasekharpur', address: 'Jaydev Vihar Square, Chandrasekharpur, Bhubaneswar', lat: 20.3110, lng: 85.8186, tier: 'premium' as const, rating: 4.7, ratingCount: 186, status: 'active' as const, commissionRate: 18, amenities: ['AC', 'Parking', 'Shower', 'Locker', 'Sauna', 'Steam Room'], categories: ['Strength', 'Cardio', 'CrossFit'] },
+      { name: 'Anytime Fitness Bhubaneswar', city: 'Bhubaneswar', area: 'Saheed Nagar', address: 'Saheed Nagar, Bhubaneswar, Odisha 751007', lat: 20.2888, lng: 85.8480, tier: 'premium' as const, rating: 4.5, ratingCount: 124, status: 'active' as const, commissionRate: 18, amenities: ['AC', 'Parking', 'Shower', 'Locker', '24/7 Access'], categories: ['Cardio', 'Strength'] },
+      { name: 'Cult.fit Bhubaneswar', city: 'Bhubaneswar', area: 'Patia', address: 'Patia Square, Patia, Bhubaneswar 751024', lat: 20.3413, lng: 85.8157, tier: 'corporate_exclusive' as const, rating: 4.8, ratingCount: 312, status: 'active' as const, commissionRate: 20, amenities: ['AC', 'Parking', 'Shower', 'Locker', 'Pool', 'Steam Room'], categories: ['HIIT', 'Yoga', 'Cardio', 'Strength'] },
+      { name: 'Iron House Gym', city: 'Bhubaneswar', area: 'Nayapalli', address: 'Nayapalli, Bhubaneswar, Odisha 751015', lat: 20.2820, lng: 85.8276, tier: 'standard' as const, rating: 4.4, ratingCount: 89, status: 'active' as const, commissionRate: 15, amenities: ['AC', 'Shower', 'Locker'], categories: ['Strength', 'Cardio'] },
+      { name: 'CrossFit Bhubaneswar', city: 'Bhubaneswar', area: 'Jaydev Vihar', address: 'Jaydev Vihar, Bhubaneswar, Odisha 751013', lat: 20.3006, lng: 85.8290, tier: 'premium' as const, rating: 4.6, ratingCount: 143, status: 'active' as const, commissionRate: 18, amenities: ['AC', 'Parking', 'Shower'], categories: ['CrossFit', 'HIIT', 'Strength'] },
+      { name: 'PowerHouse Fitness', city: 'Bhubaneswar', area: 'Khandagiri', address: 'Khandagiri Square, Bhubaneswar, Odisha 751030', lat: 20.2489, lng: 85.7829, tier: 'standard' as const, rating: 4.3, ratingCount: 76, status: 'active' as const, commissionRate: 15, amenities: ['AC', 'Shower', 'Locker', 'Parking'], categories: ['Strength', 'Cardio'] },
+      { name: 'Fitness First Bhubaneswar', city: 'Bhubaneswar', area: 'IRC Village', address: 'IRC Village, Nayapalli, Bhubaneswar 751015', lat: 20.2996, lng: 85.8220, tier: 'premium' as const, rating: 4.5, ratingCount: 98, status: 'active' as const, commissionRate: 18, amenities: ['AC', 'Parking', 'Shower', 'Locker', 'Pool'], categories: ['Yoga', 'Cardio', 'Strength'] },
+      { name: 'Flex Fitness Studio', city: 'Bhubaneswar', area: 'Damana', address: 'Damana Square, Bhubaneswar, Odisha 751024', lat: 20.3149, lng: 85.8170, tier: 'standard' as const, rating: 4.2, ratingCount: 54, status: 'active' as const, commissionRate: 15, amenities: ['AC', 'Shower'], categories: ['Strength', 'Zumba'] },
+    ];
+    for (const g of bbsrGyms) {
+      const existing = await this.gyms.findOne({ where: { name: g.name } });
+      if (existing) continue;
+      await this.gyms.save(this.gyms.create(g as any));
+      this.log.log(`Seeded BBSR gym: ${g.name}`);
+    }
   }
 
   /** Link the seeded gym_owner user to PowerZone Fitness */

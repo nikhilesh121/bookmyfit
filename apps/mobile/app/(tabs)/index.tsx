@@ -10,8 +10,9 @@ import {
   IconBell, IconPin, IconStar, IconChevronDown,
   IconBolt, IconShield, IconHeadphones, IconPercent,
 } from '../../components/Icons';
-import { getUser, API_BASE } from '../../lib/api';
+import { API_BASE } from '../../lib/api';
 import Svg, { Path, Circle } from 'react-native-svg';
+import * as Location from 'expo-location';
 
 const { width: W } = Dimensions.get('window');
 const CARD_W = W - 44;
@@ -51,10 +52,10 @@ const FALLBACK_CONFIG = {
     {
       id: 'featured_gyms', type: 'featured_gyms', title: 'Featured Gyms', visible: true, order: 2,
       gyms: [
-        { id: '1', name: 'PowerZone Fitness', city: 'Bhubaneswar', rating: 4.8, images: ['https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&q=80'], dayPassPrice: 99 },
-        { id: '2', name: 'Iron Temple',        city: 'Bhubaneswar', rating: 4.6, images: ['https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&q=80'], dayPassPrice: 149 },
-        { id: '3', name: 'Anytime Fitness',    city: 'Bhubaneswar', rating: 4.5, images: ['https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=600&q=80'], dayPassPrice: 99 },
-        { id: '4', name: "Gold's Gym",         city: 'Bhubaneswar', rating: 4.7, images: ['https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=600&q=80'], dayPassPrice: 199 },
+        { id: '1', name: "Gold's Gym Bhubaneswar",      city: 'Bhubaneswar', rating: 4.7, images: ['https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80'], dayPassPrice: 199 },
+        { id: '2', name: 'Anytime Fitness Bhubaneswar', city: 'Bhubaneswar', rating: 4.5, images: ['https://images.unsplash.com/photo-1532384661954-a0e26f4f065c?w=600&q=80'], dayPassPrice: 149 },
+        { id: '3', name: 'Cult.fit Bhubaneswar',        city: 'Bhubaneswar', rating: 4.8, images: ['https://images.unsplash.com/photo-1549476464-37392f717541?w=600&q=80'], dayPassPrice: 99 },
+        { id: '4', name: 'CrossFit Bhubaneswar',        city: 'Bhubaneswar', rating: 4.6, images: ['https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80'], dayPassPrice: 199 },
       ],
     },
     {
@@ -87,12 +88,21 @@ function Sk({ h, w, br = 12, style }: { h: number; w?: number | string; br?: num
 export default function Home() {
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [userName, setUserName] = useState('');
+  const [city, setCity] = useState('Bhubaneswar');
   const [heroIdx, setHeroIdx] = useState(0);
   const heroRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    getUser().then((u) => { if (u?.name) setUserName(u.name.split(' ')[0]); }).catch(() => {});
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const [geo] = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+        const c = geo?.city || geo?.subregion || geo?.region || 'Bhubaneswar';
+        setCity(c);
+      } catch {}
+    })();
   }, []);
 
   useEffect(() => {
@@ -128,7 +138,10 @@ export default function Home() {
       <SafeAreaView style={s.root}>
         <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
           <View style={s.topBar}>
-            <Text style={s.logo}>BookMyFit<Text style={s.logoDot}>.in</Text></Text>
+            <View style={s.locationRow}>
+              <IconPin size={12} color={colors.accent} />
+              <Sk h={13} br={6} style={{ width: 80 }} />
+            </View>
           </View>
           <Sk h={200} br={20} style={{ marginBottom: 20 }} />
           <Sk h={60} style={{ marginBottom: 16 }} />
@@ -145,23 +158,17 @@ export default function Home() {
 
         {/* ── Top bar ── */}
         <View style={s.topBar}>
-          <View>
-            <Text style={s.greeting}>Good {hour()} {userName ? `, ${userName}` : ''} 👋</Text>
-            <TouchableOpacity style={s.locationRow}>
-              <IconPin size={12} color={colors.accent} />
-              <Text style={s.locationText}>Bhubaneswar</Text>
-              <IconChevronDown size={11} color={colors.t2} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={s.locationRow} onPress={() => {}}>
+            <IconPin size={12} color={colors.accent} />
+            <Text style={s.locationText}>{city}</Text>
+            <IconChevronDown size={11} color={colors.t2} />
+          </TouchableOpacity>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/notifications' as any)}>
               <IconBell size={17} color="#fff" />
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* ── Logo ── */}
-        <Text style={s.logo}>BookMyFit<Text style={s.logoDot}>.in</Text></Text>
 
         {/* ── Sections (dynamic) ── */}
         {sections.map((section) => {
