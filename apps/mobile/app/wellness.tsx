@@ -58,17 +58,17 @@ const HERO_SLIDES = [
 ];
 
 // Static popular services with warm spa images
-const STATIC_SERVICES = [
-  { id: 's1', name: 'Full Body Massage', durationMinutes: 60, price: 1299, imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
-  { id: 's2', name: 'Aroma Therapy', durationMinutes: 60, price: 999, imageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=400&q=80' },
-  { id: 's3', name: 'Deep Tissue Massage', durationMinutes: 60, price: 1599, imageUrl: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80' },
-  { id: 's4', name: 'Body Scrub & Polish', durationMinutes: 75, price: 1199, imageUrl: 'https://images.unsplash.com/photo-1610337673044-720471f83677?w=400&q=80' },
-  { id: 's5', name: 'Foot Reflexology', durationMinutes: 45, price: 699, imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80' },
-  { id: 's6', name: 'Hot Stone Therapy', durationMinutes: 90, price: 1899, imageUrl: 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=400&q=80' },
-  { id: 's7', name: 'Cupping Therapy', durationMinutes: 45, price: 799, imageUrl: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400&q=80' },
-  { id: 's8', name: 'Swedish Massage', durationMinutes: 60, price: 1099, imageUrl: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80' },
-  { id: 's9', name: 'Sports Recovery', durationMinutes: 60, price: 1399, imageUrl: 'https://images.unsplash.com/photo-1571019614099-9fdcf8b4e43b?w=400&q=80' },
-  { id: 's10', name: 'Home Full Body Massage', durationMinutes: 90, price: 1499, imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
+const STATIC_SERVICES: ApiService[] = [
+  { id: 's1', name: 'Full Body Massage', durationMinutes: 60, price: 1299, partnerId: '', imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
+  { id: 's2', name: 'Aroma Therapy', durationMinutes: 60, price: 999, partnerId: '', imageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=400&q=80' },
+  { id: 's3', name: 'Deep Tissue Massage', durationMinutes: 60, price: 1599, partnerId: '', imageUrl: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80' },
+  { id: 's4', name: 'Body Scrub & Polish', durationMinutes: 75, price: 1199, partnerId: '', imageUrl: 'https://images.unsplash.com/photo-1610337673044-720471f83677?w=400&q=80' },
+  { id: 's5', name: 'Foot Reflexology', durationMinutes: 45, price: 699, partnerId: '', imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80' },
+  { id: 's6', name: 'Hot Stone Therapy', durationMinutes: 90, price: 1899, partnerId: '', imageUrl: 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=400&q=80' },
+  { id: 's7', name: 'Cupping Therapy', durationMinutes: 45, price: 799, partnerId: '', imageUrl: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400&q=80' },
+  { id: 's8', name: 'Swedish Massage', durationMinutes: 60, price: 1099, partnerId: '', imageUrl: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80' },
+  { id: 's9', name: 'Sports Recovery', durationMinutes: 60, price: 1399, partnerId: '', imageUrl: 'https://images.unsplash.com/photo-1571019614099-9fdcf8b4e43b?w=400&q=80' },
+  { id: 's10', name: 'Home Full Body Massage', durationMinutes: 90, price: 1499, partnerId: '', imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
 ];
 
 type ApiPartner = {

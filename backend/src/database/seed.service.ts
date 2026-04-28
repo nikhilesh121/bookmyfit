@@ -7,6 +7,7 @@ import { GymEntity } from './entities/gym.entity';
 import { ProductEntity } from './entities/store.entity';
 import { CorporateAccountEntity } from './entities/corporate.entity';
 import { WorkoutVideoEntity } from './entities/misc.entity';
+import { WellnessPartnerEntity, WellnessServiceEntity } from './entities/wellness.entity';
 
 @Injectable()
 export class SeedService implements OnApplicationBootstrap {
@@ -17,6 +18,8 @@ export class SeedService implements OnApplicationBootstrap {
     @InjectRepository(ProductEntity) private products: Repository<ProductEntity>,
     @InjectRepository(CorporateAccountEntity) private corps: Repository<CorporateAccountEntity>,
     @InjectRepository(WorkoutVideoEntity) private videos: Repository<WorkoutVideoEntity>,
+    @InjectRepository(WellnessPartnerEntity) private wellnessPartners: Repository<WellnessPartnerEntity>,
+    @InjectRepository(WellnessServiceEntity) private wellnessServices: Repository<WellnessServiceEntity>,
   ) {}
 
   async onApplicationBootstrap() {
@@ -24,6 +27,7 @@ export class SeedService implements OnApplicationBootstrap {
     await this.seedUsers();
     await this.seedGyms();
     await this.seedBBSRGyms();
+    await this.seedWellness();
     await this.seedProducts();
     await this.seedCorporates();
     await this.seedVideos();
@@ -141,5 +145,67 @@ export class SeedService implements OnApplicationBootstrap {
     if (gym.ownerId === owner.id) return; // already linked
     await this.gyms.update(gym.id, { ownerId: owner.id });
     this.log.log(`Linked gym owner ${owner.email} to ${gym.name}`);
+  }
+
+  private async seedWellness() {
+    if ((await this.wellnessPartners.count()) > 0) return;
+
+    const partners = [
+      { name: 'Serenity Spa & Wellness', serviceType: 'spa', city: 'Bhubaneswar', area: 'Saheed Nagar', address: 'Plot 42, Saheed Nagar, Bhubaneswar 751007', lat: 20.2888, lng: 85.8480, rating: 4.8, reviewCount: 142, commissionRate: 30, status: 'active', photos: ['https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=900&q=80'], discountPercent: 20 },
+      { name: 'Royal Bliss Spa', serviceType: 'spa', city: 'Bhubaneswar', area: 'Nayapalli', address: 'Nayapalli Main Road, Bhubaneswar 751015', lat: 20.2820, lng: 85.8276, rating: 4.6, reviewCount: 98, commissionRate: 30, status: 'active', photos: ['https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=900&q=80'], discountPercent: 0 },
+      { name: 'Zen Wellness Club', serviceType: 'spa', city: 'Bhubaneswar', area: 'Jaydev Vihar', address: 'Jaydev Vihar, Bhubaneswar 751013', lat: 20.3006, lng: 85.8290, rating: 4.7, reviewCount: 211, commissionRate: 30, status: 'active', photos: ['https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=900&q=80'], discountPercent: 15 },
+      { name: 'ZenTouch Home Spa', serviceType: 'home', city: 'Bhubaneswar', area: 'Saheed Nagar', address: 'Serves Bhubaneswar area', lat: 20.2888, lng: 85.8480, rating: 4.7, reviewCount: 86, commissionRate: 25, status: 'active', photos: ['https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=900&q=80'], discountPercent: 10 },
+      { name: 'BlissAt Home Wellness', serviceType: 'home', city: 'Bhubaneswar', area: 'Nayapalli', address: 'Serves Bhubaneswar area', lat: 20.2820, lng: 85.8276, rating: 4.5, reviewCount: 64, commissionRate: 25, status: 'active', photos: ['https://images.unsplash.com/photo-1610337673044-720471f83677?w=900&q=80'], discountPercent: 0 },
+    ];
+
+    const saved = await this.wellnessPartners.save(this.wellnessPartners.create(partners as any));
+    this.log.log(`Seeded ${saved.length} wellness partners`);
+
+    const servicesByName: Record<string, any[]> = {
+      'Serenity Spa & Wellness': [
+        { name: 'Swedish Massage', category: 'Massage', price: 1499, originalPrice: 1999, durationMinutes: 60, description: 'Full body relaxation with warm aromatic oils', imageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=400&q=80' },
+        { name: 'Deep Tissue Massage', category: 'Massage', price: 1999, originalPrice: 2499, durationMinutes: 90, description: 'Targets chronic muscle tension and knots', imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
+        { name: 'Classic Facial', category: 'Facial', price: 999, originalPrice: 1299, durationMinutes: 45, description: 'Deep cleansing, exfoliation and hydration', imageUrl: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400&q=80' },
+        { name: 'Gold Facial', category: 'Facial', price: 1799, originalPrice: 2199, durationMinutes: 60, description: 'Luxury 24K gold anti-ageing treatment', imageUrl: 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=400&q=80' },
+        { name: 'Hot Stone Therapy', category: 'Massage', price: 2299, originalPrice: 2799, durationMinutes: 75, description: 'Heated basalt stones for deep muscle relaxation', imageUrl: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400&q=80' },
+        { name: 'Aromatherapy', category: 'Relaxation', price: 1299, originalPrice: null, durationMinutes: 60, description: 'Calming essential oil therapy', imageUrl: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80' },
+      ],
+      'Royal Bliss Spa': [
+        { name: 'Royal Body Wrap', category: 'Body Treatment', price: 2499, originalPrice: 2999, durationMinutes: 90, description: 'Luxurious full body wrap with seaweed and mud', imageUrl: 'https://images.unsplash.com/photo-1610337673044-720471f83677?w=400&q=80' },
+        { name: 'Thai Massage', category: 'Massage', price: 1699, originalPrice: 1999, durationMinutes: 75, description: 'Traditional Thai stretching and pressure point massage', imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
+        { name: 'Manicure & Pedicure', category: 'Nail Care', price: 799, originalPrice: 999, durationMinutes: 90, description: 'Classic nail care with gel polish', imageUrl: 'https://images.unsplash.com/photo-1571019614099-9fdcf8b4e43b?w=400&q=80' },
+        { name: 'Head & Scalp Massage', category: 'Massage', price: 699, originalPrice: null, durationMinutes: 30, description: 'Relieving scalp tension and headaches', imageUrl: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80' },
+        { name: 'Couple Massage', category: 'Massage', price: 3499, originalPrice: 3999, durationMinutes: 60, description: 'Relaxing side-by-side Swedish massage for two', imageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=400&q=80' },
+      ],
+      'Zen Wellness Club': [
+        { name: 'Hydrating Facial', category: 'Facial', price: 1199, originalPrice: 1499, durationMinutes: 60, description: 'Intensive hydration and brightening facial', imageUrl: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400&q=80' },
+        { name: 'Shirodhara', category: 'Ayurveda', price: 2199, originalPrice: 2799, durationMinutes: 60, description: 'Warm oil stream on forehead for deep relaxation', imageUrl: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400&q=80' },
+        { name: 'Abhyanga Massage', category: 'Ayurveda', price: 1899, originalPrice: 2299, durationMinutes: 75, description: 'Traditional Ayurvedic full-body oil massage', imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
+        { name: 'Anti-Stress Massage', category: 'Massage', price: 1599, originalPrice: null, durationMinutes: 60, description: 'Targeted stress relief for neck, shoulders and back', imageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=400&q=80' },
+        { name: 'Sauna Session', category: 'Relaxation', price: 599, originalPrice: 799, durationMinutes: 45, description: '45-min sauna session with towel and water', imageUrl: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80' },
+      ],
+      'ZenTouch Home Spa': [
+        { name: 'Home Swedish Massage', category: 'Massage', price: 999, originalPrice: 1299, durationMinutes: 60, description: 'Full body massage at your home', imageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=400&q=80' },
+        { name: 'Home Facial', category: 'Facial', price: 799, originalPrice: 999, durationMinutes: 45, description: 'Classic facial at your doorstep', imageUrl: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400&q=80' },
+        { name: 'Home Manicure', category: 'Nail Care', price: 499, originalPrice: 599, durationMinutes: 60, description: 'Nail care with gel polish at home', imageUrl: 'https://images.unsplash.com/photo-1571019614099-9fdcf8b4e43b?w=400&q=80' },
+        { name: 'Haircut & Blowdry', category: 'Hair', price: 699, originalPrice: 899, durationMinutes: 60, description: 'Professional haircut and styling at home', imageUrl: 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=400&q=80' },
+        { name: 'Waxing (Full Body)', category: 'Hair Removal', price: 1299, originalPrice: 1599, durationMinutes: 90, description: 'Full body waxing at your home', imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
+      ],
+      'BlissAt Home Wellness': [
+        { name: 'Deep Tissue Home Massage', category: 'Massage', price: 1199, originalPrice: 1499, durationMinutes: 75, description: 'Therapeutic deep tissue massage at home', imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&q=80' },
+        { name: 'Bridal Makeup', category: 'Makeup', price: 4999, originalPrice: 6999, durationMinutes: 120, description: 'Professional bridal makeup at home', imageUrl: 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=400&q=80' },
+        { name: 'Party Makeup', category: 'Makeup', price: 1499, originalPrice: 1999, durationMinutes: 60, description: 'Glam party makeup at your home', imageUrl: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=400&q=80' },
+        { name: 'Home Pedicure', category: 'Nail Care', price: 399, originalPrice: 499, durationMinutes: 45, description: 'Relaxing pedicure at your home', imageUrl: 'https://images.unsplash.com/photo-1571019614099-9fdcf8b4e43b?w=400&q=80' },
+      ],
+    };
+
+    for (const partner of saved) {
+      const services = servicesByName[partner.name];
+      if (!services) continue;
+      await this.wellnessServices.save(
+        this.wellnessServices.create(services.map(s => ({ ...s, partnerId: partner.id, isActive: true })) as any)
+      );
+    }
+    this.log.log('Seeded wellness partners and services');
   }
 }
