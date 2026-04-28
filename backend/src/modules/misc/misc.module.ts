@@ -1,6 +1,6 @@
 import { Module, Controller, Get, Post, Put, Param, Body, Query, Injectable, BadRequestException, UseGuards, Req, NotFoundException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import {
@@ -11,6 +11,8 @@ import { CheckinEntity } from '../../database/entities/checkin.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
+import { AppConfigEntity } from '../../database/entities/app-config.entity';
+import { ProductEntity } from '../../database/entities/store.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
@@ -298,31 +300,81 @@ class FraudController {
 }
 
 // ============ Homepage Config ============
-let homepageConfig: any = {
+const HOMEPAGE_CONFIG_KEY = 'homepage_config';
+
+const DEFAULT_HOMEPAGE_CONFIG = {
   sections: [
-    { id: 'hero', type: 'hero', title: 'Your Fitness, Your City', subtitle: 'Discover premium gyms & fitness studios near you', visible: true, order: 0 },
-    { id: 'featured_gyms', type: 'gym_grid', title: 'Featured Gyms', visible: true, order: 1 },
-    { id: 'plans', type: 'plans', title: 'Choose a Plan', visible: true, order: 2 },
-    { id: 'stats', type: 'stats', visible: true, order: 3 },
+    {
+      id: 'hero', type: 'hero', title: 'Hero Banner', visible: true, order: 0,
+      slides: [
+        { imageUrl: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=900&q=80', headline: 'Make Every Rep', headlineAccent: 'Count!', sub: 'Find the best gyms near you\nand book your pass instantly.', cta: 'Explore Gyms', ctaRoute: '/gyms' },
+        { imageUrl: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=900&q=80', headline: 'Find Your Perfect', headlineAccent: 'Gym Today!', sub: 'Partner gyms across the city,\none subscription covers all.', cta: 'Browse Gyms', ctaRoute: '/gyms' },
+        { imageUrl: 'https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=900&q=80', headline: 'No Long', headlineAccent: 'Contracts!', sub: 'Flexible day passes, weekly\nor monthly — your choice.', cta: 'View Plans', ctaRoute: '/plans' },
+      ],
+    },
+    { id: 'categories', type: 'categories', title: 'Browse by Category', visible: true, order: 1 },
+    { id: 'featured_gyms', type: 'featured_gyms', title: 'Featured Gyms', visible: true, order: 2, featuredGymIds: [], gymLimit: 6 },
+    { id: 'products', type: 'products', title: 'Shop Products', visible: true, order: 3, productCategory: null, featuredProductIds: [], productLimit: 5 },
+    { id: 'trust', type: 'trust', title: 'Why BookMyFit?', visible: true, order: 4 },
+    { id: 'testimonials', type: 'testimonials', title: 'What Members Say', visible: true, order: 5 },
   ],
-  promoText: '',
-  bannerImage: '',
 };
 
 @ApiTags('Homepage')
 @Controller('homepage')
 class HomepageController {
+  constructor(
+    @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
+    @InjectRepository(GymEntity) private readonly gymRepo: Repository<GymEntity>,
+    @InjectRepository(ProductEntity) private readonly productRepo: Repository<ProductEntity>,
+  ) {}
+
+  private async loadConfig(): Promise<any> {
+    const row = await this.configRepo.findOne({ where: { key: HOMEPAGE_CONFIG_KEY } });
+    if (row?.value) return row.value;
+    await this.configRepo.save({ key: HOMEPAGE_CONFIG_KEY, value: DEFAULT_HOMEPAGE_CONFIG });
+    return DEFAULT_HOMEPAGE_CONFIG;
+  }
+
   @Get('config')
-  getConfig() {
-    return homepageConfig;
+  async getConfig() {
+    const config = await this.loadConfig();
+    const resolved = JSON.parse(JSON.stringify(config));
+
+    const sections: any[] = (resolved.sections || []).sort((a: any, b: any) => a.order - b.order);
+
+    for (const section of sections) {
+      if (!section.visible) continue;
+
+      if (section.type === 'featured_gyms') {
+        if (section.featuredGymIds?.length > 0) {
+          section.gyms = await this.gymRepo.find({ where: { id: In(section.featuredGymIds) } });
+        } else {
+          section.gyms = await this.gymRepo.find({ take: section.gymLimit || 6 });
+        }
+      }
+
+      if (section.type === 'products') {
+        if (section.featuredProductIds?.length > 0) {
+          section.products = await this.productRepo.find({ where: { id: In(section.featuredProductIds) } });
+        } else {
+          const where: any = { isActive: true };
+          if (section.productCategory) where.category = section.productCategory;
+          section.products = await this.productRepo.find({ where, take: section.productLimit || 5 });
+        }
+      }
+    }
+
+    resolved.sections = sections;
+    return resolved;
   }
 
   @Put('config')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
-  saveConfig(@Body() body: any) {
-    homepageConfig = { ...homepageConfig, ...body };
-    return homepageConfig;
+  async saveConfig(@Body() body: any) {
+    await this.configRepo.save({ key: HOMEPAGE_CONFIG_KEY, value: body });
+    return body;
   }
 }
 
@@ -390,6 +442,7 @@ class SessionsController {
   imports: [TypeOrmModule.forFeature([
     RatingEntity, CouponEntity, NotificationEntity, CategoryEntity, AmenityEntity, WorkoutVideoEntity,
     CheckinEntity, UserEntity, SubscriptionEntity, GymEntity, FraudAlertEntity,
+    AppConfigEntity, ProductEntity,
   ])],
   controllers: [RatingsController, CouponsController, NotificationsController, MasterController, VideosController, AnalyticsController, FraudController, CommissionController, HomepageController, SessionsController],
   providers: [RatingsService, CouponsService, NotificationsService, MasterDataService, VideosService, AnalyticsService, FraudService],

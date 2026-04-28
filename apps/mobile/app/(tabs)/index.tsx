@@ -1,75 +1,94 @@
 import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet,
-  ImageBackground, ActivityIndicator, TextInput, FlatList, Dimensions,
+  ImageBackground, FlatList, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import { colors, fonts, radius } from '../../theme/brand';
 import {
-  IconBell, IconSearch, IconMenu, IconStar, IconPin, IconHeart,
-  IconFilter, IconChevronDown, IconDumbbell, IconBolt, IconShield,
-  IconHeadphones, IconPercent,
+  IconBell, IconPin, IconStar, IconChevronDown,
+  IconBolt, IconShield, IconHeadphones, IconPercent,
 } from '../../components/Icons';
-import { gymsApi, getUser, API_BASE } from '../../lib/api';
-import Svg, { Path, Circle, Ellipse, Rect, Line } from 'react-native-svg';
+import { getUser, API_BASE } from '../../lib/api';
+import Svg, { Path, Circle } from 'react-native-svg';
 
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: W } = Dimensions.get('window');
+const CARD_W = W - 44;
 
-// ── Fallback data ──────────────────────────────────────────────────────────
-const FALLBACK_GYMS = [
-  { id: '1', name: 'PowerZone Fitness', rating: 4.8, distance: '0.8 km', city: 'Bhubaneswar', amenities: ['Strength', 'Cardio'], img: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&q=80', discount: '20% OFF' },
-  { id: '2', name: 'Iron Temple', rating: 4.6, distance: '2.1 km', city: 'Bhubaneswar', amenities: ['CrossFit', 'HIIT'], img: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&q=80', discount: null },
-  { id: '3', name: 'Anytime Fitness', rating: 4.5, distance: '3.4 km', city: 'Bhubaneswar', amenities: ['Yoga', 'Strength'], img: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=600&q=80', discount: '15% OFF' },
-  { id: '4', name: "Gold's Gym", rating: 4.7, distance: '1.2 km', city: 'Bhubaneswar', amenities: ['Strength', 'Cardio'], img: 'https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=600&q=80', discount: null },
-];
-// Most visited is built dynamically from loaded gyms — no hardcoded IDs
-const FALLBACK_IMG = [
-  'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=400&q=80',
-  'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=400&q=80',
-  'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=400&q=80',
-];
-
-// ── Category icons (inline SVG) ─────────────────────────────────────────────
+// ── Category icons ───────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { id: 'all', label: 'All Gyms', color: colors.accent, bg: colors.accentSoft, icon: 'dumbbell' },
-  { id: 'strength', label: 'Strength', color: '#FB923C', bg: 'rgba(251,146,60,0.15)', icon: 'strength' },
-  { id: 'cardio', label: 'Cardio', color: '#FB923C', bg: 'rgba(251,146,60,0.15)', icon: 'cardio' },
-  { id: 'yoga', label: 'Yoga', color: '#22D3EE', bg: 'rgba(34,211,238,0.15)', icon: 'yoga' },
-  { id: 'crossfit', label: 'CrossFit', color: '#A78BFA', bg: 'rgba(167,139,250,0.15)', icon: 'crossfit' },
-  { id: 'more', label: 'More', color: 'rgba(255,255,255,0.5)', bg: 'rgba(255,255,255,0.08)', icon: 'more' },
+  { id: 'all',      label: 'All Gyms',  color: colors.accent,    bg: colors.accentSoft,            icon: 'dumbbell'  },
+  { id: 'strength', label: 'Strength',  color: '#FB923C',         bg: 'rgba(251,146,60,0.15)',       icon: 'strength'  },
+  { id: 'cardio',   label: 'Cardio',    color: '#F43F5E',         bg: 'rgba(244,63,94,0.15)',        icon: 'cardio'    },
+  { id: 'yoga',     label: 'Yoga',      color: '#22D3EE',         bg: 'rgba(34,211,238,0.15)',       icon: 'yoga'      },
+  { id: 'crossfit', label: 'CrossFit',  color: '#A78BFA',         bg: 'rgba(167,139,250,0.15)',      icon: 'crossfit'  },
+  { id: 'hiit',     label: 'HIIT',      color: '#FBBF24',         bg: 'rgba(251,191,36,0.15)',       icon: 'bolt'      },
 ];
 
-function CategorySvgIcon({ type, size, color }: { type: string; size: number; color: string }) {
+function CatIcon({ type, size, color }: { type: string; size: number; color: string }) {
   const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  if (type === 'dumbbell') return <Svg {...p}><Path d="M6.5 6.5h11M6.5 17.5h11M2 10v4M22 10v4M5 8v8M19 8v8" /></Svg>;
-  if (type === 'strength') return <Svg {...p}><Path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill={color} /></Svg>;
-  if (type === 'cardio') return <Svg {...p}><Path d="M3 12h3l3-9 3 18 3-9h3" /></Svg>;
-  if (type === 'yoga') return <Svg {...p}><Circle cx="12" cy="5" r="2" /><Path d="M12 7v4M8 11c0 2 1.5 4 4 4s4-2 4-4M9 21l3-6 3 6" /></Svg>;
-  if (type === 'crossfit') return <Svg {...p}><Path d="M17 3l-5 5-5-5M17 21l-5-5-5 5M3 7l5 5-5 5M21 7l-5 5 5 5" /></Svg>;
-  // more — 3 dots
-  return <Svg {...p}><Circle cx="5" cy="12" r="1.5" fill={color} stroke="none" /><Circle cx="12" cy="12" r="1.5" fill={color} stroke="none" /><Circle cx="19" cy="12" r="1.5" fill={color} stroke="none" /></Svg>;
+  if (type === 'dumbbell')  return <Svg {...p}><Path d="M6.5 6.5h11M6.5 17.5h11M2 10v4M22 10v4M5 8v8M19 8v8" /></Svg>;
+  if (type === 'strength')  return <Svg {...p}><Path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill={color} /></Svg>;
+  if (type === 'cardio')    return <Svg {...p}><Path d="M3 12h3l3-9 3 18 3-9h3" /></Svg>;
+  if (type === 'yoga')      return <Svg {...p}><Circle cx="12" cy="5" r="2" /><Path d="M12 7v4M8 11c0 2 1.5 4 4 4s4-2 4-4M9 21l3-6 3 6" /></Svg>;
+  if (type === 'crossfit')  return <Svg {...p}><Path d="M17 3l-5 5-5-5M17 21l-5-5-5 5M3 7l5 5-5 5M21 7l-5 5 5 5" /></Svg>;
+  return <Svg {...p}><Path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></Svg>; // bolt
 }
 
-// ── Hero slides ─────────────────────────────────────────────────────────────
-const HERO_SLIDES = [
-  { img: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=800&q=80', headline: 'Make Every Rep', headlineAccent: 'Count!', sub: 'Find the best gyms near you\nand book your pass instantly.', cta: 'Explore Gyms' },
-  { img: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=800&q=80', headline: 'Find Your Perfect', headlineAccent: 'Gym Today!', sub: 'Partner gyms across the city,\none subscription covers all.', cta: 'Browse Now' },
-  { img: 'https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=800&q=80', headline: 'No Long', headlineAccent: 'Contracts!', sub: 'Flexible day passes, weekly\nor monthly — your choice.', cta: 'View Plans' },
+// ── Fallback config (mirrors server defaults) ────────────────────────────────
+const FALLBACK_CONFIG = {
+  sections: [
+    {
+      id: 'hero', type: 'hero', title: 'Hero Banner', visible: true, order: 0,
+      slides: [
+        { imageUrl: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=900&q=80', headline: 'Make Every Rep', headlineAccent: 'Count!', sub: 'Find the best gyms near you\nand book your pass instantly.', cta: 'Explore Gyms', ctaRoute: '/gyms' },
+        { imageUrl: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=900&q=80', headline: 'Find Your Perfect', headlineAccent: 'Gym Today!', sub: 'Partner gyms across the city,\none subscription covers all.', cta: 'Browse Gyms', ctaRoute: '/gyms' },
+        { imageUrl: 'https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=900&q=80', headline: 'No Long', headlineAccent: 'Contracts!', sub: 'Flexible passes — daily, weekly\nor monthly. Your choice.', cta: 'View Plans', ctaRoute: '/plans' },
+      ],
+    },
+    { id: 'categories', type: 'categories', title: 'Browse by Category', visible: true, order: 1 },
+    {
+      id: 'featured_gyms', type: 'featured_gyms', title: 'Featured Gyms', visible: true, order: 2,
+      gyms: [
+        { id: '1', name: 'PowerZone Fitness', city: 'Bhubaneswar', rating: 4.8, images: ['https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&q=80'], dayPassPrice: 99 },
+        { id: '2', name: 'Iron Temple',        city: 'Bhubaneswar', rating: 4.6, images: ['https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&q=80'], dayPassPrice: 149 },
+        { id: '3', name: 'Anytime Fitness',    city: 'Bhubaneswar', rating: 4.5, images: ['https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=600&q=80'], dayPassPrice: 99 },
+        { id: '4', name: "Gold's Gym",         city: 'Bhubaneswar', rating: 4.7, images: ['https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=600&q=80'], dayPassPrice: 199 },
+      ],
+    },
+    {
+      id: 'products', type: 'products', title: 'Shop Products', visible: true, order: 3,
+      products: [
+        { id: 'p1', name: 'Whey Protein 2kg', price: 2499, mrp: 3299, images: ['https://images.unsplash.com/photo-1593095948071-474c5cc2989d?w=300&q=80'], category: 'supplements' },
+        { id: 'p2', name: 'Resistance Bands Set', price: 699,  mrp: 999,  images: ['https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=300&q=80'], category: 'accessories' },
+        { id: 'p3', name: 'Gym Gloves Pro',    price: 499,  mrp: 799,  images: ['https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=300&q=80'], category: 'accessories' },
+        { id: 'p4', name: 'BCAA Energy 300g',  price: 1299, mrp: 1799, images: ['https://images.unsplash.com/photo-1579722820308-d74e571900a9?w=300&q=80'], category: 'supplements' },
+        { id: 'p5', name: 'DryFit Tee',        price: 799,  mrp: 1299, images: ['https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&q=80'], category: 'apparel' },
+      ],
+    },
+    { id: 'trust', type: 'trust', title: 'Why BookMyFit?', visible: true, order: 4 },
+    { id: 'testimonials', type: 'testimonials', title: 'What Members Say', visible: true, order: 5 },
+  ],
+};
+
+const TESTIMONIALS = [
+  { id: '1', name: 'Priya S.', city: 'Bhubaneswar', rating: 5, avatar: 'P', text: 'Best way to stay fit in the city. Multi Gym pass lets me try a new gym every week!' },
+  { id: '2', name: 'Rahul M.', city: 'Bhubaneswar', rating: 5, avatar: 'R', text: 'Day passes are perfect. No commitment, just book and walk in!' },
+  { id: '3', name: 'Ananya K.', city: 'Cuttack',      rating: 5, avatar: 'A', text: 'QR check-in is seamless. Love the Same Gym pass for my daily workouts.' },
 ];
 
-function SkeletonRect({ h, style }: { h: number; style?: any }) {
-  return <View style={[{ height: h, borderRadius: radius.xl, backgroundColor: 'rgba(255,255,255,0.06)' }, style]} />;
+// ── Skeleton ─────────────────────────────────────────────────────────────────
+function Sk({ h, w, br = 12, style }: { h: number; w?: number | string; br?: number; style?: any }) {
+  return <View style={[{ height: h, width: w || '100%', borderRadius: br, backgroundColor: 'rgba(255,255,255,0.06)' }, style]} />;
 }
 
+// ── Main ─────────────────────────────────────────────────────────────────────
 export default function Home() {
-  const [gyms, setGyms] = useState<any[]>([]);
+  const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('');
   const [heroIdx, setHeroIdx] = useState(0);
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [products, setProducts] = useState<any[]>([]);
   const heroRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -77,36 +96,48 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    gymsApi.list({ page: 1 })
-      .then((data: any) => {
-        const list = Array.isArray(data) ? data : data?.gyms || data?.data || [];
-        setGyms(list.length > 0 ? list : FALLBACK_GYMS);
-      })
-      .catch(() => setGyms(FALLBACK_GYMS))
+    fetch(`${API_BASE}/api/v1/homepage/config`)
+      .then((r) => r.json())
+      .then((data: any) => setConfig(data?.sections ? data : FALLBACK_CONFIG))
+      .catch(() => setConfig(FALLBACK_CONFIG))
       .finally(() => setLoading(false));
-    // Fetch store products (public endpoint)
-    fetch(`${API_BASE}/api/v1/store/products?limit=10`)
-      .then(r => r.json())
-      .then((d: any) => {
-        const list = Array.isArray(d) ? d : d?.data || d?.products || [];
-        if (list.length > 0) setProducts(list);
-      })
-      .catch(() => {});
   }, []);
+
+  const sections: any[] = config
+    ? [...(config.sections || [])].filter((s) => s.visible).sort((a: any, b: any) => a.order - b.order)
+    : [];
+
+  const heroSection = sections.find((s) => s.type === 'hero');
+  const slides = heroSection?.slides || FALLBACK_CONFIG.sections[0].slides;
 
   // Auto-advance hero
   useEffect(() => {
+    if (!slides?.length) return;
     const t = setInterval(() => {
       setHeroIdx((i) => {
-        const next = (i + 1) % HERO_SLIDES.length;
+        const next = (i + 1) % slides.length;
         heroRef.current?.scrollToIndex({ index: next, animated: true });
         return next;
       });
-    }, 4000);
+    }, 4500);
     return () => clearInterval(t);
-  }, []);
+  }, [slides?.length]);
 
-  const displayGyms = gyms.length > 0 ? gyms : FALLBACK_GYMS;
+  if (loading) {
+    return (
+      <SafeAreaView style={s.root}>
+        <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
+          <View style={s.topBar}>
+            <Text style={s.logo}>BookMyFit<Text style={s.logoDot}>.in</Text></Text>
+          </View>
+          <Sk h={200} br={20} style={{ marginBottom: 20 }} />
+          <Sk h={60} style={{ marginBottom: 16 }} />
+          <Sk h={160} style={{ marginBottom: 16 }} />
+          <Sk h={180} style={{ marginBottom: 16 }} />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.root}>
@@ -114,485 +145,321 @@ export default function Home() {
 
         {/* ── Top bar ── */}
         <View style={s.topBar}>
-          <TouchableOpacity style={s.iconBtn} onPress={() => {}}>
-            <IconMenu size={18} color="#fff" />
-          </TouchableOpacity>
-          <Text style={s.logo}>BookMyFit<Text style={s.logoDot}>.in</Text></Text>
-          <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/notifications' as any)}>
-            <IconBell size={18} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Location + Search ── */}
-        <View style={s.locSearchRow}>
-          <TouchableOpacity style={s.locationPill}>
-            <IconPin size={13} color={colors.accent} />
-            <Text style={s.locationText}>{userName ? 'Bhubaneswar' : 'Select city'}</Text>
-            <IconChevronDown size={13} color={colors.t2} />
-          </TouchableOpacity>
-          <TouchableOpacity style={s.searchBar} onPress={() => router.push('/(tabs)/explore')}>
-            <IconSearch size={14} color={colors.t2} />
-            <Text style={s.searchPlaceholder}>Search gyms, areas…</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Hero banner ── */}
-        <View style={s.heroWrap}>
-          <FlatList
-            ref={heroRef}
-            data={HERO_SLIDES}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(_, i) => String(i)}
-            onMomentumScrollEnd={(e) => {
-              setHeroIdx(Math.round(e.nativeEvent.contentOffset.x / (SCREEN_W - 44)));
-            }}
-            renderItem={({ item }) => (
-              <ImageBackground
-                source={{ uri: item.img }}
-                style={s.heroSlide}
-                imageStyle={{ borderRadius: radius.xl }}
-              >
-                <View style={s.heroDark} />
-                <View style={s.heroContent}>
-                  <Text style={s.heroHeadline}>{item.headline}</Text>
-                  <Text style={s.heroHeadlineAccent}>{item.headlineAccent}</Text>
-                  <Text style={s.heroSub}>{item.sub}</Text>
-                  <TouchableOpacity style={s.heroCta} onPress={() => router.push('/(tabs)/explore')}>
-                    <Text style={s.heroCtaText}>{item.cta}</Text>
-                  </TouchableOpacity>
-                </View>
-              </ImageBackground>
-            )}
-          />
-          <View style={s.heroDots}>
-            {HERO_SLIDES.map((_, i) => (
-              <View key={i} style={[s.dot, i === heroIdx && s.dotActive]} />
-            ))}
+          <View>
+            <Text style={s.greeting}>Good {hour()} {userName ? `, ${userName}` : ''} 👋</Text>
+            <TouchableOpacity style={s.locationRow}>
+              <IconPin size={12} color={colors.accent} />
+              <Text style={s.locationText}>Bhubaneswar</Text>
+              <IconChevronDown size={11} color={colors.t2} />
+            </TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/notifications' as any)}>
+              <IconBell size={17} color="#fff" />
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* ── Categories ── */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catsScroll} contentContainerStyle={s.catsContent}>
-          {CATEGORIES.map((cat) => (
-            <TouchableOpacity
-              key={cat.id}
-              style={s.catItem}
-              onPress={() => setActiveCategory(cat.id)}
-            >
-              <View style={[s.catCircle, { backgroundColor: cat.bg }, activeCategory === cat.id && { borderColor: cat.color, borderWidth: 2 }]}>
-                <CategorySvgIcon type={cat.icon} size={22} color={cat.color} />
-              </View>
-              <Text style={[s.catLabel, activeCategory === cat.id && { color: cat.color }]}>{cat.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* ── Logo ── */}
+        <Text style={s.logo}>BookMyFit<Text style={s.logoDot}>.in</Text></Text>
 
-        {/* ── Most Visited ── */}
-        <View style={s.sectionRow}>
-          <Text style={s.sectionTitle}>Most Visited Gyms in Bhubaneswar</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
-            <Text style={s.seeAll}>View All ›</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.mostVisitedScroll} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 10 }}>
-          {displayGyms.slice(0, 3).map((g: any, idx: number) => {
-            const gid = g.id || g._id;
-            const gname = (g.name || 'Gym').split(' ').slice(0, 2).join(' ');
-            const gimg = g.images?.[0] || g.coverImage || g.img || FALLBACK_IMG[idx % 3];
-            return (
-              <TouchableOpacity key={gid} style={s.mvCard} onPress={() => router.push(`/gym/${gid}` as any)} activeOpacity={0.85}>
-                <View style={s.mvImgWrap}>
-                  <ImageBackground source={{ uri: gimg }} style={s.mvPhoto} imageStyle={{ borderRadius: radius.lg }}>
-                    <View style={s.mvDark} />
-                    <Text style={s.mvRankOverlay}>#{idx + 1}</Text>
-                  </ImageBackground>
-                </View>
-                <Text style={s.mvName} numberOfLines={1}>{gname}</Text>
-                <Text style={s.mvCity} numberOfLines={1}>{g.city || g.location?.city || ''}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* ── Sections (dynamic) ── */}
+        {sections.map((section) => {
+          switch (section.type) {
+            case 'hero':       return <HeroSection key={section.id} slides={slides} heroIdx={heroIdx} setHeroIdx={setHeroIdx} heroRef={heroRef} />;
+            case 'categories': return <CategoriesSection key={section.id} title={section.title} />;
+            case 'featured_gyms': return <FeaturedGymsSection key={section.id} section={section} />;
+            case 'products':   return <ProductsSection key={section.id} section={section} />;
+            case 'trust':      return <TrustSection key={section.id} />;
+            case 'testimonials': return <TestimonialsSection key={section.id} />;
+            default: return null;
+          }
+        })}
 
-        {/* ── Popular Gyms ── */}
-        <View style={[s.sectionRow, { marginTop: 8 }]}>
-          <Text style={s.sectionTitle}>Popular Gyms Near You</Text>
-          <TouchableOpacity style={s.filterBtn}>
-            <IconFilter size={13} color={colors.t2} />
-            <Text style={s.filterText}>Filter</Text>
-          </TouchableOpacity>
-        </View>
-
-        {loading ? (
-          [1, 2, 3].map((i) => <SkeletonRect key={i} h={100} style={{ marginBottom: 12 }} />)
-        ) : (
-          displayGyms.map((g: any) => {
-            const name = g.name || g.gymName || 'Gym';
-            const rating = g.rating || g.avgRating || '4.5';
-            const distance = g.distance || (g.distanceKm ? `${g.distanceKm} km` : '');
-            const city = g.city || g.location?.city || '';
-            const img = g.images?.[0] || g.coverImage || g.img || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80';
-            const amenities: string[] = g.amenities || g.tags || [];
-            const discount = g.discount || null;
-            const dayPassPrice = g.dayPassPrice || g.day_pass_price || '₹99';
-            return (
-              <TouchableOpacity
-                key={g.id || g._id}
-                style={s.gymCard}
-                onPress={() => router.push(`/gym/${g.id || g._id}` as any)}
-                activeOpacity={0.88}
-              >
-                {/* Thumbnail */}
-                <ImageBackground source={{ uri: img }} style={s.gymThumb} imageStyle={{ borderRadius: radius.md }}>
-                  {discount && (
-                    <View style={s.discountBadge}>
-                      <Text style={s.discountText}>{discount}</Text>
-                    </View>
-                  )}
-                </ImageBackground>
-
-                {/* Info */}
-                <View style={s.gymInfo}>
-                  <View style={s.gymTopRow}>
-                    <Text style={s.gymName} numberOfLines={1}>{name}</Text>
-                    <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <IconHeart size={15} color={colors.t3} />
-                    </TouchableOpacity>
-                  </View>
-                  <View style={s.gymMetaRow}>
-                    <IconStar size={11} color="rgba(255,205,55,0.9)" />
-                    <Text style={s.ratingText}>{rating}</Text>
-                    {!!(distance || city) && <>
-                      <Text style={s.metaDivider}>·</Text>
-                      <IconPin size={11} color={colors.t2} />
-                      <Text style={s.metaText}>{distance || city}</Text>
-                    </>}
-                  </View>
-                  {amenities.length > 0 && (
-                    <View style={s.tagsRow}>
-                      {amenities.slice(0, 2).map((tag: string) => (
-                        <View key={tag} style={s.tag}><Text style={s.tagText}>{tag}</Text></View>
-                      ))}
-                    </View>
-                  )}
-                  <View style={s.gymCardFooter}>
-                    <View>
-                      <Text style={s.fromLabel}>From</Text>
-                      <Text style={s.fromPrice}>{dayPassPrice}<Text style={s.fromPer}> /day</Text></Text>
-                    </View>
-                    <TouchableOpacity
-                      style={s.viewPlansBtn}
-                      onPress={() => router.push({ pathname: '/plans', params: { gymId: g.id || g._id, gymName: name } })}
-                    >
-                      <Text style={s.viewPlansBtnText}>View Plans</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
-
-        {/* ── Trust badges ── */}
-        <View style={s.trustRow}>
-          {[
-            { icon: 'percent', label: 'Best Prices', sub: 'Guaranteed' },
-            { icon: 'shield', label: 'Verified Gyms', sub: 'Quality Assured' },
-            { icon: 'bolt', label: 'Easy Booking', sub: 'In Few Clicks' },
-            { icon: 'headphones', label: '24/7 Support', sub: 'We\'re Here' },
-          ].map((item) => (
-            <View key={item.label} style={s.trustItem}>
-              <View style={s.trustIcon}>
-                {item.icon === 'percent' && <IconPercent size={14} color={colors.accent} />}
-                {item.icon === 'shield' && <IconShield size={14} color={colors.accent} />}
-                {item.icon === 'bolt' && <IconBolt size={14} color={colors.accent} />}
-                {item.icon === 'headphones' && <IconHeadphones size={14} color={colors.accent} />}
-              </View>
-              <Text style={s.trustLabel}>{item.label}</Text>
-              <Text style={s.trustSub}>{item.sub}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Testimonials */}
-        <View style={[s.sectionRow, { marginTop: 24 }]}>
-          <Text style={s.sectionTitle}>What members say</Text>
-        </View>
-        <FlatList
-          data={[
-            { id: '1', name: 'Priya S.', city: 'Bhubaneswar', rating: 5, text: 'Best way to stay fit in the city. Multi Gym pass lets me try a new gym every week!', avatar: 'P' },
-            { id: '2', name: 'Rahul M.', city: 'Bhubaneswar', rating: 5, text: 'Day passes are perfect. No commitment, just book and walk in!', avatar: 'R' },
-            { id: '3', name: 'Ananya K.', city: 'Cuttack', rating: 5, text: 'QR check-in is seamless. Love the Same Gym pass for my daily workouts.', avatar: 'A' },
-          ]}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 4 }}
-          snapToInterval={SCREEN_W * 0.75 + 12}
-          decelerationRate="fast"
-          renderItem={({ item: t }) => (
-            <View style={s.testimonialCard}>
-              <View style={{ flexDirection: 'row', gap: 3, marginBottom: 4 }}>
-                {Array.from({ length: t.rating }).map((_, i) => (
-                  <IconStar key={i} size={11} color="rgba(255,205,55,0.9)" />
-                ))}
-              </View>
-              <Text style={s.testimonialText}>"{t.text}"</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                <View style={s.avatarCircle}>
-                  <Text style={s.avatarText}>{t.avatar}</Text>
-                </View>
-                <View>
-                  <Text style={s.authorName}>{t.name}</Text>
-                  <Text style={s.authorCity}>{t.city}</Text>
-                </View>
-              </View>
-            </View>
-          )}
-        />
-
-        {/* ── Shop Products ── */}
-        {products.length > 0 && (
-          <>
-            <View style={[s.sectionRow, { marginTop: 24 }]}>
-              <Text style={s.sectionTitle}>Shop Products</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/store' as any)}>
-                <Text style={s.seeAll}>View All ›</Text>
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={products}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id || item._id}
-              contentContainerStyle={{ paddingHorizontal: 20, gap: 10, paddingBottom: 4 }}
-              renderItem={({ item: p }) => {
-                const img = p.imageUrl || p.image || 'https://images.unsplash.com/photo-1593095948071-474c5cc2989d?w=300&q=80';
-                const name = p.name || 'Product';
-                const price = p.price ? `Rs.${Number(p.price).toLocaleString()}` : '';
-                const originalPrice = p.originalPrice && p.originalPrice > p.price ? p.originalPrice : null;
-                return (
-                  <TouchableOpacity
-                    style={s.productCard}
-                    onPress={() => router.push(`/product/${p.id || p._id}` as any)}
-                    activeOpacity={0.88}
-                  >
-                    <ImageBackground source={{ uri: img }} style={s.productImg} imageStyle={{ borderRadius: radius.md }} />
-                    <View style={s.productBody}>
-                      <Text style={s.productName} numberOfLines={2}>{name}</Text>
-                      <View style={s.productPriceRow}>
-                        <Text style={s.productPrice}>{price}</Text>
-                        {originalPrice && (
-                          <Text style={s.productOriginal}>Rs.{Number(originalPrice).toLocaleString()}</Text>
-                        )}
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </>
-        )}
-
+        <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+function hour() {
+  const h = new Date().getHours();
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  return 'evening';
+}
 
+// ── Section components ────────────────────────────────────────────────────────
+
+function HeroSection({ slides, heroIdx, setHeroIdx, heroRef }: any) {
+  return (
+    <View style={s.heroWrap}>
+      <FlatList
+        ref={heroRef}
+        data={slides}
+        horizontal pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(_: any, i: number) => String(i)}
+        onMomentumScrollEnd={(e: any) => setHeroIdx(Math.round(e.nativeEvent.contentOffset.x / CARD_W))}
+        snapToInterval={CARD_W}
+        decelerationRate="fast"
+        renderItem={({ item }: any) => (
+          <ImageBackground source={{ uri: item.imageUrl }} style={s.heroSlide} imageStyle={{ borderRadius: radius.xl }}>
+            <View style={s.heroDark} />
+            <View style={s.heroContent}>
+              <Text style={s.heroKicker}>BOOKMY<Text style={{ color: colors.accent }}>FIT</Text></Text>
+              <Text style={s.heroHeadline}>{item.headline}</Text>
+              <Text style={s.heroAccent}>{item.headlineAccent}</Text>
+              <Text style={s.heroSub}>{item.sub}</Text>
+              <TouchableOpacity style={s.heroCta} onPress={() => router.push((item.ctaRoute || '/gyms') as any)}>
+                <Text style={s.heroCtaText}>{item.cta}</Text>
+              </TouchableOpacity>
+            </View>
+          </ImageBackground>
+        )}
+      />
+      <View style={s.heroDots}>
+        {slides.map((_: any, i: number) => <View key={i} style={[s.dot, i === heroIdx && s.dotActive]} />)}
+      </View>
+    </View>
+  );
+}
+
+function CategoriesSection({ title }: { title: string }) {
+  return (
+    <View style={{ marginBottom: 24 }}>
+      <SectionRow title={title} onViewAll={() => router.push('/gyms' as any)} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+        {CATEGORIES.map((cat) => (
+          <TouchableOpacity key={cat.id} style={s.catItem} onPress={() => router.push(`/gyms?category=${cat.id}` as any)}>
+            <View style={[s.catCircle, { backgroundColor: cat.bg }]}>
+              <CatIcon type={cat.icon} size={22} color={cat.color} />
+            </View>
+            <Text style={[s.catLabel, { color: cat.color }]}>{cat.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function FeaturedGymsSection({ section }: { section: any }) {
+  const gyms: any[] = section.gyms || [];
+  if (!gyms.length) return null;
+  return (
+    <View style={{ marginBottom: 24 }}>
+      <SectionRow title={section.title || 'Featured Gyms'} onViewAll={() => router.push('/gyms' as any)} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
+        {gyms.map((g: any, idx: number) => {
+          const img = g.images?.[0] || g.coverImage || g.img || 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&q=80';
+          const name = (g.name || 'Gym').split(' ').slice(0, 2).join(' ');
+          const gid = g.id || g._id;
+          return (
+            <TouchableOpacity key={gid} style={s.gymFeatCard} onPress={() => router.push(`/gym/${gid}` as any)} activeOpacity={0.85}>
+              <ImageBackground source={{ uri: img }} style={s.gymFeatImg} imageStyle={{ borderRadius: radius.xl }}>
+                <View style={s.gymFeatDark} />
+                <Text style={s.gymFeatRank}>#{idx + 1}</Text>
+                <View style={s.gymFeatBottom}>
+                  {g.rating ? (
+                    <View style={s.gymFeatRating}>
+                      <IconStar size={10} color="#FBBF24" />
+                      <Text style={s.gymFeatRatingText}>{Number(g.rating).toFixed(1)}</Text>
+                    </View>
+                  ) : null}
+                  <Text style={s.gymFeatName} numberOfLines={1}>{name}</Text>
+                  <Text style={s.gymFeatCity} numberOfLines={1}>{g.city || ''}</Text>
+                  {g.dayPassPrice ? (
+                    <Text style={s.gymFeatPrice}>From ₹{g.dayPassPrice}/day</Text>
+                  ) : null}
+                </View>
+              </ImageBackground>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+function ProductsSection({ section }: { section: any }) {
+  const products: any[] = section.products || [];
+  if (!products.length) return null;
+  return (
+    <View style={{ marginBottom: 24 }}>
+      <SectionRow title={section.title || 'Shop Products'} onViewAll={() => router.push('/(tabs)/store' as any)} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
+        {products.map((p: any) => {
+          const img = p.images?.[0] || p.image || 'https://images.unsplash.com/photo-1593095948071-474c5cc2989d?w=300&q=80';
+          const hasDiscount = p.mrp && Number(p.mrp) > Number(p.price);
+          return (
+            <TouchableOpacity key={p.id} style={s.productCard} onPress={() => router.push(`/product/${p.id}` as any)} activeOpacity={0.88}>
+              <ImageBackground source={{ uri: img }} style={s.productImg} imageStyle={{ borderRadius: radius.lg, resizeMode: 'cover' }}>
+                {hasDiscount && (
+                  <View style={s.productDiscount}>
+                    <Text style={s.productDiscountText}>{Math.round((1 - p.price / p.mrp) * 100)}% OFF</Text>
+                  </View>
+                )}
+              </ImageBackground>
+              <View style={s.productBody}>
+                <Text style={s.productName} numberOfLines={2}>{p.name}</Text>
+                <View style={s.productPriceRow}>
+                  <Text style={s.productPrice}>₹{Number(p.price).toLocaleString('en-IN')}</Text>
+                  {hasDiscount && <Text style={s.productMrp}>₹{Number(p.mrp).toLocaleString('en-IN')}</Text>}
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+function TrustSection() {
+  const items = [
+    { icon: 'percent',    label: 'Best Prices',    sub: 'Guaranteed' },
+    { icon: 'shield',     label: 'Verified Gyms',  sub: 'Quality Assured' },
+    { icon: 'bolt',       label: 'Easy Booking',   sub: 'In Few Clicks' },
+    { icon: 'headphones', label: '24/7 Support',   sub: "We're Here" },
+  ];
+  return (
+    <View style={s.trustRow}>
+      {items.map((item) => (
+        <View key={item.label} style={s.trustItem}>
+          <View style={s.trustIcon}>
+            {item.icon === 'percent'    && <IconPercent    size={13} color={colors.accent} />}
+            {item.icon === 'shield'     && <IconShield     size={13} color={colors.accent} />}
+            {item.icon === 'bolt'       && <IconBolt       size={13} color={colors.accent} />}
+            {item.icon === 'headphones' && <IconHeadphones size={13} color={colors.accent} />}
+          </View>
+          <Text style={s.trustLabel}>{item.label}</Text>
+          <Text style={s.trustSub}>{item.sub}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function TestimonialsSection() {
+  return (
+    <View style={{ marginBottom: 24 }}>
+      <SectionRow title="What Members Say" />
+      <FlatList
+        data={TESTIMONIALS}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+        keyExtractor={(t) => t.id}
+        renderItem={({ item: t }) => (
+          <View style={s.testimonialCard}>
+            <Text style={s.testimonialText}>"{t.text}"</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 }}>
+              <View style={s.avatarCircle}><Text style={s.avatarText}>{t.avatar}</Text></View>
+              <View>
+                <Text style={s.authorName}>{t.name}</Text>
+                <Text style={s.authorCity}>{t.city}</Text>
+              </View>
+              <View style={{ marginLeft: 'auto', flexDirection: 'row', gap: 2 }}>
+                {Array.from({ length: t.rating }).map((_, i) => <IconStar key={i} size={10} color="#FBBF24" />)}
+              </View>
+            </View>
+          </View>
+        )}
+      />
+    </View>
+  );
+}
+
+function SectionRow({ title, onViewAll }: { title: string; onViewAll?: () => void }) {
+  return (
+    <View style={s.sectionRow}>
+      <Text style={s.sectionTitle}>{title}</Text>
+      {onViewAll && (
+        <TouchableOpacity onPress={onViewAll}>
+          <Text style={s.viewAll}>View All ›</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#060606' },
+  root:   { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   container: { paddingBottom: 40 },
 
   // Top bar
-  topBar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14,
-  },
-  iconBtn: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  logo: { fontFamily: fonts.serif, fontSize: 20, color: '#fff', letterSpacing: -0.5 },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
+  greeting: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginBottom: 2 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locationText: { fontFamily: fonts.sansMedium, fontSize: 12, color: '#fff' },
+  iconBtn: { width: 36, height: 36, borderRadius: 11, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, alignItems: 'center', justifyContent: 'center' },
+
+  // Logo
+  logo: { fontFamily: fonts.serif, fontSize: 22, color: '#fff', letterSpacing: -0.5, paddingHorizontal: 20, marginBottom: 16 },
   logoDot: { color: colors.accent },
 
-  // Location + search
-  locSearchRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 20, marginBottom: 16,
-  },
-  locationPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: radius.pill,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 12, paddingVertical: 9,
-  },
-  locationText: { fontFamily: fonts.sansMedium, fontSize: 12, color: '#fff' },
-  searchBar: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: radius.pill,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 14, paddingVertical: 9,
-  },
-  searchPlaceholder: { fontFamily: fonts.sans, fontSize: 13, color: 'rgba(255,255,255,0.35)' },
-
   // Hero
-  heroWrap: { paddingHorizontal: 20, marginBottom: 6 },
-  heroSlide: {
-    width: SCREEN_W - 40, height: 210,
-    borderRadius: radius.xl, overflow: 'hidden', justifyContent: 'flex-end',
-  },
-  heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
-  heroContent: { padding: 18, gap: 4 },
-  heroHeadline: { fontFamily: fonts.serif, fontSize: 28, color: '#fff', lineHeight: 34, letterSpacing: -0.5 },
-  heroHeadlineAccent: { fontFamily: fonts.serif, fontSize: 28, color: colors.accent, lineHeight: 32, letterSpacing: -0.5, marginBottom: 4 },
-  heroSub: { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.72)', lineHeight: 17, marginBottom: 10 },
-  heroCta: {
-    alignSelf: 'flex-start', borderWidth: 1.5, borderColor: '#fff',
-    borderRadius: radius.pill, paddingHorizontal: 18, paddingVertical: 8,
-  },
-  heroCtaText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
-  heroDots: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 10 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)' },
-  dotActive: { backgroundColor: colors.accent, width: 18 },
+  heroWrap: { marginHorizontal: 20, marginBottom: 24 },
+  heroSlide: { width: CARD_W, height: 200, justifyContent: 'flex-end' },
+  heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.52)', borderRadius: radius.xl },
+  heroContent: { padding: 18, gap: 2 },
+  heroKicker: { fontFamily: fonts.sansBold, fontSize: 9, color: 'rgba(255,255,255,0.5)', letterSpacing: 2, marginBottom: 4 },
+  heroHeadline: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', lineHeight: 30 },
+  heroAccent:   { fontFamily: fonts.serif, fontSize: 26, color: colors.accent, lineHeight: 30, marginBottom: 6 },
+  heroSub:  { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.62)', lineHeight: 17, marginBottom: 12 },
+  heroCta:  { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 9, alignSelf: 'flex-start' },
+  heroCtaText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#060606' },
+  heroDots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 10 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)' },
+  dotActive: { width: 18, backgroundColor: colors.accent },
+
+  // Section headers
+  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 12 },
+  sectionTitle: { fontFamily: fonts.serif, fontSize: 17, color: '#fff', letterSpacing: -0.3 },
+  viewAll: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.accent },
 
   // Categories
-  catsScroll: { marginBottom: 8 },
-  catsContent: { paddingHorizontal: 20, gap: 16, paddingVertical: 8 },
-  catItem: { alignItems: 'center', gap: 7 },
-  catCircle: {
-    width: 58, height: 58, borderRadius: 29,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: 'transparent',
-  },
-  catLabel: { fontFamily: fonts.sansMedium, fontSize: 10, color: 'rgba(255,255,255,0.55)', textAlign: 'center' },
+  catItem:   { alignItems: 'center', gap: 6 },
+  catCircle: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  catLabel:  { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 0.3 },
 
-  // Section header
-  sectionRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, marginBottom: 12, marginTop: 10,
-  },
-  sectionTitle: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
-  seeAll: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
-  filterBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: radius.pill,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 12, paddingVertical: 6,
-  },
-  filterText: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t2 },
-
-  // Most Visited
-  mostVisitedScroll: { marginBottom: 6 },
-  mvCard: { width: 112, borderRadius: radius.lg },
-  mvImgWrap: { width: 112, height: 134, borderRadius: radius.lg, overflow: 'hidden', marginBottom: 5 },
-  mvPhoto: { flex: 1, justifyContent: 'flex-end' },
-  mvDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.48)' },
-  mvRankOverlay: {
-    fontFamily: fonts.sansBold, fontSize: 46, color: 'rgba(255,255,255,0.18)',
-    position: 'absolute', top: 6, right: 8, lineHeight: 52,
-  },
-  mvRankBadge: {
-    position: 'absolute', bottom: 8, left: 8,
-    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 6,
-    paddingHorizontal: 7, paddingVertical: 2,
-  },
-  mvRank: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.accent },
-  mvName: { fontFamily: fonts.sansBold, fontSize: 11, color: '#fff', lineHeight: 15 },
-  mvCity: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2, lineHeight: 13 },
-
-  // Gym cards (horizontal layout)
-  gymCard: {
-    flexDirection: 'row', gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.xl,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    marginHorizontal: 20, marginBottom: 10, padding: 10,
-  },
-  gymThumb: { width: 82, height: 82, borderRadius: radius.md, overflow: 'hidden', position: 'relative' },
-  discountBadge: {
-    position: 'absolute', top: 6, left: 6,
-    backgroundColor: colors.accent, borderRadius: 6,
-    paddingHorizontal: 6, paddingVertical: 3,
-  },
-  discountText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#060606' },
-  gymInfo: { flex: 1, justifyContent: 'space-between', gap: 4 },
-  gymTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  gymName: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff', flex: 1, marginRight: 6 },
-  gymMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  ratingText: { fontFamily: fonts.sansBold, fontSize: 11, color: 'rgba(255,205,55,0.9)' },
-  metaDivider: { fontFamily: fonts.sans, fontSize: 11, color: colors.t3, marginHorizontal: 2 },
-  metaText: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
-  tagsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  tag: {
-    backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 6,
-    paddingHorizontal: 8, paddingVertical: 3,
-  },
-  tagText: { fontFamily: fonts.sansMedium, fontSize: 10, color: colors.t2 },
-  gymCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
-  fromLabel: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
-  fromPrice: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.accent },
-  fromPer: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
-  viewPlansBtn: {
-    backgroundColor: colors.accent, borderRadius: radius.pill,
-    paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start',
-  },
-  viewPlansBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
+  // Featured gyms
+  gymFeatCard:   { width: 160, height: 200, borderRadius: radius.xl, overflow: 'hidden' },
+  gymFeatImg:    { flex: 1, justifyContent: 'space-between' },
+  gymFeatDark:   { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.42)' },
+  gymFeatRank:   { fontFamily: fonts.sansBold, fontSize: 44, color: 'rgba(255,255,255,0.15)', padding: 8, lineHeight: 50 },
+  gymFeatBottom: { padding: 12, gap: 2 },
+  gymFeatRating: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
+  gymFeatRatingText: { fontFamily: fonts.sansBold, fontSize: 10, color: '#FBBF24' },
+  gymFeatName:   { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  gymFeatCity:   { fontFamily: fonts.sans, fontSize: 10, color: 'rgba(255,255,255,0.6)' },
+  gymFeatPrice:  { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent, marginTop: 2 },
 
   // Products
-  productCard: {
-    width: 150,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  productImg: { width: 150, height: 130 },
+  productCard: { width: 148, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: radius.lg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },
+  productImg:  { width: 148, height: 130 },
   productBody: { padding: 10, gap: 4 },
-  productName: { fontFamily: fonts.sansMedium, fontSize: 12, color: '#fff', lineHeight: 16 },
+  productDiscount: { position: 'absolute', top: 8, left: 8, backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  productDiscountText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#060606' },
+  productName: { fontFamily: fonts.sansMedium, fontSize: 11, color: '#fff', lineHeight: 15 },
   productPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   productPrice: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
-  productOriginal: { fontFamily: fonts.sans, fontSize: 11, color: colors.t3, textDecorationLine: 'line-through' },
+  productMrp:  { fontFamily: fonts.sans, fontSize: 10, color: colors.t3, textDecorationLine: 'line-through' },
 
-  // Trust badges
-  trustRow: {
-    flexDirection: 'row', marginHorizontal: 20, marginTop: 20,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.xl,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    padding: 16,
-  },
+  // Trust
+  trustRow:  { flexDirection: 'row', marginHorizontal: 20, marginBottom: 24, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: radius.xl, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', padding: 16 },
   trustItem: { flex: 1, alignItems: 'center', gap: 4 },
-  trustIcon: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.2)',
-    alignItems: 'center', justifyContent: 'center',
-  },
+  trustIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(61,255,84,0.1)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.18)', alignItems: 'center', justifyContent: 'center' },
   trustLabel: { fontFamily: fonts.sansBold, fontSize: 8, color: '#fff', textAlign: 'center' },
-  trustSub: { fontFamily: fonts.sans, fontSize: 7, color: colors.t2, textAlign: 'center' },
+  trustSub:   { fontFamily: fonts.sans, fontSize: 7, color: colors.t2, textAlign: 'center' },
 
   // Testimonials
-  testimonialCard: {
-    width: SCREEN_W * 0.75,
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: radius.xl,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
-    padding: 16, gap: 6,
-  },
-  testimonialText: { fontFamily: fonts.sans, fontSize: 13, color: 'rgba(255,255,255,0.68)', lineHeight: 20, fontStyle: 'italic' },
-  avatarCircle: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(0,212,106,0.12)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.25)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
+  testimonialCard: { width: W * 0.72, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.xl, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', padding: 16 },
+  testimonialText: { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 18, fontStyle: 'italic' },
+  avatarCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(61,255,84,0.12)', borderWidth: 1, borderColor: 'rgba(61,255,84,0.22)', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
   authorName: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff' },
   authorCity: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
 });

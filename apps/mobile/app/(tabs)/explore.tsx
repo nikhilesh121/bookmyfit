@@ -1,388 +1,230 @@
-import { FlatList, ScrollView, View, Text, TouchableOpacity, StyleSheet, TextInput, Image, ActivityIndicator } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ImageBackground, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
-import { IconSearch, IconStar, IconPin, IconHeart, IconChevronRight, IconBolt, IconFilter } from '../../components/Icons';
-import { gymsApi } from '../../lib/api';
-import Svg, { Path, Circle } from 'react-native-svg';
+import { IconPin, IconArrowRight } from '../../components/Icons';
+import Svg, { Path, Circle, Rect } from 'react-native-svg';
 
-const CATEGORIES = [
-  { id: 'all', label: 'All Gyms', icon: 'dumbbell', color: colors.accent },
-  { id: 'strength', label: 'Strength', icon: 'strength', color: '#FB923C' },
-  { id: 'cardio', label: 'Cardio', icon: 'cardio', color: '#FB923C' },
-  { id: 'yoga', label: 'Yoga', icon: 'yoga', color: '#22D3EE' },
-  { id: 'crossfit', label: 'CrossFit', icon: 'crossfit', color: '#A78BFA' },
-];
+const { width: W } = Dimensions.get('window');
+const HALF = (W - 52) / 2;
 
-const FALLBACK_GYMS = [
-  { id: '1', name: 'Anytime Fitness', city: 'Bhubaneswar', area: 'Patia', rating: 4.8, reviewCount: 128, distance: '0.8 km', discountPercent: 20, facilities: ['AC', 'Parking', 'Locker'], img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80' },
-  { id: '2', name: 'Blaze Fitness', city: 'Bhubaneswar', area: 'Saheed Nagar', rating: 4.6, reviewCount: 96, distance: '2.1 km', discountPercent: 15, facilities: ['Yoga', 'Sauna', 'Trainer'], img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80' },
-  { id: '3', name: 'CrossFit Arena', city: 'Bhubaneswar', area: 'Kharvel Nagar', rating: 4.3, reviewCount: 64, distance: '1.4 km', discountPercent: 0, facilities: ['CrossFit', 'Boxing', 'Cardio'], img: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80' },
-  { id: '4', name: 'DY Patil Gym', city: 'Mumbai', area: 'Navi Mumbai', rating: 4.5, reviewCount: 210, distance: '3.1 km', discountPercent: 0, facilities: ['Pool', 'Steam', 'Cardio'], img: 'https://images.unsplash.com/photo-1549060279-7e168fcee0c2?w=400&q=80' },
-  { id: '5', name: 'Elite Power Zone', city: 'Delhi', area: 'Connaught Place', rating: 4.7, reviewCount: 183, distance: '0.6 km', discountPercent: 10, facilities: ['Personal Training', 'Supplements'], img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80' },
-  { id: '6', name: 'FitHub Pro', city: 'Mumbai', area: 'Andheri West', rating: 4.4, reviewCount: 77, distance: '1.8 km', discountPercent: 0, facilities: ['Yoga', 'Zumba', 'AC'], img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80' },
-  { id: '7', name: 'Gold\'s Gym', city: 'Bhubaneswar', area: 'Chandrasekharpur', rating: 4.9, reviewCount: 348, distance: '2.5 km', discountPercent: 5, facilities: ['Olympic Weights', 'Cardio', 'Trainer'], img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&q=80' },
-  { id: '8', name: 'Hardcore Fitness', city: 'Bhubaneswar', area: 'Nayapalli', rating: 4.2, reviewCount: 52, distance: '4.1 km', discountPercent: 0, facilities: ['Powerlifting', 'Cardio'], img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&q=80' },
-  { id: '9', name: 'IronBody Gym', city: 'Bangalore', area: 'Koramangala', rating: 4.6, reviewCount: 140, distance: '1.1 km', discountPercent: 0, facilities: ['AC', 'Locker', 'Parking'], img: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80' },
-  { id: '10', name: 'Jetts Fitness', city: 'Hyderabad', area: 'Banjara Hills', rating: 4.5, reviewCount: 89, distance: '2.3 km', discountPercent: 0, facilities: ['24/7', 'Cardio', 'Weights'], img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80' },
-];
-
-function CategorySvgIcon({ type, size, color }: { type: string; size: number; color: string }) {
+// ── Category icon (inline) ─────────────────────────────────────────────────
+function CatSvg({ type, size, color }: { type: string; size: number; color: string }) {
   const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  if (type === 'dumbbell') return <Svg {...p}><Path d="M6.5 6.5h11M6.5 17.5h11M2 10v4M22 10v4M5 8v8M19 8v8" /></Svg>;
-  if (type === 'strength') return <Svg {...p}><Path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill={color} /></Svg>;
-  if (type === 'cardio') return <Svg {...p}><Path d="M3 12h3l3-9 3 18 3-9h3" /></Svg>;
-  if (type === 'yoga') return <Svg {...p}><Circle cx="12" cy="5" r="2" /><Path d="M12 7v4M8 11c0 2 1.5 4 4 4s4-2 4-4M9 21l3-6 3 6" /></Svg>;
-  if (type === 'crossfit') return <Svg {...p}><Path d="M17 3l-5 5-5-5M17 21l-5-5-5 5M3 7l5 5-5 5M21 7l-5 5 5 5" /></Svg>;
-  return <Svg {...p}><Circle cx="5" cy="12" r="1.5" fill={color} stroke="none" /><Circle cx="12" cy="12" r="1.5" fill={color} stroke="none" /><Circle cx="19" cy="12" r="1.5" fill={color} stroke="none" /></Svg>;
+  if (type === 'dumbbell')  return <Svg {...p}><Path d="M6.5 6.5h11M6.5 17.5h11M2 10v4M22 10v4M5 8v8M19 8v8" /></Svg>;
+  if (type === 'cardio')    return <Svg {...p}><Path d="M3 12h3l3-9 3 18 3-9h3" /></Svg>;
+  if (type === 'yoga')      return <Svg {...p}><Circle cx="12" cy="5" r="2" /><Path d="M12 7v4M8 11c0 2 1.5 4 4 4s4-2 4-4M9 21l3-6 3 6" /></Svg>;
+  if (type === 'crossfit')  return <Svg {...p}><Path d="M17 3l-5 5-5-5M17 21l-5-5-5 5M3 7l5 5-5 5M21 7l-5 5 5 5" /></Svg>;
+  if (type === 'hiit')      return <Svg {...p}><Path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></Svg>;
+  if (type === 'strength')  return <Svg {...p}><Path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill={color} /></Svg>;
+  if (type === 'spa')       return <Svg {...p}><Circle cx="12" cy="12" r="3" /><Path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" /></Svg>;
+  if (type === 'store')     return <Svg {...p}><Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><Path d="M3 6h18M16 10a4 4 0 01-8 0" /></Svg>;
+  if (type === 'trainers')  return <Svg {...p}><Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><Circle cx="9" cy="7" r="4" /><Path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></Svg>;
+  if (type === 'videos')    return <Svg {...p}><Rect x="2" y="7" width="20" height="15" rx="2" ry="2" /><Path d="M17 2l-5 5-5-5" /></Svg>;
+  if (type === 'corporate') return <Svg {...p}><Rect x="2" y="7" width="20" height="14" rx="2" /><Path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" /></Svg>;
+  // pin / nearby
+  return <Svg {...p}><Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><Circle cx="12" cy="10" r="3" /></Svg>;
 }
 
-function GymCard({ g, index }: { g: any; index: number }) {
-  const [liked, setLiked] = useState(false);
-  const name = g.name || g.gymName || 'Gym';
-  const rating = g.rating || g.avgRating || '4.5';
-  const reviewCount = g.reviewCount || g.reviews || Math.floor(Math.random() * 200 + 20);
-  const city = g.city || g.location?.city || '';
-  const area = g.area || g.location?.area || '';
-  const dist = g.distance || (g.distanceKm ? `${g.distanceKm} km` : '');
-  const img = g.images?.[0] || g.coverImage || g.img || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80';
-  const discount = g.discountPercent || (index === 0 ? 20 : index === 1 ? 15 : index === 2 ? 10 : 0);
-  const facilities: string[] = g.facilities || g.amenities || ['Cardio', 'Weights', 'AC'];
+// ── Data ──────────────────────────────────────────────────────────────────────
+const GYM_CATS = [
+  { id: 'all',      label: 'All Gyms',  color: colors.accent,  bg: colors.accentSoft,          icon: 'dumbbell', img: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=400&q=80' },
+  { id: 'strength', label: 'Strength',  color: '#FB923C',       bg: 'rgba(251,146,60,0.15)',     icon: 'strength', img: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=400&q=80' },
+  { id: 'cardio',   label: 'Cardio',    color: '#F43F5E',       bg: 'rgba(244,63,94,0.15)',      icon: 'cardio',   img: 'https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=400&q=80' },
+  { id: 'yoga',     label: 'Yoga',      color: '#22D3EE',       bg: 'rgba(34,211,238,0.15)',     icon: 'yoga',     img: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=400&q=80' },
+  { id: 'crossfit', label: 'CrossFit',  color: '#A78BFA',       bg: 'rgba(167,139,250,0.15)',    icon: 'crossfit', img: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=400&q=80' },
+  { id: 'hiit',     label: 'HIIT',      color: '#FBBF24',       bg: 'rgba(251,191,36,0.15)',     icon: 'hiit',     img: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&q=80' },
+];
 
+const BIG_CARDS = [
+  {
+    id: 'wellness',
+    label: 'Spa & Recovery',
+    sub: 'Massage · Physio · Yoga',
+    color: '#F9A8D4',
+    bg: 'rgba(249,168,212,0.12)',
+    icon: 'spa',
+    img: 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?w=600&q=80',
+    route: '/wellness',
+  },
+  {
+    id: 'store',
+    label: 'Fitness Store',
+    sub: 'Supplements · Gear · Apparel',
+    color: colors.accent,
+    bg: colors.accentSoft,
+    icon: 'store',
+    img: 'https://images.unsplash.com/photo-1593095948071-474c5cc2989d?w=600&q=80',
+    route: '/(tabs)/store',
+  },
+];
+
+const SMALL_CARDS = [
+  { id: 'trainers',  label: 'Trainers',          sub: 'Personal coaching',  color: '#60A5FA', icon: 'trainers',  route: '/trainers' },
+  { id: 'videos',    label: 'Workout Videos',    sub: 'Free & premium',     color: '#F87171', icon: 'videos',    route: '/videos' },
+  { id: 'corporate', label: 'Corporate Wellness',sub: 'For teams & offices', color: '#A78BFA', icon: 'corporate', route: null },
+  { id: 'nearby',    label: 'Gyms Near Me',       sub: 'Location-based',    color: '#34D399', icon: 'nearby',    route: '/gyms' },
+];
+
+// ── Component ─────────────────────────────────────────────────────────────────
+export default function ExploreHub() {
   return (
-    <TouchableOpacity
-      style={s.gymCard}
-      activeOpacity={0.88}
-      onPress={() => router.push(`/gym/${g.id || g._id}`)}
-    >
-      {/* Left image */}
-      <View style={s.gymImgWrapper}>
-        <Image source={{ uri: img }} style={s.gymImg} />
-        {discount > 0 && (
-          <View style={s.discountBadge}>
-            <Text style={s.discountText}>{discount}% OFF</Text>
-          </View>
-        )}
-        <TouchableOpacity style={s.heartBtn} onPress={() => setLiked(l => !l)}>
-          <IconHeart size={14} color={liked ? '#ff4d6d' : '#fff'} filled={liked} />
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView style={s.root}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
-      {/* Right info */}
-      <View style={s.gymInfo}>
-        {/* Row 1: name + price */}
-        <View style={s.infoRow1}>
-          <Text style={s.gymName} numberOfLines={1}>{name}</Text>
-          <View style={s.priceBlock}>
-            <Text style={s.priceFrom}>From</Text>
-            <View style={s.priceRow}>
-              <Text style={s.priceVal}>₹99</Text>
-              <Text style={s.priceUnit}>/day</Text>
-            </View>
+        {/* Header */}
+        <View style={s.header}>
+          <Text style={s.title}>Explore</Text>
+          <View style={s.locRow}>
+            <IconPin size={12} color={colors.accent} />
+            <Text style={s.locText}>Bhubaneswar</Text>
           </View>
         </View>
 
-        {/* Row 2: rating */}
-        <View style={s.ratingRow}>
-          <IconStar size={12} color={colors.star} />
-          <Text style={s.ratingText}>{typeof rating === 'number' ? rating.toFixed(1) : rating}</Text>
-          <Text style={s.reviewCount}>({reviewCount})</Text>
+        {/* ── Gym categories grid ── */}
+        <View style={s.sectionRow}>
+          <Text style={s.sectionTitle}>Browse by Category</Text>
+          <TouchableOpacity onPress={() => router.push('/gyms' as any)}>
+            <Text style={s.viewAll}>All Gyms ›</Text>
+          </TouchableOpacity>
         </View>
-
-        {/* Row 3: location */}
-        <View style={s.locationRow}>
-          <IconPin size={12} color={colors.t2} />
-          <Text style={s.locationText} numberOfLines={1}>
-            {[area, city].filter(Boolean).join(', ')}{dist ? ` • ${dist}` : ''}
-          </Text>
-        </View>
-
-        {/* Row 4: facility tags */}
-        <View style={s.tagsRow}>
-          {facilities.slice(0, 3).map((f: string, i: number) => (
-            <View key={i} style={s.tagPill}>
-              <Text style={s.tagText}>{f}</Text>
-            </View>
+        <View style={s.catGrid}>
+          {GYM_CATS.map((cat) => (
+            <TouchableOpacity
+              key={cat.id}
+              style={[s.catCard, { borderColor: cat.color + '44' }]}
+              onPress={() => router.push(`/gyms?category=${cat.id}` as any)}
+              activeOpacity={0.82}
+            >
+              <ImageBackground source={{ uri: cat.img }} style={s.catCardImg} imageStyle={{ borderRadius: radius.lg }}>
+                <View style={[s.catCardDark, { backgroundColor: 'rgba(0,0,0,0.52)' }]} />
+                <View style={[s.catIconWrap, { backgroundColor: cat.bg }]}>
+                  <CatSvg type={cat.icon} size={18} color={cat.color} />
+                </View>
+                <Text style={s.catCardLabel}>{cat.label}</Text>
+              </ImageBackground>
+            </TouchableOpacity>
           ))}
         </View>
 
-        {/* Row 5: View Plans button */}
-        <View style={s.viewRow}>
-          <TouchableOpacity
-            style={s.viewBtn}
-            onPress={() => router.push({ pathname: '/plans', params: { gymId: String(g.id || g._id), gymName: name } })}
-          >
-            <Text style={s.viewBtnText}>View Plans</Text>
-            <IconChevronRight size={12} color="#060606" />
-          </TouchableOpacity>
+        {/* ── Wellness + Store (big cards) ── */}
+        <Text style={s.sectionTitle2}>Wellness & More</Text>
+        <View style={s.bigCardsRow}>
+          {BIG_CARDS.map((card) => (
+            <TouchableOpacity
+              key={card.id}
+              style={[s.bigCard, { borderColor: card.color + '44' }]}
+              onPress={() => router.push(card.route as any)}
+              activeOpacity={0.82}
+            >
+              <ImageBackground source={{ uri: card.img }} style={s.bigCardImg} imageStyle={{ borderRadius: radius.xl }}>
+                <View style={s.bigCardDark} />
+                <View style={s.bigCardContent}>
+                  <View style={[s.bigCardIcon, { backgroundColor: card.bg }]}>
+                    <CatSvg type={card.icon} size={20} color={card.color} />
+                  </View>
+                  <Text style={s.bigCardLabel}>{card.label}</Text>
+                  <Text style={s.bigCardSub}>{card.sub}</Text>
+                  <View style={[s.bigCardCta, { borderColor: card.color + '66', backgroundColor: card.color + '18' }]}>
+                    <Text style={[s.bigCardCtaText, { color: card.color }]}>Explore</Text>
+                    <IconArrowRight size={12} color={card.color} />
+                  </View>
+                </View>
+              </ImageBackground>
+            </TouchableOpacity>
+          ))}
         </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
 
-export default function Explore() {
-  const [q, setQ] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [gyms, setGyms] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const loadGyms = async (pageNum = 1, reset = false) => {
-    if (pageNum === 1) setLoading(true);
-    else setLoadingMore(true);
-    try {
-      const res: any = await gymsApi.list({
-        search: q || undefined,
-        page: pageNum,
-        limit: 20,
-      });
-      const items: any[] = Array.isArray(res) ? res : res?.gyms ?? res?.data ?? [];
-      const total: number = Array.isArray(res) ? res.length : res?.total ?? items.length;
-      if (reset || pageNum === 1) {
-        setGyms(items.length > 0 ? items : FALLBACK_GYMS);
-      } else {
-        setGyms(prev => [...prev, ...items]);
-      }
-      const currentTotal = (reset || pageNum === 1) ? items.length : gyms.length + items.length;
-      setHasMore(items.length === 20 && currentTotal < total);
-      setPage(pageNum);
-    } catch {
-      if (pageNum === 1) setGyms(FALLBACK_GYMS);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  };
-
-  useEffect(() => {
-    loadGyms(1, true);
-  }, []);
-
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      loadGyms(1, true);
-    }, 300);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [q]);
-
-  // Filter by category
-  const filteredGyms = selectedCategory === 'all'
-    ? gyms
-    : gyms.filter(g => {
-        const tags: string[] = [
-          ...(g.facilities || []),
-          ...(g.categories || []),
-          ...(g.tags || []),
-        ].map((t: string) => t.toLowerCase());
-        return tags.some(t => t.includes(selectedCategory));
-      });
-
-  const ListHeader = () => (
-    <View>
-      <Text style={s.title}>Explore Gyms</Text>
-
-      {/* Search bar */}
-      <View style={s.searchBar}>
-        <IconSearch size={16} color={colors.t2} />
-        <TextInput
-          style={s.searchInput}
-          placeholder="Search gyms, city, area..."
-          placeholderTextColor={colors.t3}
-          value={q}
-          onChangeText={setQ}
-        />
-        {loading && <ActivityIndicator size="small" color={colors.accent} />}
-      </View>
-
-      {/* Wellness banner */}
-      <TouchableOpacity style={s.wellnessBanner} activeOpacity={0.85} onPress={() => router.push('/wellness')}>
-        <View style={s.wellnessIconBox}>
-          <IconBolt size={20} color={colors.accent} />
+        {/* ── Small service cards ── */}
+        <Text style={s.sectionTitle2}>More Services</Text>
+        <View style={s.smallGrid}>
+          {SMALL_CARDS.map((card) => (
+            <TouchableOpacity
+              key={card.id}
+              style={[s.smallCard, { borderColor: card.color + '33' }]}
+              onPress={() => { if (card.route) router.push(card.route as any); }}
+              activeOpacity={0.82}
+            >
+              <View style={[s.smallIconWrap, { backgroundColor: card.color + '15' }]}>
+                <CatSvg type={card.icon} size={22} color={card.color} />
+              </View>
+              <Text style={s.smallCardLabel}>{card.label}</Text>
+              <Text style={s.smallCardSub}>{card.sub}</Text>
+              {!card.route && (
+                <View style={s.comingSoon}><Text style={s.comingSoonText}>Soon</Text></View>
+              )}
+            </TouchableOpacity>
+          ))}
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={s.wellnessTitle}>Wellness & Services</Text>
-          <Text style={s.wellnessSub}>Spa, Massage, Yoga, Physio & more</Text>
-        </View>
-        <IconChevronRight size={16} color={colors.accent} />
-      </TouchableOpacity>
 
-      {/* Category filter chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={s.categoryRow}
-        style={{ marginBottom: 16 }}
-      >
-        {CATEGORIES.map(cat => (
-          <TouchableOpacity
-            key={cat.id}
-            style={[s.categoryChip, selectedCategory === cat.id && s.categoryChipActive]}
-            onPress={() => setSelectedCategory(cat.id)}
-          >
-            <CategorySvgIcon type={cat.icon} size={16} color={selectedCategory === cat.id ? cat.color : colors.t2} />
-            <Text style={[s.categoryLabel, selectedCategory === cat.id && s.categoryLabelActive]}>
-              {cat.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        <View style={{ height: 32 }} />
       </ScrollView>
-
-      {/* Section header */}
-      <View style={s.sectionHeader}>
-        <Text style={s.sectionTitle}>Popular Gyms Near You</Text>
-        <TouchableOpacity style={s.filterBtn}>
-          <IconFilter size={13} color={colors.accent} />
-          <Text style={s.filterBtnText}>Filter</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Loading skeletons */}
-      {loading && [1, 2, 3].map((i) => (
-        <View key={i} style={[s.gymCard, { height: 148, backgroundColor: 'rgba(255,255,255,0.06)' }]} />
-      ))}
-    </View>
-  );
-
-  return (
-    <SafeAreaView style={s.root}>
-      <FlatList
-        data={loading ? [] : filteredGyms}
-        keyExtractor={(item) => String(item.id || item._id)}
-        contentContainerStyle={s.container}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={ListHeader}
-        renderItem={({ item, index }) => <GymCard g={item} index={index} />}
-        onEndReached={() => { if (hasMore && !loadingMore && selectedCategory === 'all') loadGyms(page + 1); }}
-        onEndReachedThreshold={0.3}
-        ListFooterComponent={
-          loadingMore
-            ? <ActivityIndicator color={colors.accent} style={{ marginVertical: 16 }} />
-            : null
-        }
-        ListEmptyComponent={
-          !loading ? (
-            <View style={s.emptyState}>
-              <Text style={s.emptyTitle}>No gyms found</Text>
-              <Text style={s.emptyBody}>Try a different category or search</Text>
-            </View>
-          ) : null
-        }
-      />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#060606' },
-  container: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
+  root:   { flex: 1, backgroundColor: colors.bg },
+  scroll: { paddingHorizontal: 18, paddingTop: 12 },
 
-  title: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', letterSpacing: -0.5, marginBottom: 14 },
+  // Header
+  header:   { marginBottom: 20 },
+  title:    { fontFamily: fonts.serif, fontSize: 28, color: '#fff', letterSpacing: -0.5 },
+  locRow:   { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  locText:  { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t2 },
 
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 50, height: 48, paddingHorizontal: 16, marginBottom: 14,
+  // Section rows
+  sectionRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  sectionTitle: { fontFamily: fonts.serif, fontSize: 17, color: '#fff', letterSpacing: -0.3 },
+  sectionTitle2:{ fontFamily: fonts.serif, fontSize: 17, color: '#fff', letterSpacing: -0.3, marginTop: 24, marginBottom: 12 },
+  viewAll:      { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.accent },
+
+  // Gym category grid (3 columns)
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 4 },
+  catCard: {
+    width: (W - 52) / 3,
+    height: 88,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
   },
-  searchInput: { flex: 1, fontFamily: fonts.sans, fontSize: 14, color: '#fff' },
+  catCardImg:  { flex: 1, justifyContent: 'flex-end', padding: 8 },
+  catCardDark: { ...StyleSheet.absoluteFillObject, borderRadius: radius.lg },
+  catIconWrap: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  catCardLabel:{ fontFamily: fonts.sansBold, fontSize: 10, color: '#fff', lineHeight: 13 },
 
-  wellnessBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: radius.xl, padding: 14, marginBottom: 16,
+  // Big cards (2 side by side)
+  bigCardsRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
+  bigCard: {
+    flex: 1,
+    height: 170,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
   },
-  wellnessIconBox: {
-    width: 44, height: 44, borderRadius: radius.lg,
-    backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.2)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  wellnessTitle: { fontFamily: fonts.serif, fontSize: 15, color: '#fff', marginBottom: 2 },
-  wellnessSub: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+  bigCardImg:     { flex: 1 },
+  bigCardDark:    { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
+  bigCardContent: { flex: 1, justifyContent: 'flex-end', padding: 14, gap: 3 },
+  bigCardIcon:    { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  bigCardLabel:   { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff' },
+  bigCardSub:     { fontFamily: fonts.sans, fontSize: 10, color: 'rgba(255,255,255,0.6)', marginBottom: 8 },
+  bigCardCta:     { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 5 },
+  bigCardCtaText: { fontFamily: fonts.sansBold, fontSize: 11 },
 
-  // Gym cards
-  gymCard: {
-    flexDirection: 'row', marginBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden',
-    height: 148,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
+  // Small service grid (2 columns)
+  smallGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  smallCard: {
+    width: HALF,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    padding: 16,
+    gap: 6,
+    position: 'relative',
   },
-  gymImgWrapper: { width: 110, height: 148, position: 'relative' },
-  gymImg: { width: 110, height: 148, resizeMode: 'cover' },
-  discountBadge: {
-    position: 'absolute', top: 0, left: 0,
-    backgroundColor: '#00D46A', paddingHorizontal: 5, paddingVertical: 3,
-    borderBottomRightRadius: 7,
-  },
-  discountText: { fontFamily: fonts.sansBold, fontSize: 8, color: '#060606' },
-  heartBtn: {
-    position: 'absolute', top: 8, right: 8,
-    width: 26, height: 26, borderRadius: 13,
-    backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center',
-  },
-
-  gymInfo: { flex: 1, padding: 10, gap: 4 },
-  infoRow1: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
-  gymName: { flex: 1, fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
-  priceBlock: { alignItems: 'flex-end', flexShrink: 0 },
-  priceFrom: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
-  priceVal: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.accent },
-  priceUnit: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
-
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  ratingText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.star },
-  reviewCount: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
-
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  locationText: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, flex: 1 },
-
-  tagsRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
-  tagPill: {
-    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5,
-    backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-  },
-  tagText: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
-
-  viewRow: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 2 },
-  viewBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: '#00D46A', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7,
-  },
-  viewBtnText: { fontFamily: fonts.sansBold, fontSize: 11, color: '#060606' },
-
-  categoryRow: { gap: 8, paddingRight: 4 },
-  categoryChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-  },
-  categoryChipActive: {
-    backgroundColor: 'rgba(0,212,106,0.15)', borderColor: 'rgba(0,212,106,0.4)',
-  },
-  categoryEmoji: { fontSize: 13 },
-  categoryLabel: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
-  categoryLabelActive: { color: colors.accent },
-
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff' },
-  filterBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
-    backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.25)',
-  },
-  filterBtnText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.accent },
-
-  emptyState: { alignItems: 'center', paddingTop: 40, gap: 10 },
-  emptyTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff' },
-  emptyBody: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
+  smallIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  smallCardLabel: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  smallCardSub:   { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
+  comingSoon: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+  comingSoonText: { fontFamily: fonts.sansBold, fontSize: 8, color: colors.t3 },
 });
