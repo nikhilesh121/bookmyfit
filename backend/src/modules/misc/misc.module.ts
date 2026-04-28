@@ -303,20 +303,58 @@ class FraudController {
 const HOMEPAGE_CONFIG_KEY = 'homepage_config';
 
 const DEFAULT_HOMEPAGE_CONFIG = {
+  _version: 2,
   sections: [
     {
       id: 'hero', type: 'hero', title: 'Hero Banner', visible: true, order: 0,
       slides: [
-        { imageUrl: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=900&q=80', headline: 'Make Every Rep', headlineAccent: 'Count!', sub: 'Find the best gyms near you\nand book your pass instantly.', cta: 'Explore Gyms', ctaRoute: '/gyms' },
-        { imageUrl: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=900&q=80', headline: 'Find Your Perfect', headlineAccent: 'Gym Today!', sub: 'Partner gyms across the city,\none subscription covers all.', cta: 'Browse Gyms', ctaRoute: '/gyms' },
-        { imageUrl: 'https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=900&q=80', headline: 'No Long', headlineAccent: 'Contracts!', sub: 'Flexible day passes, weekly\nor monthly — your choice.', cta: 'View Plans', ctaRoute: '/plans' },
+        {
+          imageUrl: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=900&q=80',
+          headline: 'Make Every Rep', headlineAccent: 'Count.',
+          sub: 'Book day passes at 50+ gyms in Bhubaneswar. No commitment.',
+          cta: 'Explore Gyms', ctaRoute: '/gyms',
+        },
+        {
+          imageUrl: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=900&q=80',
+          headline: 'One Pass,', headlineAccent: 'Every Gym.',
+          sub: 'The Multi-Gym plan gets you into any partner gym — anytime.',
+          cta: 'View Plans', ctaRoute: '/plans',
+        },
+        {
+          imageUrl: 'https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=900&q=80',
+          headline: 'Cardio. Strength.', headlineAccent: 'Yoga. All of it.',
+          sub: 'Filter by workout type and book the perfect session.',
+          cta: 'Find a Gym', ctaRoute: '/gyms?category=all',
+        },
+        {
+          imageUrl: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=900&q=80',
+          headline: 'Spa &', headlineAccent: 'Recovery.',
+          sub: 'Premium wellness services — massage, physio, and more.',
+          cta: 'Explore Wellness', ctaRoute: '/wellness',
+        },
       ],
     },
     { id: 'categories', type: 'categories', title: 'Browse by Category', visible: true, order: 1 },
     { id: 'featured_gyms', type: 'featured_gyms', title: 'Featured Gyms', visible: true, order: 2, featuredGymIds: [], gymLimit: 6 },
-    { id: 'products', type: 'products', title: 'Shop Products', visible: true, order: 3, productCategory: null, featuredProductIds: [], productLimit: 5 },
-    { id: 'trust', type: 'trust', title: 'Why BookMyFit?', visible: true, order: 4 },
-    { id: 'testimonials', type: 'testimonials', title: 'What Members Say', visible: true, order: 5 },
+    { id: 'products', type: 'products', title: 'Shop Fitness Store', visible: true, order: 3, productCategory: null, featuredProductIds: [], productLimit: 5 },
+    {
+      id: 'trust', type: 'trust', title: 'Why BookMyFit?', visible: true, order: 4,
+      items: [
+        { icon: 'shield',      label: 'Verified Gyms',   sub: 'KYC guaranteed' },
+        { icon: 'star',        label: 'Top Rated',       sub: 'Quality assured' },
+        { icon: 'bolt',        label: 'Instant Booking', sub: 'In seconds' },
+        { icon: 'headphones',  label: '24/7 Support',    sub: 'Always here' },
+      ],
+    },
+    {
+      id: 'testimonials', type: 'testimonials', title: 'What Members Say', visible: true, order: 5,
+      items: [
+        { name: 'Priya S.',    text: 'BookMyFit changed how I work out. I visit 3 different gyms a week now!', rating: 5, avatar: 'P' },
+        { name: 'Rahul M.',    text: 'The day pass system is brilliant. No more annual lock-ins.', rating: 5, avatar: 'R' },
+        { name: 'Ananya K.',   text: 'Yoga + gym in one app, one subscription. Exactly what I needed.', rating: 5, avatar: 'A' },
+        { name: 'Dev P.',      text: 'Corporate plan sorted. My whole team uses it — great value.', rating: 5, avatar: 'D' },
+      ],
+    },
   ],
 };
 
@@ -331,9 +369,12 @@ class HomepageController {
 
   private async loadConfig(): Promise<any> {
     const row = await this.configRepo.findOne({ where: { key: HOMEPAGE_CONFIG_KEY } });
-    if (row?.value) return row.value;
-    await this.configRepo.save({ key: HOMEPAGE_CONFIG_KEY, value: DEFAULT_HOMEPAGE_CONFIG });
-    return DEFAULT_HOMEPAGE_CONFIG;
+    // Reseed if missing or old v1 format (no _version)
+    if (!row?.value || !(row.value as any)._version) {
+      await this.configRepo.save({ key: HOMEPAGE_CONFIG_KEY, value: DEFAULT_HOMEPAGE_CONFIG });
+      return DEFAULT_HOMEPAGE_CONFIG;
+    }
+    return row.value;
   }
 
   @Get('config')

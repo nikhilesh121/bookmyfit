@@ -20,7 +20,9 @@
       "package": "in.bookmyfit.app",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
       ]
     },
     "plugins": [
@@ -32,11 +34,17 @@
         {
           "cameraPermission": "BookMyFit needs camera access to scan member QR codes at check-in."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow BookMyFit to use your location to find nearby gyms."
+        }
       ]
     ],
     "extra": {
       "cashfreeBaseUrl": "https://sandbox.cashfree.com",
-      "apiUrl": "https://bookmyfit.in",
+      "apiUrl": "http://192.168.1.3:3003",
       "router": {},
       "eas": {
         "projectId": "deab094a-848d-483d-9e83-d7f69adac2da"

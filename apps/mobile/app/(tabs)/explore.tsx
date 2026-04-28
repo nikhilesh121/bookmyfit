@@ -63,7 +63,7 @@ const SMALL_CARDS = [
   { id: 'trainers',  label: 'Trainers',          sub: 'Personal coaching',  color: '#60A5FA', icon: 'trainers',  route: '/trainers' },
   { id: 'videos',    label: 'Workout Videos',    sub: 'Free & premium',     color: '#F87171', icon: 'videos',    route: '/videos' },
   { id: 'corporate', label: 'Corporate Wellness',sub: 'For teams & offices', color: '#A78BFA', icon: 'corporate', route: null },
-  { id: 'nearby',    label: 'Gyms Near Me',       sub: 'Location-based',    color: '#34D399', icon: 'nearby',    route: '/gyms' },
+  { id: 'nearby',    label: 'Gyms Near Me',       sub: 'Location-based',    color: '#34D399', icon: 'nearby',    route: '/nearby' },
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────

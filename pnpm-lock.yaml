@@ -243,6 +243,9 @@ importers:
       react-native-gesture-handler:
         specifier: ~2.28.0
         version: 2.28.0(react-native@0.81.5)(react@18.3.1)
+      react-native-maps:
+        specifier: ^1.27.2
+        version: 1.27.2(react-native@0.81.5)(react@18.3.1)
       react-native-qrcode-svg:
         specifier: ^6.3.2
         version: 6.3.21(react-native-svg@15.12.1)(react-native@0.81.5)(react@18.3.1)
@@ -3550,6 +3553,10 @@ packages:
       '@types/qs': 6.15.0
       '@types/serve-static': 1.15.10
     dev: true
+
+  /@types/geojson@7946.0.16:
+    resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
+    dev: false
 
   /@types/graceful-fs@4.1.9:
     resolution: {integrity: sha512-olP3sd1qOEe5dXTSaFvQG+02VdRXcdytWLAZsAq1PecU8uqQAhkrnbli7DagjtXKW/Bl7YJbUsa8MPcuc8LHEQ==}
@@ -8488,6 +8495,22 @@ packages:
       react: 18.3.1
       react-native: '*'
     dependencies:
+      react: 18.3.1
+      react-native: 0.81.5(@babel/core@7.29.0)(@types/react@18.3.28)(react@18.3.1)
+    dev: false
+
+  /react-native-maps@1.27.2(react-native@0.81.5)(react@18.3.1):
+    resolution: {integrity: sha512-VKr+xZ2RZGHHJlY6KhlafvGSmK0dq/tUu5uhfJ7K9rwN5pUdubdugzMKGDU/16lXmQSg7xbClKhRctj3Pm5F5g==}
+    engines: {node: '>= 20.19.4'}
+    peerDependencies:
+      react: 18.3.1
+      react-native: '>= 0.76.0'
+      react-native-web: '>= 0.11'
+    peerDependenciesMeta:
+      react-native-web:
+        optional: true
+    dependencies:
+      '@types/geojson': 7946.0.16
       react: 18.3.1
       react-native: 0.81.5(@babel/core@7.29.0)(@types/react@18.3.28)(react@18.3.1)
     dev: false

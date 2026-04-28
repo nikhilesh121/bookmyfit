@@ -88,6 +88,8 @@ export default function RootLayout() {
         <Stack.Screen name="subscription-detail" options={{ headerShown: false }} />
         <Stack.Screen name="product/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="payment-webview" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="nearby" options={{ headerShown: false }} />
+        <Stack.Screen name="gyms" options={{ headerShown: false }} />
       </Stack>
     </>
   );
