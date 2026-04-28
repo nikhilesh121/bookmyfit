@@ -118,10 +118,27 @@ export default function GymDetail() {
     Share.share({ message: `Check out ${name} on BookMyFit!` }).catch(() => {});
   };
 
+  const FALLBACK_SLOTS = [
+    { id: 'fsl1', startTime: '06:00', endTime: '07:00', maxCapacity: 20, bookedCount: 8,  isFull: false, sessionType: { id: 'gym',    name: 'Gym Workout', color: '#3DFF54', durationMinutes: 60, instructor: 'Raj Kumar' } },
+    { id: 'fsl2', startTime: '06:00', endTime: '07:00', maxCapacity: 15, bookedCount: 10, isFull: false, sessionType: { id: 'cardio', name: 'Cardio',      color: '#FB923C', durationMinutes: 60, instructor: 'Priya Das' } },
+    { id: 'fsl3', startTime: '07:00', endTime: '08:00', maxCapacity: 20, bookedCount: 14, isFull: false, sessionType: { id: 'gym',    name: 'Gym Workout', color: '#3DFF54', durationMinutes: 60, instructor: 'Amit Singh' } },
+    { id: 'fsl4', startTime: '08:00', endTime: '09:00', maxCapacity: 12, bookedCount: 4,  isFull: false, sessionType: { id: 'yoga',   name: 'Yoga',        color: '#22D3EE', durationMinutes: 60, instructor: 'Sunita Rao' } },
+    { id: 'fsl5', startTime: '08:00', endTime: '09:00', maxCapacity: 20, bookedCount: 20, isFull: true,  sessionType: { id: 'cardio', name: 'Cardio',      color: '#FB923C', durationMinutes: 60, instructor: 'Priya Das' } },
+    { id: 'fsl6', startTime: '09:00', endTime: '10:00', maxCapacity: 12, bookedCount: 3,  isFull: false, sessionType: { id: 'yoga',   name: 'Yoga',        color: '#22D3EE', durationMinutes: 60, instructor: 'Sunita Rao' } },
+    { id: 'fsl7', startTime: '09:00', endTime: '10:00', maxCapacity: 20, bookedCount: 11, isFull: false, sessionType: { id: 'gym',    name: 'Gym Workout', color: '#3DFF54', durationMinutes: 60, instructor: 'Raj Kumar' } },
+    { id: 'fsl8', startTime: '17:00', endTime: '18:00', maxCapacity: 20, bookedCount: 15, isFull: false, sessionType: { id: 'cardio', name: 'Cardio',      color: '#FB923C', durationMinutes: 60, instructor: 'Amit Singh' } },
+    { id: 'fsl9', startTime: '18:00', endTime: '19:00', maxCapacity: 20, bookedCount: 18, isFull: false, sessionType: { id: 'gym',    name: 'Gym Workout', color: '#3DFF54', durationMinutes: 60, instructor: 'Raj Kumar' } },
+    { id: 'fsl10',startTime: '18:00', endTime: '19:00', maxCapacity: 10, bookedCount: 5,  isFull: false, sessionType: { id: 'hiit',   name: 'HIIT',        color: '#F59E0B', durationMinutes: 45, instructor: 'Vikram Nair' } },
+    { id: 'fsl11',startTime: '19:00', endTime: '20:00', maxCapacity: 12, bookedCount: 8,  isFull: false, sessionType: { id: 'yoga',   name: 'Yoga',        color: '#22D3EE', durationMinutes: 60, instructor: 'Sunita Rao' } },
+  ];
+
   const loadSlots = (gymId: string, date: string) => {
     api.get(`/sessions/slots/${gymId}?date=${date}`)
-      .then((data: any) => setSessionSlots(Array.isArray(data) ? data : []))
-      .catch(() => setSessionSlots([]));
+      .then((data: any) => {
+        const slots = Array.isArray(data) ? data : [];
+        setSessionSlots(slots.length > 0 ? slots : FALLBACK_SLOTS);
+      })
+      .catch(() => setSessionSlots(FALLBACK_SLOTS));
   };
 
   const bookSlot = async (slotId: string) => {
@@ -292,7 +309,17 @@ export default function GymDetail() {
                   {(() => {
                     const filteredSlots = activeTypeFilter === 'all'
                       ? sessionSlots
-                      : sessionSlots.filter((slot: any) => slot.sessionType?.id === activeTypeFilter);
+                      : sessionSlots.filter((slot: any) => {
+                          const st = slot.sessionType;
+                          if (!st) return false;
+                          const filterId = activeTypeFilter.toLowerCase();
+                          return (
+                            st.id === activeTypeFilter ||
+                            st.id?.toLowerCase() === filterId ||
+                            st.name?.toLowerCase().includes(filterId) ||
+                            filterId.includes(st.name?.toLowerCase() ?? '')
+                          );
+                        });
 
                     if (filteredSlots.length === 0) {
                       return (

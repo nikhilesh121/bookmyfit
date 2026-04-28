@@ -134,11 +134,12 @@ export default function Subscriptions() {
               const handleBookSlot = (e: any) => {
                 e.stopPropagation();
                 if (planType === 'multi_gym') {
+                  // Multi-gym: pick a gym first
                   router.push('/gyms' as any);
                 } else if (firstGymId) {
-                  router.push({ pathname: '/gym/[id]', params: { id: firstGymId } } as any);
+                  // Go straight to slot booking for this gym
+                  router.push({ pathname: '/slots', params: { gymId: firstGymId } } as any);
                 } else {
-                  // No gym ID — go to gym listing so user can pick
                   router.push('/gyms' as any);
                 }
               };

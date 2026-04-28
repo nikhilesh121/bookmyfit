@@ -38,12 +38,17 @@ function dayLabel(d: Date, index: number) {
 }
 
 const FALLBACK_SLOTS = [
-  { id: 'sl1', startTime: '06:00', endTime: '07:00', capacity: 20, booked: 12, isFull: false, sessionTypeId: 'gym', sessionType: { id: 'gym', name: 'Gym Workout', color: '#3DFF54' } },
-  { id: 'sl2', startTime: '07:00', endTime: '08:00', capacity: 20, booked: 20, isFull: true, sessionTypeId: 'cardio', sessionType: { id: 'cardio', name: 'Cardio', color: '#FB923C' } },
-  { id: 'sl3', startTime: '08:00', endTime: '09:00', capacity: 20, booked: 8, isFull: false, sessionTypeId: 'gym', sessionType: { id: 'gym', name: 'Gym Workout', color: '#3DFF54' } },
-  { id: 'sl4', startTime: '09:00', endTime: '10:00', capacity: 15, booked: 5, isFull: false, sessionTypeId: 'yoga', sessionType: { id: 'yoga', name: 'Yoga', color: '#22D3EE' } },
-  { id: 'sl5', startTime: '17:00', endTime: '18:00', capacity: 20, booked: 15, isFull: false, sessionTypeId: 'cardio', sessionType: { id: 'cardio', name: 'Cardio', color: '#FB923C' } },
-  { id: 'sl6', startTime: '18:00', endTime: '19:00', capacity: 20, booked: 19, isFull: false, sessionTypeId: 'gym', sessionType: { id: 'gym', name: 'Gym Workout', color: '#3DFF54' } },
+  { id: 'sl1',  startTime: '06:00', endTime: '07:00', capacity: 20, booked: 8,  maxCapacity: 20, bookedCount: 8,  isFull: false, sessionTypeId: 'gym',    sessionType: { id: 'gym',    name: 'Gym Workout', color: '#3DFF54', durationMinutes: 60, instructor: 'Raj Kumar' } },
+  { id: 'sl2',  startTime: '06:00', endTime: '07:00', capacity: 15, booked: 10, maxCapacity: 15, bookedCount: 10, isFull: false, sessionTypeId: 'cardio', sessionType: { id: 'cardio', name: 'Cardio',      color: '#FB923C', durationMinutes: 60, instructor: 'Priya Das' } },
+  { id: 'sl3',  startTime: '07:00', endTime: '08:00', capacity: 20, booked: 14, maxCapacity: 20, bookedCount: 14, isFull: false, sessionTypeId: 'gym',    sessionType: { id: 'gym',    name: 'Gym Workout', color: '#3DFF54', durationMinutes: 60, instructor: 'Amit Singh' } },
+  { id: 'sl4',  startTime: '08:00', endTime: '09:00', capacity: 12, booked: 4,  maxCapacity: 12, bookedCount: 4,  isFull: false, sessionTypeId: 'yoga',   sessionType: { id: 'yoga',   name: 'Yoga',        color: '#22D3EE', durationMinutes: 60, instructor: 'Sunita Rao' } },
+  { id: 'sl5',  startTime: '08:00', endTime: '09:00', capacity: 20, booked: 20, maxCapacity: 20, bookedCount: 20, isFull: true,  sessionTypeId: 'cardio', sessionType: { id: 'cardio', name: 'Cardio',      color: '#FB923C', durationMinutes: 60, instructor: 'Priya Das' } },
+  { id: 'sl6',  startTime: '09:00', endTime: '10:00', capacity: 12, booked: 3,  maxCapacity: 12, bookedCount: 3,  isFull: false, sessionTypeId: 'yoga',   sessionType: { id: 'yoga',   name: 'Yoga',        color: '#22D3EE', durationMinutes: 60, instructor: 'Sunita Rao' } },
+  { id: 'sl7',  startTime: '09:00', endTime: '10:00', capacity: 20, booked: 11, maxCapacity: 20, bookedCount: 11, isFull: false, sessionTypeId: 'gym',    sessionType: { id: 'gym',    name: 'Gym Workout', color: '#3DFF54', durationMinutes: 60, instructor: 'Raj Kumar' } },
+  { id: 'sl8',  startTime: '17:00', endTime: '18:00', capacity: 20, booked: 15, maxCapacity: 20, bookedCount: 15, isFull: false, sessionTypeId: 'cardio', sessionType: { id: 'cardio', name: 'Cardio',      color: '#FB923C', durationMinutes: 60, instructor: 'Amit Singh' } },
+  { id: 'sl9',  startTime: '18:00', endTime: '19:00', capacity: 20, booked: 18, maxCapacity: 20, bookedCount: 18, isFull: false, sessionTypeId: 'gym',    sessionType: { id: 'gym',    name: 'Gym Workout', color: '#3DFF54', durationMinutes: 60, instructor: 'Raj Kumar' } },
+  { id: 'sl10', startTime: '18:00', endTime: '19:00', capacity: 10, booked: 5,  maxCapacity: 10, bookedCount: 5,  isFull: false, sessionTypeId: 'hiit',   sessionType: { id: 'hiit',   name: 'HIIT',        color: '#F59E0B', durationMinutes: 45, instructor: 'Vikram Nair' } },
+  { id: 'sl11', startTime: '19:00', endTime: '20:00', capacity: 12, booked: 8,  maxCapacity: 12, bookedCount: 8,  isFull: false, sessionTypeId: 'yoga',   sessionType: { id: 'yoga',   name: 'Yoga',        color: '#22D3EE', durationMinutes: 60, instructor: 'Sunita Rao' } },
 ];
 
 const FALLBACK_BOOKINGS = [
@@ -70,7 +75,7 @@ export default function SlotsScreen() {
       const res: any = await slotsApi.list(gymId || '', date);
       let items = Array.isArray(res) ? res : res?.slots ?? res?.data ?? [];
 
-      // For today (dayIndex === 0), filter out past time slots
+      // Filter out past slots for today
       if (dayIndex === 0) {
         const now = new Date();
         const currentHHMM = now.getHours() * 60 + now.getMinutes();
@@ -81,9 +86,9 @@ export default function SlotsScreen() {
         });
       }
 
-      setSlots(items.length > 0 ? items : (dayIndex === 0 ? [] : FALLBACK_SLOTS));
+      setSlots(items.length > 0 ? items : FALLBACK_SLOTS);
     } catch {
-      setSlots(dayIndex === 0 ? [] : FALLBACK_SLOTS);
+      setSlots(FALLBACK_SLOTS);
     } finally {
       setLoading(false);
     }
@@ -234,7 +239,14 @@ export default function SlotsScreen() {
           </View>
         ) : (
           slots
-            .filter((slot: any) => activeType === 'all' || (slot.sessionType?.id === activeType) || (slot.sessionTypeId === activeType))
+            .filter((slot: any) => {
+              if (activeType === 'all') return true;
+              const st = slot.sessionType;
+              if (!st) return slot.sessionTypeId === activeType;
+              const f = activeType.toLowerCase();
+              return st.id === activeType || st.id?.toLowerCase() === f ||
+                st.name?.toLowerCase().includes(f) || f.includes(st.name?.toLowerCase() ?? '');
+            })
             .map((slot: any) => {
             const isFull = slot.isFull || (slot.booked >= slot.capacity);
             const available = (slot.capacity || 0) - (slot.booked || 0);
