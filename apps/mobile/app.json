@@ -44,7 +44,7 @@
     ],
     "extra": {
       "cashfreeBaseUrl": "https://sandbox.cashfree.com",
-      "apiUrl": "https://bookmyfit.in/api/v1",
+      "apiUrl": "https://bookmyfit.in",
       "router": {},
       "eas": {
         "projectId": "deab094a-848d-483d-9e83-d7f69adac2da"
