@@ -20,11 +20,21 @@ function daysLeft(endDate: string) {
   const diff = new Date(endDate).getTime() - Date.now();
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
   if (days <= 0) return 'Expired';
+  if (days === 1) return 'Last day';
   return `${days} days left`;
 }
 
 export default function SubscriptionDetail() {
-  const { subscriptionId } = useLocalSearchParams<{ subscriptionId?: string }>();
+  const {
+    subscriptionId,
+    fallbackName, fallbackPlan, fallbackStatus,
+    fallbackStart, fallbackEnd, fallbackImg, fallbackPlanType, fallbackGymId,
+  } = useLocalSearchParams<{
+    subscriptionId?: string;
+    fallbackName?: string; fallbackPlan?: string; fallbackStatus?: string;
+    fallbackStart?: string; fallbackEnd?: string; fallbackImg?: string;
+    fallbackPlanType?: string; fallbackGymId?: string;
+  }>();
   const [sub, setSub] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,11 +43,24 @@ export default function SubscriptionDetail() {
       .then((data: any) => {
         const list: any[] = Array.isArray(data) ? data : data?.subscriptions || data?.data || [];
         const found = list.find((s: any) => (s.id || s._id) === subscriptionId);
-        setSub(found || list[0] || null);
+        setSub(found || null);
       })
       .catch(() => setSub(null))
       .finally(() => setLoading(false));
   }, [subscriptionId]);
+
+  // Build sub from fallback params when API can't find it
+  const resolvedSub = sub || (fallbackName ? {
+    id: subscriptionId,
+    gymName: fallbackName,
+    plan: { name: fallbackPlan || 'Pass' },
+    status: fallbackStatus || 'active',
+    startDate: fallbackStart || '',
+    endDate: fallbackEnd || '',
+    coverImage: fallbackImg || '',
+    planType: fallbackPlanType || 'same_gym',
+    gymId: fallbackGymId || '',
+  } : null);
 
   if (loading) {
     return (
@@ -47,31 +70,48 @@ export default function SubscriptionDetail() {
     );
   }
 
-  if (!sub) {
+  if (!resolvedSub) {
     return (
-      <AuroraBackground variant="premium"><SafeAreaView style={{ flex: 1 }}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-          <IconDumbbell size={40} color={colors.accent} />
-          <Text style={{ fontFamily: fonts.serif, fontSize: 18, color: '#fff' }}>Subscription not found</Text>
-          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 8 }}>
-            <Text style={{ fontFamily: fonts.sansBold, fontSize: 14, color: colors.accent }}>Go back</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView></AuroraBackground>
+      <AuroraBackground variant="premium">
+        <SafeAreaView style={{ flex: 1 }}>
+          <View style={s.header}>
+            <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+              <IconArrowLeft size={18} color={colors.t} />
+            </TouchableOpacity>
+            <Text style={s.title}>Membership Detail</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 }}>
+            <IconDumbbell size={48} color={colors.accent} />
+            <Text style={{ fontFamily: fonts.serif, fontSize: 22, color: '#fff', textAlign: 'center' }}>Membership Details Unavailable</Text>
+            <Text style={{ fontFamily: fonts.sans, fontSize: 14, color: colors.t2, textAlign: 'center', lineHeight: 20 }}>
+              We could not load this membership. Please check your connection and try again.
+            </Text>
+            <TouchableOpacity
+              style={{ backgroundColor: colors.accent, borderRadius: radius.xl, paddingHorizontal: 28, paddingVertical: 12, marginTop: 8 }}
+              onPress={() => router.back()}
+            >
+              <Text style={{ fontFamily: fonts.sansBold, fontSize: 14, color: '#060606' }}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </AuroraBackground>
     );
   }
 
-  const gymName = sub.gym?.name || sub.gymName || 'Gym';
-  const planName = sub.plan?.name || sub.planName || 'Plan';
-  const duration = sub.durationMonths ? `${sub.durationMonths} Month${sub.durationMonths > 1 ? 's' : ''}` : '';
-  const status = (sub.status || 'active').toLowerCase();
+  const sub2 = resolvedSub;
+  const gymName = sub2.gym?.name || sub2.gymName || 'Gym';
+  const planName = sub2.plan?.name || sub2.planName || 'Plan';
+  const duration = sub2.durationMonths ? `${sub2.durationMonths} Month${sub2.durationMonths > 1 ? 's' : ''}` : '';
+  const status = (sub2.status || 'active').toLowerCase();
   const isActive = status === 'active';
-  const img = sub.gym?.coverImage || sub.gym?.images?.[0] || sub.coverImage || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80';
-  const progress = sub.progress ?? (sub.startDate && sub.endDate ? calcProgress(sub.startDate, sub.endDate) : 0.5);
-  const left = sub.endDate ? daysLeft(sub.endDate) : (isActive ? 'Active' : 'Expired');
-  const startFmt = sub.startDate ? new Date(sub.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
-  const endFmt = sub.endDate ? new Date(sub.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
-  const subId = sub.id || sub._id;
+  const img = sub2.gym?.coverImage || sub2.gym?.images?.[0] || sub2.coverImage || fallbackImg || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80';
+  const progress = sub2.progress ?? (sub2.startDate && sub2.endDate ? calcProgress(sub2.startDate, sub2.endDate) : 0.5);
+  const daysLeftStr = sub2.endDate ? daysLeft(sub2.endDate) : (isActive ? 'Active' : 'Expired');
+  const left = daysLeftStr;
+  const startFmt = sub2.startDate ? new Date(sub2.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+  const endFmt = sub2.endDate ? new Date(sub2.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+  const subId = sub2.id || sub2._id;
 
   return (
     <AuroraBackground variant="premium">
@@ -82,7 +122,7 @@ export default function SubscriptionDetail() {
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
             <IconArrowLeft size={18} color={colors.t} />
           </TouchableOpacity>
-          <Text style={s.title}>Subscription Detail</Text>
+          <Text style={s.title}>Membership Detail</Text>
         </View>
 
         {/* Hero card */}

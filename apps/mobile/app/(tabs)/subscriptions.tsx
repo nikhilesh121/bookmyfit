@@ -121,7 +121,9 @@ export default function Subscriptions() {
               const used = sub.startDate && sub.endDate ? usedDays(sub.startDate, sub.endDate) : 0;
               const total = sub.startDate && sub.endDate ? totalDays(sub.startDate, sub.endDate) : 0;
               const daysLeftNum = sub.endDate
-                ? Math.max(0, Math.ceil((new Date(sub.endDate).getTime() - Date.now()) / 86400000))
+                ? (isActive
+                    ? Math.max(1, Math.ceil((new Date(sub.endDate).getTime() - Date.now()) / 86400000))
+                    : 0)
                 : null;
 
               // Resolve gym ID for navigation
@@ -134,14 +136,50 @@ export default function Subscriptions() {
               const handleBookSlot = (e: any) => {
                 e.stopPropagation();
                 if (planType === 'multi_gym') {
-                  // Multi-gym: pick a gym first
                   router.push('/gyms' as any);
                 } else if (firstGymId) {
-                  // Go straight to slot booking for this gym
                   router.push({ pathname: '/slots', params: { gymId: firstGymId } } as any);
                 } else {
                   router.push('/gyms' as any);
                 }
+              };
+
+              // Card tap: single gym → gym detail, multi gym → partners
+              const handleCardTap = () => {
+                if (planType === 'multi_gym') {
+                  router.push('/multi-gym-network' as any);
+                } else if (firstGymId) {
+                  router.push({
+                    pathname: `/gym/${firstGymId}` as any,
+                    params: {
+                      fallbackName: gymDisplayName,
+                      fallbackAddress: sub.gym?.city || sub.gym?.area || '',
+                      fallbackRating: String(sub.gym?.rating || 0),
+                      fallbackTier: planType === 'same_gym' ? 'premium' : 'basic',
+                    },
+                  } as any);
+                } else {
+                  router.push('/gyms' as any);
+                }
+              };
+
+              // Subscription detail: pass sub data as params for fallback
+              const handleDetailTap = (e: any) => {
+                e.stopPropagation();
+                router.push({
+                  pathname: '/subscription-detail',
+                  params: {
+                    subscriptionId: subId,
+                    fallbackName: gymDisplayName,
+                    fallbackPlan: sub.plan?.name || planType,
+                    fallbackStatus: status,
+                    fallbackStart: sub.startDate || '',
+                    fallbackEnd: sub.endDate || '',
+                    fallbackImg: heroImg,
+                    fallbackPlanType: planType,
+                    fallbackGymId: firstGymId,
+                  },
+                } as any);
               };
 
               return (
@@ -149,7 +187,7 @@ export default function Subscriptions() {
                   key={subId}
                   activeOpacity={0.9}
                   style={[s.subCard, !isActive && { opacity: 0.72 }]}
-                  onPress={() => router.push({ pathname: '/subscription-detail', params: { subscriptionId: subId } } as any)}
+                  onPress={handleCardTap}
                 >
                   {/* Hero image with overlay */}
                   <ImageBackground source={{ uri: heroImg }} style={s.heroImg} imageStyle={{ borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg }}>
@@ -210,7 +248,7 @@ export default function Subscriptions() {
 
                         <TouchableOpacity
                           style={s.detailBtn}
-                          onPress={() => router.push({ pathname: '/subscription-detail', params: { subscriptionId: subId } } as any)}
+                          onPress={handleDetailTap}
                         >
                           <IconArrowRight size={14} color={colors.t2} />
                         </TouchableOpacity>

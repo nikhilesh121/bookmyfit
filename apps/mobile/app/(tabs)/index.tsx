@@ -52,10 +52,10 @@ const FALLBACK_CONFIG = {
     {
       id: 'featured_gyms', type: 'featured_gyms', title: 'Featured Gyms', visible: true, order: 2,
       gyms: [
-        { id: '1', name: "Gold's Gym Bhubaneswar",      city: 'Bhubaneswar', rating: 4.7, images: ['https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80'], dayPassPrice: 199 },
-        { id: '2', name: 'Anytime Fitness Bhubaneswar', city: 'Bhubaneswar', rating: 4.5, images: ['https://images.unsplash.com/photo-1532384661954-a0e26f4f065c?w=600&q=80'], dayPassPrice: 149 },
-        { id: '3', name: 'Cult.fit Bhubaneswar',        city: 'Bhubaneswar', rating: 4.8, images: ['https://images.unsplash.com/photo-1549476464-37392f717541?w=600&q=80'], dayPassPrice: 99 },
-        { id: '4', name: 'CrossFit Bhubaneswar',        city: 'Bhubaneswar', rating: 4.6, images: ['https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80'], dayPassPrice: 199 },
+        { id: 'c5b25fd2-c918-4bf4-a7c5-35170f0155b1', name: "Gold's Gym Bhubaneswar",      city: 'Bhubaneswar', rating: 4.7, images: ['https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80'], dayPassPrice: 199 },
+        { id: '554d5de4-38c0-4b87-a2f4-51e0124e859f', name: 'Anytime Fitness Bhubaneswar', city: 'Bhubaneswar', rating: 4.5, images: ['https://images.unsplash.com/photo-1532384661954-a0e26f4f065c?w=600&q=80'], dayPassPrice: 149 },
+        { id: 'bf67d2fc-4b70-43e3-93c4-da533e5caa09', name: 'Cult.fit Bhubaneswar',        city: 'Bhubaneswar', rating: 4.8, images: ['https://images.unsplash.com/photo-1549476464-37392f717541?w=600&q=80'], dayPassPrice: 99  },
+        { id: '547b28de-54cf-4f3a-a036-c1f9294066e6', name: 'CrossFit Bhubaneswar',        city: 'Bhubaneswar', rating: 4.6, images: ['https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80'], dayPassPrice: 199 },
       ],
     },
     {
@@ -262,7 +262,15 @@ function FeaturedGymsSection({ section }: { section: any }) {
           const name = (g.name || 'Gym').split(' ').slice(0, 2).join(' ');
           const gid = g.id || g._id;
           return (
-            <TouchableOpacity key={gid} style={s.gymFeatCard} onPress={() => router.push(`/gym/${gid}` as any)} activeOpacity={0.85}>
+            <TouchableOpacity key={gid} style={s.gymFeatCard} onPress={() => router.push({
+              pathname: `/gym/${gid}` as any,
+              params: {
+                fallbackName: g.name || '',
+                fallbackAddress: g.city || '',
+                fallbackRating: String(g.rating || 0),
+                fallbackTier: 'premium',
+              },
+            })} activeOpacity={0.85}>
               <ImageBackground source={{ uri: img }} style={s.gymFeatImg} imageStyle={{ borderRadius: radius.xl }}>
                 <View style={s.gymFeatDark} />
                 <Text style={s.gymFeatRank}>#{idx + 1}</Text>

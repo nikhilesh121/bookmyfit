@@ -74,15 +74,18 @@ export default function CartScreen() {
         user?.address || user?.location || '',
         user?.phone || user?.phoneNumber || '',
       );
+      const { order, payment } = res;
       clearCart();
       setItems([]);
+      // Route through payment webview (Cashfree or mock)
       router.replace({
-        pathname: '/success',
+        pathname: '/payment-webview',
         params: {
-          orderId: res?.id ?? res?.orderId ?? '',
-          planId: 'store_order',
-          gymId: '',
-          subscriptionId: '',
+          paymentSessionId: payment?.paymentSessionId || payment?.payment_session_id || '',
+          orderId: payment?.orderId || payment?.order_id || order?.cashfreeOrderId || order?.id || '',
+          returnRoute: 'store',
+          serviceName: `Order #${String(order?.id || '').slice(0, 8).toUpperCase()}`,
+          amount: String(order?.totalAmount || 0),
         },
       } as any);
     } catch (e: any) {
