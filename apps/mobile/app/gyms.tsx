@@ -56,38 +56,38 @@ export default function GymListingPage() {
   const [showSortSheet, setShowSortSheet] = useState(false);
   const pageRef = useRef(1);
 
+  const filterByCat = (list: any[], cat: string) => {
+    if (cat === 'all') return list;
+    return list.filter((g: any) => {
+      const cats = [...(g.categories || []), ...(g.amenities || [])];
+      return cats.some((c: string) => c.toLowerCase() === cat.toLowerCase());
+    });
+  };
+
   const load = useCallback(async (pg: number, cat: string) => {
-    if (pg === 1) setLoading(true); else setLoadingMore(true);
+    // Only show full skeleton on very first load (no data yet)
+    if (pg === 1 && gyms.length === 0) setLoading(true);
+    else if (pg > 1) setLoadingMore(true);
+    else setLoadingMore(true); // category switch: spinner, keep existing list
     try {
-      const params: any = { page: pg, limit: 15 };
-      if (cat !== 'all') params.category = cat;
+      const params: any = { page: pg, limit: 50 }; // fetch more so local filter has data
       const res: any = await gymsApi.list(params);
-      const list = Array.isArray(res) ? res : res?.gyms || res?.data || [];
-      const filtered = cat === 'all'
-        ? FALLBACK_GYMS
-        : FALLBACK_GYMS.filter(g =>
-            g.amenities.some((a: string) => a.toLowerCase() === cat.toLowerCase()) ||
-            (g as any).categories?.some((c: string) => c.toLowerCase() === cat.toLowerCase())
-          );
-      if (list.length === 0 && pg === 1) { setGyms(filtered); setHasMore(false); return; }
+      const raw = Array.isArray(res) ? res : res?.gyms || res?.data || [];
+      const list = filterByCat(raw, cat);
+      const fallback = filterByCat(FALLBACK_GYMS, cat);
+      if (raw.length === 0 && pg === 1) { setGyms(fallback); setHasMore(false); return; }
+      if (list.length === 0 && pg === 1) { setGyms(fallback); setHasMore(false); return; }
       if (pg === 1) setGyms(list); else setGyms((prev) => [...prev, ...list]);
-      setHasMore(list.length >= 15);
+      setHasMore(raw.length >= 50);
       pageRef.current = pg;
     } catch {
-      if (pg === 1) {
-        const filtered = cat === 'all'
-          ? FALLBACK_GYMS
-          : FALLBACK_GYMS.filter(g =>
-              g.amenities.some((a: string) => a.toLowerCase() === cat.toLowerCase())
-            );
-        setGyms(filtered);
-      }
+      if (pg === 1) setGyms(filterByCat(FALLBACK_GYMS, cat));
       setHasMore(false);
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [gyms.length]);
 
   useEffect(() => {
     setPage(1);
@@ -140,7 +140,7 @@ export default function GymListingPage() {
         horizontal
         showsHorizontalScrollIndicator={false}
         keyExtractor={(c) => c.id}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}
         renderItem={({ item: cat }) => {
           const active = activeCategory === cat.id;
           return (
@@ -149,7 +149,7 @@ export default function GymListingPage() {
               onPress={() => setActiveCategory(cat.id)}
             >
               {active && <View style={s.chipDot} />}
-              <Text style={[s.chipText, active && s.chipTextActive]}>{cat.label}</Text>
+              <Text style={[s.chipText, active && s.chipTextActive]} numberOfLines={1}>{cat.label}</Text>
             </TouchableOpacity>
           );
         }}
@@ -171,20 +171,26 @@ export default function GymListingPage() {
           ))}
         </View>
       ) : (
-        <FlatList
-          data={sorted}
-          keyExtractor={(g) => g.id || g._id}
-          contentContainerStyle={{ padding: 16, gap: 12 }}
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.4}
-          ListEmptyComponent={
-            <View style={s.empty}>
-              <Text style={s.emptyText}>No gyms found in this category.</Text>
+        <View style={{ flex: 1 }}>
+          {loadingMore && (
+            <View style={{ paddingVertical: 8, alignItems: 'center' }}>
+              <ActivityIndicator color={colors.accent} size="small" />
             </View>
-          }
-          ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.accent} style={{ marginVertical: 16 }} /> : null}
-          renderItem={({ item: g }) => <GymCard gym={g} />}
-        />
+          )}
+          <FlatList
+            data={sorted}
+            keyExtractor={(g) => String(g.id || g._id)}
+            contentContainerStyle={{ padding: 16, gap: 12 }}
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.4}
+            ListEmptyComponent={
+              <View style={s.empty}>
+                <Text style={s.emptyText}>No gyms found in this category.</Text>
+              </View>
+            }
+            renderItem={({ item: g }) => <GymCard gym={g} />}
+          />
+        </View>
       )}
 
       {/* ── Sort bottom sheet ── */}
@@ -277,10 +283,10 @@ const s = StyleSheet.create({
   sortBtnText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
 
   // Chips
-  chip:          { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 68 },
+  chip:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, flexDirection: 'row', alignItems: 'center', gap: 5 },
   chipActive:    { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
-  chipDot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
-  chipText:      { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t2 },
+  chipDot:       { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.accent },
+  chipText:      { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
   chipTextActive:{ color: colors.accent },
 
   // Gym card

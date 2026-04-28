@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
-import { IconRefresh, IconDumbbell, IconCalendar, IconTicket } from '../../components/Icons';
+import { IconRefresh, IconDumbbell, IconCalendar, IconArrowRight } from '../../components/Icons';
 import { subscriptionsApi } from '../../lib/api';
 import AuroraBackground from '../../components/AuroraBackground';
 
+// Fallback with gym IDs so "Book Slot" can navigate
 const FALLBACK_SUBS = [
-  { id: 's1', planType: 'multi_gym', gymIds: [], gym: { name: 'PowerZone Fitness' }, plan: { name: 'Multi Gym Pass' }, durationMonths: 3, startDate: '2025-04-14', endDate: '2025-07-14', status: 'active' },
-  { id: 's2', planType: 'same_gym', gymIds: [], gym: { name: 'FitHub Pro' }, plan: { name: 'Same Gym Pass' }, durationMonths: 1, startDate: '2025-03-28', endDate: '2025-04-28', status: 'active' },
-  { id: 's3', planType: 'same_gym', gymIds: [], gym: { name: 'IronBody Gym' }, plan: { name: 'Same Gym Pass' }, durationMonths: 1, startDate: '2025-03-01', endDate: '2025-03-31', status: 'expired' },
+  { id: 's1', planType: 'multi_gym', gymIds: [], gym: { id: '1', name: 'All Partner Gyms', images: ['https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80'] }, plan: { name: 'Multi Gym Pass' }, durationMonths: 3, startDate: '2025-04-14', endDate: '2025-07-14', status: 'active' },
+  { id: 's2', planType: 'same_gym', gymIds: ['2'], gymId: '2', gym: { id: '2', name: 'Anytime Fitness', images: ['https://images.unsplash.com/photo-1532384661954-a0e26f4f065c?w=600&q=80'] }, plan: { name: 'Same Gym Pass' }, durationMonths: 1, startDate: '2025-03-28', endDate: '2025-05-28', status: 'active' },
+  { id: 's3', planType: 'same_gym', gymIds: ['3'], gymId: '3', gym: { id: '3', name: "Gold's Gym", images: ['https://images.unsplash.com/photo-1549476464-37392f717541?w=600&q=80'] }, plan: { name: 'Same Gym Pass' }, durationMonths: 1, startDate: '2025-03-01', endDate: '2025-03-31', status: 'expired' },
 ];
 
 const PLAN_COLOR: Record<string, string> = {
@@ -106,7 +107,7 @@ export default function Subscriptions() {
 
               const gymDisplayName =
                 planType === 'multi_gym'
-                  ? 'All Partner Gyms'
+                  ? 'Multi Gym Pass'
                   : (sub.gymName || sub.gym?.name || (planType === 'day_pass' ? 'Selected Gym' : 'Your Gym'));
 
               const validityText =
@@ -119,9 +120,28 @@ export default function Subscriptions() {
                 : (sub.progress ?? 0.5);
               const used = sub.startDate && sub.endDate ? usedDays(sub.startDate, sub.endDate) : 0;
               const total = sub.startDate && sub.endDate ? totalDays(sub.startDate, sub.endDate) : 0;
+              const daysLeftNum = sub.endDate
+                ? Math.max(0, Math.ceil((new Date(sub.endDate).getTime() - Date.now()) / 86400000))
+                : null;
 
+              // Resolve gym ID for navigation
               const gymIds: string[] = sub.gymIds || (sub.gymId ? [sub.gymId] : []);
-              const firstGymId = gymIds[0] || sub.gym?._id || sub.gym?.id || '';
+              const firstGymId = gymIds[0] || sub.gym?.id || sub.gym?._id || sub.gymId || '';
+
+              const heroImg = sub.gym?.images?.[0] || sub.gym?.coverImage ||
+                'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80';
+
+              const handleBookSlot = (e: any) => {
+                e.stopPropagation();
+                if (planType === 'multi_gym') {
+                  router.push('/gyms' as any);
+                } else if (firstGymId) {
+                  router.push({ pathname: '/gym/[id]', params: { id: firstGymId } } as any);
+                } else {
+                  // No gym ID — go to gym listing so user can pick
+                  router.push('/gyms' as any);
+                }
+              };
 
               return (
                 <TouchableOpacity
@@ -130,70 +150,47 @@ export default function Subscriptions() {
                   style={[s.subCard, !isActive && { opacity: 0.72 }]}
                   onPress={() => router.push({ pathname: '/subscription-detail', params: { subscriptionId: subId } } as any)}
                 >
-                  {/* Top accent bar */}
-                  <View style={[s.accentBar, { backgroundColor: planColor }]} />
-
-                  <View style={s.cardBody}>
-                    {/* Pass type badge */}
-                    <View style={[s.passTypeBadge, { backgroundColor: `${planColor}20` }]}>
-                      <Text style={[s.passTypeBadgeText, { color: planColor }]}>{badgeLabel}</Text>
+                  {/* Hero image with overlay */}
+                  <ImageBackground source={{ uri: heroImg }} style={s.heroImg} imageStyle={{ borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg }}>
+                    <View style={s.heroDark} />
+                    <View style={s.heroContent}>
+                      <View style={[s.passTypeBadge, { backgroundColor: `${planColor}30`, borderColor: `${planColor}60` }]}>
+                        <Text style={[s.passTypeBadgeText, { color: planColor }]}>{badgeLabel}</Text>
+                      </View>
+                      <Text style={s.gymNameText} numberOfLines={1}>{gymDisplayName}</Text>
+                      {!!validityText && <Text style={s.validityHero}>{validityText}</Text>}
                     </View>
+                    {/* Days left chip */}
+                    {isActive && daysLeftNum !== null && (
+                      <View style={s.daysChip}>
+                        <Text style={s.daysChipText}>{daysLeftNum}d left</Text>
+                      </View>
+                    )}
+                    {!isActive && (
+                      <View style={[s.daysChip, { backgroundColor: 'rgba(255,60,60,0.85)' }]}>
+                        <Text style={s.daysChipText}>Expired</Text>
+                      </View>
+                    )}
+                  </ImageBackground>
 
-                    {/* Gym name */}
-                    <Text style={s.gymNameText} numberOfLines={1}>{gymDisplayName}</Text>
-
-                    {/* Validity */}
-                    {!!validityText && <Text style={s.validityText}>{validityText}</Text>}
-
-                    {/* Progress bar */}
+                  {/* Bottom bar */}
+                  <View style={s.cardBottom}>
+                    {/* Progress */}
                     {total > 0 && (
-                      <>
+                      <View style={{ marginBottom: 12 }}>
                         <View style={s.progressTrack}>
                           <View style={[s.progressFill, { width: `${Math.min(progress * 100, 100)}%` as any, backgroundColor: planColor }]} />
                         </View>
                         <Text style={s.progressLabel}>{used} / {total} days used</Text>
-                      </>
+                      </View>
                     )}
 
-                    {/* Status badge + action row */}
-                    <View style={s.statusRow}>
-                      {isActive ? (
-                        <View style={s.statusActivePill}>
-                          <View style={[s.statusDot, { backgroundColor: colors.accent }]} />
-                          <Text style={s.statusActiveText}>ACTIVE</Text>
-                        </View>
-                      ) : (
-                        <View style={s.statusExpiredPill}>
-                          <Text style={s.statusExpiredText}>EXPIRED</Text>
-                        </View>
-                      )}
-
-                      {!isActive && (
-                        <TouchableOpacity
-                          style={s.ghostBtn}
-                          onPress={(e) => { e.stopPropagation(); router.push('/plans'); }}
-                        >
-                          <IconRefresh size={12} color={colors.t} />
-                          <Text style={s.ghostBtnText}>Renew</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-
                     {/* Action buttons */}
-                    {isActive && (
+                    {isActive ? (
                       <View style={s.actionRow}>
                         <TouchableOpacity
                           style={[s.actionBtn, { backgroundColor: planColor }]}
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            if (planType === 'multi_gym') {
-                              router.push('/(tabs)/explore' as any);
-                            } else if (firstGymId) {
-                              router.push({ pathname: '/gym/[id]', params: { id: firstGymId } } as any);
-                            } else {
-                              router.push('/(tabs)/explore' as any);
-                            }
-                          }}
+                          onPress={handleBookSlot}
                         >
                           <IconCalendar size={13} color="#060606" />
                           <Text style={[s.actionBtnText, { color: '#060606' }]}>
@@ -203,13 +200,28 @@ export default function Subscriptions() {
 
                         {planType === 'multi_gym' && (
                           <TouchableOpacity
-                            style={[s.actionBtn, { backgroundColor: 'rgba(167,139,250,0.15)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.35)' }]}
+                            style={[s.actionBtn, { backgroundColor: 'rgba(167,139,250,0.12)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.35)' }]}
                             onPress={(e) => { e.stopPropagation(); router.push('/multi-gym-network' as any); }}
                           >
-                            <Text style={[s.actionBtnText, { color: '#A78BFA' }]}>View Partner Gyms</Text>
+                            <Text style={[s.actionBtnText, { color: '#A78BFA' }]}>Partner Gyms</Text>
                           </TouchableOpacity>
                         )}
+
+                        <TouchableOpacity
+                          style={s.detailBtn}
+                          onPress={() => router.push({ pathname: '/subscription-detail', params: { subscriptionId: subId } } as any)}
+                        >
+                          <IconArrowRight size={14} color={colors.t2} />
+                        </TouchableOpacity>
                       </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={s.renewBtn}
+                        onPress={(e) => { e.stopPropagation(); router.push('/plans'); }}
+                      >
+                        <IconRefresh size={13} color={colors.accent} />
+                        <Text style={s.renewBtnText}>Renew Subscription</Text>
+                      </TouchableOpacity>
                     )}
                   </View>
                 </TouchableOpacity>
@@ -227,58 +239,72 @@ export default function Subscriptions() {
 }
 
 const s = StyleSheet.create({
-  container: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
-  pageHeader: { marginBottom: 20 },
-  pageTitle: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', letterSpacing: -0.5 },
+  container: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
+  pageHeader: { marginBottom: 20, paddingHorizontal: 4 },
+  pageTitle: { fontFamily: fonts.serif, fontSize: 28, color: '#fff', letterSpacing: -0.5 },
   pageSub: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, marginTop: 4 },
 
   subCard: {
-    marginHorizontal: 0, marginBottom: 16,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    marginBottom: 16,
     borderRadius: radius.lg,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
     overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
   },
-  accentBar: { height: 3, width: '100%' },
-  cardBody: { padding: 18 },
+
+  // Hero image area
+  heroImg: { height: 160 },
+  heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
+  heroContent: { flex: 1, padding: 16, justifyContent: 'flex-end' },
   passTypeBadge: {
-    alignSelf: 'flex-start', borderRadius: radius.xs,
-    paddingHorizontal: 8, paddingVertical: 3, marginBottom: 10,
+    alignSelf: 'flex-start', borderRadius: radius.xs, borderWidth: 1,
+    paddingHorizontal: 8, paddingVertical: 3, marginBottom: 8,
   },
-  passTypeBadgeText: { fontFamily: fonts.sansBold, fontSize: 10, letterSpacing: 1 },
-  gymNameText: { fontFamily: fonts.sansBold, fontSize: 21, color: '#fff', marginBottom: 4 },
-  validityText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2, marginBottom: 14 },
-  progressTrack: {
-    height: 4, backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 2, marginBottom: 6,
+  passTypeBadgeText: { fontFamily: fonts.sansBold, fontSize: 10, letterSpacing: 1.2 },
+  gymNameText: { fontFamily: fonts.serif, fontSize: 22, color: '#fff', letterSpacing: -0.3 },
+  validityHero: { fontFamily: fonts.sans, fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 4 },
+  daysChip: {
+    position: 'absolute', top: 12, right: 12,
+    backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: radius.pill,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
   },
-  progressFill: { height: 4, borderRadius: 2 },
-  progressLabel: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginBottom: 14 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  statusActivePill: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
-  statusActiveText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent, letterSpacing: 0.8 },
-  statusExpiredPill: {},
-  statusExpiredText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.t2, letterSpacing: 0.8 },
-  actionRow: { flexDirection: 'row', gap: 10 },
+  daysChipText: { fontFamily: fonts.sansBold, fontSize: 11, color: '#fff' },
+
+  // Bottom card section
+  cardBottom: {
+    backgroundColor: 'rgba(10,10,10,0.95)',
+    padding: 14,
+  },
+  progressTrack: { height: 3, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 2, marginBottom: 5 },
+  progressFill: { height: 3, borderRadius: 2 },
+  progressLabel: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2, marginBottom: 2 },
+
+  actionRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 7, paddingVertical: 11, borderRadius: radius.md,
+    gap: 6, paddingVertical: 10, borderRadius: radius.md,
   },
-  actionBtnText: { fontFamily: fonts.sansBold, fontSize: 13 },
-  ghostBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 8, paddingHorizontal: 14, borderRadius: radius.md,
-    borderWidth: 1, borderColor: colors.border,
+  actionBtnText: { fontFamily: fonts.sansBold, fontSize: 12 },
+  detailBtn: {
+    width: 38, height: 38, borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.07)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  ghostBtnText: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.t },
+  renewBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 10, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.accentBorder,
+    backgroundColor: colors.accentSoft,
+  },
+  renewBtnText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
 
   newBtn: {
     height: 50, borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.accentBorder,
     alignItems: 'center', justifyContent: 'center', marginTop: 4,
+    backgroundColor: colors.accentSoft,
   },
   newBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.accent },
   emptyState: { alignItems: 'center', paddingTop: 60, gap: 12, paddingBottom: 40 },
