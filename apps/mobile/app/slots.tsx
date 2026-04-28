@@ -233,22 +233,27 @@ export default function SlotsScreen() {
 
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
-        ) : slots.length === 0 ? (
-          <View style={s.emptyState}>
-            <Text style={s.emptyText}>No slots available for this date</Text>
-          </View>
-        ) : (
-          slots
-            .filter((slot: any) => {
-              if (activeType === 'all') return true;
-              const st = slot.sessionType;
-              if (!st) return slot.sessionTypeId === activeType;
-              const f = activeType.toLowerCase();
-              return st.id === activeType || st.id?.toLowerCase() === f ||
-                st.name?.toLowerCase().includes(f) || f.includes(st.name?.toLowerCase() ?? '');
-            })
-            .map((slot: any) => {
-            const isFull = slot.isFull || (slot.booked >= slot.capacity);
+        ) : (() => {
+          const filtered = slots.filter((slot: any) => {
+            if (activeType === 'all') return true;
+            const st = slot.sessionType;
+            const sid = st?.id ?? slot.sessionTypeId ?? '';
+            const sname = (st?.name ?? '').toLowerCase();
+            const f = activeType.toLowerCase();
+            return sid === activeType || sid.toLowerCase() === f || sname.includes(f) || f.includes(sname);
+          });
+          if (filtered.length === 0) {
+            return (
+              <View style={s.emptyState}>
+                <Text style={s.emptyText}>
+                  {slots.length === 0
+                    ? 'No slots available for this date'
+                    : `No ${activeType === 'all' ? '' : sessionTypes.find(t => t.id === activeType)?.name ?? activeType} slots on this date`}
+                </Text>
+              </View>
+            );
+          }
+          return filtered.map((slot: any) => {            const isFull = slot.isFull || (slot.booked >= slot.capacity);
             const available = (slot.capacity || 0) - (slot.booked || 0);
             const isBooking = bookingId === (slot.id || slot._id);
             const stColor = slot.sessionType?.color || colors.accent;
@@ -287,8 +292,8 @@ export default function SlotsScreen() {
                 </TouchableOpacity>
               </View>
             );
-          })
-        )}
+          });
+        })()}
 
         {/* My Bookings */}
         {myBookings.length > 0 && (

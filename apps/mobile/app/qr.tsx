@@ -96,10 +96,16 @@ export default function QrScreen() {
               <IconClock size={32} color={colors.t2} />
             </View>
             <Text style={s.emptyTitle}>No Active Session</Text>
-            <Text style={s.emptySub}>Book a gym slot to get your session QR code.</Text>
-            <TouchableOpacity style={s.bookBtn} onPress={() => router.push('/(tabs)')}>
-              <Text style={s.bookBtnText}>Browse Gyms</Text>
-            </TouchableOpacity>
+            <Text style={s.emptySub}>Book a slot to get your session QR code for check-in.</Text>
+            {params.gymId ? (
+              <TouchableOpacity style={s.bookBtn} onPress={() => router.push({ pathname: '/slots', params: { gymId: params.gymId } } as any)}>
+                <Text style={s.bookBtnText}>Book a Slot</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={s.bookBtn} onPress={() => router.push('/gyms' as any)}>
+                <Text style={s.bookBtnText}>Find a Gym</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </SafeAreaView>
       </AuroraBackground>
