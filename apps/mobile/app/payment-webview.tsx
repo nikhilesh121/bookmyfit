@@ -1,38 +1,78 @@
 import { useState, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, Text, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { router, useLocalSearchParams } from 'expo-router';
 import Constants from 'expo-constants';
-import { colors, fonts, radius } from '../theme/brand';
-import { IconArrowLeft } from '../components/Icons';
-import { subscriptionsApi } from '../lib/api';
+import { colors, fonts, radius, spacing } from '../theme/brand';
+import { IconArrowLeft, IconCheck } from '../components/Icons';
+import { subscriptionsApi, api } from '../lib/api';
 
 const CASHFREE_BASE_URL: string =
   (Constants.expoConfig?.extra as any)?.cashfreeBaseUrl ?? 'https://sandbox.cashfree.com';
 
 export default function PaymentWebview() {
-  const { orderId, sessionId, planId, gymId, subId } = useLocalSearchParams<{
-    orderId: string; sessionId: string; planId: string; gymId: string; subId?: string;
+  const {
+    orderId, sessionId, paymentSessionId,
+    planId, gymId, subId,
+    bookingId, returnRoute, serviceName, amount,
+  } = useLocalSearchParams<{
+    orderId: string; sessionId?: string; paymentSessionId?: string;
+    planId?: string; gymId?: string; subId?: string;
+    bookingId?: string; returnRoute?: string; serviceName?: string; amount?: string;
   }>();
+
   const [loading, setLoading] = useState(true);
+  const [mockConfirming, setMockConfirming] = useState(false);
   const webviewRef = useRef<any>(null);
 
-  const checkoutUrl = `${CASHFREE_BASE_URL}/pg/orders/pay?order_id=${orderId}`;
+  // Support both old 'sessionId' param and new 'paymentSessionId' param
+  const effectiveSessionId = paymentSessionId || sessionId || '';
+  const isMock = effectiveSessionId.startsWith('mock_session_');
+
+  // Build Cashfree checkout URL; use session-based URL when session ID available
+  const checkoutUrl = effectiveSessionId && !isMock
+    ? `${CASHFREE_BASE_URL}/pg/view/order?session_id=${effectiveSessionId}&order_id=${orderId}`
+    : `${CASHFREE_BASE_URL}/pg/orders/pay?order_id=${orderId}`;
 
   const handleSuccess = async () => {
+    // Confirm wellness booking if bookingId present
+    if (bookingId) {
+      try { await api.post(`/wellness/bookings/${bookingId}/confirm`, {}); } catch {}
+    }
     // Verify + activate subscription if subId available
     if (subId) {
       try { await subscriptionsApi.verify(subId); } catch {}
     }
-    router.replace({ pathname: '/success', params: { orderId, planId, gymId, subscriptionId: subId || '' } });
+    // Route to correct success screen
+    if (returnRoute === 'wellness') {
+      router.replace({
+        pathname: '/booking-success',
+        params: { bookingId: bookingId || '', orderId, serviceName: serviceName || '', amount: amount || '' },
+      } as any);
+    } else {
+      router.replace({ pathname: '/success', params: { orderId, planId: planId || '', gymId: gymId || '', subscriptionId: subId || '' } });
+    }
+  };
+
+  // Mock payment flow — show a simulated payment page in-app
+  const handleMockPay = async () => {
+    setMockConfirming(true);
+    await new Promise(r => setTimeout(r, 1500)); // simulate API delay
+    setMockConfirming(false);
+    await handleSuccess();
   };
 
   const handleNavigationChange = (navState: any) => {
     const url = navState.url || '';
-    if (url.includes('success') || url.includes('bookmyfit://payment-success') || url.includes('payment_status=SUCCESS')) {
+    if (
+      url.includes('bookmyfit://payment-success') ||
+      url.includes('payment_status=SUCCESS') ||
+      url.includes('payment-return') ||
+      (url.includes('success') && !url.includes('cashfree'))
+    ) {
       handleSuccess();
-    } else if (url.includes('failure') || url.includes('payment_status=FAILED') || url.includes('payment_status=USER_DROPPED')) {
+    } else if (url.includes('payment_status=FAILED') || url.includes('payment_status=USER_DROPPED')) {
       Alert.alert('Payment Failed', 'Your payment was not completed. Please try again.', [
         { text: 'Try Again', onPress: () => webviewRef.current?.reload() },
         { text: 'Cancel', onPress: () => router.back() },
@@ -53,9 +93,8 @@ export default function PaymentWebview() {
   const handleMessage = (event: any) => {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
-      if (msg.type === 'SUCCESS') {
-        handleSuccess();
-      } else if (msg.type === 'FAILURE') {
+      if (msg.type === 'SUCCESS') handleSuccess();
+      else if (msg.type === 'FAILURE') {
         Alert.alert('Payment Failed', 'Please try again.', [
           { text: 'Try Again', onPress: () => webviewRef.current?.reload() },
           { text: 'Cancel', onPress: () => router.back() },
@@ -64,6 +103,75 @@ export default function PaymentWebview() {
     } catch {}
   };
 
+  // ── Mock Payment Screen (dev / sandbox without Cashfree keys) ────────────
+  if (isMock) {
+    return (
+      <SafeAreaView style={s.container}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.backBtn} onPress={() => {
+            Alert.alert('Cancel Payment?', 'Are you sure you want to cancel?', [
+              { text: 'Continue', style: 'cancel' },
+              { text: 'Cancel', style: 'destructive', onPress: () => router.back() },
+            ]);
+          }}>
+            <IconArrowLeft size={18} color="#fff" />
+          </TouchableOpacity>
+          <Text style={s.headerTitle}>Secure Payment</Text>
+          <View style={s.devBadge}><Text style={s.devBadgeText}>DEV MODE</Text></View>
+        </View>
+
+        <ScrollView contentContainerStyle={s.mockContent}>
+          <View style={s.mockCard}>
+            <View style={s.mockLogo}><Text style={s.mockLogoText}>cf</Text></View>
+            <Text style={s.mockTitle}>Cashfree Checkout</Text>
+            <Text style={s.mockSubtitle}>Sandbox / Development Mode</Text>
+
+            <View style={s.mockDivider} />
+
+            <View style={s.mockRow}>
+              <Text style={s.mockLabel}>Order ID</Text>
+              <Text style={s.mockValue}>{orderId}</Text>
+            </View>
+            {serviceName ? (
+              <View style={s.mockRow}>
+                <Text style={s.mockLabel}>Service</Text>
+                <Text style={s.mockValue}>{serviceName}</Text>
+              </View>
+            ) : null}
+            {amount ? (
+              <View style={s.mockRow}>
+                <Text style={s.mockLabel}>Amount</Text>
+                <Text style={s.mockAmtValue}>₹{Number(amount).toLocaleString()}</Text>
+              </View>
+            ) : null}
+
+            <View style={s.mockDivider} />
+
+            <Text style={s.mockNote}>
+              ⚠️ This is a simulated payment. Configure Cashfree credentials in .env to process real payments.
+            </Text>
+
+            <TouchableOpacity
+              style={[s.mockPayBtn, mockConfirming && { opacity: 0.7 }]}
+              onPress={handleMockPay}
+              disabled={mockConfirming}
+            >
+              {mockConfirming
+                ? <><ActivityIndicator color="#060606" size="small" /><Text style={s.mockPayBtnText}>  Processing…</Text></>
+                : <><IconCheck size={16} color="#060606" /><Text style={s.mockPayBtnText}>  Simulate Successful Payment</Text></>
+              }
+            </TouchableOpacity>
+
+            <TouchableOpacity style={s.mockCancelBtn} onPress={() => router.back()}>
+              <Text style={s.mockCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Real Cashfree WebView ─────────────────────────────────────────────────
   return (
     <SafeAreaView style={s.container}>
       <View style={s.header}>
@@ -120,9 +228,43 @@ const s = StyleSheet.create({
     borderRadius: 20, borderWidth: 1, borderColor: colors.accentBorder,
   },
   securityText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent, letterSpacing: 0.5 },
+  devBadge: {
+    backgroundColor: 'rgba(255,180,0,0.15)', paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,180,0,0.4)',
+  },
+  devBadgeText: { fontFamily: fonts.sansBold, fontSize: 10, color: '#ffb400', letterSpacing: 0.5 },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject, backgroundColor: colors.bg, zIndex: 10,
     alignItems: 'center', justifyContent: 'center', gap: 16,
   },
   loadingText: { fontFamily: fonts.sans, fontSize: 14, color: colors.t2 },
+
+  // Mock styles
+  mockContent: { padding: spacing.lg, paddingTop: 32 },
+  mockCard: {
+    backgroundColor: colors.surface, borderRadius: radius.xl,
+    borderWidth: 1, borderColor: colors.border, padding: 24, alignItems: 'center',
+  },
+  mockLogo: {
+    width: 56, height: 56, borderRadius: 28, backgroundColor: '#1a1a2e',
+    borderWidth: 2, borderColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+  },
+  mockLogoText: { fontFamily: fonts.sansBold, fontSize: 20, color: colors.accent },
+  mockTitle: { fontFamily: fonts.sansBold, fontSize: 20, color: '#fff', marginBottom: 4 },
+  mockSubtitle: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2, marginBottom: 16 },
+  mockDivider: { height: 1, backgroundColor: colors.border, width: '100%', marginVertical: 14 },
+  mockRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 10 },
+  mockLabel: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
+  mockValue: { fontFamily: fonts.sansMedium ?? fonts.sans, fontSize: 13, color: '#fff', maxWidth: '60%', textAlign: 'right' },
+  mockAmtValue: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.accent },
+  mockNote: { fontFamily: fonts.sans, fontSize: 12, color: '#ffb400', textAlign: 'center', lineHeight: 18, marginBottom: 20 },
+  mockPayBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.accent, borderRadius: radius.xl, paddingVertical: 14, paddingHorizontal: 28,
+    width: '100%', marginBottom: 12,
+  },
+  mockPayBtnText: { fontFamily: fonts.sansBold, fontSize: 15, color: '#060606' },
+  mockCancelBtn: { paddingVertical: 10 },
+  mockCancelText: { fontFamily: fonts.sans, fontSize: 14, color: colors.t2 },
 });
+

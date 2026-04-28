@@ -100,7 +100,9 @@ export default function CartScreen() {
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
             <IconArrowLeft size={18} color="#fff" />
           </TouchableOpacity>
-          <Text style={s.headerTitle}>My Cart</Text>
+          <Text style={s.headerTitle}>
+            Cart{items.length > 0 ? ` (${items.reduce((a, c) => a + c.quantity, 0)})` : ''}
+          </Text>
           <View style={{ width: 38 }} />
         </View>
 

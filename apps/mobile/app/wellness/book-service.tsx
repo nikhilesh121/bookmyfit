@@ -80,9 +80,12 @@ export default function BookServiceScreen() {
       router.push({
         pathname: '/payment-webview',
         params: {
-          paymentSessionId: payment?.payment_session_id,
-          orderId: payment?.order_id || booking?.cashfreeOrderId || booking?.id,
-          returnRoute: '/wellness/booking-success',
+          paymentSessionId: payment?.paymentSessionId || payment?.payment_session_id || '',
+          orderId: payment?.orderId || payment?.order_id || booking?.cashfreeOrderId || booking?.id,
+          bookingId: booking?.id || '',
+          returnRoute: 'wellness',
+          serviceName: serviceName || '',
+          amount: String(priceNum),
         },
       } as any);
     } catch (e: any) {

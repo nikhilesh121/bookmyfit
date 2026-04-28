@@ -49,3 +49,4 @@ export const IconChevronDown = ({ size, color }: Props) => (<Svg {...mk(size, co
 export const IconPercent = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Line x1="19" y1="5" x2="5" y2="19" /><Circle cx="6.5" cy="6.5" r="2.5" /><Circle cx="17.5" cy="17.5" r="2.5" /></Svg>);
 export const IconShield = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></Svg>);
 export const IconHeadphones = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M3 18v-6a9 9 0 0118 0v6" /><Path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z" /></Svg>);
+export const IconReceipt = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M4 2v20l3-2 2 2 3-2 3 2 2-2 3 2V2" /><Path d="M8 7h8M8 11h8M8 15h4" /></Svg>);

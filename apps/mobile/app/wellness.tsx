@@ -8,7 +8,7 @@ import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import {
   IconArrowLeft, IconStar, IconPin, IconHeart, IconChevronRight,
-  IconShield, IconCheck, IconBuilding, IconHeadphones, IconSearch, IconCart, IconBolt,
+  IconShield, IconCheck, IconBuilding, IconHeadphones, IconSearch, IconBolt,
 } from '../components/Icons';
 
 const { width: W } = Dimensions.get('window');
@@ -88,7 +88,6 @@ export default function WellnessScreen() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [heroIndex, setHeroIndex] = useState(0);
   const [activeFilter, setActiveFilter] = useState<'all' | 'spa' | 'home'>('all');
-  const [cartCount, setCartCount] = useState(3);
   const heroRef = useRef<FlatList>(null);
   const heroTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -173,14 +172,6 @@ export default function WellnessScreen() {
           <View style={s.headerRight}>
             <TouchableOpacity style={s.headerIcon}>
               <IconSearch size={18} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={s.headerIcon}>
-              <IconCart size={18} color="#fff" />
-              {cartCount > 0 && (
-                <View style={s.cartBadge}>
-                  <Text style={s.cartBadgeText}>{cartCount}</Text>
-                </View>
-              )}
             </TouchableOpacity>
           </View>
         </View>

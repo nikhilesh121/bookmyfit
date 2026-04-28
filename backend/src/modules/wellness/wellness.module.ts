@@ -80,6 +80,48 @@ class WellnessService {
     });
     return { booking, payment };
   }
+
+  async myBookings(userId: string) {
+    const bks = await this.bookings.find({ where: { userId }, order: { bookingDate: 'DESC' } });
+    return Promise.all(bks.map(async (b) => {
+      const service = b.serviceId ? await this.services.findOne({ where: { id: b.serviceId } }) : null;
+      const partner = b.partnerId ? await this.partners.findOne({ where: { id: b.partnerId } }) : null;
+      return {
+        id: b.id, status: b.status, bookingDate: b.bookingDate, amount: b.amount,
+        cashfreeOrderId: b.cashfreeOrderId, invoiceNumber: (b as any).invoiceNumber,
+        service: service ? { id: service.id, name: service.name, durationMinutes: service.durationMinutes, imageUrl: service.imageUrl } : null,
+        partner: partner ? { id: partner.id, name: partner.name, serviceType: partner.serviceType, city: partner.city, area: partner.area, photos: partner.photos } : null,
+      };
+    }));
+  }
+
+  async confirmBooking(bookingId: string) {
+    const b = await this.bookings.findOne({ where: { id: bookingId } });
+    if (!b) throw new Error('Booking not found');
+    b.status = 'confirmed';
+    await this.bookings.save(b);
+    return b;
+  }
+
+  async getBookingInvoice(bookingId: string, userId: string) {
+    const b = await this.bookings.findOne({ where: { id: bookingId, userId } });
+    if (!b) throw new Error('Booking not found');
+    const service = b.serviceId ? await this.services.findOne({ where: { id: b.serviceId } }) : null;
+    const partner = b.partnerId ? await this.partners.findOne({ where: { id: b.partnerId } }) : null;
+    if (!(b as any).invoiceNumber) {
+      const seq = Math.floor(Date.now() / 1000) % 100000;
+      const d = new Date();
+      (b as any).invoiceNumber = `BMF-WL-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}-${seq}`;
+      await this.bookings.save(b);
+    }
+    return {
+      invoiceNumber: (b as any).invoiceNumber, bookingDate: b.bookingDate,
+      amount: b.amount, status: b.status, cashfreeOrderId: b.cashfreeOrderId,
+      service: service ? { name: service.name, durationMinutes: service.durationMinutes } : null,
+      partner: partner ? { name: partner.name, address: partner.address, city: partner.city } : null,
+      issuedAt: new Date(),
+    };
+  }
 }
 
 @ApiTags('Wellness')
@@ -129,6 +171,24 @@ class WellnessController {
   @Post('services/:id/book')
   book(@Param('id') id: string, @Body() b: BookWellnessDto, @Req() req: any) {
     return this.svc.book(req.user.id, id, b.bookingDate, b.phone || req.user.phone || '');
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('bookings/my')
+  myBookings(@Req() req: any) {
+    return this.svc.myBookings(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('bookings/:id/confirm')
+  confirmBooking(@Param('id') id: string) {
+    return this.svc.confirmBooking(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('bookings/:id/invoice')
+  getInvoice(@Param('id') id: string, @Req() req: any) {
+    return this.svc.getBookingInvoice(id, req.user.id);
   }
 }
 
