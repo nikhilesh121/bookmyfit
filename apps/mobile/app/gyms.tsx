@@ -229,7 +229,16 @@ function GymCard({ gym }: { gym: any }) {
   return (
     <TouchableOpacity
       style={s.gymCard}
-      onPress={() => router.push(`/gym/${gid}` as any)}
+      onPress={() => router.push({
+        pathname: '/gym/[id]',
+        params: {
+          id: gid,
+          fallbackName: name,
+          fallbackRating: rating,
+          fallbackAddress: gym.address || gym.location?.address || city,
+          fallbackTier: gym.tier || gym.tierName || 'Elite',
+        },
+      } as any)}
       activeOpacity={0.88}
     >
       <ImageBackground source={{ uri: img }} style={s.gymThumb} imageStyle={{ borderRadius: radius.md }}>

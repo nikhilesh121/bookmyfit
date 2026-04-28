@@ -10,7 +10,7 @@ const SETTINGS_KEY = 'bmf_settings';
 const DEFAULTS = {
   commission: { standard: 15, premium: 12, corporate: 10 },
   settlements: { cycle: 'Monthly', minPayout: 5000, processingWindow: 7 },
-  flags: { storeModule: true, wellnessBooking: true, aiRecommendations: false, corporatePortal: true },
+  flags: { storeModule: true, wellnessBooking: true, aiRecommendations: false, corporatePortal: true, mapView: false },
 };
 
 const MULTIGYM_DEFAULTS = {

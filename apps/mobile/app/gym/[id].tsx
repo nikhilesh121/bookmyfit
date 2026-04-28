@@ -1,7 +1,8 @@
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Dimensions, Share } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Dimensions, Share, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useState, useEffect } from 'react';
+import { WebView } from 'react-native-webview';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconArrowLeft, IconStar, IconPin, IconArrowRight, IconCheck, IconClock, IconDumbbell, IconShare, IconQR } from '../../components/Icons';
 import { gymsApi, subscriptionsApi, api } from '../../lib/api';
@@ -407,6 +408,43 @@ export default function GymDetail() {
               {/* About Tab */}
               {activeTab === 'About' && (
                 <>
+                  {/* Location Map */}
+                  <Text style={s.sectionTitle}>Location</Text>
+                  <View style={s.mapCard}>
+                    {(gym?.latitude || gym?.location?.lat) ? (
+                      <WebView
+                        style={{ flex: 1, borderRadius: radius.lg }}
+                        source={{ uri: `https://www.openstreetmap.org/export/embed.html?bbox=${(gym?.longitude || gym?.location?.lng || 85.8245) - 0.01},${(gym?.latitude || gym?.location?.lat || 20.2961) - 0.008},${(gym?.longitude || gym?.location?.lng || 85.8245) + 0.01},${(gym?.latitude || gym?.location?.lat || 20.2961) + 0.008}&layer=mapnik&marker=${gym?.latitude || gym?.location?.lat || 20.2961},${gym?.longitude || gym?.location?.lng || 85.8245}` }}
+                        scrollEnabled={false}
+                        javaScriptEnabled
+                        domStorageEnabled
+                      />
+                    ) : (
+                      <View style={s.mapPlaceholder}>
+                        <IconPin size={28} color={colors.accent} />
+                        <Text style={s.mapAddressText}>{address}</Text>
+                        <TouchableOpacity
+                          style={s.mapDirBtn}
+                          onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(name + ' ' + address)}`)}
+                        >
+                          <Text style={s.mapDirBtnText}>Open in Maps ›</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Hours & Address */}
+                  <View style={s.glassCard}>
+                    <View style={s.infoRow}>
+                      <IconPin size={14} color={colors.accent} />
+                      <Text style={s.infoValue}>{address}</Text>
+                    </View>
+                    <View style={[s.infoRow, { marginTop: 10 }]}>
+                      <IconClock size={14} color={colors.accent} />
+                      <Text style={s.infoValue}>{hours}</Text>
+                    </View>
+                  </View>
+
                   <Text style={s.sectionTitle}>Description</Text>
                   <View style={s.glassCard}>
                     <Text style={s.body}>{description}</Text>
@@ -619,6 +657,13 @@ const s = StyleSheet.create({
     elevation: 6,
   },
   body: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, lineHeight: 20 },
+  mapCard: { height: 200, borderRadius: radius.lg, overflow: 'hidden', marginBottom: 14, borderWidth: 1, borderColor: colors.borderGlass },
+  mapPlaceholder: { flex: 1, backgroundColor: colors.glass, alignItems: 'center', justifyContent: 'center', padding: 20, gap: 10 },
+  mapAddressText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, textAlign: 'center' },
+  mapDirBtn: { backgroundColor: colors.accentSoft, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 8, marginTop: 4 },
+  mapDirBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
+  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  infoValue: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, flex: 1, lineHeight: 20 },
   amenityWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   amenityPill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,

@@ -48,6 +48,16 @@ const BIG_CARDS = [
     route: '/wellness',
   },
   {
+    id: 'home-services',
+    label: 'Home Services',
+    sub: 'Beauty · Massage · Grooming',
+    color: '#FCD34D',
+    bg: 'rgba(252,211,77,0.12)',
+    icon: 'spa',
+    img: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=600&q=80',
+    route: '/home-services',
+  },
+  {
     id: 'store',
     label: 'Fitness Store',
     sub: 'Supplements · Gear · Apparel',
@@ -107,10 +117,10 @@ export default function ExploreHub() {
           ))}
         </View>
 
-        {/* ── Wellness + Store (big cards) ── */}
+        {/* ── Wellness + Store (big cards) – first 2 side by side, rest full-width ── */}
         <Text style={s.sectionTitle2}>Wellness & More</Text>
         <View style={s.bigCardsRow}>
-          {BIG_CARDS.map((card) => (
+          {BIG_CARDS.slice(0, 2).map((card) => (
             <TouchableOpacity
               key={card.id}
               style={[s.bigCard, { borderColor: card.color + '44' }]}
@@ -133,6 +143,30 @@ export default function ExploreHub() {
               </ImageBackground>
             </TouchableOpacity>
           ))}
+        </View>
+        {BIG_CARDS.slice(2).map((card) => (
+          <TouchableOpacity
+            key={card.id}
+            style={[s.bigCardFull, { borderColor: card.color + '44', marginBottom: 10 }]}
+            onPress={() => router.push(card.route as any)}
+            activeOpacity={0.82}
+          >
+            <ImageBackground source={{ uri: card.img }} style={s.bigCardImg} imageStyle={{ borderRadius: radius.xl }}>
+              <View style={s.bigCardDark} />
+              <View style={s.bigCardContent}>
+                <View style={[s.bigCardIcon, { backgroundColor: card.bg }]}>
+                  <CatSvg type={card.icon} size={20} color={card.color} />
+                </View>
+                <Text style={s.bigCardLabel}>{card.label}</Text>
+                <Text style={s.bigCardSub}>{card.sub}</Text>
+                <View style={[s.bigCardCta, { borderColor: card.color + '66', backgroundColor: card.color + '18' }]}>
+                  <Text style={[s.bigCardCtaText, { color: card.color }]}>Explore</Text>
+                  <IconArrowRight size={12} color={card.color} />
+                </View>
+              </View>
+            </ImageBackground>
+          </TouchableOpacity>
+        ))}
         </View>
 
         {/* ── Small service cards ── */}
@@ -194,10 +228,17 @@ const s = StyleSheet.create({
   catCardLabel:{ fontFamily: fonts.sansBold, fontSize: 10, color: '#fff', lineHeight: 13 },
 
   // Big cards (2 side by side)
-  bigCardsRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
+  bigCardsRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   bigCard: {
     flex: 1,
     height: 170,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  bigCardFull: {
+    width: '100%',
+    height: 120,
     borderRadius: radius.xl,
     overflow: 'hidden',
     borderWidth: 1,

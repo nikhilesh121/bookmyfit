@@ -1,10 +1,11 @@
 import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet,
-  ImageBackground, FlatList, Dimensions,
+  ImageBackground, FlatList, Dimensions, Modal, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, fonts, radius } from '../../theme/brand';
 import {
   IconBell, IconPin, IconStar, IconChevronDown,
@@ -85,24 +86,34 @@ function Sk({ h, w, br = 12, style }: { h: number; w?: number | string; br?: num
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
+const CITIES = ['Bhubaneswar', 'Cuttack', 'Puri', 'Rourkela', 'Sambalpur', 'Berhampur', 'Delhi', 'Mumbai', 'Bangalore', 'Hyderabad', 'Pune', 'Chennai', 'Kolkata'];
+
 export default function Home() {
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [city, setCity] = useState('Bhubaneswar');
+  const [showCityPicker, setShowCityPicker] = useState(false);
   const [heroIdx, setHeroIdx] = useState(0);
   const heroRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') return;
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const [geo] = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-        const c = geo?.city || geo?.subregion || geo?.region || 'Bhubaneswar';
-        setCity(c);
-      } catch {}
-    })();
+    // Load saved city first
+    AsyncStorage.getItem('bmf_city').then((saved) => {
+      if (saved) setCity(saved);
+      else {
+        // Auto-detect from GPS
+        (async () => {
+          try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== 'granted') return;
+            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const [geo] = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+            const c = geo?.city || geo?.subregion || geo?.region || 'Bhubaneswar';
+            setCity(c);
+          } catch {}
+        })();
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -158,7 +169,7 @@ export default function Home() {
 
         {/* ── Top bar ── */}
         <View style={s.topBar}>
-          <TouchableOpacity style={s.locationRow} onPress={() => {}}>
+          <TouchableOpacity style={s.locationRow} onPress={() => setShowCityPicker(true)}>
             <IconPin size={12} color={colors.accent} />
             <Text style={s.locationText}>{city}</Text>
             <IconChevronDown size={11} color={colors.t2} />
@@ -169,6 +180,31 @@ export default function Home() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* ── City Picker Modal ── */}
+        <Modal visible={showCityPicker} transparent animationType="slide" onRequestClose={() => setShowCityPicker(false)}>
+          <Pressable style={s.modalOverlay} onPress={() => setShowCityPicker(false)}>
+            <View style={s.cityPickerSheet}>
+              <View style={s.cityPickerHandle} />
+              <Text style={s.cityPickerTitle}>Select City</Text>
+              {CITIES.map((c) => (
+                <TouchableOpacity
+                  key={c}
+                  style={[s.cityRow, city === c && s.cityRowActive]}
+                  onPress={() => {
+                    setCity(c);
+                    AsyncStorage.setItem('bmf_city', c);
+                    setShowCityPicker(false);
+                  }}
+                >
+                  <IconPin size={13} color={city === c ? colors.accent : colors.t2} />
+                  <Text style={[s.cityRowText, city === c && { color: colors.accent }]}>{c}</Text>
+                  {city === c && <View style={s.cityActiveDot} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Pressable>
+        </Modal>
 
         {/* ── Sections (dynamic) ── */}
         {sections.map((section) => {
@@ -477,4 +513,17 @@ const s = StyleSheet.create({
   avatarText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
   authorName: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff' },
   authorCity: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
+
+  // City picker modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  cityPickerSheet: {
+    backgroundColor: '#111', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, paddingBottom: 40, borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  cityPickerHandle: { width: 40, height: 4, backgroundColor: colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  cityPickerTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff', marginBottom: 16 },
+  cityRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
+  cityRowActive: { borderBottomColor: colors.accentBorder },
+  cityRowText: { fontFamily: fonts.sans, fontSize: 15, color: colors.t, flex: 1 },
+  cityActiveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
 });
