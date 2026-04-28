@@ -1,8 +1,15 @@
 import { Tabs } from 'expo-router';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../theme/brand';
 import { IconHome, IconSearch, IconCalendar, IconTicket, IconUser } from '../../components/Icons';
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  // Bottom padding = system nav bar height + a little breathing room
+  const tabBarBottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 4);
+  const tabBarHeight = 56 + tabBarBottomPad;
+
   return (
     <Tabs
       screenOptions={{
@@ -10,9 +17,9 @@ export default function TabsLayout() {
           backgroundColor: colors.bg,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 72,
+          height: tabBarHeight,
           paddingTop: 8,
-          paddingBottom: 16,
+          paddingBottom: tabBarBottomPad,
         },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.t2,
