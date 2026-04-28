@@ -18,16 +18,16 @@ const API = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3003';
 
 // Warm spa image map by partner name
 const SPA_IMAGES: Record<string, string> = {
-  'serenity': 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&q=80',
-  'royal': 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=600&q=80',
-  'bliss': 'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=600&q=80',
-  'zen': 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=600&q=80',
+  'serenity': 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?w=600&q=80',
+  'royal': 'https://images.unsplash.com/photo-1612817288484-6f916006741a?w=600&q=80',
+  'bliss': 'https://images.unsplash.com/photo-1559756994-9df0adf7bff9?w=600&q=80',
+  'zen': 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=600&q=80',
 };
 const SPA_FALLBACKS = [
-  'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=600&q=80',
+  'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?w=600&q=80',
+  'https://images.unsplash.com/photo-1612817288484-6f916006741a?w=600&q=80',
+  'https://images.unsplash.com/photo-1559756994-9df0adf7bff9?w=600&q=80',
   'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=600&q=80',
-  'https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=600&q=80',
-  'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=600&q=80',
 ];
 
 function getPartnerImage(partner: any, index: number): string {
@@ -42,14 +42,14 @@ function getPartnerImage(partner: any, index: number): string {
 // Static hero slides
 const HERO_SLIDES = [
   {
-    uri: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=900&q=80',
+    uri: 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?w=900&q=80',
     kicker: 'SELF CARE IS HEALTH CARE',
     title: 'Relax Your Body',
     titleAccent: 'Refresh Your Mind',
     subtitle: 'Premium spa experiences for your well-being.',
   },
   {
-    uri: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=900&q=80',
+    uri: 'https://images.unsplash.com/photo-1559756994-9df0adf7bff9?w=900&q=80',
     kicker: 'PROFESSIONAL CARE',
     title: 'Expert Therapists',
     titleAccent: 'Near You',
@@ -88,6 +88,7 @@ export default function WellnessScreen() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [heroIndex, setHeroIndex] = useState(0);
   const [activeFilter, setActiveFilter] = useState<'all' | 'spa' | 'home'>('all');
+  const [cartCount, setCartCount] = useState(3);
   const heroRef = useRef<FlatList>(null);
   const heroTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -175,7 +176,11 @@ export default function WellnessScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={s.headerIcon}>
               <IconCart size={18} color="#fff" />
-              <View style={s.cartBadge} />
+              {cartCount > 0 && (
+                <View style={s.cartBadge}>
+                  <Text style={s.cartBadgeText}>{cartCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -414,9 +419,13 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   cartBadge: {
-    position: 'absolute', top: 8, right: 8,
-    width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent,
+    position: 'absolute', top: 5, right: 5,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#FF6B35',
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 3,
   },
+  cartBadgeText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#fff' },
 
   // Hero
   heroContainer: { width: W, height: 220, marginBottom: 24 },

@@ -18,16 +18,16 @@ const { width: SCREEN_W } = Dimensions.get('window');
 
 // ── Fallback data ──────────────────────────────────────────────────────────
 const FALLBACK_GYMS = [
-  { id: '1', name: 'PowerZone Fitness', rating: 4.8, distance: '0.8 km', city: 'Bhubaneswar', amenities: ['Strength', 'Cardio'], img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80', discount: '20% OFF' },
-  { id: '2', name: 'Iron Temple', rating: 4.6, distance: '2.1 km', city: 'Bhubaneswar', amenities: ['CrossFit', 'HIIT'], img: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=600&q=80', discount: null },
-  { id: '3', name: 'Anytime Fitness', rating: 4.5, distance: '3.4 km', city: 'Bhubaneswar', amenities: ['Yoga', 'Strength'], img: 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=600&q=80', discount: '15% OFF' },
-  { id: '4', name: "Gold's Gym", rating: 4.7, distance: '1.2 km', city: 'Bhubaneswar', amenities: ['Strength', 'Cardio'], img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=600&q=80', discount: null },
+  { id: '1', name: 'PowerZone Fitness', rating: 4.8, distance: '0.8 km', city: 'Bhubaneswar', amenities: ['Strength', 'Cardio'], img: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&q=80', discount: '20% OFF' },
+  { id: '2', name: 'Iron Temple', rating: 4.6, distance: '2.1 km', city: 'Bhubaneswar', amenities: ['CrossFit', 'HIIT'], img: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&q=80', discount: null },
+  { id: '3', name: 'Anytime Fitness', rating: 4.5, distance: '3.4 km', city: 'Bhubaneswar', amenities: ['Yoga', 'Strength'], img: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=600&q=80', discount: '15% OFF' },
+  { id: '4', name: "Gold's Gym", rating: 4.7, distance: '1.2 km', city: 'Bhubaneswar', amenities: ['Strength', 'Cardio'], img: 'https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=600&q=80', discount: null },
 ];
 // Most visited is built dynamically from loaded gyms — no hardcoded IDs
 const FALLBACK_IMG = [
-  'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80',
-  'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=400&q=80',
-  'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=400&q=80',
+  'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=400&q=80',
+  'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=400&q=80',
+  'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=400&q=80',
 ];
 
 // ── Category icons (inline SVG) ─────────────────────────────────────────────
@@ -53,9 +53,9 @@ function CategorySvgIcon({ type, size, color }: { type: string; size: number; co
 
 // ── Hero slides ─────────────────────────────────────────────────────────────
 const HERO_SLIDES = [
-  { img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=800&q=80', headline: 'Make Every Rep', headlineAccent: 'Count!', sub: 'Find the best gyms near you\nand book your pass instantly.', cta: 'Explore Gyms' },
-  { img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&q=80', headline: 'Find Your Perfect', headlineAccent: 'Gym Today!', sub: 'Partner gyms across the city,\none subscription covers all.', cta: 'Browse Now' },
-  { img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80', headline: 'No Long', headlineAccent: 'Contracts!', sub: 'Flexible day passes, weekly\nor monthly — your choice.', cta: 'View Plans' },
+  { img: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=800&q=80', headline: 'Make Every Rep', headlineAccent: 'Count!', sub: 'Find the best gyms near you\nand book your pass instantly.', cta: 'Explore Gyms' },
+  { img: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=800&q=80', headline: 'Find Your Perfect', headlineAccent: 'Gym Today!', sub: 'Partner gyms across the city,\none subscription covers all.', cta: 'Browse Now' },
+  { img: 'https://images.unsplash.com/photo-1605296867304-46d5465a13f1?w=800&q=80', headline: 'No Long', headlineAccent: 'Contracts!', sub: 'Flexible day passes, weekly\nor monthly — your choice.', cta: 'View Plans' },
 ];
 
 function SkeletonRect({ h, style }: { h: number; style?: any }) {
@@ -191,9 +191,9 @@ export default function Home() {
 
         {/* ── Most Visited ── */}
         <View style={s.sectionRow}>
-          <Text style={s.sectionTitle}>Most Visited Gyms</Text>
+          <Text style={s.sectionTitle}>Most Visited Gyms in Bhubaneswar</Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/explore')}>
-            <Text style={s.seeAll}>See all</Text>
+            <Text style={s.seeAll}>View All ›</Text>
           </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.mostVisitedScroll} contentContainerStyle={{ paddingLeft: 20, paddingRight: 20, gap: 10 }}>
@@ -206,9 +206,7 @@ export default function Home() {
                 <View style={s.mvImgWrap}>
                   <ImageBackground source={{ uri: gimg }} style={s.mvPhoto} imageStyle={{ borderRadius: radius.lg }}>
                     <View style={s.mvDark} />
-                    <View style={s.mvRankBadge}>
-                      <Text style={s.mvRank}>#{idx + 1}</Text>
-                    </View>
+                    <Text style={s.mvRankOverlay}>#{idx + 1}</Text>
                   </ImageBackground>
                 </View>
                 <Text style={s.mvName} numberOfLines={1}>{gname}</Text>
@@ -300,10 +298,10 @@ export default function Home() {
         {/* ── Trust badges ── */}
         <View style={s.trustRow}>
           {[
-            { icon: 'percent', label: 'Best Prices' },
-            { icon: 'shield', label: 'Verified Gyms' },
-            { icon: 'bolt', label: 'Easy Booking' },
-            { icon: 'headphones', label: '24/7 Support' },
+            { icon: 'percent', label: 'Best Prices', sub: 'Guaranteed' },
+            { icon: 'shield', label: 'Verified Gyms', sub: 'Quality Assured' },
+            { icon: 'bolt', label: 'Easy Booking', sub: 'In Few Clicks' },
+            { icon: 'headphones', label: '24/7 Support', sub: 'We\'re Here' },
           ].map((item) => (
             <View key={item.label} style={s.trustItem}>
               <View style={s.trustIcon}>
@@ -313,6 +311,7 @@ export default function Home() {
                 {item.icon === 'headphones' && <IconHeadphones size={14} color={colors.accent} />}
               </View>
               <Text style={s.trustLabel}>{item.label}</Text>
+              <Text style={s.trustSub}>{item.sub}</Text>
             </View>
           ))}
         </View>
@@ -360,7 +359,7 @@ export default function Home() {
             <View style={[s.sectionRow, { marginTop: 24 }]}>
               <Text style={s.sectionTitle}>Shop Products</Text>
               <TouchableOpacity onPress={() => router.push('/(tabs)/store' as any)}>
-                <Text style={s.seeAll}>See all</Text>
+                <Text style={s.seeAll}>View All ›</Text>
               </TouchableOpacity>
             </View>
             <FlatList
@@ -489,27 +488,31 @@ const s = StyleSheet.create({
 
   // Most Visited
   mostVisitedScroll: { marginBottom: 6 },
-  mvCard: { width: 118, borderRadius: radius.lg },
-  mvImgWrap: { width: 118, height: 140, borderRadius: radius.lg, overflow: 'hidden', marginBottom: 6 },
-  mvPhoto: { flex: 1 },
-  mvDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  mvCard: { width: 112, borderRadius: radius.lg },
+  mvImgWrap: { width: 112, height: 134, borderRadius: radius.lg, overflow: 'hidden', marginBottom: 5 },
+  mvPhoto: { flex: 1, justifyContent: 'flex-end' },
+  mvDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.48)' },
+  mvRankOverlay: {
+    fontFamily: fonts.sansBold, fontSize: 46, color: 'rgba(255,255,255,0.18)',
+    position: 'absolute', top: 6, right: 8, lineHeight: 52,
+  },
   mvRankBadge: {
     position: 'absolute', bottom: 8, left: 8,
     backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 6,
     paddingHorizontal: 7, paddingVertical: 2,
   },
   mvRank: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.accent },
-  mvName: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff', lineHeight: 16 },
-  mvCity: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2, lineHeight: 14 },
+  mvName: { fontFamily: fonts.sansBold, fontSize: 11, color: '#fff', lineHeight: 15 },
+  mvCity: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2, lineHeight: 13 },
 
   // Gym cards (horizontal layout)
   gymCard: {
-    flexDirection: 'row', gap: 12,
+    flexDirection: 'row', gap: 10,
     backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.xl,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    marginHorizontal: 20, marginBottom: 12, padding: 12,
+    marginHorizontal: 20, marginBottom: 10, padding: 10,
   },
-  gymThumb: { width: 90, height: 90, borderRadius: radius.md, overflow: 'hidden', position: 'relative' },
+  gymThumb: { width: 82, height: 82, borderRadius: radius.md, overflow: 'hidden', position: 'relative' },
   discountBadge: {
     position: 'absolute', top: 6, left: 6,
     backgroundColor: colors.accent, borderRadius: 6,
@@ -518,11 +521,11 @@ const s = StyleSheet.create({
   discountText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#060606' },
   gymInfo: { flex: 1, justifyContent: 'space-between', gap: 4 },
   gymTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  gymName: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', flex: 1, marginRight: 6 },
+  gymName: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff', flex: 1, marginRight: 6 },
   gymMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  ratingText: { fontFamily: fonts.sansBold, fontSize: 12, color: 'rgba(255,205,55,0.9)' },
-  metaDivider: { fontFamily: fonts.sans, fontSize: 12, color: colors.t3, marginHorizontal: 2 },
-  metaText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
+  ratingText: { fontFamily: fonts.sansBold, fontSize: 11, color: 'rgba(255,205,55,0.9)' },
+  metaDivider: { fontFamily: fonts.sans, fontSize: 11, color: colors.t3, marginHorizontal: 2 },
+  metaText: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
   tagsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   tag: {
     backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 6,
@@ -531,7 +534,7 @@ const s = StyleSheet.create({
   tagText: { fontFamily: fonts.sansMedium, fontSize: 10, color: colors.t2 },
   gymCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
   fromLabel: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
-  fromPrice: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.accent },
+  fromPrice: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.accent },
   fromPer: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
   viewPlansBtn: {
     backgroundColor: colors.accent, borderRadius: radius.pill,
@@ -567,13 +570,14 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
     padding: 16,
   },
-  trustItem: { flex: 1, alignItems: 'center', gap: 6 },
+  trustItem: { flex: 1, alignItems: 'center', gap: 4 },
   trustIcon: {
-    width: 34, height: 34, borderRadius: 17,
+    width: 32, height: 32, borderRadius: 16,
     backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
-  trustLabel: { fontFamily: fonts.sansMedium, fontSize: 9, color: colors.t2, textAlign: 'center' },
+  trustLabel: { fontFamily: fonts.sansBold, fontSize: 8, color: '#fff', textAlign: 'center' },
+  trustSub: { fontFamily: fonts.sans, fontSize: 7, color: colors.t2, textAlign: 'center' },
 
   // Testimonials
   testimonialCard: {

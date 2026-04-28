@@ -18,7 +18,7 @@ const PLANS = [
     bg: 'rgba(0,212,106,0.06)',
     border: 'rgba(0,212,106,0.22)',
     img: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=600&q=80',
-    cta: 'Select Gym',
+    cta: 'Explore Gyms',
     badge: null,
     features: [
       'Access to 1 gym for 1 day',
@@ -39,7 +39,7 @@ const PLANS = [
     border: 'rgba(96,165,250,0.25)',
     img: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80',
     cta: 'View Plans',
-    badge: 'Most Popular',
+    badge: null,
     features: [
       'Access to 1 selected gym',
       'Plans: 1 / 3 / 6 / 12 Months',
@@ -57,9 +57,9 @@ const PLANS = [
     accent: '#A78BFA',
     bg: 'rgba(167,139,250,0.06)',
     border: 'rgba(167,139,250,0.25)',
-    img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=600&q=80',
-    cta: 'Choose Plan',
-    badge: 'Best Value',
+    img: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80',
+    cta: 'Browse Gyms',
+    badge: '🔥 Most Popular',
     features: [
       'Access to 100+ gyms',
       'Switch gyms anytime',

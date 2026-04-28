@@ -8,7 +8,14 @@ import AuroraBackground from '../components/AuroraBackground';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconCalendar, IconClock, IconArrowLeft, IconCheck, IconUsers } from '../components/Icons';
-import { slotsApi } from '../lib/api';
+import { slotsApi, API_BASE } from '../lib/api';
+
+const FALLBACK_TYPES = [
+  { id: 'all', name: 'All', color: colors.accent },
+  { id: 'gym', name: 'Gym Workout', color: '#3DFF54' },
+  { id: 'cardio', name: 'Cardio', color: '#FB923C' },
+  { id: 'yoga', name: 'Yoga', color: '#22D3EE' },
+];
 
 function formatDate(d: Date) {
   return d.toISOString().split('T')[0];
@@ -31,11 +38,12 @@ function dayLabel(d: Date, index: number) {
 }
 
 const FALLBACK_SLOTS = [
-  { id: 'sl1', startTime: '06:00', endTime: '07:00', capacity: 20, booked: 12, isFull: false },
-  { id: 'sl2', startTime: '07:00', endTime: '08:00', capacity: 20, booked: 20, isFull: true },
-  { id: 'sl3', startTime: '08:00', endTime: '09:00', capacity: 20, booked: 8, isFull: false },
-  { id: 'sl4', startTime: '17:00', endTime: '18:00', capacity: 20, booked: 15, isFull: false },
-  { id: 'sl5', startTime: '18:00', endTime: '19:00', capacity: 20, booked: 19, isFull: false },
+  { id: 'sl1', startTime: '06:00', endTime: '07:00', capacity: 20, booked: 12, isFull: false, sessionTypeId: 'gym', sessionType: { id: 'gym', name: 'Gym Workout', color: '#3DFF54' } },
+  { id: 'sl2', startTime: '07:00', endTime: '08:00', capacity: 20, booked: 20, isFull: true, sessionTypeId: 'cardio', sessionType: { id: 'cardio', name: 'Cardio', color: '#FB923C' } },
+  { id: 'sl3', startTime: '08:00', endTime: '09:00', capacity: 20, booked: 8, isFull: false, sessionTypeId: 'gym', sessionType: { id: 'gym', name: 'Gym Workout', color: '#3DFF54' } },
+  { id: 'sl4', startTime: '09:00', endTime: '10:00', capacity: 15, booked: 5, isFull: false, sessionTypeId: 'yoga', sessionType: { id: 'yoga', name: 'Yoga', color: '#22D3EE' } },
+  { id: 'sl5', startTime: '17:00', endTime: '18:00', capacity: 20, booked: 15, isFull: false, sessionTypeId: 'cardio', sessionType: { id: 'cardio', name: 'Cardio', color: '#FB923C' } },
+  { id: 'sl6', startTime: '18:00', endTime: '19:00', capacity: 20, booked: 19, isFull: false, sessionTypeId: 'gym', sessionType: { id: 'gym', name: 'Gym Workout', color: '#3DFF54' } },
 ];
 
 const FALLBACK_BOOKINGS = [
@@ -51,6 +59,8 @@ export default function SlotsScreen() {
   const [loading, setLoading] = useState(true);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [sessionTypes, setSessionTypes] = useState<any[]>(FALLBACK_TYPES);
+  const [activeType, setActiveType] = useState('all');
 
   const loadSlots = async (dayIndex: number) => {
     setLoading(true);
@@ -92,6 +102,18 @@ export default function SlotsScreen() {
   useEffect(() => {
     loadSlots(selectedDay);
     loadMyBookings();
+    // Fetch session types for this gym
+    if (gymId) {
+      fetch(`${API_BASE}/api/v1/sessions/types/${gymId}`)
+        .then(r => r.json())
+        .then((data: any) => {
+          const list = Array.isArray(data) ? data : [];
+          if (list.length > 0) {
+            setSessionTypes([{ id: 'all', name: 'All', color: colors.accent }, ...list]);
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
@@ -182,6 +204,22 @@ export default function SlotsScreen() {
           )}
         />
 
+        {/* Workout type filter */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }} contentContainerStyle={{ gap: 8 }}>
+          {sessionTypes.map((t) => {
+            const isActive = activeType === t.id;
+            return (
+              <TouchableOpacity
+                key={t.id}
+                style={[s.typeChip, isActive && { borderColor: t.color + 'AA', backgroundColor: t.color + '1A' }]}
+                onPress={() => setActiveType(t.id)}
+              >
+                <Text style={[s.typeChipText, isActive && { color: t.color }]}>{t.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
         {/* Slots */}
         <View style={s.sectionHeader}>
           <IconClock size={14} color={colors.accent} />
@@ -195,19 +233,27 @@ export default function SlotsScreen() {
             <Text style={s.emptyText}>No slots available for this date</Text>
           </View>
         ) : (
-          slots.map((slot: any) => {
+          slots
+            .filter((slot: any) => activeType === 'all' || (slot.sessionType?.id === activeType) || (slot.sessionTypeId === activeType))
+            .map((slot: any) => {
             const isFull = slot.isFull || (slot.booked >= slot.capacity);
             const available = (slot.capacity || 0) - (slot.booked || 0);
             const isBooking = bookingId === (slot.id || slot._id);
+            const stColor = slot.sessionType?.color || colors.accent;
+            const stName = slot.sessionType?.name || '';
             return (
               <View key={slot.id || slot._id} style={[s.slotCard, isFull && s.slotCardFull]}>
+                <View style={[s.slotAccentBar, { backgroundColor: stColor }]} />
                 <View style={s.slotLeft}>
                   <View style={s.slotTimeRow}>
-                    <IconClock size={13} color={isFull ? colors.t3 : colors.accent} />
+                    <IconClock size={13} color={isFull ? colors.t3 : stColor} />
                     <Text style={[s.slotTime, isFull && s.slotTimeFull]}>
                       {slot.startTime} – {slot.endTime}
                     </Text>
                   </View>
+                  {stName ? (
+                    <Text style={[s.slotTypePill, { color: stColor }]}>{stName}</Text>
+                  ) : null}
                   <View style={s.slotCapRow}>
                     <IconUsers size={12} color={colors.t2} />
                     <Text style={s.slotCap}>
@@ -296,15 +342,20 @@ const s = StyleSheet.create({
   slotCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
-    borderRadius: radius.lg, padding: 16, marginBottom: 10,
+    borderRadius: radius.lg, padding: 14, marginBottom: 10, overflow: 'hidden',
+  },
+  slotAccentBar: {
+    width: 3, height: '100%', borderRadius: 2, marginRight: 12,
+    position: 'absolute', left: 0, top: 0, bottom: 0,
   },
   slotCardFull: { opacity: 0.5 },
-  slotLeft: { flex: 1 },
+  slotLeft: { flex: 1, paddingLeft: 6 },
   slotTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 5 },
   slotTime: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff' },
   slotTimeFull: { color: colors.t2 },
   slotCapRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   slotCap: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
+  slotTypePill: { fontFamily: fonts.sansMedium, fontSize: 10, marginBottom: 4 },
   bookBtn: {
     paddingHorizontal: 20, height: 38, borderRadius: radius.pill,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', minWidth: 72,
@@ -314,6 +365,11 @@ const s = StyleSheet.create({
   bookBtnTextFull: { color: colors.t3 },
   emptyState: { alignItems: 'center', paddingVertical: 40 },
   emptyText: { fontFamily: fonts.sans, fontSize: 14, color: colors.t2 },
+  typeChip: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: radius.pill,
+    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
+  },
+  typeChipText: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t2 },
   bookingCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
