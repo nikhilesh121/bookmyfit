@@ -1,77 +1,59 @@
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
-  Dimensions, ActivityIndicator, Platform,
+  Dimensions, ActivityIndicator,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT, Circle } from 'react-native-maps';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { useEffect, useRef, useState } from 'react';
-import { colors, fonts, radius, spacing } from '../theme/brand';
+import { colors, fonts, radius } from '../theme/brand';
 import { IconChevronLeft, IconStar, IconPin } from '../components/Icons';
 import { API_BASE } from '../lib/api';
 
 const { width: W, height: H } = Dimensions.get('window');
 const CARD_W = W * 0.72;
-const MAP_H = H * 0.55;
+const MAP_H = H * 0.52;
 
 interface NearbyGym {
-  id: string;
-  name: string;
-  address?: string;
-  city?: string;
-  latitude?: number;
-  longitude?: number;
-  rating?: number;
-  images?: string[];
-  tier?: string;
-  minPrice?: number;
+  id: string; name: string; address?: string; city?: string;
+  latitude?: number; longitude?: number;
+  rating?: number; tier?: string; minPrice?: number;
 }
-
-// Dark map style — minimal, material-ish
-const DARK_MAP_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#0f0f12' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#6b7280' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0a0d' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1c1c24' }] },
-  { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#232330' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2a2a3a' }] },
-  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1a1a28' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#070710' }] },
-  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#2d2d40' }] },
-  { featureType: 'administrative.land_parcel', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-];
-
-// Fallback gyms with Bhubaneswar coords
-const FALLBACK_GYMS: NearbyGym[] = [
-  { id: '1', name: 'Iron Temple Gym',        address: 'Sahid Nagar',    latitude: 20.2961, longitude: 85.8245, rating: 4.8, tier: 'elite' },
-  { id: '2', name: 'FitZone Premier',         address: 'Patia',         latitude: 20.3495, longitude: 85.8163, rating: 4.6, tier: 'pro' },
-  { id: '3', name: 'PowerHouse Fitness',      address: 'Jaydev Vihar',  latitude: 20.3112, longitude: 85.8130, rating: 4.5, tier: 'pro' },
-  { id: '4', name: 'Zen Yoga & Wellness',     address: 'Nayapalli',     latitude: 20.2868, longitude: 85.8004, rating: 4.7, tier: 'individual' },
-  { id: '5', name: 'CrossFit Bhubaneswar',    address: 'Khandagiri',    latitude: 20.2524, longitude: 85.7793, rating: 4.4, tier: 'pro' },
-  { id: '6', name: 'The Muscle Factory',      address: 'Chandrasekharpur', latitude: 20.3212, longitude: 85.8235, rating: 4.3, tier: 'individual' },
-];
 
 const TIER_COLORS: Record<string, string> = {
   elite: '#FBBF24', pro: colors.accent, individual: '#60A5FA',
 };
 
+const FALLBACK_GYMS: NearbyGym[] = [
+  { id: '1', name: 'Iron Temple Gym',        address: 'Sahid Nagar',      latitude: 20.2961, longitude: 85.8245, rating: 4.8, tier: 'elite' },
+  { id: '2', name: 'FitZone Premier',         address: 'Patia',            latitude: 20.3495, longitude: 85.8163, rating: 4.6, tier: 'pro' },
+  { id: '3', name: 'PowerHouse Fitness',      address: 'Jaydev Vihar',     latitude: 20.3112, longitude: 85.8130, rating: 4.5, tier: 'pro' },
+  { id: '4', name: 'Zen Yoga & Wellness',     address: 'Nayapalli',        latitude: 20.2868, longitude: 85.8004, rating: 4.7, tier: 'individual' },
+  { id: '5', name: 'CrossFit Bhubaneswar',    address: 'Khandagiri',       latitude: 20.2524, longitude: 85.7793, rating: 4.4, tier: 'pro' },
+  { id: '6', name: 'The Muscle Factory',      address: 'Chandrasekharpur', latitude: 20.3212, longitude: 85.8235, rating: 4.3, tier: 'individual' },
+];
+
+// Bhubaneswar bounding box
+const MIN_LAT = 20.22, MAX_LAT = 20.40, MIN_LNG = 85.74, MAX_LNG = 85.90;
+
+function toScreen(lat: number, lng: number) {
+  const x = ((lng - MIN_LNG) / (MAX_LNG - MIN_LNG)) * (W - 60) + 16;
+  const y = ((MAX_LAT - lat) / (MAX_LAT - MIN_LAT)) * (MAP_H - 80) + 24;
+  return { x, y };
+}
+
 export default function NearbyScreen() {
   const insets = useSafeAreaInsets();
-  const mapRef = useRef<MapView>(null);
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const flatRef = useRef<FlatList>(null);
   const [gyms, setGyms] = useState<NearbyGym[]>([]);
+  const [userPos, setUserPos] = useState<{ x: number; y: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const flatRef = useRef<FlatList>(null);
 
-  // Get location + gyms
   useEffect(() => {
     (async () => {
+      let lat = 20.2961, lng = 85.8245;
       const { status } = await Location.requestForegroundPermissionsAsync();
-      let lat = 20.2961, lng = 85.8245; // Bhubaneswar default
       if (status === 'granted') {
         try {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -79,116 +61,97 @@ export default function NearbyScreen() {
           lng = loc.coords.longitude;
         } catch {}
       }
-      setLocation({ lat, lng });
+      setUserPos(toScreen(lat, lng));
 
-      // Fetch nearby gyms
       try {
-        const res = await fetch(`${API_BASE}/api/v1/gyms?lat=${lat}&lng=${lng}&limit=20`);
+        const res = await fetch(`${API_BASE}/api/v1/gyms?limit=20`);
         if (res.ok) {
           const data = await res.json();
           const items: NearbyGym[] = (data.items || data || []).filter((g: NearbyGym) => g.latitude && g.longitude);
           setGyms(items.length > 0 ? items : FALLBACK_GYMS);
-        } else {
-          setGyms(FALLBACK_GYMS);
-        }
-      } catch {
-        setGyms(FALLBACK_GYMS);
-      }
+        } else setGyms(FALLBACK_GYMS);
+      } catch { setGyms(FALLBACK_GYMS); }
       setLoading(false);
     })();
   }, []);
 
   const selectGym = (gym: NearbyGym) => {
     setSelectedId(gym.id);
-    // Pan map to gym
-    if (gym.latitude && gym.longitude) {
-      mapRef.current?.animateToRegion({
-        latitude: gym.latitude - 0.006,
-        longitude: gym.longitude,
-        latitudeDelta: 0.04,
-        longitudeDelta: 0.04,
-      }, 400);
-    }
-    // Scroll card into view
     const idx = gyms.findIndex((g) => g.id === gym.id);
     if (idx >= 0) flatRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
   };
 
-  const region = location
-    ? { latitude: location.lat, longitude: location.lng, latitudeDelta: 0.06, longitudeDelta: 0.06 }
-    : { latitude: 20.2961, longitude: 85.8245, latitudeDelta: 0.06, longitudeDelta: 0.06 };
-
   return (
     <View style={s.root}>
-      {/* ── Map ── */}
-      {loading ? (
-        <View style={[s.mapPlaceholder, { height: MAP_H }]}>
-          <ActivityIndicator color={colors.accent} size="large" />
-          <Text style={s.loadingText}>Finding gyms near you…</Text>
-        </View>
-      ) : (
-        <MapView
-          ref={mapRef}
-          style={{ width: W, height: MAP_H }}
-          provider={PROVIDER_DEFAULT}
-          initialRegion={region}
-          customMapStyle={DARK_MAP_STYLE}
-          showsUserLocation
-          showsMyLocationButton={false}
-          showsCompass={false}
-          showsScale={false}
-          toolbarEnabled={false}
-        >
-          {/* User radius ring */}
-          {location && (
-            <Circle
-              center={{ latitude: location.lat, longitude: location.lng }}
-              radius={3500}
-              strokeColor={colors.accent + '33'}
-              fillColor={colors.accent + '0A'}
-              strokeWidth={1}
-            />
-          )}
+      {/* ── Custom map canvas ── */}
+      <View style={[s.mapCanvas, { height: MAP_H }]}>
+        {/* Grid — simulates map tiles */}
+        {[0.2, 0.4, 0.6, 0.8].map((f) => (
+          <View key={`h${f}`} style={[s.gridH, { top: MAP_H * f }]} />
+        ))}
+        {[0.15, 0.3, 0.45, 0.6, 0.75, 0.9].map((f) => (
+          <View key={`v${f}`} style={[s.gridV, { left: W * f }]} />
+        ))}
+        {/* Simulated roads */}
+        <View style={[s.road, { top: MAP_H * 0.38, width: W * 0.7, left: W * 0.15 }]} />
+        <View style={[s.road, { top: MAP_H * 0.62, width: W * 0.55, left: W * 0.2 }]} />
+        <View style={[s.roadV, { left: W * 0.45, height: MAP_H * 0.6, top: MAP_H * 0.1 }]} />
+        <View style={[s.roadV, { left: W * 0.68, height: MAP_H * 0.5, top: MAP_H * 0.25 }]} />
 
-          {/* Gym pins */}
-          {gyms.map((gym) => (
-            <Marker
-              key={gym.id}
-              coordinate={{ latitude: gym.latitude!, longitude: gym.longitude! }}
-              onPress={() => selectGym(gym)}
-              anchor={{ x: 0.5, y: 1 }}
-            >
-              <View style={[s.pin, selectedId === gym.id && s.pinActive]}>
-                <Text style={[s.pinText, selectedId === gym.id && s.pinTextActive]}>
+        {loading && (
+          <View style={s.loadingOverlay}>
+            <ActivityIndicator color={colors.accent} size="large" />
+            <Text style={s.loadingText}>Finding gyms near you…</Text>
+          </View>
+        )}
+
+        {/* User location dot */}
+        {!loading && userPos && (
+          <View style={[s.userDot, { left: userPos.x - 10, top: userPos.y - 10 }]}>
+            <View style={s.userPulse} />
+            <View style={s.userCore} />
+          </View>
+        )}
+
+        {/* Gym pins */}
+        {!loading && gyms.map((gym) => {
+          if (!gym.latitude || !gym.longitude) return null;
+          const { x, y } = toScreen(gym.latitude, gym.longitude);
+          const tc = TIER_COLORS[gym.tier || 'individual'] ?? colors.accent;
+          const sel = selectedId === gym.id;
+          return (
+            <TouchableOpacity key={gym.id} style={[s.pinWrap, { left: x - 32, top: y - 38 }]} onPress={() => selectGym(gym)} activeOpacity={0.8}>
+              <View style={[s.pinBubble, { borderColor: sel ? tc : tc + '60', backgroundColor: sel ? tc : 'rgba(12,12,18,0.92)' }]}>
+                <Text style={[s.pinLabel, { color: sel ? '#000' : tc }]} numberOfLines={1}>
                   {gym.name.split(' ')[0]}
                 </Text>
-                <View style={[s.pinDot, { backgroundColor: TIER_COLORS[gym.tier || 'individual'] ?? colors.accent }]} />
               </View>
-            </Marker>
-          ))}
-        </MapView>
-      )}
+              <View style={[s.pinTail, { borderTopColor: sel ? tc : tc + '60' }]} />
+            </TouchableOpacity>
+          );
+        })}
 
-      {/* ── Back button overlay ── */}
+        {/* City label */}
+        <View style={s.cityLabel}>
+          <View style={[s.cityDot, { backgroundColor: colors.accent }]} />
+          <Text style={s.cityText}>Bhubaneswar</Text>
+        </View>
+      </View>
+
+      {/* ── Back + header overlay ── */}
       <SafeAreaView style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        <TouchableOpacity
-          style={[s.backBtn, { top: insets.top + 8 }]}
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-        >
+        <TouchableOpacity style={[s.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()} activeOpacity={0.8}>
           <IconChevronLeft size={18} color="#fff" />
         </TouchableOpacity>
-        <View style={[s.headerLabel, { top: insets.top + 10 }]}>
+        <View style={[s.headerWrap, { top: insets.top + 10 }]}>
           <Text style={s.headerTitle}>Gyms Near You</Text>
-          <Text style={s.headerSub}>{gyms.length} found · Bhubaneswar</Text>
+          <Text style={s.headerSub}>{gyms.length} found · Tap pin to select</Text>
         </View>
       </SafeAreaView>
 
       {/* ── Bottom sheet ── */}
       <View style={s.sheet}>
-        {/* Pill */}
         <View style={s.sheetPill} />
-
         <FlatList
           ref={flatRef}
           data={gyms}
@@ -200,16 +163,11 @@ export default function NearbyScreen() {
           contentContainerStyle={{ paddingHorizontal: 18, gap: 12, paddingBottom: 8 }}
           onScrollToIndexFailed={() => {}}
           renderItem={({ item }) => {
-            const selected = selectedId === item.id;
+            const sel = selectedId === item.id;
+            const tc = TIER_COLORS[item.tier || 'individual'] ?? colors.accent;
             return (
-              <TouchableOpacity
-                style={[s.card, selected && s.cardSelected]}
-                onPress={() => selectGym(item)}
-                activeOpacity={0.88}
-              >
-                {/* Accent bar */}
-                <View style={[s.cardBar, { backgroundColor: TIER_COLORS[item.tier || 'individual'] ?? colors.accent }]} />
-
+              <TouchableOpacity style={[s.card, sel && { borderColor: tc + '55', backgroundColor: tc + '08' }]} onPress={() => selectGym(item)} activeOpacity={0.88}>
+                <View style={[s.cardBar, { backgroundColor: tc }]} />
                 <View style={s.cardBody}>
                   <View style={s.cardRow}>
                     <Text style={s.cardName} numberOfLines={1}>{item.name}</Text>
@@ -217,32 +175,18 @@ export default function NearbyScreen() {
                       <View style={s.eliteBadge}><Text style={s.eliteBadgeText}>Elite</Text></View>
                     )}
                   </View>
-
                   <View style={s.locRow}>
                     <IconPin size={10} color={colors.t2} />
-                    <Text style={s.locText} numberOfLines={1}>{item.address || item.city || 'Bhubaneswar'}</Text>
+                    <Text style={s.locText} numberOfLines={1}>{item.address || 'Bhubaneswar'}</Text>
                   </View>
-
-                  <View style={s.cardMeta}>
-                    {item.rating && (
-                      <View style={s.ratingRow}>
-                        <IconStar size={11} color="#FBBF24" />
-                        <Text style={s.ratingText}>{item.rating.toFixed(1)}</Text>
-                      </View>
-                    )}
-                    {item.minPrice && (
-                      <Text style={s.priceText}>₹{item.minPrice}/day</Text>
-                    )}
-                  </View>
-
-                  <TouchableOpacity
-                    style={[s.viewBtn, selected && s.viewBtnActive]}
-                    onPress={() => router.push(`/gym/${item.id}` as any)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[s.viewBtnText, selected && s.viewBtnTextActive]}>
-                      View Details
-                    </Text>
+                  {item.rating && (
+                    <View style={s.ratingRow}>
+                      <IconStar size={11} color="#FBBF24" />
+                      <Text style={s.ratingText}>{item.rating.toFixed(1)}</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity style={[s.viewBtn, sel && { borderColor: tc, backgroundColor: tc + '18' }]} onPress={() => router.push(`/gym/${item.id}` as any)} activeOpacity={0.85}>
+                    <Text style={[s.viewBtnText, sel && { color: tc }]}>View Details</Text>
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
@@ -257,123 +201,53 @@ export default function NearbyScreen() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
 
-  mapPlaceholder: {
-    width: W,
-    backgroundColor: '#0a0a0e',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
+  // Map canvas
+  mapCanvas: { width: W, backgroundColor: '#080810', overflow: 'hidden', position: 'relative' },
+  gridH: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.04)' },
+  gridV: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255,255,255,0.04)' },
+  road:  { position: 'absolute', height: 2, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 1 },
+  roadV: { position: 'absolute', width: 2,  backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 1 },
+
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
 
-  // Back button
-  backBtn: {
-    position: 'absolute',
-    left: 16,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerLabel: {
-    position: 'absolute',
-    left: W / 2 - 90,
-    width: 180,
-    alignItems: 'center',
-  },
-  headerTitle: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
-  headerSub:   { fontFamily: fonts.sans, fontSize: 11, color: 'rgba(255,255,255,0.6)', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+  // User location
+  userDot:   { position: 'absolute', width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  userPulse: { position: 'absolute', width: 20, height: 20, borderRadius: 10, backgroundColor: '#60A5FA18', borderWidth: 1, borderColor: '#60A5FA44' },
+  userCore:  { width: 10, height: 10, borderRadius: 5, backgroundColor: '#60A5FA', borderWidth: 2, borderColor: '#fff' },
 
-  // Custom marker
-  pin: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(15,15,20,0.88)',
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
-  },
-  pinActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-    shadowColor: colors.accent,
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  pinText:       { fontFamily: fonts.sansBold, fontSize: 10, color: '#fff' },
-  pinTextActive: { color: '#000' },
-  pinDot:        { width: 5, height: 5, borderRadius: 3, marginTop: 3 },
+  // Gym pins
+  pinWrap:   { position: 'absolute', alignItems: 'center' },
+  pinBubble: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 16, borderWidth: 1.5, minWidth: 64, alignItems: 'center' },
+  pinLabel:  { fontFamily: fonts.sansBold, fontSize: 10 },
+  pinTail:   { width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 6, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
 
-  // Bottom sheet
-  sheet: {
-    flex: 1,
-    backgroundColor: colors.surface ?? '#0e0e14',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingTop: 12,
-  },
-  sheetPill: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
+  cityLabel: { position: 'absolute', bottom: 12, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
+  cityDot:   { width: 6, height: 6, borderRadius: 3 },
+  cityText:  { fontFamily: fonts.sansMedium, fontSize: 11, color: 'rgba(255,255,255,0.35)', letterSpacing: 1 },
 
-  // Gym card
-  card: {
-    width: CARD_W,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-  cardSelected: {
-    borderColor: colors.accent + '55',
-    backgroundColor: colors.accent + '08',
-  },
-  cardBar: { width: 3, borderRadius: 2 },
-  cardBody: { flex: 1, padding: 14, gap: 6 },
+  // Back button + header
+  backBtn: { position: 'absolute', left: 16, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  headerWrap:  { position: 'absolute', left: W / 2 - 90, width: 180, alignItems: 'center' },
+  headerTitle: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
+  headerSub:   { fontFamily: fonts.sans, fontSize: 10, color: 'rgba(255,255,255,0.55)', textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
 
-  cardRow:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardName:  { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', flex: 1 },
-  eliteBadge:     { backgroundColor: '#FBBF2415', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: '#FBBF2440' },
+  // Sheet
+  sheet:     { flex: 1, backgroundColor: '#0e0e14', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingTop: 12 },
+  sheetPill: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'center', marginBottom: 16 },
+
+  // Cards
+  card:     { width: CARD_W, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.xl, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden', flexDirection: 'row' },
+  cardBar:  { width: 3 },
+  cardBody: { flex: 1, padding: 14, gap: 7 },
+  cardRow:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardName: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', flex: 1 },
+  eliteBadge: { backgroundColor: '#FBBF2415', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: '#FBBF2440' },
   eliteBadgeText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#FBBF24' },
-
-  locRow:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locText:  { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, flex: 1 },
-
-  cardMeta:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  locRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locText: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
   ratingRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
   ratingText: { fontFamily: fonts.sansMedium, fontSize: 12, color: '#FBBF24' },
-  priceText:  { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
-
-  viewBtn: {
-    marginTop: 4,
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    borderRadius: radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  viewBtnActive: { borderColor: colors.accent, backgroundColor: colors.accent + '18' },
+  viewBtn:     { alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 6 },
   viewBtnText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.t2 },
-  viewBtnTextActive: { color: colors.accent },
 });
