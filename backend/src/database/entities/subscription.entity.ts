@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { UserEntity } from './user.entity';
 
 /**
  * Plan types:
@@ -19,6 +20,10 @@ export class SubscriptionEntity {
   @Index()
   @Column({ type: 'uuid' })
   userId: string;
+
+  @ManyToOne(() => UserEntity, { createForeignKeyConstraints: false, nullable: true, eager: false })
+  @JoinColumn({ name: 'userId' })
+  user?: UserEntity;
 
   @Column({ length: 30, nullable: true, default: 'same_gym' }) planType: PlanType;
 

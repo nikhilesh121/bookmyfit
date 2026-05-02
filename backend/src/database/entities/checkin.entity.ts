@@ -1,4 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { UserEntity } from './user.entity';
+import { GymEntity } from './gym.entity';
 
 export type CheckinStatus = 'success' | 'failed_expired' | 'failed_invalid' | 'failed_daily_limit' | 'failed_device_mismatch';
 
@@ -12,8 +14,16 @@ export class CheckinEntity {
   @Column({ type: 'uuid' })
   userId: string;
 
+  @ManyToOne(() => UserEntity, { createForeignKeyConstraints: false, nullable: true, eager: false })
+  @JoinColumn({ name: 'userId' })
+  user?: UserEntity;
+
   @Column({ type: 'uuid' })
   gymId: string;
+
+  @ManyToOne(() => GymEntity, { createForeignKeyConstraints: false, nullable: true, eager: false })
+  @JoinColumn({ name: 'gymId' })
+  gym?: GymEntity;
 
   @Column({ type: 'uuid' })
   subscriptionId: string;

@@ -10,6 +10,8 @@ export interface User {
   gender?: 'male' | 'female' | 'other';
   role: UserRole;
   deviceId?: string;
+  loyaltyPoints?: number;
+  referralCode?: string;
   createdAt: string;
 }
 
@@ -27,13 +29,40 @@ export interface Gym {
   lng: number;
   tier: GymTier;
   rating: number;
+  ratingCount?: number;
   status: GymStatus;
   commissionRate: number;
+  ratePerDay?: number;
+  dayPassPrice?: number | null;
+  sameGymMonthlyPrice?: number | null;
+  capacity?: number;
   coverPhoto?: string;
   photos?: string[];
   amenities?: string[];
   categories?: string[];
+  ownerId?: string;
+  kycStatus?: string;
   createdAt: string;
+}
+
+export interface GymPlan {
+  id: string;
+  gymId: string;
+  name: string;
+  description?: string;
+  price: number;
+  durationDays: number;
+  sessionsPerDay?: number;
+  features?: string[];
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface MultiGymNetwork {
+  id: string;
+  gymId: string;
+  isActive: boolean;
+  addedAt: string;
 }
 
 // ============ Subscription Types ============
@@ -50,6 +79,9 @@ export interface Subscription {
   status: SubscriptionStatus;
   amountPaid: number;
   gymIds?: string[];
+  gymPlanId?: string;
+  corporateId?: string;
+  invoiceNumber?: string;
 }
 
 export interface BookingQr {
@@ -83,6 +115,8 @@ export interface Checkin {
   checkinTime: string;
   qrToken: string;
   status: CheckinStatus;
+  deviceId?: string;
+  failReason?: string;
 }
 
 export interface QRToken {
@@ -103,6 +137,19 @@ export interface Settlement {
   netPayout: number;
   status: SettlementStatus;
   paidDate?: string;
+  disputeReason?: string;
+  breakdown?: {
+    billableDays?: number;
+    ratePerDay?: number;
+    multiGymGross?: number;
+    multiGymCommission?: number;
+    multiGymPayout?: number;
+    individualRevenue?: number;
+    individualCommission?: number;
+    individualPayout?: number;
+    totalCheckins?: number;
+  };
+  createdAt: string;
 }
 
 // ============ Corporate Types ============
@@ -110,10 +157,12 @@ export interface CorporateAccount {
   id: string;
   companyName: string;
   email: string;
-  planType: PlanType;
+  planType: string;
   totalSeats: number;
   assignedSeats: number;
   billingContact: string;
+  adminUserId?: string;
+  isActive: boolean;
   createdAt: string;
 }
 
@@ -122,9 +171,108 @@ export interface CorporateEmployee {
   corporateId: string;
   userId: string;
   employeeCode: string;
-  department: string;
+  department?: string;
   status: 'active' | 'inactive';
   assignedDate: string;
+}
+
+// ============ Trainer Types ============
+export interface Trainer {
+  id: string;
+  gymId: string;
+  name: string;
+  specialization?: string;
+  photoUrl?: string;
+  bio?: string;
+  pricePerSession: number;
+  sessionPackages?: Array<{ sessions: number; price: number }>;
+  rating: number;
+  ratingCount: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface TrainerBooking {
+  id: string;
+  userId: string;
+  trainerId: string;
+  gymId: string;
+  sessionDate: string;
+  sessions: number;
+  amount: number;
+  platformCommission: number;
+  status: string;
+  cashfreeOrderId?: string;
+  createdAt: string;
+}
+
+// ============ Wellness Types ============
+export interface WellnessPartner {
+  id: string;
+  name: string;
+  serviceType: string;
+  city: string;
+  area: string;
+  address: string;
+  lat: number;
+  lng: number;
+  commissionRate: number;
+  status: string;
+  photos?: string[];
+  rating: number;
+  reviewCount: number;
+  discountPercent?: number;
+  distanceLabel?: string;
+  ownerId?: string;
+  createdAt: string;
+}
+
+export interface WellnessService {
+  id: string;
+  partnerId: string;
+  name: string;
+  description?: string;
+  price: number;
+  originalPrice?: number;
+  durationMinutes: number;
+  isActive: boolean;
+  imageUrl?: string;
+  category?: string;
+}
+
+export interface WellnessBooking {
+  id: string;
+  userId: string;
+  partnerId: string;
+  serviceId: string;
+  bookingDate: string;
+  amount: number;
+  platformCommission: number;
+  status: string;
+  cashfreeOrderId?: string;
+  createdAt: string;
+}
+
+// ============ Slots Types ============
+export interface GymSlot {
+  id: string;
+  gymId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  booked: number;
+  status: string;
+  createdAt: string;
+}
+
+export interface SlotBooking {
+  id: string;
+  slotId: string;
+  userId: string;
+  gymId: string;
+  status: string;
+  createdAt: string;
 }
 
 // ============ Store Types ============
@@ -151,6 +299,49 @@ export interface OrderItem {
   productId: string;
   quantity: number;
   price: number;
+}
+
+// ============ Misc Types ============
+export interface FraudAlert {
+  id: string;
+  userId?: string;
+  eventType?: string;
+  gymId?: string;
+  gymName?: string;
+  riskScore: number;
+  device?: string;
+  details?: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface Rating {
+  id: string;
+  userId: string;
+  gymId?: string;
+  trainerId?: string;
+  wellnessPartnerId?: string;
+  stars: number;
+  review?: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface Coupon {
+  id: string;
+  code: string;
+  discountType: 'percentage' | 'flat';
+  discountValue: number;
+  minOrderValue: number;
+  maxDiscount?: number;
+  validFrom: string;
+  validTo: string;
+  usageLimit: number;
+  perUserLimit: number;
+  usedCount: number;
+  applicableTo: string[];
+  isActive: boolean;
+  createdAt: string;
 }
 
 // ============ API Response Types ============

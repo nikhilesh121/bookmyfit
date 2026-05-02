@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 
 @Entity('corporate_accounts')
 export class CorporateAccountEntity {
@@ -31,6 +31,9 @@ export class CorporateAccountEntity {
   @Column({ default: true })
   isActive: boolean;
 
+  @OneToMany(() => CorporateEmployeeEntity, emp => emp.corporate, { createForeignKeyConstraints: false, eager: false })
+  employees?: CorporateEmployeeEntity[];
+
   @CreateDateColumn()
   createdAt: Date;
 }
@@ -43,6 +46,10 @@ export class CorporateEmployeeEntity {
 
   @Column({ type: 'uuid' })
   corporateId: string;
+
+  @ManyToOne(() => CorporateAccountEntity, { createForeignKeyConstraints: false, nullable: true, eager: false })
+  @JoinColumn({ name: 'corporateId' })
+  corporate?: CorporateAccountEntity;
 
   @Column({ type: 'uuid' })
   userId: string;

@@ -445,47 +445,13 @@ class CommissionController {
   }
 }
 
-// Gym sessions (class schedules) - in-memory store
-let gymSessionsStore: any[] = [];
-
-@ApiTags('Sessions')
-@Controller('sessions')
-@UseGuards(JwtAuthGuard, RolesGuard)
-class SessionsController {
-  @Get('my-gym') @Roles('gym_owner', 'gym_staff', 'super_admin')
-  getMyGymSessions(@Req() req: any) {
-    return gymSessionsStore.filter(s => !s.gymId || s.gymId === req.user?.gymId);
-  }
-
-  @Post() @Roles('gym_owner', 'gym_staff')
-  createSession(@Body() body: any, @Req() req: any) {
-    const session = { id: `s-${Date.now()}`, ...body, gymId: req.user?.gymId, createdAt: new Date() };
-    gymSessionsStore.push(session);
-    return session;
-  }
-
-  @Put(':id') @Roles('gym_owner', 'gym_staff')
-  updateSession(@Param('id') id: string, @Body() body: any) {
-    const idx = gymSessionsStore.findIndex(s => s.id === id);
-    if (idx === -1) return { error: 'Not found' };
-    gymSessionsStore[idx] = { ...gymSessionsStore[idx], ...body };
-    return gymSessionsStore[idx];
-  }
-
-  @Post(':id/delete') @Roles('gym_owner', 'gym_staff')
-  deleteSession(@Param('id') id: string) {
-    gymSessionsStore = gymSessionsStore.filter(s => s.id !== id);
-    return { success: true };
-  }
-}
-
 @Module({
   imports: [TypeOrmModule.forFeature([
     RatingEntity, CouponEntity, NotificationEntity, CategoryEntity, AmenityEntity, WorkoutVideoEntity,
     CheckinEntity, UserEntity, SubscriptionEntity, GymEntity, FraudAlertEntity,
     AppConfigEntity, ProductEntity,
   ])],
-  controllers: [RatingsController, CouponsController, NotificationsController, MasterController, VideosController, AnalyticsController, FraudController, CommissionController, HomepageController, SessionsController],
+  controllers: [RatingsController, CouponsController, NotificationsController, MasterController, VideosController, AnalyticsController, FraudController, CommissionController, HomepageController],
   providers: [RatingsService, CouponsService, NotificationsService, MasterDataService, VideosService, AnalyticsService, FraudService],
   exports: [RatingsService, CouponsService, NotificationsService, MasterDataService, VideosService, FraudService],
 })

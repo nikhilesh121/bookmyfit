@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { GymEntity } from './gym.entity';
 
 export type SettlementStatus = 'pending' | 'approved' | 'paid' | 'disputed';
 
@@ -10,6 +11,10 @@ export class SettlementEntity {
 
   @Column({ type: 'uuid' })
   gymId: string;
+
+  @ManyToOne(() => GymEntity, { createForeignKeyConstraints: false, nullable: true, eager: false })
+  @JoinColumn({ name: 'gymId' })
+  gym?: GymEntity;
 
   @Column({ length: 7 })
   month: string;
@@ -33,7 +38,6 @@ export class SettlementEntity {
     corporatePoolShare?: number;
     ptRevenue?: number;
     checkinCount?: number;
-    // Per-visit-day model fields
     billableDays?: number;
     ratePerDay?: number;
     multiGymGross?: number;
