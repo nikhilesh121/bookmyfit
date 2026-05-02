@@ -1,8 +1,9 @@
 import * as SecureStore from 'expo-secure-store';
-import Constants from 'expo-constants';
 import { router } from 'expo-router';
 
-export const API_BASE = (Constants.expoConfig?.extra?.apiUrl as string) || 'http://localhost:3003';
+export const API_BASE = 'https://bookmyfit.in';
+// To use local backend during development, comment the line above and uncomment below:
+// export const API_BASE = 'http://192.168.1.4:3003';
 
 // ── Token helpers ───────────────────────────────────────────
 export const getToken = () => SecureStore.getItemAsync('bmf_token');
@@ -138,6 +139,9 @@ export const gymPlansApi = {
 
 export const qrApi = {
   getActiveBooking: () => api.get('/slots/active-booking'),
+  /** Generate a 30-second membership check-in QR (subscription-based, no slot needed) */
+  generate: (subscriptionId: string) =>
+    api.post('/qr/generate', { subscriptionId }),
   validate: (qrToken: string, gymId: string) =>
     api.post('/qr/validate', { qrToken, gymId }),
 };

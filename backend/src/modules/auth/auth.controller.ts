@@ -1,20 +1,20 @@
 import { Body, Controller, Post, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, Length, IsEmail, MinLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, Length, IsEmail, MinLength } from 'class-validator';
 import { AuthService } from './auth.service';
 
 class SendOtpDto {
-  @IsString() @Length(10, 15) phone: string;
+  @IsString() @IsNotEmpty() @Length(10, 15) phone: string;
 }
 class VerifyOtpDto {
   @IsString() @Length(10, 15) phone: string;
-  @IsString() @Length(4, 6) code: string;
+  @IsString() @Length(6, 6) code: string;
   @IsString() @IsNotEmpty() deviceId: string;
-  @IsString() name?: string;
+  @IsOptional() @IsString() name?: string;
 }
 class AdminLoginDto {
-  @IsString() email: string;
-  @IsString() password: string;
+  @IsEmail() @IsNotEmpty() email: string;
+  @IsString() @IsNotEmpty() @MinLength(6) password: string;
 }
 class GymRegisterDto {
   @IsEmail() email: string;
@@ -24,6 +24,7 @@ class GymRegisterDto {
   @IsString() @IsNotEmpty() city: string;
   @IsString() @IsNotEmpty() area: string;
   @IsString() @IsNotEmpty() address: string;
+  @IsString() @Length(10, 15) phone: string;
 }
 class CorporateRegisterDto {
   @IsEmail() email: string;

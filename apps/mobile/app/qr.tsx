@@ -4,11 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import AuroraBackground from '../components/AuroraBackground';
-import { IconArrowLeft, IconClock, IconCheck } from '../components/Icons';
+import { IconArrowLeft, IconClock } from '../components/Icons';
 import { colors, fonts, radius } from '../theme/brand';
 import { qrApi } from '../lib/api';
 
-function formatTime(totalSeconds: number): string {
+// HH:MM:SS reverse countdown
+function formatLong(totalSeconds: number): string {
   if (totalSeconds <= 0) return '00:00:00';
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
@@ -17,70 +18,89 @@ function formatTime(totalSeconds: number): string {
 }
 
 function formatDateTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return new Date(iso).toLocaleString('en-IN', {
+    day: '2-digit', month: 'short',
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  });
 }
+
+type QrMode = 'loading' | 'slot' | 'empty';
 
 export default function QrScreen() {
   const params = useLocalSearchParams<{
     token?: string; expiresAt?: string; gymId?: string; gymName?: string; bookedAt?: string;
   }>();
 
+  const [mode, setMode] = useState<QrMode>('loading');
   const [token, setToken] = useState<string | null>(params.token || null);
   const [expiresAt, setExpiresAt] = useState<string | null>(params.expiresAt || null);
   const [bookedAt, setBookedAt] = useState<string | null>(params.bookedAt || null);
   const [gymName, setGymName] = useState<string>(params.gymName || '');
   const [secondsLeft, setSecondsLeft] = useState(0);
-  const [loading, setLoading] = useState(!params.token);
-  const [noBooking, setNoBooking] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load active booking if no params provided
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Bootstrap: QR is ONLY shown when a slot/session is actively booked ─────────
   useEffect(() => {
-    if (!params.token) {
-      qrApi.getActiveBooking().then((res: any) => {
-        if (res?.active && res.bookingQr) {
-          setToken(res.bookingQr.token);
-          setExpiresAt(res.bookingQr.expiresAt);
-          setBookedAt(res.bookingQr.bookedAt);
-          setGymName(res.bookingQr.gymName || '');
-        } else {
-          setNoBooking(true);
-        }
-      }).catch(() => setNoBooking(true)).finally(() => setLoading(false));
+    if (params.token && params.expiresAt) {
+      // QR passed via navigation params (e.g. right after booking a slot)
+      setMode('slot');
+      return;
     }
+    (async () => {
+      try {
+        const booking: any = await qrApi.getActiveBooking();
+        if (booking?.active && booking.bookingQr) {
+          setToken(booking.bookingQr.token);
+          setExpiresAt(booking.bookingQr.expiresAt);
+          setBookedAt(booking.bookingQr.bookedAt);
+          setGymName(booking.bookingQr.gymName || '');
+          setMode('slot');
+          return;
+        }
+      } catch { /* network/auth error — show empty */ }
+
+      // No active slot booking → show empty state.
+      // Subscriptions alone do NOT generate a QR — user must book a slot first.
+      setMode('empty');
+    })();
   }, []);
 
-  // Countdown timer
+  // ── Reverse timer: counts from now down to expiresAt (= bookedAt + 2 hours) ───
   useEffect(() => {
-    if (!expiresAt) return;
+    if (mode !== 'slot' || !expiresAt) return;
     const tick = () => {
       const diff = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
       setSecondsLeft(diff);
     };
     tick();
-    intervalRef.current = setInterval(tick, 1000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [expiresAt]);
+    countdownRef.current = setInterval(tick, 1000);
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
+  }, [mode, expiresAt]);
 
-  const isExpired = secondsLeft <= 0 && expiresAt !== null;
-  const validUntil = expiresAt ? formatDateTime(expiresAt) : '';
-  const bookedAtFormatted = bookedAt ? formatDateTime(bookedAt) : '';
+  useEffect(() => {
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
+  }, []);
 
-  if (loading) {
+  const isExpired = mode === 'slot' && secondsLeft <= 0 && expiresAt !== null;
+  const isLowTime = secondsLeft > 0 && secondsLeft < 600; // < 10 min → red
+
+  // ── Loading ──────────────────────────────────────────────────────────────────
+  if (mode === 'loading') {
     return (
       <AuroraBackground>
         <SafeAreaView style={s.root}>
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator color={colors.accent} size="large" />
-            <Text style={[s.sub, { marginTop: 16 }]}>Loading your session QR…</Text>
+            <Text style={[s.sub, { marginTop: 16 }]}>Checking your bookings…</Text>
           </View>
         </SafeAreaView>
       </AuroraBackground>
     );
   }
 
-  if (noBooking || !token) {
+  // ── No booked slot ────────────────────────────────────────────────────────────
+  if (mode === 'empty') {
     return (
       <AuroraBackground>
         <SafeAreaView style={s.root}>
@@ -88,30 +108,33 @@ export default function QrScreen() {
             <TouchableOpacity style={s.back} onPress={() => router.back()}>
               <IconArrowLeft size={18} color="#fff" />
             </TouchableOpacity>
-            <Text style={s.title}>Session QR</Text>
+            <Text style={s.title}>Check-In QR</Text>
             <View style={{ width: 38 }} />
           </View>
           <View style={s.empty}>
             <View style={s.emptyIcon}>
               <IconClock size={32} color={colors.t2} />
             </View>
-            <Text style={s.emptyTitle}>No Active Session</Text>
-            <Text style={s.emptySub}>Book a slot to get your session QR code for check-in.</Text>
-            {params.gymId ? (
-              <TouchableOpacity style={s.bookBtn} onPress={() => router.push({ pathname: '/slots', params: { gymId: params.gymId } } as any)}>
-                <Text style={s.bookBtnText}>Book a Slot</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={s.bookBtn} onPress={() => router.push('/gyms' as any)}>
-                <Text style={s.bookBtnText}>Find a Gym</Text>
-              </TouchableOpacity>
-            )}
+            <Text style={s.emptyTitle}>No Booked Session</Text>
+            <Text style={s.emptySub}>
+              Book a slot at a gym first. Your check-in QR will appear here once you have an active booking.
+            </Text>
+            <TouchableOpacity style={s.bookBtn} onPress={() => router.push('/gyms' as any)}>
+              <Text style={s.bookBtnText}>Browse Gyms & Book Slot</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.bookBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderGlass, marginTop: 8 }]}
+              onPress={() => router.push('/plans' as any)}
+            >
+              <Text style={[s.bookBtnText, { color: colors.t }]}>View Plans</Text>
+            </TouchableOpacity>
           </View>
         </SafeAreaView>
       </AuroraBackground>
     );
   }
 
+  // ── Active slot booking → show QR ────────────────────────────────────────────
   return (
     <AuroraBackground>
       <SafeAreaView style={s.root}>
@@ -125,56 +148,62 @@ export default function QrScreen() {
         </View>
 
         <View style={s.content}>
-          {/* Gym name */}
+          {/* Gym name badge */}
           {gymName ? (
             <View style={s.gymBadge}>
               <Text style={s.gymBadgeText}>{gymName}</Text>
             </View>
           ) : null}
 
-          {/* Booking info */}
-          {bookedAt && (
+          {/* Booking timestamps */}
+          {bookedAt && expiresAt && (
             <Text style={s.bookingInfo}>
-              Booked at {bookedAtFormatted} · Valid until {validUntil}
+              Booked {formatDateTime(bookedAt)} · Valid till {formatDateTime(expiresAt)}
             </Text>
           )}
 
-          {/* QR box */}
-          <View style={s.qrBox}>
+          {/* QR code */}
+          <View style={[s.qrBox, isExpired && { opacity: 0.5 }]}>
             {isExpired && (
               <View style={s.expiredOverlay}>
                 <Text style={s.expiredText}>Session Expired</Text>
               </View>
             )}
-            <QRCode
-              value={token}
-              size={220}
-              color={isExpired ? '#444' : '#fff'}
-              backgroundColor="transparent"
-            />
+            {token ? (
+              <QRCode
+                value={token}
+                size={220}
+                color={isExpired ? '#444' : '#fff'}
+                backgroundColor="transparent"
+              />
+            ) : (
+              <View style={{ width: 220, height: 220, alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator color={colors.accent} />
+              </View>
+            )}
           </View>
 
-          {/* 2-hour notice */}
-          <Text style={s.notice}>
-            Use it within 2 hours from your booking time
-          </Text>
-
-          {/* Timer */}
+          {/* Reverse countdown timer */}
           {!isExpired ? (
             <View style={s.timerBox}>
-              <IconClock size={16} color={secondsLeft < 600 ? '#FF4444' : colors.accent} />
-              <Text style={[s.timerText, secondsLeft < 600 && { color: '#FF4444' }]}>
-                {formatTime(secondsLeft)}
+              <IconClock size={16} color={isLowTime ? '#FF4444' : colors.accent} />
+              <Text style={[s.timerText, isLowTime && { color: '#FF4444' }]}>
+                {formatLong(secondsLeft)}
               </Text>
               <Text style={s.timerLabel}>remaining</Text>
             </View>
           ) : (
             <View style={[s.timerBox, { borderColor: 'rgba(255,68,68,0.3)' }]}>
-              <Text style={[s.timerText, { color: '#FF4444' }]}>Expired</Text>
+              <Text style={[s.timerText, { color: '#FF4444' }]}>00:00:00</Text>
+              <Text style={[s.timerLabel, { color: '#FF4444' }]}>expired</Text>
             </View>
           )}
 
-          {/* Instructions */}
+          <Text style={s.notice}>
+            Show this QR to the gym staff. Valid for 2 hours from booking time.
+          </Text>
+
+          {/* Steps */}
           <View style={s.steps}>
             {[
               'Walk into your booked gym',
@@ -189,7 +218,7 @@ export default function QrScreen() {
           </View>
 
           {isExpired && (
-            <TouchableOpacity style={s.bookBtn} onPress={() => router.push('/slots' as any)}>
+            <TouchableOpacity style={s.bookBtn} onPress={() => router.push('/gyms' as any)}>
               <Text style={s.bookBtnText}>Book Another Slot</Text>
             </TouchableOpacity>
           )}
@@ -232,18 +261,18 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: 24,
   },
   expiredText: { fontFamily: fonts.sansBold, fontSize: 18, color: '#FF4444' },
-  notice: {
-    fontFamily: fonts.sans, fontSize: 12, color: colors.t2,
-    textAlign: 'center', marginBottom: 16, lineHeight: 18,
-  },
   timerBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.accentBorder,
-    paddingHorizontal: 20, paddingVertical: 10, marginBottom: 24,
+    paddingHorizontal: 20, paddingVertical: 10, marginBottom: 16,
   },
   timerText: { fontFamily: fonts.sansBold, fontSize: 22, color: colors.accent, letterSpacing: 2 },
   timerLabel: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+  notice: {
+    fontFamily: fonts.sans, fontSize: 12, color: colors.t2,
+    textAlign: 'center', marginBottom: 20, lineHeight: 18,
+  },
   steps: { width: '100%', gap: 10, marginBottom: 24 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   stepNum: {

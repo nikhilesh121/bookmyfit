@@ -26,15 +26,15 @@ export default function OtpScreen() {
   const [loading, setLoading] = useState(false);
 
   const verify = async () => {
-    if (code.length < 4) return Alert.alert('Enter OTP', 'Please enter the 6-digit OTP.');
+    if (code.length < 6) return Alert.alert('Enter OTP', 'Please enter the 6-digit OTP.');
     if (!isExistingUser && !name.trim()) return Alert.alert('Enter your name', 'Please enter your name to create your account.');
     setLoading(true);
     try {
       const deviceId = `dev-${Date.now()}`;
-      const data: any = await authApi.verifyOtp(
-        phone, code, deviceId,
-        isExistingUser ? undefined : (name.trim() || 'User'),
-      );
+      // Always send name as a string — existing users send their known name,
+      // new users send what they typed. Never send undefined (production backend requires it).
+      const nameToSend = isExistingUser ? (userNameParam || 'User') : (name.trim() || 'User');
+      const data: any = await authApi.verifyOtp(phone, code, deviceId, nameToSend);
 
       if (!data?.accessToken) throw new Error('Login failed — no token returned. Please try again.');
 
@@ -108,8 +108,8 @@ export default function OtpScreen() {
 
           <View style={s.bottom}>
             <TouchableOpacity
-              style={[s.cta, code.length < 4 && { opacity: 0.4 }]}
-              disabled={loading || code.length < 4}
+              style={[s.cta, code.length < 6 && { opacity: 0.4 }]}
+              disabled={loading || code.length < 6}
               onPress={verify}
               activeOpacity={0.85}
             >

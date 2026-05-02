@@ -29,21 +29,7 @@ for (const mod of FORCE_LOCAL) {
   if (resolved) forcedPaths[mod] = resolved;
 }
 
-// Absolute path to our self-contained registry shim
-const REGISTRY_SHIM = path.resolve(projectRoot, 'shims/ReactNativeViewConfigRegistry.js');
-
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  // BMF fix: redirect ALL copies of ReactNativeViewConfigRegistry to our shim.
-  // This prevents the "Tried to register two views with the same name DebuggingOverlay"
-  // crash in Expo Go (SDK 54 / RN 0.76) where pnpm has 60+ copies across the virtual store.
-  if (
-    moduleName === 'ReactNativeViewConfigRegistry' ||
-    moduleName.endsWith('/ReactNativeViewConfigRegistry') ||
-    moduleName.endsWith('/ReactNativeViewConfigRegistry.js')
-  ) {
-    return { filePath: REGISTRY_SHIM, type: 'sourceFile' };
-  }
-
   // Force single React instance — redirect all react imports to local copy
   if (forcedPaths[moduleName]) {
     return { filePath: forcedPaths[moduleName], type: 'sourceFile' };

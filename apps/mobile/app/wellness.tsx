@@ -10,11 +10,9 @@ import {
   IconArrowLeft, IconStar, IconPin, IconHeart, IconChevronRight,
   IconShield, IconCheck, IconBuilding, IconHeadphones, IconSearch, IconBolt,
 } from '../components/Icons';
+import { API_BASE as API } from '../lib/api';
 
 const { width: W } = Dimensions.get('window');
-
-// API base
-const API = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3003';
 
 // Warm spa image map by partner name
 const SPA_IMAGES: Record<string, string> = {
