@@ -215,3 +215,9 @@ body::after {
 .space-y-3 > * + * { margin-top: 0.75rem; }
 .space-y-4 > * + * { margin-top: 1rem; }
 .space-y-2 > * + * { margin-top: 0.5rem; }
+
+/* ── Skeleton pulse animation ────────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

@@ -446,3 +446,33 @@ body::before {
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--border) 30%, var(--border) 70%, transparent);
 }
+
+/* ─── Design System aliases (mirrors panel globals) ── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.35), inset 0 1px 0 var(--glass-highlight), inset 0 -1px 0 rgba(0,0,0,0.2);
+}
+.card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: 0 4px 28px rgba(0,0,0,0.28), inset 0 1px 0 var(--glass-highlight);
+}
+.serif { font-family: var(--serif); }
+.accent-pill {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}

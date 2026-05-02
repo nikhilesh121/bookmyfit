@@ -1,10 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Shell from '../../components/Shell';
+import { api } from '../../lib/api';
+import { useToast } from '../../components/Toast';
 import { Plus, Edit3, Trash2, Check, X, MapPin, Star, Clock, Tag, Building2, Image as ImageIcon, Percent, Activity } from 'lucide-react';
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
-const token = () => typeof window !== 'undefined' ? localStorage.getItem('bmf_admin_token') : '';
 
 const SERVICE_CATEGORIES = ['Massage', 'Cupping', 'Physio', 'Spa', 'Nutrition', 'Recovery', 'Other'];
 const SERVICE_TYPES = ['Spa', 'Home', 'Physio', 'Massage', 'Yoga', 'Nutrition'];
@@ -60,8 +59,8 @@ type Partner = {
   discountPercent: number; distanceLabel: string; photos: string[]; commissionRate: number;
 };
 type Service = {
-  id: string; name: string; category: string; price: number; originalPrice: number;
-  durationMinutes: number; isActive: boolean; partnerId: string; imageUrl: string;
+  id: string; name: string; category: string; price: number; originalPrice: number | null;
+  durationMinutes: number; isActive: boolean; partnerId: string; imageUrl: string | null;
 };
 
 const defaultPartnerForm = { name: '', serviceType: 'Spa', city: '', area: '', address: '', status: 'active', discountPercent: '0', distanceLabel: '', commissionRate: '25', photos: '' };
@@ -88,13 +87,13 @@ export default function WellnessPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/api/v1/wellness/partners?page=1&limit=50`).then(r => r.json()).catch(() => null),
-      fetch(`${API}/api/v1/wellness/services/all`).then(r => r.json()).catch(() => null),
+      api.get('/wellness/partners?page=1&limit=50').catch(() => null),
+      api.get('/wellness/services/all').catch(() => null),
     ]).then(([partnersRes, servicesRes]) => {
-      const pts = partnersRes?.data || partnersRes;
+      const pts = (partnersRes as any)?.data || partnersRes;
       const svcs = servicesRes;
-      if (Array.isArray(pts) && pts.length > 0) setPartners(pts);
-      if (Array.isArray(svcs) && svcs.length > 0) setServices(svcs);
+      if (Array.isArray(pts) && pts.length > 0) setPartners(pts as Partner[]);
+      if (Array.isArray(svcs) && svcs.length > 0) setServices(svcs as Service[]);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -139,23 +138,11 @@ export default function WellnessPage() {
     };
     try {
       if (editingPartner) {
-        const res = await fetch(`${API}/api/v1/wellness/partners/${editingPartner.id}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-          body: JSON.stringify(body),
-        });
-        if (res.ok) {
-          setPartners(ps => ps.map(p => p.id === editingPartner.id ? { ...p, ...body } : p));
-          flash('Spa centre updated!');
-        } else {
-          setPartners(ps => ps.map(p => p.id === editingPartner.id ? { ...p, ...body } : p));
-          flash('Updated locally');
-        }
+        await api.put(`/wellness/partners/${editingPartner.id}`, body);
+        setPartners(ps => ps.map(p => p.id === editingPartner.id ? { ...p, ...body } : p));
+        flash('Spa centre updated!');
       } else {
-        const res = await fetch(`${API}/api/v1/wellness/partners`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-          body: JSON.stringify(body),
-        });
-        const created = res.ok ? await res.json() : null;
+        const created: any = await api.post('/wellness/partners', body);
         setPartners(ps => [...ps, created?.id ? created : { ...body, id: `local_${Date.now()}` } as Partner]);
         flash('Spa centre added!');
       }
@@ -203,28 +190,14 @@ export default function WellnessPage() {
       imageUrl: svcForm.imageUrl || null,
     };
     try {
-      const url = editingSvc ? `${API}/api/v1/wellness/services/${editingSvc.id}` : `${API}/api/v1/wellness/services`;
-      const method = editingSvc ? 'PUT' : 'POST';
-      const res = await fetch(url, {
-        method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        const created = await res.json();
-        if (editingSvc) {
-          setServices(ss => ss.map(s => s.id === editingSvc.id ? { ...s, ...body } : s));
-        } else {
-          setServices(ss => [...ss, created?.id ? created : { ...body, id: `local_${Date.now()}` } as Service]);
-        }
-        flash('Service saved!');
+      if (editingSvc) {
+        await api.put(`/wellness/services/${editingSvc.id}`, body);
+        setServices(ss => ss.map(s => s.id === editingSvc.id ? { ...s, ...body } : s));
       } else {
-        if (editingSvc) {
-          setServices(ss => ss.map(s => s.id === editingSvc.id ? { ...s, ...body } : s));
-        } else {
-          setServices(ss => [...ss, { ...body, id: `local_${Date.now()}` } as Service]);
-        }
-        flash('Saved locally');
+        const created: any = await api.post('/wellness/services', body);
+        setServices(ss => [...ss, created?.id ? created : { ...body, id: `local_${Date.now()}` } as Service]);
       }
+      flash('Service saved!');
     } catch {
       if (editingSvc) {
         setServices(ss => ss.map(s => s.id === editingSvc.id ? { ...s, ...body } : s));
