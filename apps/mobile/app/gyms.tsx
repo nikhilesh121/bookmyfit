@@ -1,12 +1,12 @@
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
-  ActivityIndicator, ImageBackground, Dimensions,
+  ActivityIndicator, ImageBackground, Dimensions, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { colors, fonts, radius } from '../theme/brand';
-import { IconArrowLeft, IconStar, IconPin, IconFilter, IconCheck } from '../components/Icons';
+import { IconArrowLeft, IconStar, IconPin, IconFilter, IconCheck, IconSearch } from '../components/Icons';
 import { gymsApi } from '../lib/api';
 
 const { width: W } = Dimensions.get('window');
@@ -54,6 +54,7 @@ export default function GymListingPage() {
   const [activeCategory, setActiveCategory] = useState(paramCat || 'all');
   const [activeSort, setActiveSort] = useState('rating');
   const [showSortSheet, setShowSortSheet] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const pageRef = useRef(1);
 
   const filterByCat = (list: any[], cat: string) => {
@@ -115,6 +116,19 @@ export default function GymListingPage() {
     return 0;
   });
 
+  // Text search filter
+  const filtered = searchText.trim()
+    ? sorted.filter((g: any) => {
+        const q = searchText.toLowerCase();
+        return (
+          (g.name || '').toLowerCase().includes(q) ||
+          (g.city || '').toLowerCase().includes(q) ||
+          (g.area || g.location?.area || '').toLowerCase().includes(q) ||
+          (g.amenities || []).some((a: string) => a.toLowerCase().includes(q))
+        );
+      })
+    : sorted;
+
   const activeSortLabel = SORTS.find((s) => s.id === activeSort)?.label || 'Sort';
 
   return (
@@ -126,7 +140,23 @@ export default function GymListingPage() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Gyms Near You</Text>
-          <Text style={s.headerSub}>{sorted.length}+ gyms available</Text>
+          <Text style={s.headerSub}>{filtered.length}+ gyms available</Text>
+        </View>
+      </View>
+
+      {/* ── Search bar ── */}
+      <View style={s.searchRow}>
+        <View style={s.searchBox}>
+          <IconSearch size={14} color={colors.t3} />
+          <TextInput
+            style={s.searchInput}
+            placeholder="Search gyms, areas, amenities…"
+            placeholderTextColor={colors.t3}
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
         </View>
         <TouchableOpacity style={s.sortBtn} onPress={() => setShowSortSheet(true)}>
           <IconFilter size={13} color={colors.t2} />
@@ -178,7 +208,7 @@ export default function GymListingPage() {
             </View>
           )}
           <FlatList
-            data={sorted}
+            data={filtered}
             keyExtractor={(g) => String(g.id || g._id)}
             contentContainerStyle={{ padding: 16, gap: 12 }}
             onEndReached={loadMore}
@@ -290,6 +320,15 @@ const s = StyleSheet.create({
   headerSub:   { fontFamily: fonts.sans,  fontSize: 11, color: colors.t2, marginTop: 1 },
   sortBtn:  { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
   sortBtnText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
+
+  // Search
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginBottom: 4 },
+  searchBox: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
+    borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 9,
+  },
+  searchInput: { flex: 1, fontFamily: fonts.sans, fontSize: 13, color: '#fff' },
 
   // Chips
   chip:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, flexDirection: 'row', alignItems: 'center', gap: 5 },

@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Dumbbell, Calendar, User, LogOut } from 'lucide-react';
+import { LayoutDashboard, Dumbbell, Calendar, User, LogOut, DollarSign } from 'lucide-react';
 import { logout } from '../lib/api';
 
 const NAV = [
@@ -9,6 +9,7 @@ const NAV = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/services', label: 'Services', icon: Dumbbell },
     { href: '/bookings', label: 'Bookings', icon: Calendar },
+    { href: '/earnings', label: 'Earnings', icon: DollarSign },
   ]},
   { group: 'Account', items: [
     { href: '/profile', label: 'Profile', icon: User },

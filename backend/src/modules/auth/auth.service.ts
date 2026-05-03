@@ -101,13 +101,13 @@ export class AuthService {
 
   async registerGym(data: {
     email: string; password: string; name: string;
-    gymName: string; city: string; area: string; address: string;
+    gymName: string; city: string; area: string; address: string; phone?: string;
   }) {
     const existing = await this.users.findOne({ where: { email: data.email } });
     if (existing) throw new BadRequestException('An account with this email already exists');
     const passwordHash = await bcrypt.hash(data.password, 10);
     const user = await this.users.save(
-      this.users.create({ email: data.email, name: data.name, passwordHash, role: 'gym_owner', isActive: true }),
+      this.users.create({ email: data.email, name: data.name, phone: data.phone, passwordHash, role: 'gym_owner', isActive: true }),
     );
     const gym = await this.gyms.save(
       this.gyms.create({

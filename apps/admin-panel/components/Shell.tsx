@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, BarChart3, Building2, Users, CreditCard, Briefcase, UserCheck, Calendar,
   DollarSign, Percent, Home as HomeIcon, Package, Tags, Bell, Settings, ShieldAlert, LogOut,
-  ShieldCheck, Star, Award, ClipboardCheck, ListChecks, Sparkles,
+  ShieldCheck, Star, Award, ClipboardCheck, ListChecks, Sparkles, Activity,
 } from 'lucide-react';
 
 const NAV = [
@@ -23,6 +23,7 @@ const NAV = [
     { href: '/corporate', label: 'Corporate', icon: Briefcase },
     { href: '/corporate/employees', label: 'Corporate Employees', icon: UserCheck },
     { href: '/bookings', label: 'Bookings', icon: Calendar },
+    { href: '/checkins', label: 'Check-in Records', icon: Activity },
     { href: '/attendance', label: 'Attendance', icon: ClipboardCheck },
   ]},
   { group: 'Revenue', items: [

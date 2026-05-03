@@ -19,6 +19,8 @@ export default function CorporateSignup() {
     e.preventDefault();
     if (form.password !== form.confirmPassword) { setError('Passwords do not match'); return; }
     if (form.password.length < 6) { setError('Password must be at least 6 characters'); return; }
+    const phoneDigits = form.billingContact.replace(/\D/g, '');
+    if (phoneDigits.length !== 10 && phoneDigits.length !== 12) { setError('Enter a valid 10-digit billing contact number'); return; }
     setLoading(true); setError('');
     try {
       const res = await fetch(`${API}/api/v1/auth/corporate/register`, {

@@ -62,14 +62,16 @@ function SkeletonCard() {
 export default function Subscriptions() {
   const [subs, setSubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState(false);
 
   useEffect(() => {
     subscriptionsApi.mySubscriptions()
       .then((data: any) => {
         const list = Array.isArray(data) ? data : data?.subscriptions || data?.data || [];
         setSubs(list.length > 0 ? list : FALLBACK_SUBS);
+        setApiError(false);
       })
-      .catch(() => setSubs(FALLBACK_SUBS))
+      .catch(() => { setSubs(FALLBACK_SUBS); setApiError(true); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -82,6 +84,12 @@ export default function Subscriptions() {
             <Text style={s.pageTitle}>My Memberships</Text>
             <Text style={s.pageSub}>Your active passes & subscriptions</Text>
           </View>
+
+          {apiError && (
+            <View style={s.errorBanner}>
+              <Text style={s.errorText}>⚠️ Could not load live data — showing cached results.</Text>
+            </View>
+          )}
 
           {loading ? (
             [1, 2, 3].map((i) => <SkeletonCard key={i} />)
@@ -359,4 +367,9 @@ const s = StyleSheet.create({
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
   },
   browseBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#000' },
+  errorBanner: {
+    backgroundColor: 'rgba(255,180,0,0.08)', borderWidth: 1, borderColor: 'rgba(255,180,0,0.25)',
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12,
+  },
+  errorText: { fontFamily: fonts.sans, fontSize: 12, color: '#FFB400' },
 });

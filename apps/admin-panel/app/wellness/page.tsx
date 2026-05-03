@@ -470,7 +470,7 @@ export default function WellnessPage() {
                     <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#3DFF54', fontSize: 14, fontFamily: 'DM Sans, sans-serif', fontWeight: 700 }}>
                         ₹{svc.price}
-                        {svc.originalPrice > 0 && (
+                        {(svc.originalPrice ?? 0) > 0 && (
                           <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 400, textDecoration: 'line-through', fontSize: 12 }}>₹{svc.originalPrice}</span>
                         )}
                       </span>

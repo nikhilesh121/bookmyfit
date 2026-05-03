@@ -66,6 +66,9 @@ export default function SlotsScreen() {
   const [error, setError] = useState('');
   const [sessionTypes, setSessionTypes] = useState<any[]>(FALLBACK_TYPES);
   const [activeType, setActiveType] = useState('all');
+  const [isFallback, setIsFallback] = useState(false);
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   const loadSlots = async (dayIndex: number) => {
     setLoading(true);
@@ -86,9 +89,16 @@ export default function SlotsScreen() {
         });
       }
 
-      setSlots(items.length > 0 ? items : FALLBACK_SLOTS);
+      if (items.length > 0) {
+        setSlots(items);
+        setIsFallback(false);
+      } else {
+        setSlots(FALLBACK_SLOTS);
+        setIsFallback(true);
+      }
     } catch {
       setSlots(FALLBACK_SLOTS);
+      setIsFallback(true);
     } finally {
       setLoading(false);
     }
@@ -126,6 +136,10 @@ export default function SlotsScreen() {
   }, [selectedDay]);
 
   const handleBook = async (slotId: string) => {
+    if (!UUID_RE.test(slotId)) {
+      Alert.alert('No Slots Available', 'This gym has not added any slots for this date yet. Please check back later or contact the gym.');
+      return;
+    }
     setBookingId(slotId);
     try {
       const res: any = await slotsApi.book(slotId);
@@ -230,6 +244,12 @@ export default function SlotsScreen() {
           <IconClock size={14} color={colors.accent} />
           <Text style={s.sectionTitle}>Available Slots</Text>
         </View>
+
+        {isFallback && !loading && (
+          <View style={s.fallbackBanner}>
+            <Text style={s.fallbackBannerText}>⚠️ Sample schedule — this gym hasn't added real slots yet</Text>
+          </View>
+        )}
 
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
@@ -346,6 +366,8 @@ const s = StyleSheet.create({
   title: { fontFamily: fonts.serif, fontSize: 24, color: '#fff', letterSpacing: -0.5 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   sectionTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff', letterSpacing: -0.3 },
+  fallbackBanner: { backgroundColor: 'rgba(251,146,60,0.12)', borderWidth: 1, borderColor: 'rgba(251,146,60,0.3)', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 14 },
+  fallbackBannerText: { fontFamily: fonts.sans, fontSize: 12, color: '#FB923C' },
   dayChip: {
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.md,
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,

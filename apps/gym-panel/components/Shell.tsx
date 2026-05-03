@@ -2,12 +2,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, QrCode, Calendar, Users, Building2, CreditCard, UserSquare2, Sparkles, DollarSign, FileBarChart, Settings, LogOut, ShieldCheck, AlertTriangle, Clock } from 'lucide-react';
+import { LayoutDashboard, QrCode, Calendar, Users, Building2, CreditCard, UserSquare2, Sparkles, DollarSign, FileBarChart, Settings, LogOut, ShieldCheck, AlertTriangle, Clock, Activity } from 'lucide-react';
 
 const NAV = [
   { group: 'Main', items: [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/scanner', label: 'Check-in Scanner', icon: QrCode },
+    { href: '/checkins', label: 'Check-in Records', icon: Activity },
     { href: '/sessions', label: 'Sessions', icon: Calendar },
     { href: '/members', label: 'Members', icon: Users },
   ]},

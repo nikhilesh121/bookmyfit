@@ -9,7 +9,7 @@ const CITIES = ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Pune', 
 export default function GymSignup() {
   const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({
-    name: '', email: '', password: '', confirmPassword: '',
+    name: '', email: '', phone: '', password: '', confirmPassword: '',
     gymName: '', city: CITIES[0], area: '', address: '',
   });
   const [error, setError] = useState('');
@@ -21,6 +21,7 @@ export default function GymSignup() {
 
   const nextStep = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!/^\d{10}$/.test(form.phone)) { setError('Enter a valid 10-digit mobile number'); return; }
     if (form.password !== form.confirmPassword) { setError('Passwords do not match'); return; }
     if (form.password.length < 6) { setError('Password must be at least 6 characters'); return; }
     setError('');
@@ -34,7 +35,7 @@ export default function GymSignup() {
       const res = await fetch(`${API}/api/v1/auth/gym/register`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: form.name, email: form.email, password: form.password,
+          name: form.name, email: form.email, phone: form.phone, password: form.password,
           gymName: form.gymName, city: form.city, area: form.area, address: form.address,
         }),
       });
@@ -112,6 +113,10 @@ export default function GymSignup() {
             <div>
               <label style={labelStyle}>Email</label>
               <input style={inputStyle} type="email" value={form.email} onChange={set('email')} placeholder="you@yourgym.in" required />
+            </div>
+            <div>
+              <label style={labelStyle}>Phone Number</label>
+              <input style={inputStyle} type="tel" value={form.phone} onChange={set('phone')} placeholder="10-digit mobile number" maxLength={10} required />
             </div>
             <div>
               <label style={labelStyle}>Password</label>

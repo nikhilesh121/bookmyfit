@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import Shell from '../../components/Shell';
-import { CheckCircle, Clock, XCircle, PauseCircle, Star, ChevronDown } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, PauseCircle, Star, ChevronDown, AlertTriangle } from 'lucide-react';
 import { api } from '../../lib/api';
 import Pagination from '../../components/Pagination';
 
@@ -51,6 +51,7 @@ export default function GymsPage() {
   const [gyms, setGyms] = useState<Gym[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<typeof STATUS_FILTERS[number]>('all');
   const [tierDropdown, setTierDropdown] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -59,7 +60,7 @@ export default function GymsPage() {
   const [pages, setPages] = useState(1);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    setLoading(true); setError(null);
     try {
       const res = await api.get<any>(`/gyms?page=${page}&limit=${limit}${q ? `&search=${encodeURIComponent(q)}` : ''}`);
       const rows: Gym[] = Array.isArray(res) ? res : (res as any)?.data ?? [];
@@ -70,6 +71,7 @@ export default function GymsPage() {
       setGyms([]);
       setTotal(0);
       setPages(1);
+      setError('Failed to load gyms. Please try refreshing.');
     } finally {
       setLoading(false);
     }
@@ -107,6 +109,11 @@ export default function GymsPage() {
   return (
     <Shell title="Gym Management">
       <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+      {error && (
+        <div className="card p-3 mb-4 text-xs" style={{ color: '#FFB400', borderColor: 'rgba(255,180,0,0.3)', background: 'rgba(255,180,0,0.05)' }}>
+          <AlertTriangle size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> {error}
+        </div>
+      )}
       <div className="grid grid-cols-4 gap-4 mb-8">
         {[
           { label: 'Active Gyms', value: stats.active, icon: CheckCircle, color: 'var(--accent)' },

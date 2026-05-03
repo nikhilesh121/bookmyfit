@@ -12,7 +12,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   const sendOtp = async () => {
-    if (phone.length < 10) return Alert.alert('Enter a valid 10-digit phone');
+    if (phone.length !== 10 || !/^\d{10}$/.test(phone)) return Alert.alert('Invalid number', 'Enter a valid 10-digit mobile number.');
     setLoading(true);
     try {
       const data = await authApi.sendOtp(phone) as any;

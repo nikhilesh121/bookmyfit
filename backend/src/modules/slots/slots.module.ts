@@ -6,7 +6,7 @@ import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { Repository, IsNull } from 'typeorm';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, validate as isUuid } from 'uuid';
 import { GymSlotEntity } from '../../database/entities/gym-slot.entity';
 import { SlotBookingEntity } from '../../database/entities/slot-booking.entity';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
@@ -38,6 +38,7 @@ class SlotsService {
   }
 
   async bookSlot(slotId: string, userId: string, subscriptionId?: string) {
+    if (!isUuid(slotId)) throw new NotFoundException('Slot not found');
     const slot = await this.slotRepo.findOne({ where: { id: slotId } });
     if (!slot) throw new NotFoundException('Slot not found');
     if (slot.booked >= slot.capacity) throw new BadRequestException('Slot is full');

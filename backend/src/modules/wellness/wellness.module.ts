@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Put, Param, Body, Query, Injectable, UseGuards, Req } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Injectable, UseGuards, Req } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
@@ -103,6 +103,97 @@ class WellnessService {
     return b;
   }
 
+  /** Bookings for a specific partner (used by wellness portal) */
+  async partnerBookings(partnerId: string) {
+    const bks = await this.bookings.find({ where: { partnerId }, order: { bookingDate: 'DESC' } });
+    return Promise.all(bks.map(async (b) => {
+      const service = b.serviceId ? await this.services.findOne({ where: { id: b.serviceId } }) : null;
+      return { ...b, serviceName: service?.name, scheduledAt: b.bookingDate };
+    }));
+  }
+
+  async updateBookingStatus(partnerId: string, bookingId: string, status: string) {
+    const b = await this.bookings.findOne({ where: { id: bookingId, partnerId } });
+    if (!b) throw new Error('Booking not found');
+    await this.bookings.update(bookingId, { status } as any);
+    return { ...b, status };
+  }
+
+  /** Services scoped to a partner (used by wellness portal) */
+  partnerServices(partnerId: string) { return this.services.find({ where: { partnerId } }); }
+
+  async createPartnerService(partnerId: string, data: Partial<WellnessServiceEntity>) {
+    return this.services.save(this.services.create({ ...data, partnerId, isActive: true }));
+  }
+
+  async updatePartnerService(partnerId: string, serviceId: string, data: Partial<WellnessServiceEntity>) {
+    const svc = await this.services.findOne({ where: { id: serviceId, partnerId } });
+    if (!svc) throw new Error('Service not found');
+    return this.services.save({ ...svc, ...data });
+  }
+
+  async deletePartnerService(partnerId: string, serviceId: string) {
+    const svc = await this.services.findOne({ where: { id: serviceId, partnerId } });
+    if (!svc) throw new Error('Service not found');
+    await this.services.update(serviceId, { isActive: false } as any);
+    return { success: true };
+  }
+
+  /** Earnings summary for wellness partner dashboard */
+  async partnerEarnings(partnerId: string) {
+    const bks = await this.bookings.find({ where: { partnerId }, order: { bookingDate: 'DESC' } });
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const completed = bks.filter(b => b.status === 'completed' || b.status === 'confirmed');
+    const thisMonth = completed.filter(b => new Date(b.bookingDate) >= monthStart);
+    const lastMonth = completed.filter(b => {
+      const d = new Date(b.bookingDate);
+      return d >= lastMonthStart && d < monthStart;
+    });
+
+    const totalRevenue = completed.reduce((s, b) => s + Number(b.amount || 0), 0);
+    const totalCommission = completed.reduce((s, b) => s + Number(b.platformCommission || 0), 0);
+    const netEarnings = totalRevenue - totalCommission;
+
+    const thisMonthRevenue = thisMonth.reduce((s, b) => s + Number(b.amount || 0), 0);
+    const thisMonthNet = thisMonth.reduce((s, b) => s + Number(b.amount || 0) - Number(b.platformCommission || 0), 0);
+    const lastMonthNet = lastMonth.reduce((s, b) => s + Number(b.amount || 0) - Number(b.platformCommission || 0), 0);
+
+    // Monthly breakdown (last 6 months)
+    const monthly: Record<string, { month: string; revenue: number; commission: number; net: number; bookings: number }> = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthly[key] = { month: key, revenue: 0, commission: 0, net: 0, bookings: 0 };
+    }
+    completed.forEach(b => {
+      const d = new Date(b.bookingDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (monthly[key]) {
+        monthly[key].revenue += Number(b.amount || 0);
+        monthly[key].commission += Number(b.platformCommission || 0);
+        monthly[key].net += Number(b.amount || 0) - Number(b.platformCommission || 0);
+        monthly[key].bookings += 1;
+      }
+    });
+
+    return {
+      summary: {
+        totalRevenue, totalCommission, netEarnings,
+        thisMonthRevenue, thisMonthNet, lastMonthNet,
+        totalBookings: bks.length, completedBookings: completed.length,
+      },
+      monthly: Object.values(monthly),
+      recentBookings: bks.slice(0, 10).map(b => ({
+        id: b.id, status: b.status, bookingDate: b.bookingDate,
+        amount: b.amount, platformCommission: b.platformCommission,
+        net: Number(b.amount || 0) - Number(b.platformCommission || 0),
+      })),
+    };
+  }
+
   async getBookingInvoice(bookingId: string, userId: string) {
     const b = await this.bookings.findOne({ where: { id: bookingId, userId } });
     if (!b) throw new Error('Booking not found');
@@ -189,6 +280,57 @@ class WellnessController {
   @Get('bookings/:id/invoice')
   getInvoice(@Param('id') id: string, @Req() req: any) {
     return this.svc.getBookingInvoice(id, req.user.id);
+  }
+
+  // ─── Partner-scoped routes (used by wellness portal frontend) ─────────────
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin', 'wellness_partner')
+  @Get(':partnerId/bookings')
+  partnerBookings(@Param('partnerId') partnerId: string) {
+    return this.svc.partnerBookings(partnerId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin', 'wellness_partner')
+  @Patch(':partnerId/bookings/:id')
+  updateBooking(@Param('partnerId') partnerId: string, @Param('id') id: string, @Body() body: any) {
+    return this.svc.updateBookingStatus(partnerId, id, body.status);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin', 'wellness_partner')
+  @Get(':partnerId/services')
+  partnerServices(@Param('partnerId') partnerId: string) {
+    return this.svc.partnerServices(partnerId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin', 'wellness_partner')
+  @Post(':partnerId/services')
+  createPartnerService(@Param('partnerId') partnerId: string, @Body() body: any) {
+    return this.svc.createPartnerService(partnerId, body);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin', 'wellness_partner')
+  @Put(':partnerId/services/:id')
+  updatePartnerService(@Param('partnerId') partnerId: string, @Param('id') id: string, @Body() body: any) {
+    return this.svc.updatePartnerService(partnerId, id, body);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin', 'wellness_partner')
+  @Delete(':partnerId/services/:id')
+  deletePartnerService(@Param('partnerId') partnerId: string, @Param('id') id: string) {
+    return this.svc.deletePartnerService(partnerId, id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin', 'wellness_partner')
+  @Get(':partnerId/earnings')
+  partnerEarnings(@Param('partnerId') partnerId: string) {
+    return this.svc.partnerEarnings(partnerId);
   }
 }
 

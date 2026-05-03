@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 export default function Login() {
   const [email, setEmail] = useState('hr@techcorp.in');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('bmf_corporate_token');
@@ -13,18 +15,22 @@ export default function Login() {
 
   const handle = async (e: any) => {
     e.preventDefault(); setError('');
+    if (!email.includes('@')) { setError('Enter a valid work email address'); return; }
+    if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
+    setLoading(true);
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003'}/api/v1/auth/admin/login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      if (!res.ok) throw new Error('Invalid credentials');
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Invalid credentials');
       if (data.user?.role !== 'corporate_admin') throw new Error('This account does not have corporate access');
       localStorage.setItem('bmf_corporate_token', data.accessToken);
       localStorage.setItem('bmf_corporate_user', JSON.stringify(data.user));
       window.location.href = '/';
     } catch (err: any) { setError(err.message); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -46,10 +52,29 @@ export default function Login() {
           </div>
           <div>
             <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="glass-input w-full" required />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                className="glass-input w-full"
+                style={{ paddingRight: 42 }}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t2)', fontSize: 12, padding: 0 }}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
           {error && <div className="text-sm" style={{ color: '#FF3C3C' }}>{error}</div>}
-          <button type="submit" className="btn btn-primary w-full justify-center">Sign in</button>
+          <button type="submit" disabled={loading} className="btn btn-primary w-full justify-center">
+            {loading ? 'Signing in…' : 'Sign in'}
+          </button>
         </form>
         <p className="text-sm mt-5 text-center" style={{ color: 'var(--t2)' }}>
           New to BookMyFit?{' '}

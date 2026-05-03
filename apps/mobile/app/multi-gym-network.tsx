@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, ActivityIndicator, Dimensions } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, ActivityIndicator, Dimensions, TextInput, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
-import { IconArrowLeft, IconStar, IconPin } from '../components/Icons';
+import { IconArrowLeft, IconStar, IconPin, IconSearch } from '../components/Icons';
 import { gymsApi } from '../lib/api';
 
 const { width: W } = Dimensions.get('window');
+
+const AREA_FILTERS = ['All Areas', 'Patia', 'Saheed Nagar', 'Nayapalli', 'IRC Village', 'Jaydev Vihar', 'Chandrasekharpur', 'Khandagiri'];
 
 const FALLBACK_GYMS = [
   { id: 'bf67d2fc-4b70-43e3-93c4-da533e5caa09', name: "Cult.fit Bhubaneswar",      city: 'Bhubaneswar', area: 'Patia',            rating: 4.8, images: ['https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80'], amenities: ['AC', 'Parking', 'Pool'] },
@@ -35,9 +37,11 @@ function SkRow() {
 export default function MultiGymNetwork() {
   const [gyms, setGyms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [activeArea, setActiveArea] = useState('All Areas');
 
   useEffect(() => {
-    gymsApi.list({ page: 1, limit: 20 })
+    gymsApi.list({ page: 1, limit: 50 })
       .then((data: any) => {
         const list = Array.isArray(data) ? data : data?.gyms || data?.data || [];
         setGyms(list.length > 0 ? list : FALLBACK_GYMS);
@@ -45,6 +49,20 @@ export default function MultiGymNetwork() {
       .catch(() => setGyms(FALLBACK_GYMS))
       .finally(() => setLoading(false));
   }, []);
+
+  const filtered = gyms.filter((gym: any) => {
+    const area = gym.area || gym.location?.area || '';
+    const matchArea = activeArea === 'All Areas' || area.toLowerCase().includes(activeArea.toLowerCase());
+    if (!matchArea) return false;
+    if (!searchText.trim()) return true;
+    const q = searchText.toLowerCase();
+    return (
+      (gym.name || '').toLowerCase().includes(q) ||
+      (gym.city || '').toLowerCase().includes(q) ||
+      area.toLowerCase().includes(q) ||
+      (gym.amenities || []).some((a: string) => a.toLowerCase().includes(q))
+    );
+  });
 
   return (
     <SafeAreaView style={s.root}>
@@ -55,7 +73,7 @@ export default function MultiGymNetwork() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Partner Gyms</Text>
-          <Text style={s.headerSub}>{loading ? '...' : `${gyms.length} gyms in network`}</Text>
+          <Text style={s.headerSub}>{loading ? '...' : `${filtered.length} gyms in network`}</Text>
         </View>
       </View>
 
@@ -65,11 +83,50 @@ export default function MultiGymNetwork() {
         <Text style={s.networkText}>Multi Gym Pass — valid at all locations below</Text>
       </View>
 
+      {/* Search bar */}
+      <View style={s.searchRow}>
+        <IconSearch size={14} color={colors.t3} />
+        <TextInput
+          style={s.searchInput}
+          placeholder="Search gym, area, amenity…"
+          placeholderTextColor={colors.t3}
+          value={searchText}
+          onChangeText={setSearchText}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+        />
+      </View>
+
+      {/* Area filter chips */}
+      <FlatList
+        data={AREA_FILTERS}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={a => a}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10, gap: 8 }}
+        renderItem={({ item: area }) => {
+          const active = activeArea === area;
+          return (
+            <TouchableOpacity
+              style={[s.areaChip, active && s.areaChipActive]}
+              onPress={() => setActiveArea(area)}
+            >
+              <Text style={[s.areaChipText, active && s.areaChipTextActive]}>{area}</Text>
+            </TouchableOpacity>
+          );
+        }}
+      />
+
       <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
         {loading ? (
           [1,2,3,4].map(i => <SkRow key={i} />)
+        ) : filtered.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingTop: 40, gap: 8 }}>
+            <Text style={{ fontFamily: fonts.serif, fontSize: 18, color: '#fff' }}>No gyms found</Text>
+            <Text style={{ fontFamily: fonts.sans, fontSize: 13, color: colors.t2 }}>Try a different search or area</Text>
+          </View>
         ) : (
-          gyms.map((gym: any) => {
+          filtered.map((gym: any) => {
             const gymId = gym.id || gym._id;
             const name = gym.name || 'Gym';
             const city = gym.city || '';
@@ -142,6 +199,21 @@ const s = StyleSheet.create({
   },
   networkDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
   networkText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.accent },
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 16, marginBottom: 10,
+    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
+    borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 9,
+  },
+  searchInput: { flex: 1, fontFamily: fonts.sans, fontSize: 13, color: '#fff' },
+  areaChip: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: radius.pill, backgroundColor: colors.glass,
+    borderWidth: 1, borderColor: colors.borderGlass,
+  },
+  areaChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  areaChipText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
+  areaChipTextActive: { color: colors.accent },
   container: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 40 },
   gymCard: {
     flexDirection: 'row', gap: 12,

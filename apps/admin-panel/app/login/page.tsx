@@ -6,6 +6,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
 export default function LoginPage() {
   const [email, setEmail] = useState('admin@bookmyfit.in');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'login' | 'setup'>('login');
@@ -18,6 +19,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: any) => {
     e.preventDefault();
+    if (mode === 'setup' && password.length < 6) { setError('Password must be at least 6 characters'); return; }
     setLoading(true); setError('');
     const endpoint = mode === 'setup' ? '/api/v1/auth/admin/setup' : '/api/v1/auth/admin/login';
     try {
@@ -73,8 +75,24 @@ export default function LoginPage() {
           </div>
           <div>
             <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-              className="glass-input w-full" required placeholder={mode === 'setup' ? 'Min. 6 characters' : ''} />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="glass-input w-full"
+                style={{ paddingRight: 42 }}
+                required
+                placeholder={mode === 'setup' ? 'Min. 6 characters' : ''}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t2)', fontSize: 12, padding: 0 }}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
           {error && <div className="text-sm" style={{ color: '#FF3C3C' }}>{error}</div>}
           <button type="submit" disabled={loading} className="btn btn-primary w-full justify-center">
