@@ -1,4 +1,15 @@
-module.exports = {
+const { withGradleProperties } = require('@expo/config-plugins');
+
+const withArm64Only = (config) =>
+  withGradleProperties(config, (props) => {
+    props.modResults = props.modResults.filter(
+      (item) => !(item.type === 'property' && item.key === 'reactNativeArchitectures')
+    );
+    props.modResults.push({ type: 'property', key: 'reactNativeArchitectures', value: 'arm64-v8a' });
+    return props;
+  });
+
+module.exports = withArm64Only({
   expo: {
     name: "BookMyFit",
     slug: "bookmyfit",
@@ -54,4 +65,4 @@ module.exports = {
     },
     owner: "qwegle",
   },
-};
+});
