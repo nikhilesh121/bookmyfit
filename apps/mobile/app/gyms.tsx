@@ -170,7 +170,7 @@ export default function GymListingPage() {
         horizontal
         showsHorizontalScrollIndicator={false}
         keyExtractor={(c) => c.id}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, gap: 8 }}
         renderItem={({ item: cat }) => {
           const active = activeCategory === cat.id;
           return (
@@ -210,7 +210,7 @@ export default function GymListingPage() {
           <FlatList
             data={filtered}
             keyExtractor={(g) => String(g.id || g._id)}
-            contentContainerStyle={{ padding: 16, gap: 12 }}
+            contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 12 }}
             onEndReached={loadMore}
             onEndReachedThreshold={0.4}
             ListEmptyComponent={
@@ -318,7 +318,7 @@ const s = StyleSheet.create({
   backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff', letterSpacing: -0.3 },
   headerSub:   { fontFamily: fonts.sans,  fontSize: 11, color: colors.t2, marginTop: 1 },
-  sortBtn:  { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 8 },
+  sortBtn:  { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7 },
   sortBtnText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
 
   // Search

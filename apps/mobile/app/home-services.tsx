@@ -176,14 +176,14 @@ const s = StyleSheet.create({
   headerTitle: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
   headerSubtitle: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, marginTop: 2 },
 
-  catScrollWrapper: { flexGrow: 0, paddingVertical: spacing.md },
+  catScrollWrapper: { flexGrow: 0, paddingTop: 6, paddingBottom: 8 },
   catScroll: { paddingHorizontal: spacing.lg, gap: 8 },
   catChip: {
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: radius.pill,
+    paddingHorizontal: 14, paddingVertical: 6, borderRadius: radius.pill,
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
   },
   catChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
-  catChipText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
+  catChipText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
   catChipTextActive: { color: colors.accent, fontFamily: fonts.sansBold },
 
   emptyBox: { alignItems: 'center', paddingTop: 60 },

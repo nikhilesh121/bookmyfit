@@ -103,7 +103,7 @@ export default function MultiGymNetwork() {
         horizontal
         showsHorizontalScrollIndicator={false}
         keyExtractor={a => a}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 10, gap: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, gap: 8 }}
         renderItem={({ item: area }) => {
           const active = activeArea === area;
           return (
