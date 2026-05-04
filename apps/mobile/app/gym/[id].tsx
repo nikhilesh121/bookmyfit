@@ -587,20 +587,7 @@ export default function GymDetail() {
               </View>
               <TouchableOpacity
                 style={s.cta}
-                onPress={() => {
-                  const minPrice = gymPlans.length > 0
-                    ? Math.min(...gymPlans.map((p: any) => p.price || p.basePrice || 599))
-                    : 599;
-                  router.push({
-                    pathname: '/duration',
-                    params: {
-                      planId: 'gym_specific',
-                      planName: `${name} Membership`,
-                      gymId: id,
-                      basePrice: String(minPrice),
-                    },
-                  } as any)
-                }}
+                onPress={() => router.push({ pathname: '/plans', params: { gymId: id, gymName: name } } as any)}
                 activeOpacity={0.9}
               >
                 <Text style={s.ctaText}>Get a Membership</Text>
