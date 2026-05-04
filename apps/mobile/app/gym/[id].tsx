@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { WebView } from 'react-native-webview';
+import * as Location from 'expo-location';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconArrowLeft, IconStar, IconPin, IconArrowRight, IconCheck, IconClock, IconDumbbell, IconShare, IconQR } from '../../components/Icons';
 import { gymsApi, subscriptionsApi, api } from '../../lib/api';
@@ -114,6 +115,33 @@ export default function GymDetail() {
   const categories: string[] = gym?.categories || gym?.tags || [];
   const img = gym?.images?.[0] || gym?.coverImage || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80';
   const subscriptionId = activeSub?._id || activeSub?.id;
+
+  const gymLat: number | null = gym?.latitude || gym?.location?.lat || null;
+  const gymLng: number | null = gym?.longitude || gym?.location?.lng || null;
+
+  const getDirections = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const { latitude: curLat, longitude: curLng } = pos.coords;
+        if (gymLat && gymLng) {
+          Linking.openURL(`https://www.google.com/maps/dir/${curLat},${curLng}/${gymLat},${gymLng}/`);
+        } else {
+          Linking.openURL(`https://www.google.com/maps/dir/${curLat},${curLng}/${encodeURIComponent(name + ' ' + address)}/`);
+        }
+      } else {
+        // No permission — open destination only
+        if (gymLat && gymLng) {
+          Linking.openURL(`https://maps.google.com/?q=${gymLat},${gymLng}`);
+        } else {
+          Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(name + ' ' + address)}`);
+        }
+      }
+    } catch {
+      Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(name + ' ' + address)}`);
+    }
+  };
 
   const handleShare = () => {
     Share.share({ message: `Check out ${name} on BookMyFit!` }).catch(() => {});
@@ -411,23 +439,26 @@ export default function GymDetail() {
                   {/* Location Map */}
                   <Text style={s.sectionTitle}>Location</Text>
                   <View style={s.mapCard}>
-                    {(gym?.latitude || gym?.location?.lat) ? (
-                      <WebView
-                        style={{ flex: 1, borderRadius: radius.lg }}
-                        source={{ uri: `https://www.openstreetmap.org/export/embed.html?bbox=${(gym?.longitude || gym?.location?.lng || 85.8245) - 0.01},${(gym?.latitude || gym?.location?.lat || 20.2961) - 0.008},${(gym?.longitude || gym?.location?.lng || 85.8245) + 0.01},${(gym?.latitude || gym?.location?.lat || 20.2961) + 0.008}&layer=mapnik&marker=${gym?.latitude || gym?.location?.lat || 20.2961},${gym?.longitude || gym?.location?.lng || 85.8245}` }}
-                        scrollEnabled={false}
-                        javaScriptEnabled
-                        domStorageEnabled
-                      />
+                    {gymLat && gymLng ? (
+                      <>
+                        <WebView
+                          style={{ flex: 1, borderRadius: radius.lg }}
+                          source={{ uri: `https://www.openstreetmap.org/export/embed.html?bbox=${gymLng - 0.01},${gymLat - 0.008},${gymLng + 0.01},${gymLat + 0.008}&layer=mapnik&marker=${gymLat},${gymLng}` }}
+                          scrollEnabled={false}
+                          javaScriptEnabled
+                          domStorageEnabled
+                        />
+                        <TouchableOpacity style={s.mapDirOverlay} onPress={getDirections} activeOpacity={0.85}>
+                          <IconPin size={13} color="#060606" />
+                          <Text style={s.mapDirOverlayText}>Get Directions</Text>
+                        </TouchableOpacity>
+                      </>
                     ) : (
                       <View style={s.mapPlaceholder}>
                         <IconPin size={28} color={colors.accent} />
                         <Text style={s.mapAddressText}>{address}</Text>
-                        <TouchableOpacity
-                          style={s.mapDirBtn}
-                          onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(name + ' ' + address)}`)}
-                        >
-                          <Text style={s.mapDirBtnText}>Open in Maps ›</Text>
+                        <TouchableOpacity style={s.mapDirBtn} onPress={getDirections}>
+                          <Text style={s.mapDirBtnText}>Get Directions ›</Text>
                         </TouchableOpacity>
                       </View>
                     )}
@@ -649,6 +680,14 @@ const s = StyleSheet.create({
   mapAddressText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, textAlign: 'center' },
   mapDirBtn: { backgroundColor: colors.accentSoft, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 8, marginTop: 4 },
   mapDirBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
+  mapDirOverlay: {
+    position: 'absolute', bottom: 10, right: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: colors.accent, borderRadius: radius.pill,
+    paddingHorizontal: 12, paddingVertical: 7,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4,
+  },
+  mapDirOverlayText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   infoValue: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, flex: 1, lineHeight: 20 },
   amenityWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
