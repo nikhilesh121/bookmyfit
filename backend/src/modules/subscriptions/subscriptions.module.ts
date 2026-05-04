@@ -110,9 +110,11 @@ class SubscriptionsService {
     let gymIds: string[] = [];
     let gymPlanId: string | undefined;
     const durationMonths = dto.planType === 'day_pass' ? 0 : (dto.durationMonths || 1);
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
     if (dto.planType === 'same_gym') {
       if (!dto.gymId) throw new BadRequestException('gymId required for Same Gym Pass');
+      if (!uuidRe.test(dto.gymId)) throw new BadRequestException('Invalid gymId format');
       gymIds = [dto.gymId];
       gymPlanId = dto.gymPlanId;
       amount = dto.amountOverride || 0;
@@ -120,8 +122,8 @@ class SubscriptionsService {
       const price = config.multi_gym?.basePrice || 1499;
       amount = price * (durationMonths || 1);
     } else if (dto.planType === 'day_pass') {
-      if (dto.gymId) gymIds = [dto.gymId];
-      const gym = dto.gymId ? await this.gymRepo.findOne({ where: { id: dto.gymId } }) : null;
+      if (dto.gymId && uuidRe.test(dto.gymId)) gymIds = [dto.gymId];
+      const gym = (dto.gymId && uuidRe.test(dto.gymId)) ? await this.gymRepo.findOne({ where: { id: dto.gymId } }) : null;
       const gymDayPassPrice = gym?.dayPassPrice ? Number(gym.dayPassPrice) : null;
       amount = dto.amountOverride || gymDayPassPrice || 149;
     } else {
