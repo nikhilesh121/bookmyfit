@@ -1,6 +1,6 @@
 import { Module, Controller, Get, Post, Put, Patch, Param, Body, Query, Injectable, UseGuards, Req, NotFoundException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, Between, In, Like } from 'typeorm';
+import { Repository, ILike, Between, In, Like, ArrayContains } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import { GymEntity, GymStatus } from '../../database/entities/gym.entity';
@@ -116,7 +116,7 @@ class GymsService {
     return { count: recent.length, recent };
   }
 
-  async list(filter: { city?: string; status?: string; search?: string; tier?: string } = {}, page: any = 1, limit: any = 20) {
+  async list(filter: { city?: string; status?: string; search?: string; tier?: string; category?: string } = {}, page: any = 1, limit: any = 20) {
     const where: any = {};
     if (filter.city) where.city = filter.city;
     if (filter.status) where.status = filter.status;
@@ -131,6 +131,7 @@ class GymsService {
       };
       where.tier = tierMap[filter.tier.toLowerCase()] ?? filter.tier.toLowerCase();
     }
+    if (filter.category) where.categories = ArrayContains([filter.category]);
     const { skip, take, page: p, limit: l } = paginate(page, limit);
     const [data, total] = await this.repo.findAndCount({ where, order: { rating: 'DESC' }, skip, take });
     return paginatedResponse(data, total, p, l);
@@ -249,10 +250,11 @@ class GymsController {
     @Query('status') status?: string,
     @Query('search') search?: string,
     @Query('tier') tier?: string,
+    @Query('category') category?: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.svc.list({ city, status, search, tier }, +page, +limit);
+    return this.svc.list({ city, status, search, tier, category }, +page, +limit);
   }
   @Get('recommended') @UseGuards(JwtAuthGuard)
   recommended(@Req() req: any) { return this.svc.getRecommended(req.user.userId); }

@@ -56,43 +56,41 @@ class GymPlansService {
 }
 
 @ApiTags('Gym Plans (Individual Subscriptions)')
-@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('gym-plans')
 class GymPlansController {
   constructor(private readonly svc: GymPlansService) {}
 
   /** Public: get plans for a specific gym (used by mobile app) */
   @Get('by-gym/:gymId')
-  @Roles()
   byGym(@Param('gymId') gymId: string) { return this.svc.listForGym(gymId); }
 
   /** Gym owner: list their own gym's plans */
   @Get('my-gym')
-  @Roles('gym_owner')
+  @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner')
   myGym(@Req() req: any) { return this.svc.listForOwner(req.user.userId); }
 
   /** Gym owner: create a new individual plan */
   @Post()
-  @Roles('gym_owner')
+  @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner')
   create(@Req() req: any, @Body() body: any) { return this.svc.create(req.user.userId, body); }
 
   /** Gym owner: update a plan */
   @Put(':id')
-  @Roles('gym_owner')
+  @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner')
   update(@Param('id') id: string, @Req() req: any, @Body() body: any) {
     return this.svc.update(id, req.user.userId, body);
   }
 
   /** Gym owner: deactivate a plan (soft delete) */
   @Delete(':id')
-  @Roles('gym_owner')
+  @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner')
   remove(@Param('id') id: string, @Req() req: any) {
     return this.svc.remove(id, req.user.userId);
   }
 
   /** Admin: view all plans across gyms */
   @Get()
-  @Roles('super_admin')
+  @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
   list(@Query('gymId') gymId?: string) {
     return gymId
       ? this.svc.listForGym(gymId)

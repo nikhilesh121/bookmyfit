@@ -105,7 +105,7 @@ export const subscriptionsApi = {
   mySubscriptions: () => api.get('/subscriptions'),
   /** Purchase a subscription — creates DB record + Cashfree order */
   purchase: (body: {
-    planType: 'multigym_elite' | 'multigym_max' | 'gym_specific';
+    planType: 'day_pass' | 'same_gym' | 'multi_gym';
     gymId?: string;
     gymPlanId?: string;
     durationMonths: number;

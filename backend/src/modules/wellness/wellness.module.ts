@@ -263,13 +263,13 @@ class WellnessController {
   @UseGuards(JwtAuthGuard)
   @Post('services/:id/book')
   book(@Param('id') id: string, @Body() b: BookWellnessDto, @Req() req: any) {
-    return this.svc.book(req.user.id, id, b.bookingDate, b.phone || req.user.phone || '');
+    return this.svc.book(req.user.userId, id, b.bookingDate, b.phone || req.user.phone || '');
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('bookings/my')
   myBookings(@Req() req: any) {
-    return this.svc.myBookings(req.user.id);
+    return this.svc.myBookings(req.user.userId);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -281,7 +281,7 @@ class WellnessController {
   @UseGuards(JwtAuthGuard)
   @Get('bookings/:id/invoice')
   getInvoice(@Param('id') id: string, @Req() req: any) {
-    return this.svc.getBookingInvoice(id, req.user.id);
+    return this.svc.getBookingInvoice(id, req.user.userId);
   }
 
   // ─── Partner-scoped routes (used by wellness portal frontend) ─────────────
