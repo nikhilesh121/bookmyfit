@@ -59,7 +59,7 @@ export default function MyBookings() {
 
   const cancelBooking = async (bookingId: string) => {
     try {
-      await api.del(`/slots/${bookingId}/book`);
+      await api.post(`/sessions/cancel/${bookingId}`, {});
       await load();
     } catch (e: any) {
       const { Alert } = require('react-native');

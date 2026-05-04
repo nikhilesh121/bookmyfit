@@ -119,7 +119,7 @@ export const subscriptionsApi = {
     const planType = body.planId === 'multi_gym' ? 'multi_gym' : body.planId === 'day_pass' ? 'day_pass' : 'same_gym';
     return api.post('/subscriptions/purchase', {
       planType,
-      gymId: planType === 'same_gym' ? body.gymId : undefined,
+      gymId: (planType === 'same_gym' || planType === 'day_pass') ? body.gymId : undefined,
       durationMonths: body.isDayPass || planType === 'day_pass' ? 0 : body.durationMonths,
       amountOverride: planType === 'same_gym' || planType === 'day_pass' ? body.totalAmount : undefined,
       couponCode: body.couponCode,
