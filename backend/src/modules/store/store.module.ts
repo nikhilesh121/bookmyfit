@@ -33,9 +33,11 @@ class StoreService {
 
   async placeOrder(userId: string, phone: string, items: Array<{ productId: string; quantity: number }>, address: any, couponCode?: string) {
     if (!items?.length) throw new BadRequestException('Cart is empty');
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let subtotal = 0;
     const hydrated: any[] = [];
     for (const it of items) {
+      if (!uuidRe.test(it.productId)) throw new BadRequestException(`Invalid product ID: ${it.productId}`);
       const p = await this.getProduct(it.productId);
       if (!p) throw new BadRequestException(`Product ${it.productId} not found`);
       if (p.stock < it.quantity) throw new BadRequestException(`Out of stock: ${p.name}`);

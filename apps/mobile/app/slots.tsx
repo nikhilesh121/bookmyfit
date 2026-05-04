@@ -8,7 +8,7 @@ import AuroraBackground from '../components/AuroraBackground';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconCalendar, IconClock, IconArrowLeft, IconCheck, IconUsers } from '../components/Icons';
-import { slotsApi, API_BASE } from '../lib/api';
+import { api, slotsApi, API_BASE } from '../lib/api';
 
 const FALLBACK_TYPES = [
   { id: 'all', name: 'All', color: colors.accent },
@@ -75,7 +75,7 @@ export default function SlotsScreen() {
     setError('');
     try {
       const date = formatDate(days[dayIndex]);
-      const res: any = await slotsApi.list(gymId || '', date);
+      const res: any = await api.get(`/sessions/slots/${gymId}?date=${date}`);
       let items = Array.isArray(res) ? res : res?.slots ?? res?.data ?? [];
 
       // Filter out past slots for today
@@ -106,7 +106,7 @@ export default function SlotsScreen() {
 
   const loadMyBookings = async () => {
     try {
-      const res: any = await slotsApi.myBookings();
+      const res: any = await api.get('/sessions/my-bookings');
       const items = Array.isArray(res) ? res : res?.bookings ?? res?.data ?? [];
       setMyBookings(items.length > 0 ? items : FALLBACK_BOOKINGS);
     } catch {
@@ -142,7 +142,7 @@ export default function SlotsScreen() {
     }
     setBookingId(slotId);
     try {
-      const res: any = await slotsApi.book(slotId);
+      const res: any = await api.post('/sessions/book', { slotId });
       if (res?.bookingQr) {
         router.replace({
           pathname: '/qr',
@@ -174,7 +174,7 @@ export default function SlotsScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await slotsApi.cancel(slotId);
+            await api.post(`/sessions/cancel/${slotId}`, {});
             loadMyBookings();
             loadSlots(selectedDay);
           } catch (e: any) {

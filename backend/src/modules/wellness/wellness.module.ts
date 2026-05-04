@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Injectable, UseGuards, Req } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Injectable, UseGuards, Req, NotFoundException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
@@ -63,8 +63,10 @@ class WellnessService {
   }
 
   async book(userId: string, serviceId: string, bookingDate: string, phone: string) {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(serviceId)) throw new NotFoundException('Service not found');
     const service = await this.services.findOne({ where: { id: serviceId } });
-    if (!service) throw new Error('Service not found');
+    if (!service) throw new NotFoundException('Service not found');
     const partner = await this.partners.findOne({ where: { id: service.partnerId } });
     const amount = Number(service.price);
     const platformCommission = amount * (Number(partner?.commissionRate || 30) / 100);

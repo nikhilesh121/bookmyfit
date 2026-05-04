@@ -391,6 +391,8 @@ export class SessionsService {
   }
 
   async bookSlot(userId: string, dto: BookSlotDto) {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(dto.slotId)) throw new NotFoundException('Slot not found');
     const slot = await this.slotRepo.findOne({ where: { id: dto.slotId } });
     if (!slot) throw new NotFoundException('Slot not found');
     if (slot.status !== 'scheduled') throw new BadRequestException('This slot is not available');
