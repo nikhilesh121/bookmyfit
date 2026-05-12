@@ -12,11 +12,32 @@ import { SlotBookingEntity } from '../../database/entities/slot-booking.entity';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { BookingQrEntity } from '../../database/entities/booking-qr.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
+import { GymScheduleEntity } from '../../database/entities/gym-schedule.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 
 const BOOKING_QR_EXPIRY_HOURS = 2;
+
+function isPastDateOnly(endDate: string | Date) {
+  const iso = endDate instanceof Date ? endDate.toISOString().slice(0, 10) : String(endDate).slice(0, 10);
+  return iso < new Date().toISOString().slice(0, 10);
+}
+
+function minutesOf(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function overlapsWindow(start: string, end: string, windowStart?: string | null, windowEnd?: string | null): boolean {
+  if (!windowStart || !windowEnd) return false;
+  return minutesOf(start) < minutesOf(windowEnd) && minutesOf(end) > minutesOf(windowStart);
+}
+
+function dayOfWeekFromDate(dateStr: string): number {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  return (d.getUTCDay() + 6) % 7;
+}
 
 @Injectable()
 class SlotsService {
@@ -26,11 +47,16 @@ class SlotsService {
     @InjectRepository(SubscriptionEntity) private readonly subRepo: Repository<SubscriptionEntity>,
     @InjectRepository(BookingQrEntity) private readonly qrRepo: Repository<BookingQrEntity>,
     @InjectRepository(GymEntity) private readonly gymRepo: Repository<GymEntity>,
+    @InjectRepository(GymScheduleEntity) private readonly scheduleRepo: Repository<GymScheduleEntity>,
     private readonly jwt: JwtService,
   ) {}
 
-  listSlots(gymId: string, date: string) {
-    return this.slotRepo.find({ where: { gymId, date }, order: { startTime: 'ASC' } });
+  async listSlots(gymId: string, date: string) {
+    const [slots, schedule] = await Promise.all([
+      this.slotRepo.find({ where: { gymId, date }, order: { startTime: 'ASC' } }),
+      this.scheduleRepo.findOne({ where: { gymId, dayOfWeek: dayOfWeekFromDate(date) } }),
+    ]);
+    return slots.filter((slot) => !overlapsWindow(slot.startTime, slot.endTime, schedule?.breakStartTime, schedule?.breakEndTime));
   }
 
   createSlot(data: { gymId: string; date: string; startTime: string; endTime: string; capacity?: number }) {
@@ -41,16 +67,38 @@ class SlotsService {
     if (!isUuid(slotId)) throw new NotFoundException('Slot not found');
     const slot = await this.slotRepo.findOne({ where: { id: slotId } });
     if (!slot) throw new NotFoundException('Slot not found');
+    const schedule = await this.scheduleRepo.findOne({ where: { gymId: slot.gymId, dayOfWeek: dayOfWeekFromDate(slot.date) } });
+    if (overlapsWindow(slot.startTime, slot.endTime, schedule?.breakStartTime, schedule?.breakEndTime)) {
+      throw new BadRequestException('This gym is on break during the selected time. Please choose another slot.');
+    }
     if (slot.booked >= slot.capacity) throw new BadRequestException('Slot is full');
 
     const existing = await this.bookingRepo.findOne({ where: { slotId, userId, status: 'confirmed' } });
     if (existing) throw new BadRequestException('Already booked this slot');
 
-    // Find the user's active subscription
+    // Find an active subscription that covers this slot's gym.
     const sub = subscriptionId
       ? await this.subRepo.findOne({ where: { id: subscriptionId, userId } })
-      : await this.subRepo.findOne({ where: { userId, status: 'active' } as any });
+      : await this.subRepo.createQueryBuilder('sub')
+        .where('sub."userId" = :userId', { userId })
+        .andWhere('sub.status = :status', { status: 'active' })
+        .andWhere('sub."endDate" >= CURRENT_DATE')
+        .andWhere('(sub."planType" = :multiGym OR :gymId = ANY(sub."gymIds"))', { multiGym: 'multi_gym', gymId: slot.gymId })
+        .orderBy(`CASE WHEN :gymId = ANY(sub."gymIds") THEN 0 ELSE 1 END`, 'ASC')
+        .addOrderBy('sub."createdAt"', 'DESC')
+        .getOne();
     if (!sub) throw new BadRequestException('No active subscription found. Please subscribe first.');
+    if (sub.status !== 'active' || isPastDateOnly(sub.endDate)) {
+      throw new BadRequestException('No active subscription found. Please subscribe first.');
+    }
+
+    const coveredGyms = sub.gymIds || [];
+    if (sub.planType === 'same_gym' && !coveredGyms.includes(slot.gymId)) {
+      throw new BadRequestException('Your Same Gym Pass is only valid for the gym you subscribed to.');
+    }
+    if (sub.planType === 'day_pass' && coveredGyms.length > 0 && !coveredGyms.includes(slot.gymId)) {
+      throw new BadRequestException('Your 1-Day Pass is for a different gym.');
+    }
 
     // Session lock: same_gym and multi_gym users may only have 1 active booking at a time
     if (sub.planType !== 'day_pass') {
@@ -202,7 +250,7 @@ class SlotsController {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([GymSlotEntity, SlotBookingEntity, SubscriptionEntity, BookingQrEntity, GymEntity]),
+    TypeOrmModule.forFeature([GymSlotEntity, SlotBookingEntity, SubscriptionEntity, BookingQrEntity, GymEntity, GymScheduleEntity]),
     JwtModule.register({
       secret: process.env.QR_SECRET || 'qr-hmac-secret-change-me',
       signOptions: { algorithm: 'HS256' },

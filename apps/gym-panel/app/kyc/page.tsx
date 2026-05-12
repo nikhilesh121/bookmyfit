@@ -8,13 +8,50 @@ import { CheckCircle, Clock, AlertCircle, Upload, FileText } from 'lucide-react'
 const KYC_STEPS = [
   { type: 'business_registration', label: 'Business Registration' },
   { type: 'gst_certificate', label: 'GST Certificate' },
-  { type: 'fssai', label: 'FSSAI License' },
+  { type: 'identity_document', label: 'Owner Identity Document' },
   { type: 'bank_details', label: 'Bank Details' },
   { type: 'gym_photos', label: 'Gym Photos' },
   { type: 'trainer_certs', label: 'Trainer Certificates' },
 ];
 
-type KycDoc = { name: string; url: string; type: string; uploadedAt: string };
+const KYC_FIELDS: Record<string, { key: string; label: string; type?: string; required?: boolean }[]> = {
+  business_registration: [
+    { key: 'legalName', label: 'Legal business name', required: true },
+    { key: 'registrationNumber', label: 'Registration number', required: true },
+    { key: 'businessType', label: 'Business type', required: true },
+    { key: 'documentUrl', label: 'Registration document URL', type: 'url', required: true },
+  ],
+  gst_certificate: [
+    { key: 'gstNumber', label: 'GST number', required: true },
+    { key: 'registeredName', label: 'Registered name', required: true },
+    { key: 'documentUrl', label: 'GST certificate URL', type: 'url', required: true },
+  ],
+  identity_document: [
+    { key: 'ownerName', label: 'Owner name', required: true },
+    { key: 'documentType', label: 'Document type', required: true },
+    { key: 'documentNumber', label: 'Document number', required: true },
+    { key: 'documentUrl', label: 'Identity document URL', type: 'url', required: true },
+  ],
+  bank_details: [
+    { key: 'accountHolderName', label: 'Account holder name', required: true },
+    { key: 'bankName', label: 'Bank name', required: true },
+    { key: 'accountNumber', label: 'Account number', required: true },
+    { key: 'ifsc', label: 'IFSC code', required: true },
+    { key: 'cancelledChequeUrl', label: 'Cancelled cheque/passbook URL', type: 'url', required: true },
+  ],
+  gym_photos: [
+    { key: 'exteriorPhotoUrl', label: 'Exterior photo URL', type: 'url', required: true },
+    { key: 'interiorPhotoUrl', label: 'Interior photo URL', type: 'url', required: true },
+    { key: 'equipmentPhotoUrl', label: 'Equipment photo URL', type: 'url' },
+  ],
+  trainer_certs: [
+    { key: 'trainerName', label: 'Trainer name', required: true },
+    { key: 'certificateName', label: 'Certificate name', required: true },
+    { key: 'certificateUrl', label: 'Certificate URL', type: 'url', required: true },
+  ],
+};
+
+type KycDoc = { name: string; url?: string; type: string; fields?: Record<string, string>; uploadedAt: string; status?: string; reviewNote?: string };
 type KycData = { kycStatus: string; kycDocuments: KycDoc[] };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -55,7 +92,7 @@ export default function KycPage() {
   const [kycData, setKycData] = useState<KycData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ type: KYC_STEPS[0].type, name: '', url: '' });
+  const [form, setForm] = useState<{ type: string; fields: Record<string, string> }>({ type: KYC_STEPS[0].type, fields: {} });
 
   const fetchKyc = async (id: string) => {
     const data = await api.get<KycData>(`/gyms/${id}/kyc`);
@@ -90,16 +127,22 @@ export default function KycPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gymId) return;
-    if (!form.name.trim() || !form.url.trim()) {
-      toast('Please fill in all fields', 'error');
+    const schema = KYC_FIELDS[form.type] || [];
+    const missing = schema.find((f) => f.required && !String(form.fields[f.key] || '').trim());
+    if (missing) {
+      toast(`${missing.label} is required`, 'error');
       return;
     }
     setSubmitting(true);
     try {
-      await api.post(`/gyms/${gymId}/kyc-documents`, form);
+      await api.post(`/gyms/${gymId}/kyc-documents`, {
+        type: form.type,
+        name: KYC_STEPS.find((s) => s.type === form.type)?.label || 'KYC Submission',
+        fields: form.fields,
+      });
       await fetchKyc(gymId);
       toast('Document submitted successfully!', 'success');
-      setForm({ type: KYC_STEPS[0].type, name: '', url: '' });
+      setForm({ type: KYC_STEPS[0].type, fields: {} });
     } catch (err: any) {
       toast(err.message || 'Failed to submit document', 'error');
     } finally {
@@ -154,8 +197,8 @@ export default function KycPage() {
                     </div>
                     {doc && (
                       <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <FileText size={10} />
-                        {doc.name} · {new Date(doc.uploadedAt).toLocaleDateString()}
+                  <FileText size={10} />
+                        {doc.name} · {new Date(doc.uploadedAt).toLocaleDateString()}{doc.reviewNote ? ` · ${doc.reviewNote}` : ''}
                       </div>
                     )}
                   </div>
@@ -175,7 +218,7 @@ export default function KycPage() {
                 <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Document Type</label>
                 <select
                   value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value })}
+                  onChange={(e) => setForm({ type: e.target.value, fields: {} })}
                   style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 14px', color: '#fff', fontSize: 13, outline: 'none' }}
                 >
                   {KYC_STEPS.map((s) => (
@@ -183,26 +226,20 @@ export default function KycPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Document Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. GST Certificate 2024"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 14px', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Document URL</label>
-                <input
-                  type="url"
-                  placeholder="https://drive.google.com/..."
-                  value={form.url}
-                  onChange={(e) => setForm({ ...form, url: e.target.value })}
-                  style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 14px', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
-                />
-              </div>
+              {(KYC_FIELDS[form.type] || []).map((field) => (
+                <div key={field.key}>
+                  <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>
+                    {field.label}{field.required ? ' *' : ''}
+                  </label>
+                  <input
+                    type={field.type || 'text'}
+                    placeholder={field.type === 'url' ? 'https://drive.google.com/...' : field.label}
+                    value={form.fields[field.key] || ''}
+                    onChange={(e) => setForm((prev) => ({ ...prev, fields: { ...prev.fields, [field.key]: e.target.value } }))}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 14px', color: '#fff', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              ))}
               <button
                 type="submit"
                 disabled={submitting}

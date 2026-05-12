@@ -18,6 +18,21 @@ class PaymentsService {
     private readonly cashfree: CashfreeService,
   ) {}
 
+  private activeGymPass(userId: string, gymId?: string, excludeId?: string) {
+    if (!gymId) return Promise.resolve(null);
+    const qb = this.subs.createQueryBuilder('s')
+      .select('s.id', 'id')
+      .addSelect('s."endDate"', 'endDate')
+      .where('s."userId" = :userId', { userId })
+      .andWhere('s.status = :status', { status: 'active' })
+      .andWhere('s."planType" IN (:...planTypes)', { planTypes: ['same_gym', 'day_pass'] })
+      .andWhere(':gymId = ANY(s."gymIds")', { gymId })
+      .andWhere('s."endDate" >= CURRENT_DATE');
+
+    if (excludeId) qb.andWhere('s.id != :excludeId', { excludeId });
+    return qb.getRawOne();
+  }
+
   /**
    * Called by Cashfree on payment events.
    * We look up the reference entity by cashfreeOrderId and mark it paid/active.
@@ -41,10 +56,18 @@ class PaymentsService {
     const paid = status === 'PAID';
 
     if (sub) {
+      if (paid && (sub.planType === 'same_gym' || sub.planType === 'day_pass') && sub.gymIds?.[0]) {
+        const duplicate = await this.activeGymPass(sub.userId, sub.gymIds[0], sub.id);
+        if (duplicate) {
+          sub.razorpayPaymentId = paymentId || sub.razorpayPaymentId;
+          await this.subs.save(sub);
+          return { processed: true, kind: 'subscription', paid, activated: false, reason: 'duplicate_active_gym_pass' };
+        }
+      }
       sub.status = paid ? 'active' : sub.status;
       sub.razorpayPaymentId = paymentId || sub.razorpayPaymentId;
       await this.subs.save(sub);
-      return { processed: true, kind: 'subscription', paid };
+      return { processed: true, kind: 'subscription', paid, activated: paid };
     }
     if (order) {
       order.status = paid ? 'paid' : 'cancelled';
@@ -90,6 +113,10 @@ class PaymentsController {
     @Body() body: any,
   ) {
     const raw = JSON.stringify(body);
+    if (process.env.NODE_ENV === 'production' && (!signature || !timestamp)) {
+      throw new BadRequestException('Missing webhook signature');
+    }
+
     if (signature && timestamp) {
       const ok = this.cashfree.verifyWebhookSignature(raw, timestamp, signature);
       if (!ok && process.env.NODE_ENV === 'production') {

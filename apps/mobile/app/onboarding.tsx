@@ -4,12 +4,12 @@ import {
   ImageBackground, FlatList, NativeScrollEvent, NativeSyntheticEvent,
 } from 'react-native';
 import { router } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { colors, fonts, radius } from '../theme/brand';
+import { appStorage } from '../lib/api';
 
 const ONBOARDED_KEY = 'bmf_onboarded';
 async function markOnboarded() {
-  await SecureStore.setItemAsync(ONBOARDED_KEY, '1');
+  await appStorage.setItem(ONBOARDED_KEY, '1');
 }
 
 const { width, height } = Dimensions.get('window');

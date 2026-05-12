@@ -201,7 +201,7 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   loader: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: spacing.xl, paddingBottom: 40 },
+  content: { paddingHorizontal: spacing.xl, paddingBottom: 132 },
 
   aurora1: {
     position: 'absolute', top: -60, right: -60,

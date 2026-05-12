@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Shell from '../../components/Shell';
 import { api } from '../../lib/api';
 import { useToast } from '../../components/Toast';
@@ -28,11 +28,11 @@ export default function CategoriesPage() {
   const [newAmen, setNewAmen] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const [cats, amens] = await Promise.all([
         api.get('/master/categories'),
-        api.get('/master/amenities'),
+        api.get('/master/amenities?includeAll=true'),
       ]);
       const catArr: Category[] = Array.isArray(cats) ? cats : cats?.data ?? [];
       const amenArr: Amenity[] = Array.isArray(amens) ? amens : amens?.data ?? [];
@@ -44,9 +44,9 @@ export default function CategoriesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const addCategory = async () => {
     if (!newCat.trim()) return;
@@ -88,14 +88,25 @@ export default function CategoriesPage() {
     }
   };
 
-  const removeCategory = (id: string) => {
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-    toast('Category removed', 'info');
+  const removeCategory = async (id: string) => {
+    try {
+      await api.del(`/master/categories/${id}`);
+      setCategories((prev) => prev.filter((c) => c.id !== id));
+      toast('Category removed', 'info');
+    } catch (e: any) {
+      toast(e.message || 'Failed to remove category', 'error');
+    }
   };
 
-  const removeAmenity = (id: string) => {
-    setAmenities((prev) => prev.filter((a) => a.id !== id));
-    toast('Amenity removed', 'info');
+  const removeAmenity = async (id: string) => {
+    try {
+      await api.del(`/master/amenities/${id}`);
+      setAmenities((prev) => prev.filter((a) => a.id !== id));
+      setPending((prev) => prev.filter((a) => a.id !== id));
+      toast('Amenity removed', 'info');
+    } catch (e: any) {
+      toast(e.message || 'Failed to remove amenity', 'error');
+    }
   };
 
   return (

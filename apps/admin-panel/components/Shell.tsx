@@ -33,7 +33,7 @@ const NAV = [
   { group: 'Content', items: [
     { href: '/homepage', label: 'Homepage Builder', icon: HomeIcon },
     { href: '/store', label: 'Store Products', icon: Package },
-    { href: '/categories', label: 'Categories', icon: Tags },
+    { href: '/categories', label: 'Categories & Amenities', icon: Tags },
   ]},
   { group: 'Platform', items: [
     { href: '/ratings', label: 'Ratings', icon: Star },
@@ -49,27 +49,28 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
   const pathname = usePathname();
   return (
     <div className="flex min-h-screen text-white">
-      <aside className="w-64 border-r flex flex-col" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
-        <div className="p-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-          <div className="serif" style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-1px' }}>
+      <aside className="w-[280px] border-r flex flex-col" style={{ borderColor: 'rgba(255,255,255,0.07)', background: 'linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015))' }}>
+        <div className="px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+          <div className="serif flex items-center gap-2" style={{ fontSize: 21, fontWeight: 900, letterSpacing: '-0.7px' }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: 'var(--accent)', boxShadow: '0 0 18px rgba(61,255,84,0.75)' }} />
             Book<em style={{ fontStyle: 'italic', fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>My</em>Fit
           </div>
           <div className="kicker mt-1" style={{ color: 'var(--accent)', opacity: 0.7 }}>Admin Console</div>
         </div>
         <nav className="flex-1 overflow-y-auto py-3">
           {NAV.map((group) => (
-            <div key={group.group} className="mb-5">
-              <div className="px-5 mb-2 kicker" style={{ color: 'rgba(255,255,255,0.3)' }}>{group.group}</div>
+            <div key={group.group} className="mb-4">
+              <div className="px-5 mb-2 kicker" style={{ color: 'rgba(255,255,255,0.34)' }}>{group.group}</div>
               {group.items.map((item) => {
-                const active = pathname === item.href;
+                const active = pathname === item.href || (item.href !== '/' && pathname?.startsWith(`${item.href}/`));
                 const Icon = item.icon;
                 return (
                   <Link key={item.href} href={item.href}
-                    className="flex items-center gap-3 px-5 py-2.5 text-[13px] transition"
+                    className="mx-3 mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] transition hover:bg-white/5"
                     style={{
                       color: active ? '#fff' : 'rgba(255,255,255,0.55)',
-                      background: active ? 'rgba(61,255,84,0.08)' : 'transparent',
-                      borderLeft: active ? '2px solid #3DFF54' : '2px solid transparent',
+                      background: active ? 'rgba(61,255,84,0.10)' : 'transparent',
+                      border: active ? '1px solid rgba(61,255,84,0.24)' : '1px solid transparent',
                       fontWeight: active ? 600 : 400,
                     }}>
                     <Icon size={15} strokeWidth={1.8} />

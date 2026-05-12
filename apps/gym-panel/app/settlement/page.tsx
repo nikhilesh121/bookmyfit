@@ -12,7 +12,7 @@ type Settlement = {
 
 type CurrentMonth = {
   grossRevenue: number; commission: number; netPayout: number;
-  commissionRate: number; status: string; individualPool?: number; elitePool?: number;
+  commissionRate: number; status: string; individualPool?: number; multiGymPool?: number; dayPassPool?: number;
 };
 
 const EMPTY_CURRENT: CurrentMonth = {
@@ -63,6 +63,11 @@ export default function SettlementPage() {
   };
 
   const c = current ?? EMPTY_CURRENT;
+  const bucketRows = [
+    { bucket: 'Same Gym Subscriptions', amount: c.individualPool ?? 0 },
+    { bucket: 'Day Passes', amount: c.dayPassPool ?? 0 },
+    { bucket: 'Multi Gym Allocation', amount: c.multiGymPool ?? 0 },
+  ].map((b) => ({ ...b, pct: c.grossRevenue > 0 ? Math.round((b.amount / c.grossRevenue) * 100) : 0 }));
 
   return (
     <Shell title="My Settlement">
@@ -106,10 +111,7 @@ export default function SettlementPage() {
         ) : (
           <div className="space-y-4">
             {[
-              { bucket: 'Individual Pool', amount: c.individualPool ?? Math.round(c.grossRevenue * 0.35), pct: 35 },
-              { bucket: 'Elite Pool', amount: c.elitePool ?? Math.round(c.grossRevenue * 0.20), pct: 20 },
-              { bucket: 'Pro / Max Plans', amount: Math.round(c.grossRevenue * 0.40), pct: 40 },
-              { bucket: 'PT / Sessions', amount: Math.round(c.grossRevenue * 0.05), pct: 5 },
+              ...bucketRows,
             ].map((b) => (
               <div key={b.bucket}>
                 <div className="flex justify-between text-xs mb-1.5">

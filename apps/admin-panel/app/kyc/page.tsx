@@ -17,6 +17,9 @@ type Gym = {
   description?: string;
   amenities?: string[];
   commissionRate?: number;
+  kycStatus?: string;
+  kycReviewNote?: string;
+  kycDocuments?: Array<{ type: string; name: string; url?: string; fields?: Record<string, any>; uploadedAt?: string; status?: string; reviewNote?: string }>;
 };
 
 type FilterTab = 'pending' | 'approved' | 'rejected' | 'all';
@@ -53,8 +56,8 @@ export default function KYCPage() {
     setLoading(true);
     try {
       const path = status && status !== 'all' ? `/gyms?status=${status}` : '/gyms';
-      const data = await api.get<Gym[]>(path);
-      setGyms(Array.isArray(data) ? data : []);
+      const data = await api.get<any>(path);
+      setGyms(Array.isArray(data) ? data : data?.data ?? []);
     } catch {
       setGyms([]);
     } finally {
@@ -222,6 +225,14 @@ export default function KYCPage() {
                         <td colSpan={7} style={{ padding: '16px 24px' }}>
                           <div className="grid grid-cols-2 gap-6" style={{ fontSize: 13 }}>
                             <div>
+                              <div className="kicker mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>KYC Status</div>
+                              <div style={{ color: 'var(--t)', marginBottom: 12 }}>{g.kycStatus || g.status || 'not_started'}</div>
+                              {g.kycReviewNote && (
+                                <>
+                                  <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Review Note</div>
+                                  <div style={{ color: 'var(--t2)' }}>{g.kycReviewNote}</div>
+                                </>
+                              )}
                               <div className="kicker mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Address</div>
                               <div style={{ color: 'var(--t)' }}>{g.address || 'Not provided'}</div>
                               <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Description</div>
@@ -241,6 +252,25 @@ export default function KYCPage() {
                                 </div>
                               ) : (
                                 <div style={{ color: 'var(--t3)' }}>None listed</div>
+                              )}
+                              <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Submitted KYC Details</div>
+                              {g.kycDocuments && g.kycDocuments.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                  {g.kycDocuments.map((doc) => (
+                                    <div key={doc.type} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 10 }}>
+                                      <div style={{ color: '#fff', fontWeight: 700, marginBottom: 6 }}>{doc.name}</div>
+                                      {doc.url && <a href={doc.url} target="_blank" style={{ color: 'var(--accent)', fontSize: 12 }}>Open document</a>}
+                                      {doc.fields && Object.entries(doc.fields).map(([key, value]) => (
+                                        <div key={key} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12, marginTop: 4 }}>
+                                          <span style={{ color: 'var(--t3)' }}>{key}</span>
+                                          <span style={{ color: 'var(--t2)', textAlign: 'right', wordBreak: 'break-word' }}>{String(value || '—')}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div style={{ color: 'var(--t3)' }}>No KYC documents submitted</div>
                               )}
                             </div>
                           </div>

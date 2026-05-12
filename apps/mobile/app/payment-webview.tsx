@@ -14,11 +14,11 @@ const CASHFREE_BASE_URL: string =
 export default function PaymentWebview() {
   const {
     orderId, sessionId, paymentSessionId,
-    planId, gymId, subId,
+    planId, gymId, gymName, subId,
     bookingId, returnRoute, serviceName, amount,
   } = useLocalSearchParams<{
     orderId: string; sessionId?: string; paymentSessionId?: string;
-    planId?: string; gymId?: string; subId?: string;
+    planId?: string; gymId?: string; gymName?: string; subId?: string;
     bookingId?: string; returnRoute?: string; serviceName?: string; amount?: string;
   }>();
 
@@ -51,7 +51,10 @@ export default function PaymentWebview() {
         params: { bookingId: bookingId || '', orderId, serviceName: serviceName || '', amount: amount || '' },
       } as any);
     } else {
-      router.replace({ pathname: '/success', params: { orderId, planId: planId || '', gymId: gymId || '', subscriptionId: subId || '' } });
+      router.replace({
+        pathname: '/success',
+        params: { orderId, planId: planId || '', gymId: gymId || '', gymName: gymName || '', subscriptionId: subId || '' },
+      });
     }
   };
 

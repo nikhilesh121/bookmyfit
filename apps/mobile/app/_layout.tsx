@@ -1,19 +1,24 @@
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useFonts, PlayfairDisplay_700Bold, PlayfairDisplay_900Black, PlayfairDisplay_400Regular_Italic } from '@expo-google-fonts/playfair-display';
-import { DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
+import {
+  useFonts,
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+  Poppins_800ExtraBold,
+} from '@expo-google-fonts/poppins';
 import { View, ActivityIndicator } from 'react-native';
 import { useEffect } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { colors } from '../theme/brand';
-import { getToken, getUser } from '../lib/api';
+import { appStorage, getToken, getUser } from '../lib/api';
 
 const ONBOARDED_KEY = 'bmf_onboarded';
 
 async function resolveInitialRoute() {
   try {
     // First-launch onboarding check
-    const onboarded = await SecureStore.getItemAsync(ONBOARDED_KEY);
+    const onboarded = await appStorage.getItem(ONBOARDED_KEY);
     if (!onboarded) {
       router.replace('/onboarding');
       return;
@@ -36,8 +41,11 @@ async function resolveInitialRoute() {
 
 export default function RootLayout() {
   const [loaded] = useFonts({
-    PlayfairDisplay_700Bold, PlayfairDisplay_900Black, PlayfairDisplay_400Regular_Italic,
-    DMSans_400Regular, DMSans_500Medium, DMSans_700Bold,
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+    Poppins_800ExtraBold,
   });
 
   useEffect(() => {
@@ -60,7 +68,7 @@ export default function RootLayout() {
       <Stack screenOptions={{
         headerStyle: { backgroundColor: colors.bg },
         headerTintColor: colors.accent,
-        headerTitleStyle: { fontFamily: 'PlayfairDisplay_700Bold', fontSize: 18 },
+        headerTitleStyle: { fontFamily: 'Poppins_700Bold', fontSize: 18 },
         contentStyle: { backgroundColor: colors.bg },
       }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -92,6 +100,7 @@ export default function RootLayout() {
         <Stack.Screen name="gyms" options={{ headerShown: false }} />
         <Stack.Screen name="wellness/book-service" options={{ headerShown: false }} />
         <Stack.Screen name="home-services" options={{ headerShown: false }} />
+        <Stack.Screen name="spa-centres" options={{ headerShown: false }} />
         <Stack.Screen name="multi-gym-network" options={{ headerShown: false }} />
         <Stack.Screen name="cart" options={{ headerShown: false }} />
         <Stack.Screen name="booking-success" options={{ headerShown: false, gestureEnabled: false }} />

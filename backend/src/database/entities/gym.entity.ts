@@ -22,6 +22,33 @@ export class GymEntity {
   @Column({ type: 'text' })
   address: string;
 
+  @Column({ type: 'text', nullable: true })
+  description: string | null;
+
+  @Column({ length: 20, nullable: true })
+  pinCode: string | null;
+
+  @Column({ length: 30, nullable: true })
+  contactPhone: string | null;
+
+  @Column({ length: 150, nullable: true })
+  contactEmail: string | null;
+
+  @Column({ length: 255, nullable: true })
+  website: string | null;
+
+  @Column({ length: 5, default: '06:00' })
+  openingTime: string;
+
+  @Column({ length: 5, default: '22:00' })
+  closingTime: string;
+
+  @Column({ length: 5, nullable: true })
+  breakStartTime: string | null;
+
+  @Column({ length: 5, nullable: true })
+  breakEndTime: string | null;
+
   @Column({ type: 'double precision' })
   lat: number;
 
@@ -71,10 +98,23 @@ export class GymEntity {
   ownerId: string;
 
   @Column({ type: 'jsonb', nullable: true })
-  kycDocuments: { name: string; url: string; type: string; uploadedAt: string }[] | null;
+  kycDocuments: Array<{
+    name: string;
+    url?: string;
+    type: string;
+    fields?: Record<string, any>;
+    status?: 'in_review' | 'approved' | 'rejected';
+    uploadedAt: string;
+    reviewedAt?: string;
+    reviewedBy?: string;
+    reviewNote?: string;
+  }> | null;
 
   @Column({ nullable: true, default: 'not_started' })
   kycStatus: string; // not_started, in_review, approved, rejected
+
+  @Column({ type: 'text', nullable: true })
+  kycReviewNote: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

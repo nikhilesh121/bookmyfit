@@ -40,9 +40,13 @@ export class SettlementEntity {
     checkinCount?: number;
     billableDays?: number;
     ratePerDay?: number;
+    totalMultiGymBillableDays?: number;
+    totalMultiGymRevenue?: number;
     multiGymGross?: number;
     multiGymCommission?: number;
     multiGymPayout?: number;
+    sameGymRevenue?: number;
+    dayPassRevenue?: number;
     totalCheckins?: number;
   };
 

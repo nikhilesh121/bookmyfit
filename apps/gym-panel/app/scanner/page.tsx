@@ -30,6 +30,7 @@ type AttendanceRecord = ScanResult & { time: string; id: string };
 export default function ScannerPage() {
   const [mode, setMode] = useState<'camera' | 'manual'>('camera');
   const [qrToken, setQrToken] = useState('');
+  const [gymId, setGymId] = useState<string | null>(null);
   const [ratePerDay, setRatePerDay] = useState(50);
   const [commissionRate, setCommissionRate] = useState(15);
   const [result, setResult] = useState<ScanResult | null>(null);
@@ -48,6 +49,7 @@ export default function ScannerPage() {
 
   useEffect(() => {
     api.get<any>('/gyms/my-gym').then(data => {
+      if (data?.id) setGymId(data.id);
       if (data?.ratePerDay) setRatePerDay(Number(data.ratePerDay));
       if (data?.commissionRate) setCommissionRate(Number(data.commissionRate));
     }).catch(() => {});
@@ -149,20 +151,23 @@ export default function ScannerPage() {
       return;
     }
 
+    if (!gymId) {
+      showResultAndResume({ ok: false, message: 'Gym profile is not loaded yet. Refresh and try again.' });
+      return;
+    }
+
     setValidating(true);
     try {
-      const scanRes = await api.post<any>('/sessions/checkin', { userId: memberId });
+      const scanRes = await api.post<any>('/qr/validate', { qrToken: t, gymId });
       if (scanRes?.success === false) {
         showResultAndResume({ ok: false, message: scanRes.message || 'Check-in denied' });
       } else {
-        const gymEarns = scanRes?.attendance?.commissionAmount
-          ? Number(scanRes.attendance.commissionAmount)
-          : undefined;
+        const gymEarns = undefined;
         const adminEarns = gymEarns != null ? ratePerDay - gymEarns : undefined;
         showResultAndResume({
           ok: true,
-          userName: scanRes?.user?.name || 'Member',
-          planType: scanRes?.sessionType?.name || scanRes?.planType || 'Gym Workout',
+          userName: scanRes?.user?.name || (scanRes?.user?.id ? `Member ${String(scanRes.user.id).slice(0, 8)}` : 'Member'),
+          planType: scanRes?.planType || 'QR Check-in',
           message: scanRes?.message || 'Check-in recorded!',
           gymEarns,
           adminEarns,
@@ -176,7 +181,7 @@ export default function ScannerPage() {
       setValidating(false);
       setQrToken('');
     }
-  }, [qrToken, ratePerDay, showResultAndResume]);
+  }, [gymId, qrToken, ratePerDay, showResultAndResume]);
 
   const todaySuccess = attendance.filter(a => a.ok).length;
   const todayGymEarnings = attendance.filter(a => a.ok && a.gymEarns).reduce((s, a) => s + (a.gymEarns ?? 0), 0);

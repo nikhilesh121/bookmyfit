@@ -247,7 +247,7 @@ const s = StyleSheet.create({
   tabText: { fontFamily: fonts.sansMedium ?? fonts.sans, fontSize: 13, color: colors.t2 },
   tabTextActive: { fontFamily: fonts.sansBold, color: colors.accent },
 
-  container: { paddingHorizontal: spacing.lg, paddingBottom: 48 },
+  container: { paddingHorizontal: spacing.lg, paddingBottom: 132 },
   centre: { paddingTop: 60, alignItems: 'center' },
 
   // Gym session card

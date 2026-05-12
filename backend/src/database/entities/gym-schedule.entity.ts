@@ -22,6 +22,11 @@ export class GymScheduleEntity {
   /** HH:MM 24-hour e.g. "22:00" */
   @Column({ length: 5, default: '22:00' }) closeTime: string;
 
+  /** Optional break window. Slots overlapping this window are not bookable. */
+  @Column({ length: 5, nullable: true }) breakStartTime: string | null;
+
+  @Column({ length: 5, nullable: true }) breakEndTime: string | null;
+
   @CreateDateColumn() createdAt: Date;
   @UpdateDateColumn() updatedAt: Date;
 }

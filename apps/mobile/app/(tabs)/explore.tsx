@@ -198,7 +198,7 @@ export default function ExploreHub() {
 
 const s = StyleSheet.create({
   root:   { flex: 1, backgroundColor: colors.bg },
-  scroll: { paddingHorizontal: 18, paddingTop: 12 },
+  scroll: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 132 },
 
   // Header
   header:   { marginBottom: 20 },

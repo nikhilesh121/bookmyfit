@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Put, Param, Body, Query, Injectable, BadRequestException, UseGuards, Req, NotFoundException } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Delete, Param, Body, Query, Injectable, BadRequestException, UseGuards, Req, NotFoundException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
@@ -96,10 +96,30 @@ class MasterDataService {
   ) {}
   listCategories() { return this.categories.find({ where: { isActive: true } }); }
   createCategory(d: Partial<CategoryEntity>) { return this.categories.save(this.categories.create(d)); }
-  listAmenities() { return this.amenities.find({ where: { isActive: true, status: 'approved' } }); }
+  listAmenities(includeAll = false) {
+    return this.amenities.find({
+      where: includeAll ? {} : { isActive: true, status: 'approved' },
+      order: { name: 'ASC' },
+    });
+  }
   createAmenity(d: Partial<AmenityEntity>) { return this.amenities.save(this.amenities.create({ ...d, status: 'approved' })); }
-  requestAmenity(name: string) { return this.amenities.save(this.amenities.create({ name, requestedByGym: true, status: 'pending', isActive: false })); }
+  async requestAmenity(name: string, gymId?: string, userId?: string) {
+    const clean = name?.trim();
+    if (!clean) throw new BadRequestException('Amenity name is required');
+    const existing = await this.amenities.findOne({ where: { name: clean } });
+    if (existing) return existing;
+    return this.amenities.save(this.amenities.create({
+      name: clean,
+      requestedByGym: true,
+      requestedByGymId: gymId || null,
+      requestedByUserId: userId || null,
+      status: 'pending',
+      isActive: false,
+    }));
+  }
   approveAmenity(id: string) { return this.amenities.update(id, { status: 'approved', isActive: true }); }
+  deleteCategory(id: string) { return this.categories.update(id, { isActive: false } as any); }
+  rejectOrDeleteAmenity(id: string) { return this.amenities.update(id, { status: 'rejected', isActive: false } as any); }
 }
 
 // ============ Videos ============
@@ -167,7 +187,7 @@ class AnalyticsService {
       .limit(12)
       .getRawMany();
 
-    return { totalRevenue, activeSubscribers, newSignups, avgCheckinsPerDay, topGyms, topPlans, monthlyRevenue };
+    return { totalRevenue, activeSubscribers, totalUsers, newSignups, avgCheckinsPerDay, topGyms, topPlans, monthlyRevenue };
   }
 }
 
@@ -213,11 +233,25 @@ class NotificationsController {
 class MasterController {
   constructor(private readonly svc: MasterDataService) {}
   @Get('categories') cats() { return this.svc.listCategories(); }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
   @Post('categories') newCat(@Body() b: any) { return this.svc.createCategory(b); }
-  @Get('amenities') am() { return this.svc.listAmenities(); }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Delete('categories/:id') delCat(@Param('id') id: string) { return this.svc.deleteCategory(id); }
+  @Get('amenities') am(@Query('includeAll') includeAll?: string) { return this.svc.listAmenities(includeAll === 'true'); }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
   @Post('amenities') newAm(@Body() b: any) { return this.svc.createAmenity(b); }
-  @Post('amenities/request') req(@Body() b: { name: string }) { return this.svc.requestAmenity(b.name); }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('gym_owner', 'gym_staff')
+  @Post('amenities/request') req(@Body() b: { name: string; gymId?: string }, @Req() req: any) { return this.svc.requestAmenity(b.name, b.gymId, req.user?.userId); }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
   @Post('amenities/:id/approve') ap(@Param('id') id: string) { return this.svc.approveAmenity(id); }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Delete('amenities/:id') delAm(@Param('id') id: string) { return this.svc.rejectOrDeleteAmenity(id); }
 }
 
 @ApiTags('Videos')
@@ -428,7 +462,7 @@ const DEFAULT_COMMISSION_RATES = [
   { id: '5', planType: 'Corporate', commission: 8, minGyms: 10, maxGyms: 999 },
 ];
 
-let commissionRatesStore = [...DEFAULT_COMMISSION_RATES];
+const commissionRatesStore = [...DEFAULT_COMMISSION_RATES];
 
 @ApiTags('Commission')
 @Controller('commission')

@@ -1,14 +1,35 @@
-import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
+import { Tabs, router, useFocusEffect, usePathname } from 'expo-router';
+import { Alert, BackHandler, Platform } from 'react-native';
+import { useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../theme/brand';
 import { IconHome, IconSearch, IconCalendar, IconTicket, IconUser } from '../../components/Icons';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
-  // Bottom padding = system nav bar height + a little breathing room
-  const tabBarBottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 4);
-  const tabBarHeight = 56 + tabBarBottomPad;
+  const pathname = usePathname();
+  // Some Android devices report a tiny inset while the 3-button nav bar still overlaps UI.
+  const tabBarBottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 30 : 10);
+  const tabBarHeight = 62 + tabBarBottomPad;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return undefined;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (pathname && pathname !== '/') {
+          router.replace('/(tabs)' as any);
+          return true;
+        }
+
+        Alert.alert('Exit BookMyFit', 'Do you want to close the app?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Exit', style: 'destructive', onPress: () => BackHandler.exitApp() },
+        ]);
+        return true;
+      });
+      return () => sub.remove();
+    }, [pathname]),
+  );
 
   return (
     <Tabs
@@ -20,7 +41,13 @@ export default function TabsLayout() {
           height: tabBarHeight,
           paddingTop: 8,
           paddingBottom: tabBarBottomPad,
+          elevation: 18,
+          shadowColor: '#000',
+          shadowOpacity: 0.35,
+          shadowRadius: 12,
         },
+        tabBarItemStyle: { paddingVertical: 2 },
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.t2,
         tabBarLabelStyle: { fontFamily: fonts.sansMedium, fontSize: 10, letterSpacing: 0.3 },

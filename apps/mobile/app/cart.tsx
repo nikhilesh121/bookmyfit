@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Image, ActivityIndicator, Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconTrash, IconCart } from '../components/Icons';
@@ -40,6 +40,8 @@ export function cartCount() {
 }
 
 export default function CartScreen() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 34);
   const [items, setItems] = useState<CartItem[]>([...cartItems]);
   const [placing, setPlacing] = useState(false);
 
@@ -120,7 +122,7 @@ export default function CartScreen() {
           </View>
         ) : (
           <>
-            <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
+            <ScrollView contentContainerStyle={[s.list, { paddingBottom: 36 + bottomInset }]} showsVerticalScrollIndicator={false}>
               {items.map((item) => (
                 <View key={item.productId} style={s.card}>
                   <Image
@@ -149,7 +151,7 @@ export default function CartScreen() {
             </ScrollView>
 
             {/* Summary + CTA */}
-            <View style={s.summary}>
+            <View style={[s.summary, { paddingBottom: bottomInset + 14 }]}>
               <View style={s.summaryRow}>
                 <Text style={s.summaryLabel}>Subtotal ({items.length} item{items.length !== 1 ? 's' : ''})</Text>
                 <Text style={s.summaryValue}>₹{total.toLocaleString()}</Text>
@@ -201,7 +203,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.accent, borderRadius: radius.xl,
   },
   browsBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#000' },
-  list: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20, gap: 12 },
+  list: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
   card: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
     backgroundColor: colors.surface, borderRadius: radius.xl,
@@ -222,7 +224,7 @@ const s = StyleSheet.create({
   removeBtn: { padding: 6, marginTop: 2 },
   summary: {
     backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border,
-    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24, gap: 8,
+    paddingHorizontal: 20, paddingTop: 16, gap: 8,
   },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryLabel: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },

@@ -8,17 +8,15 @@ import { Save } from 'lucide-react';
 type WellnessPartner = {
   id: string;
   name?: string;
-  description?: string;
   city?: string;
-  serviceTypes?: string[];
-  businessHours?: string;
-  photoUrl?: string;
-  email?: string;
-  phone?: string;
+  area?: string;
+  address?: string;
+  serviceType?: string;
+  photos?: string[];
   status?: string;
 };
 
-const SERVICE_TYPES = ['yoga', 'physio', 'nutrition', 'meditation', 'spa', 'training'];
+const SERVICE_TYPES = ['spa', 'home', 'physio', 'massage', 'yoga', 'nutrition'];
 
 export default function ProfilePage() {
   const [partner, setPartner] = useState<WellnessPartner | null>(null);
@@ -26,52 +24,50 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: '',
-    description: '',
     city: '',
-    serviceTypes: [] as string[],
-    businessHours: '',
+    area: '',
+    address: '',
+    serviceType: '',
     photoUrl: '',
-    phone: '',
-    email: '',
   });
   const { toast } = useToast();
   const partnerId = getPartnerId();
 
   useEffect(() => {
-    if (!partnerId) { setLoading(false); return; }
-    api.get<WellnessPartner>(`/wellness/${partnerId}`)
+    if (!partnerId) {
+      setLoading(false);
+      return;
+    }
+    api.get<WellnessPartner>(`/wellness/partners/${partnerId}`)
       .then(data => {
         setPartner(data);
         setForm({
           name: data.name || '',
-          description: data.description || '',
           city: data.city || '',
-          serviceTypes: data.serviceTypes || [],
-          businessHours: data.businessHours || '',
-          photoUrl: data.photoUrl || '',
-          phone: data.phone || '',
-          email: data.email || '',
+          area: data.area || '',
+          address: data.address || '',
+          serviceType: data.serviceType || '',
+          photoUrl: data.photos?.[0] || '',
         });
       })
       .catch(() => toast('Could not load profile', 'error'))
       .finally(() => setLoading(false));
-  }, []);
-
-  const toggleType = (t: string) => {
-    setForm(f => ({
-      ...f,
-      serviceTypes: f.serviceTypes.includes(t)
-        ? f.serviceTypes.filter(x => x !== t)
-        : [...f.serviceTypes, t],
-    }));
-  };
+  }, [partnerId]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!partnerId) return;
     setSaving(true);
     try {
-      await api.put(`/wellness/${partnerId}`, form);
+      const updated = await api.put<WellnessPartner>(`/wellness/partners/${partnerId}`, {
+        name: form.name,
+        city: form.city,
+        area: form.area,
+        address: form.address,
+        serviceType: form.serviceType,
+        photos: form.photoUrl ? [form.photoUrl] : [],
+      });
+      setPartner(updated);
       toast('Profile saved');
     } catch (err: any) {
       toast(err.message || 'Failed to save profile', 'error');
@@ -81,13 +77,17 @@ export default function ProfilePage() {
   };
 
   const typeColor: Record<string, string> = {
-    yoga: '#A78BFA', physio: '#60A5FA', nutrition: '#34D399',
-    meditation: '#F9A8D4', spa: '#FCD34D', training: '#3DFF54',
+    spa: '#FCD34D',
+    home: '#34D399',
+    physio: '#60A5FA',
+    massage: '#F9A8D4',
+    yoga: '#A78BFA',
+    nutrition: '#3DFF54',
   };
 
   return (
     <Shell title="Profile">
-      {loading && <p style={{ color: 'var(--t2)', fontSize: 13 }}>Loading profile…</p>}
+      {loading && <p style={{ color: 'var(--t2)', fontSize: 13 }}>Loading profile...</p>}
 
       {!loading && (
         <form onSubmit={handleSave} className="max-w-2xl space-y-6">
@@ -128,39 +128,39 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Description</label>
-              <textarea
-                value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Describe your wellness services…"
-                className="glass-input w-full"
-                rows={4}
-                style={{ resize: 'vertical' }}
-              />
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Email</label>
+                <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Area</label>
                 <input
-                  type="email"
-                  value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="contact@yourstudio.com"
+                  type="text"
+                  value={form.area}
+                  onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
+                  placeholder="e.g. Saheed Nagar"
                   className="glass-input w-full"
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Phone</label>
+                <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Service Type</label>
                 <input
-                  type="tel"
-                  value={form.phone}
-                  onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                  placeholder="+91 98765 43210"
+                  type="text"
+                  value={form.serviceType}
+                  onChange={e => setForm(f => ({ ...f, serviceType: e.target.value }))}
+                  placeholder="e.g. spa"
                   className="glass-input w-full"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Address</label>
+              <textarea
+                value={form.address}
+                onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                placeholder="Full business address"
+                className="glass-input w-full"
+                rows={3}
+                style={{ resize: 'vertical' }}
+              />
             </div>
 
             <div>
@@ -177,41 +177,25 @@ export default function ProfilePage() {
 
           <div className="glass p-6">
             <h2 className="serif text-lg mb-4">Service Types</h2>
-            <p className="text-xs mb-4" style={{ color: 'var(--t2)' }}>Select all that apply to your wellness practice</p>
             <div className="flex flex-wrap gap-3">
               {SERVICE_TYPES.map(t => {
-                const active = form.serviceTypes.includes(t);
+                const active = form.serviceType === t;
+                const color = typeColor[t] || '#3DFF54';
                 return (
                   <button
                     key={t}
                     type="button"
-                    onClick={() => toggleType(t)}
+                    onClick={() => setForm(f => ({ ...f, serviceType: t }))}
                     className="px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition"
                     style={{
-                      background: active ? `${typeColor[t]}22` : 'var(--glass-bg)',
-                      color: active ? typeColor[t] : 'var(--t2)',
-                      border: active ? `1px solid ${typeColor[t]}44` : '1px solid var(--border)',
+                      background: active ? `${color}22` : 'var(--glass-bg)',
+                      color: active ? color : 'var(--t2)',
+                      border: active ? `1px solid ${color}44` : '1px solid var(--border)',
                     }}>
                     {t}
                   </button>
                 );
               })}
-            </div>
-          </div>
-
-          <div className="glass p-6">
-            <h2 className="serif text-lg mb-4">Business Hours</h2>
-            <div>
-              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>
-                Hours of Operation
-              </label>
-              <input
-                type="text"
-                value={form.businessHours}
-                onChange={e => setForm(f => ({ ...f, businessHours: e.target.value }))}
-                placeholder="e.g. Mon-Sat 6:00 AM – 9:00 PM, Sun 7:00 AM – 7:00 PM"
-                className="glass-input w-full"
-              />
             </div>
           </div>
 
@@ -228,7 +212,7 @@ export default function ProfilePage() {
           )}
 
           <button type="submit" className="btn btn-primary" disabled={saving}>
-            <Save size={14} /> {saving ? 'Saving…' : 'Save Profile'}
+            <Save size={14} /> {saving ? 'Saving...' : 'Save Profile'}
           </button>
         </form>
       )}

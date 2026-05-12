@@ -35,6 +35,8 @@ class SetScheduleDayDto {
   @IsBoolean() isOpen: boolean;
   @IsString() @Length(5, 5) openTime: string;
   @IsString() @Length(5, 5) closeTime: string;
+  @IsOptional() @IsString() @Length(5, 5) breakStartTime?: string | null;
+  @IsOptional() @IsString() @Length(5, 5) breakEndTime?: string | null;
 }
 
 class UpsertScheduleDto {
@@ -96,22 +98,29 @@ function nowTimeIST(): string {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 }
 
-function hourlySlots(openTime: string, closeTime: string, durationMins: number): Array<{ start: string; end: string }> {
+function minutesOf(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function overlapsWindow(start: string, end: string, windowStart?: string | null, windowEnd?: string | null): boolean {
+  if (!windowStart || !windowEnd) return false;
+  return minutesOf(start) < minutesOf(windowEnd) && minutesOf(end) > minutesOf(windowStart);
+}
+
+function hourlySlots(openTime: string, closeTime: string, durationMins: number, breakStartTime?: string | null, breakEndTime?: string | null): Array<{ start: string; end: string }> {
   const slots: Array<{ start: string; end: string }> = [];
-  const [oh, om] = openTime.split(':').map(Number);
-  const [ch, cm] = closeTime.split(':').map(Number);
-  const openMins = oh * 60 + om;
-  const closeMins = ch * 60 + cm;
+  const openMins = minutesOf(openTime);
+  const closeMins = minutesOf(closeTime);
   for (let m = openMins; m + durationMins <= closeMins; m += durationMins) {
     const sh = Math.floor(m / 60);
     const sm = m % 60;
     const em = m + durationMins;
     const eh = Math.floor(em / 60);
     const emm = em % 60;
-    slots.push({
-      start: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`,
-      end: `${String(eh).padStart(2, '0')}:${String(emm).padStart(2, '0')}`,
-    });
+    const start = `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`;
+    const end = `${String(eh).padStart(2, '0')}:${String(emm).padStart(2, '0')}`;
+    if (!overlapsWindow(start, end, breakStartTime, breakEndTime)) slots.push({ start, end });
   }
   return slots;
 }
@@ -150,22 +159,66 @@ export class SessionsService {
     const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     return DAYS.map((label, i) => {
       const row = rows.find((r) => r.dayOfWeek === i);
-      return { label, ...(row ?? { gymId, dayOfWeek: i, isOpen: i < 6, openTime: '06:00', closeTime: '22:00' }) };
+      return { label, ...(row ?? { gymId, dayOfWeek: i, isOpen: i < 6, openTime: '06:00', closeTime: '22:00', breakStartTime: null, breakEndTime: null }) };
     });
+  }
+
+  private validateScheduleDay(day: SetScheduleDayDto) {
+    if (day.openTime >= day.closeTime) throw new BadRequestException(`${day.dayOfWeek}: closing time must be after opening time`);
+    const hasBreakStart = !!day.breakStartTime;
+    const hasBreakEnd = !!day.breakEndTime;
+    if (hasBreakStart !== hasBreakEnd) throw new BadRequestException(`${day.dayOfWeek}: both break start and break end are required`);
+    if (day.breakStartTime && day.breakEndTime) {
+      if (day.breakStartTime >= day.breakEndTime) throw new BadRequestException(`${day.dayOfWeek}: break end must be after break start`);
+      if (day.breakStartTime < day.openTime || day.breakEndTime > day.closeTime) {
+        throw new BadRequestException(`${day.dayOfWeek}: break time must be inside opening hours`);
+      }
+    }
   }
 
   async upsertSchedule(gymId: string, dto: UpsertScheduleDto) {
     for (const day of dto.days) {
+      this.validateScheduleDay(day);
       const existing = await this.scheduleRepo.findOne({ where: { gymId, dayOfWeek: day.dayOfWeek } });
+      const patch = {
+        isOpen: day.isOpen,
+        openTime: day.openTime,
+        closeTime: day.closeTime,
+        breakStartTime: day.breakStartTime || null,
+        breakEndTime: day.breakEndTime || null,
+      };
       if (existing) {
-        Object.assign(existing, { isOpen: day.isOpen, openTime: day.openTime, closeTime: day.closeTime });
+        Object.assign(existing, patch);
         await this.scheduleRepo.save(existing);
       } else {
-        await this.scheduleRepo.save(this.scheduleRepo.create({ gymId, ...day }));
+        await this.scheduleRepo.save(this.scheduleRepo.create({ gymId, dayOfWeek: day.dayOfWeek, ...patch }));
       }
     }
+    await this.removeFutureStandardSlotsBlockedBySchedule(gymId);
     await this.generateSlotsForGym(gymId, 30);
     return this.getSchedule(gymId);
+  }
+
+  private async removeFutureStandardSlotsBlockedBySchedule(gymId: string) {
+    const today = todayIST();
+    const [schedules, stdType] = await Promise.all([
+      this.scheduleRepo.find({ where: { gymId } }),
+      this.ensureGymWorkout(gymId),
+    ]);
+    const futureSlots = await this.slotRepo.createQueryBuilder('s')
+      .where('s."gymId" = :gymId', { gymId })
+      .andWhere('s."sessionTypeId" = :typeId', { typeId: stdType.id })
+      .andWhere('s.date >= :today', { today })
+      .andWhere('s."bookedCount" = 0')
+      .getMany();
+    for (const slot of futureSlots) {
+      const schedule = schedules.find((s) => s.dayOfWeek === dayOfWeekFromDate(slot.date));
+      const blocked = !schedule?.isOpen
+        || slot.startTime < (schedule?.openTime ?? '06:00')
+        || slot.endTime > (schedule?.closeTime ?? '22:00')
+        || overlapsWindow(slot.startTime, slot.endTime, schedule?.breakStartTime, schedule?.breakEndTime);
+      if (blocked) await this.slotRepo.remove(slot);
+    }
   }
 
   // ── Session Types ────────────────────────────────────────────────────────
@@ -268,7 +321,7 @@ export class SessionsService {
   async generateSlotsForGym(gymId: string, daysAhead: number) {
     const today = todayIST();
     const scheduleRows = await this.scheduleRepo.find({ where: { gymId } });
-    let types = await this.typeRepo.find({ where: { gymId, isActive: true } });
+    const types = await this.typeRepo.find({ where: { gymId, isActive: true } });
     const rules = await this.ruleRepo.find({ where: { gymId, isActive: true } });
     const stdType = await this.ensureGymWorkout(gymId);
     if (!types.find((t) => t.id === stdType.id)) types.push(stdType);
@@ -286,7 +339,7 @@ export class SessionsService {
 
       for (const type of types) {
         if (type.kind === 'standard') {
-          const slotTimes = hourlySlots(openTime, closeTime, type.durationMinutes);
+          const slotTimes = hourlySlots(openTime, closeTime, type.durationMinutes, dayRow?.breakStartTime, dayRow?.breakEndTime);
           for (const st of slotTimes) {
             const exists = await this.slotRepo.findOne({
               where: { gymId, sessionTypeId: type.id, date: dateStr, startTime: st.start },
@@ -336,7 +389,10 @@ export class SessionsService {
   async getSlotsForGym(gymId: string, date: string, userId?: string) {
     await this.generateSlotsForGym(gymId, 8); // generate 8 days so any date in the date picker works
     const slots = await this.slotRepo.find({ where: { gymId, date, status: 'scheduled' }, order: { startTime: 'ASC' } });
-    const types = await this.typeRepo.find({ where: { gymId } });
+    const [types, schedule] = await Promise.all([
+      this.typeRepo.find({ where: { gymId } }),
+      this.scheduleRepo.findOne({ where: { gymId, dayOfWeek: dayOfWeekFromDate(date) } }),
+    ]);
 
     let userBookedSlotId: string | null = null;
     if (userId) {
@@ -347,6 +403,10 @@ export class SessionsService {
     const now = nowTimeIST();
     return slots
       .filter((s) => date > todayIST() || s.startTime > now)
+      .filter((s) => {
+        const type = types.find((t) => t.id === s.sessionTypeId);
+        return type?.kind !== 'standard' || !overlapsWindow(s.startTime, s.endTime, schedule?.breakStartTime, schedule?.breakEndTime);
+      })
       .map((s) => ({
         ...s,
         sessionType: types.find((t) => t.id === s.sessionTypeId),
@@ -397,17 +457,34 @@ export class SessionsService {
     if (!slot) throw new NotFoundException('Slot not found');
     if (slot.status !== 'scheduled') throw new BadRequestException('This slot is not available');
     if (slot.bookedCount >= slot.maxCapacity) throw new BadRequestException('Slot is full');
+    const [slotType, slotSchedule] = await Promise.all([
+      this.typeRepo.findOne({ where: { id: slot.sessionTypeId } }),
+      this.scheduleRepo.findOne({ where: { gymId: slot.gymId, dayOfWeek: dayOfWeekFromDate(slot.date) } }),
+    ]);
+    if (slotType?.kind === 'standard' && overlapsWindow(slot.startTime, slot.endTime, slotSchedule?.breakStartTime, slotSchedule?.breakEndTime)) {
+      throw new BadRequestException('This gym is on break during the selected time. Please choose another slot.');
+    }
 
     // Find subscription first (needed for planType-aware lock rules)
     const sub = dto.subscriptionId
       ? await this.subRepo.findOne({ where: { id: dto.subscriptionId, userId } })
-      : await this.subRepo.findOne({ where: { userId, status: 'active' } as any });
+      : await this.subRepo.createQueryBuilder('sub')
+        .where('sub."userId" = :userId', { userId })
+        .andWhere('sub.status = :status', { status: 'active' })
+        .andWhere('sub."endDate" >= CURRENT_DATE')
+        .andWhere('(sub."planType" = :multiGym OR :gymId = ANY(sub."gymIds"))', { multiGym: 'multi_gym', gymId: slot.gymId })
+        .orderBy(`CASE WHEN :gymId = ANY(sub."gymIds") THEN 0 ELSE 1 END`, 'ASC')
+        .addOrderBy('sub."createdAt"', 'DESC')
+        .getOne();
     if (!sub) throw new BadRequestException('No active subscription found. Please subscribe first.');
+    if (sub.status !== 'active' || String(sub.endDate) < new Date().toISOString().slice(0, 10)) {
+      throw new BadRequestException('No active subscription found. Please subscribe first.');
+    }
 
     // Validate planType against the gym being booked
     const subGymIds: string[] = (sub.gymIds as any) || [];
     if (sub.planType === 'same_gym') {
-      if (subGymIds.length > 0 && !subGymIds.includes(slot.gymId)) {
+      if (!subGymIds.includes(slot.gymId)) {
         throw new BadRequestException('Your Same Gym Pass is only valid for the gym you subscribed to.');
       }
     } else if (sub.planType === 'day_pass') {
@@ -451,7 +528,7 @@ export class SessionsService {
     await this.slotRepo.save(slot);
 
     const [sessionType, gym, user] = await Promise.all([
-      this.typeRepo.findOne({ where: { id: slot.sessionTypeId } }),
+      slotType || this.typeRepo.findOne({ where: { id: slot.sessionTypeId } }),
       this.gymRepo.findOne({ where: { id: slot.gymId } }),
       this.userRepo.findOne({ where: { id: userId } }),
     ]);
@@ -621,6 +698,10 @@ export class SessionsService {
       const hourStart = nowTime.substring(0, 2) + ':00';
       const nextHour = String((Number(nowTime.substring(0, 2)) + 1) % 24).padStart(2, '0');
       const hourEnd = `${nextHour}:00`;
+      const schedule = await this.scheduleRepo.findOne({ where: { gymId, dayOfWeek: dayOfWeekFromDate(today) } });
+      if (!schedule?.isOpen || hourStart < (schedule?.openTime ?? '06:00') || hourEnd > (schedule?.closeTime ?? '22:00') || overlapsWindow(hourStart, hourEnd, schedule?.breakStartTime, schedule?.breakEndTime)) {
+        throw new BadRequestException('This gym is closed or on break right now.');
+      }
 
       let slot = await this.slotRepo.findOne({
         where: { gymId, sessionTypeId: sessionType.id, date: today, startTime: hourStart },
@@ -889,6 +970,9 @@ export class SessionsController {
   @Post('checkin')
   @ApiBearerAuth() @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
   async checkin(@Req() req: any, @Body() body: { userId: string }) {
+    if (process.env.ALLOW_DIRECT_GYM_CHECKIN !== 'true') {
+      throw new BadRequestException('Direct check-in is disabled. Use /qr/validate with a signed QR token.');
+    }
     const gymId = await this.svc.getGymIdForOwner(req.user.userId);
     return this.svc.processCheckin(body.userId, gymId);
   }

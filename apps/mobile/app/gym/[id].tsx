@@ -1,12 +1,17 @@
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Dimensions, Share, Linking } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { colors, fonts, radius } from '../../theme/brand';
-import { IconArrowLeft, IconStar, IconPin, IconArrowRight, IconCheck, IconClock, IconDumbbell, IconShare, IconQR } from '../../components/Icons';
+import {
+  IconArrowLeft, IconStar, IconPin, IconArrowRight, IconCheck, IconClock,
+  IconDumbbell, IconShare, IconLock, IconRefresh, IconGlobe,
+  IconShield, IconHeadphones, IconBolt,
+} from '../../components/Icons';
 import { gymsApi, subscriptionsApi, api } from '../../lib/api';
+import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList, subscriptionPlanType } from '../../lib/subscriptionAccess';
 import AuroraBackground from '../../components/AuroraBackground';
 
 const { width } = Dimensions.get('window');
@@ -22,11 +27,56 @@ const TIER_AURORA: Record<string, string> = {
   Standard: 'rgba(255,138,0,0.18)',
 };
 
+function AmenityIcon({ label }: { label: string }) {
+  const value = label.toLowerCase();
+  let Icon = IconShield;
+
+  if (value.includes('locker') || value.includes('changing')) Icon = IconLock;
+  else if (value.includes('wifi') || value.includes('internet')) Icon = IconGlobe;
+  else if (value.includes('parking') || value.includes('location')) Icon = IconPin;
+  else if (value.includes('shower') || value.includes('wash') || value.includes('water')) Icon = IconRefresh;
+  else if (value.includes('trainer') || value.includes('coach')) Icon = IconHeadphones;
+  else if (value.includes('ac') || value.includes('air') || value.includes('steam') || value.includes('sauna')) Icon = IconBolt;
+  else if (value.includes('equipment') || value.includes('weight') || value.includes('cardio') || value.includes('gym')) Icon = IconDumbbell;
+
+  return <Icon size={16} color={colors.accent} />;
+}
+
+function positiveNumber(value: any): number | null {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
+function planMonths(plan: any) {
+  return Math.max(1, Math.round(Number(plan?.durationDays || plan?.days || 30) / 30));
+}
+
+function minMonthlyPlanPrice(plans: any[]) {
+  const monthlyPrices = plans
+    .filter((plan) => plan?.isActive !== false)
+    .map((plan) => {
+      const price = positiveNumber(plan?.price || plan?.basePrice);
+      return price ? price / planMonths(plan) : null;
+    })
+    .filter((price): price is number => !!price);
+
+  return monthlyPrices.length ? Math.min(...monthlyPrices) : null;
+}
+
+function formatDateLabel(value: any) {
+  if (!value) return '';
+  const date = new Date(String(value));
+  if (!Number.isFinite(date.getTime())) return '';
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 function SkeletonRect({ h, style }: { h: number; style?: any }) {
   return <View style={[{ height: h, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.07)' }, style]} />;
 }
 
 export default function GymDetail() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 34);
   const { id, fallbackName, fallbackAddress, fallbackRating, fallbackTier } = useLocalSearchParams<{ id: string; fallbackName?: string; fallbackAddress?: string; fallbackRating?: string; fallbackTier?: string }>();
   const [gym, setGym] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -60,15 +110,8 @@ export default function GymDetail() {
 
     subscriptionsApi.mySubscriptions()
       .then((data: any) => {
-        const subs = Array.isArray(data) ? data : data?.subscriptions || data?.data || [];
-        const active = subs.find((s: any) => {
-          if (s.status !== 'active') return false;
-          // multi_gym: gymIds is empty = valid at any gym
-          if (s.planType === 'multi_gym' || !s.gymIds || s.gymIds.length === 0) return true;
-          // same_gym or day_pass: must match this gym
-          return s.gymIds.includes(id) || s.gymId === id;
-        });
-        setActiveSub(active || null);
+        const access = getActiveSubscriptionAccess(normalizeSubscriptionList(data));
+        setActiveSub(access.byGymId.get(String(id)) || access.multiGymSub || null);
       })
       .catch(() => setActiveSub(null));
 
@@ -110,11 +153,17 @@ export default function GymDetail() {
   const reviewCount = gym?.reviewCount || gym?.ratingsCount || '—';
   const address = gym?.address || gym?.location?.address || fallbackAddress || 'Bhubaneswar';
   const hours = gym?.openingHours || gym?.timings || '5am – 11pm';
+  const breakHours = gym?.breakHours || (gym?.breakStartTime && gym?.breakEndTime ? `${gym.breakStartTime} - ${gym.breakEndTime}` : null);
   const description = gym?.description || 'Fully equipped gym with state-of-the-art cardio machines, free weights, functional training zone, and certified personal trainers. Built for every fitness level.';
   const amenities: string[] = gym?.amenities || ['AC', 'Parking', 'Shower', 'Locker', 'Steam Room', 'Pool'];
   const categories: string[] = gym?.categories || gym?.tags || [];
   const img = gym?.images?.[0] || gym?.coverImage || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80';
   const subscriptionId = activeSub?._id || activeSub?.id;
+  const activePlanType = subscriptionPlanType(activeSub);
+  const activeSubLabel = activeSub ? accessLabelForSubscription(activeSub, activePlanType === 'multi_gym') : '';
+  const activeUntil = formatDateLabel(activeSub?.endDate || activeSub?.validUntil);
+  const startingMonthlyPrice = minMonthlyPlanPrice(gymPlans) || positiveNumber(gym?.sameGymMonthlyPrice) || 599;
+  const dayPassPrice = positiveNumber(gym?.dayPassPrice) || positiveNumber(gym?.ratePerDay) || null;
 
   const gymLat: number | null = gym?.latitude || gym?.location?.lat || null;
   const gymLng: number | null = gym?.longitude || gym?.location?.lng || null;
@@ -227,7 +276,7 @@ export default function GymDetail() {
           </SafeAreaView>
         </ImageBackground>
 
-        <View style={s.content}>
+        <View style={[s.content, { paddingBottom: 120 + bottomInset }]}>
           {loading ? (
             <>
               <SkeletonRect h={20} style={{ width: 80, marginBottom: 10 }} />
@@ -254,10 +303,27 @@ export default function GymDetail() {
                 </View>
               </View>
 
+              {activeSub ? (
+                <View style={s.activePassBanner}>
+                  <View style={s.activePassIcon}>
+                    <IconShield size={15} color={colors.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.activePassTitle}>{activeSubLabel}</Text>
+                    <Text style={s.activePassText}>
+                      {activePlanType === 'multi_gym'
+                        ? 'Your multi-gym pass works at this gym.'
+                        : `Your pass is active for ${name}${activeUntil ? ` until ${activeUntil}` : ''}.`}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+
               {/* Quick stats */}
               <View style={s.statsRow}>
                 {[
                   { icon: IconClock, label: hours, sub: 'Opening Hours' },
+                  ...(breakHours ? [{ icon: IconClock, label: breakHours, sub: 'Break Time' }] : []),
                   { icon: IconDumbbell, label: '200+', sub: 'Equipment' },
                 ].map((st) => (
                   <View key={st.sub} style={s.statCard}>
@@ -425,7 +491,7 @@ export default function GymDetail() {
                   })()}
 
                   {!activeSub && (
-                    <TouchableOpacity style={s.cta} onPress={() => router.push({ pathname: '/plans', params: { gymId: id } } as any)}>
+                    <TouchableOpacity style={s.cta} onPress={() => router.push({ pathname: '/plans', params: { gymId: id, gymName: name } } as any)}>
                       <Text style={s.ctaText}>Subscribe to Book Sessions</Text>
                       <IconArrowRight size={16} color="#000" />
                     </TouchableOpacity>
@@ -464,18 +530,6 @@ export default function GymDetail() {
                     )}
                   </View>
 
-                  {/* Hours & Address */}
-                  <View style={s.glassCard}>
-                    <View style={s.infoRow}>
-                      <IconPin size={14} color={colors.accent} />
-                      <Text style={s.infoValue}>{address}</Text>
-                    </View>
-                    <View style={[s.infoRow, { marginTop: 10 }]}>
-                      <IconClock size={14} color={colors.accent} />
-                      <Text style={s.infoValue}>{hours}</Text>
-                    </View>
-                  </View>
-
                   <Text style={s.sectionTitle}>Description</Text>
                   <View style={s.glassCard}>
                     <Text style={s.body}>{description}</Text>
@@ -487,8 +541,10 @@ export default function GymDetail() {
                       <View style={s.amenityWrap}>
                         {amenities.map((a: string) => (
                           <View key={a} style={s.amenityPill}>
-                            <IconCheck size={10} color={colors.accent} />
-                            <Text style={s.amenityText}>{a}</Text>
+                            <View style={s.amenityIconBox}>
+                              <AmenityIcon label={a} />
+                            </View>
+                            <Text style={s.amenityText} numberOfLines={2}>{a}</Text>
                           </View>
                         ))}
                       </View>
@@ -500,8 +556,8 @@ export default function GymDetail() {
                       <Text style={s.sectionTitle}>Categories</Text>
                       <View style={s.amenityWrap}>
                         {categories.map((c: string) => (
-                          <View key={c} style={[s.amenityPill, { borderColor: colors.accentBorder }]}>
-                            <Text style={[s.amenityText, { color: colors.accent }]}>{c}</Text>
+                          <View key={c} style={s.categoryPill}>
+                            <Text style={s.categoryText}>{c}</Text>
                           </View>
                         ))}
                       </View>
@@ -526,9 +582,11 @@ export default function GymDetail() {
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={s.trainerName}>{t.name}</Text>
-                          <Text style={s.trainerSessions}>{t.sessions || t.totalSessions ? `${t.sessions || t.totalSessions}+ sessions` : (t.specialization || '')}</Text>
+                          <Text style={s.trainerSessions}>{t.specialization || t.specialty || 'Personal training'}</Text>
                         </View>
-                        {!!t.price && <Text style={s.trainerPrice}>{t.price}</Text>}
+                        <Text style={s.trainerPrice}>
+                          Rs {Number(t.monthlyPriceInr || t.monthlyPrice || t.pricePerSession || 0).toLocaleString('en-IN')}/mo
+                        </Text>
                       </View>
                     ))
                   )}
@@ -578,16 +636,28 @@ export default function GymDetail() {
 
       {/* Bottom CTA */}
       {!loading && (
-        <View style={s.footer}>
+        <View style={[s.footer, { paddingBottom: bottomInset + 14 }]}>
           {activeSub ? (
             <>
               <TouchableOpacity
                 style={s.qrBtn}
-                onPress={() => router.push({ pathname: '/qr', params: { gymId: id, subId: subscriptionId } } as any)}
+                onPress={() => router.push({
+                  pathname: '/subscription-detail',
+                  params: {
+                    subscriptionId: subscriptionId || '',
+                    fallbackName: activePlanType === 'multi_gym' ? 'All Partner Gyms' : name,
+                    fallbackPlan: activeSub?.planLabel || activeSub?.plan?.name || activeSubLabel || 'Pass',
+                    fallbackStatus: activeSub?.status || 'active',
+                    fallbackStart: activeSub?.startDate || '',
+                    fallbackEnd: activeSub?.endDate || '',
+                    fallbackPlanType: activePlanType || 'same_gym',
+                    fallbackGymId: activePlanType === 'multi_gym' ? '' : String(id || ''),
+                  },
+                } as any)}
                 activeOpacity={0.9}
               >
-                <IconQR size={16} color="#fff" />
-                <Text style={s.qrBtnText}>Show QR</Text>
+                <IconShield size={16} color="#fff" />
+                <Text style={s.qrBtnText}>My Pass</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={s.cta}
@@ -602,19 +672,15 @@ export default function GymDetail() {
             <>
               <View>
                 <Text style={s.footLabel}>Starting from</Text>
-                {gymPlans.length > 0 ? (
-                  <>
-                    <Text style={s.footPrice}>
-                      ₹{Math.min(...gymPlans.map((p: any) => p.price || p.basePrice || 0)).toLocaleString('en-IN')}
-                      <Text style={s.footPer}>/mo</Text>
-                    </Text>
-                    {gymPlans.some((p: any) => p.isDayPass || p.name?.toLowerCase().includes('day')) && (
-                      <Text style={[s.footPer, { color: '#ff6b35', fontSize: 10 }]}>Day pass available</Text>
-                    )}
-                  </>
-                ) : (
-                  <Text style={s.footPrice}>₹599<Text style={s.footPer}>/mo</Text></Text>
-                )}
+                <Text style={s.footPrice}>
+                  ₹{Math.round(startingMonthlyPrice).toLocaleString('en-IN')}
+                  <Text style={s.footPer}>/mo</Text>
+                </Text>
+                {dayPassPrice ? (
+                  <Text style={[s.footPer, { color: '#ff6b35', fontSize: 10 }]}>
+                    Day pass from ₹{Math.round(dayPassPrice).toLocaleString('en-IN')}
+                  </Text>
+                ) : null}
               </View>
               <TouchableOpacity
                 style={s.cta}
@@ -638,13 +704,24 @@ const s = StyleSheet.create({
   heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
   heroInner: { paddingHorizontal: 22, paddingTop: 4, flexDirection: 'row', justifyContent: 'space-between' },
   back: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.4)', borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  content: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 110 },
+  content: { paddingHorizontal: 22, paddingTop: 16 },
   tierBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, borderWidth: 1, marginBottom: 8 },
   tierText: { fontFamily: fonts.sansBold, fontSize: 9, letterSpacing: 1.5 },
   gymName: { fontFamily: fonts.serif, fontSize: 28, color: '#fff', letterSpacing: -0.8 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 8 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t },
+  activePassBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+    borderRadius: radius.lg, padding: 12, marginTop: 16,
+  },
+  activePassIcon: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: 'rgba(0,212,106,0.12)', alignItems: 'center', justifyContent: 'center',
+  },
+  activePassTitle: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
+  activePassText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t, marginTop: 2, lineHeight: 17 },
   statsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   statCard: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -690,13 +767,25 @@ const s = StyleSheet.create({
   mapDirOverlayText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   infoValue: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, flex: 1, lineHeight: 20 },
-  amenityWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  amenityWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   amenityPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
+    width: (width - 54) / 2,
+    minHeight: 62,
+    flexDirection: 'row', alignItems: 'center', gap: 9,
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
+    paddingHorizontal: 10, paddingVertical: 10, borderRadius: radius.lg,
+  },
+  amenityIconBox: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+  },
+  amenityText: { flex: 1, minWidth: 0, fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t, lineHeight: 15 },
+  categoryPill: {
+    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.accentBorder,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
   },
-  amenityText: { fontFamily: fonts.sans, fontSize: 11, color: colors.t },
+  categoryText: { fontFamily: fonts.sans, fontSize: 11, color: colors.accent },
   trainerCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
@@ -731,7 +820,7 @@ const s = StyleSheet.create({
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 22, paddingVertical: 16, paddingBottom: 32,
+    paddingHorizontal: 22, paddingTop: 16,
     backgroundColor: 'rgba(6,6,6,0.95)', borderTopWidth: 1, borderTopColor: colors.borderGlass,
     gap: 12,
   },

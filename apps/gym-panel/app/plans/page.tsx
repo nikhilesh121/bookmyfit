@@ -20,6 +20,12 @@ type GymPlan = {
 };
 
 const EMPTY_FORM = { name: '', description: '', price: '', durationDays: '30', sessionsPerDay: '1', features: '' };
+const DURATION_OPTIONS = [
+  { value: '30', label: '1 Month' },
+  { value: '90', label: '3 Months' },
+  { value: '180', label: '6 Months' },
+  { value: '365', label: '12 Months' },
+];
 
 function SkeletonCard() {
   return (
@@ -151,7 +157,11 @@ export default function PlansPage() {
                 </div>
                 <div>
                   <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Duration (days) *</label>
-                  <input className="glass-input" style={{ width: '100%' }} type="number" min="1" placeholder="30" value={form.durationDays} onChange={e => setForm(f => ({ ...f, durationDays: e.target.value }))} required />
+                  <select className="glass-input" style={{ width: '100%' }} value={form.durationDays} onChange={e => setForm(f => ({ ...f, durationDays: e.target.value }))} required>
+                    {DURATION_OPTIONS.map((d) => (
+                      <option key={d.value} value={d.value} style={{ background: '#111' }}>{d.label}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Sessions/Day</label>
@@ -238,7 +248,7 @@ export default function PlansPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--t2)', fontSize: 13 }}>
                   <Clock size={13} />
-                  {p.durationDays} days
+                  {DURATION_OPTIONS.find((d) => d.value === String(p.durationDays))?.label || `${p.durationDays} days`}
                 </div>
               </div>
 
@@ -270,7 +280,7 @@ export default function PlansPage() {
       <div className="glass card p-4 flex items-start gap-3 mt-6" style={{ borderColor: 'rgba(204,255,0,0.12)' }}>
         <AlertTriangle size={16} color="var(--accent)" style={{ marginTop: 2, flexShrink: 0 }} />
         <div style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.7 }}>
-          <strong style={{ color: 'var(--t)' }}>Individual Plans Revenue Model:</strong> BMF collects subscription payments and pays your gym{' '}
+          <strong style={{ color: 'var(--t)' }}>Individual Plans Revenue Model:</strong> Create only one active package per duration. BMF collects subscription payments and pays your gym{' '}
           <strong style={{ color: 'var(--accent)' }}>(100% − commission rate)</strong> of the subscription fee each month.
           For multi-gym plan members visiting your gym, you get paid <strong style={{ color: 'var(--accent)' }}>per visit-day</strong> at your configured rate.
         </div>

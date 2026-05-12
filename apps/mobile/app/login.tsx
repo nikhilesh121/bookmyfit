@@ -1,25 +1,37 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowRight } from '../components/Icons';
 import AuroraBackground from '../components/AuroraBackground';
-import { authApi } from '../lib/api';
+import { authApi, getToken, getUser } from '../lib/api';
 
 export default function Login() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const token = await getToken();
+      if (!active || !token) return;
+      const user = await getUser();
+      router.replace(user?.role === 'gym_owner' || user?.role === 'gym_staff' ? '/(gym-portal)' as any : '/(tabs)' as any);
+    })().catch(() => {});
+    return () => { active = false; };
+  }, []);
+
   const sendOtp = async () => {
-    if (phone.length !== 10 || !/^\d{10}$/.test(phone)) return Alert.alert('Invalid number', 'Enter a valid 10-digit mobile number.');
+    const phoneDigits = phone.replace(/\D/g, '').slice(0, 10);
+    if (phoneDigits.length !== 10) return Alert.alert('Invalid number', 'Enter a valid 10-digit mobile number.');
     setLoading(true);
     try {
-      const data = await authApi.sendOtp(phone) as any;
+      const data = await authApi.sendOtp(phoneDigits) as any;
       router.push({
         pathname: '/otp',
         params: {
-          phone,
+          phone: phoneDigits,
           userExists: data.userExists ? 'true' : 'false',
           userName: data.userName || '',
         },
@@ -61,7 +73,9 @@ export default function Login() {
                 placeholderTextColor={colors.t3}
                 keyboardType="phone-pad"
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={(value) => setPhone(value.replace(/\D/g, '').slice(0, 10))}
+                onSubmitEditing={sendOtp}
+                returnKeyType="done"
                 maxLength={10}
                 autoFocus
               />

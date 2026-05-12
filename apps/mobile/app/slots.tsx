@@ -8,7 +8,8 @@ import AuroraBackground from '../components/AuroraBackground';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconCalendar, IconClock, IconArrowLeft, IconCheck, IconUsers } from '../components/Icons';
-import { api, slotsApi, API_BASE } from '../lib/api';
+import { api, subscriptionsApi, API_BASE } from '../lib/api';
+import { getActiveSubscriptionAccess, normalizeSubscriptionList } from '../lib/subscriptionAccess';
 
 const FALLBACK_TYPES = [
   { id: 'all', name: 'All', color: colors.accent },
@@ -67,6 +68,7 @@ export default function SlotsScreen() {
   const [sessionTypes, setSessionTypes] = useState<any[]>(FALLBACK_TYPES);
   const [activeType, setActiveType] = useState('all');
   const [isFallback, setIsFallback] = useState(false);
+  const [activeSub, setActiveSub] = useState<any>(null);
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -128,6 +130,13 @@ export default function SlotsScreen() {
           }
         })
         .catch(() => {});
+
+      subscriptionsApi.mySubscriptions()
+        .then((data: any) => {
+          const access = getActiveSubscriptionAccess(normalizeSubscriptionList(data));
+          setActiveSub(access.byGymId.get(String(gymId)) || access.multiGymSub || null);
+        })
+        .catch(() => setActiveSub(null));
     }
   }, []);
 
@@ -140,9 +149,16 @@ export default function SlotsScreen() {
       Alert.alert('No Slots Available', 'This gym has not added any slots for this date yet. Please check back later or contact the gym.');
       return;
     }
+    if (!activeSub) {
+      Alert.alert('No Active Pass', 'You need an active pass at this gym before booking a slot.', [
+        { text: 'View Plans', onPress: () => router.push({ pathname: '/plans', params: { gymId: gymId || '' } } as any) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+      return;
+    }
     setBookingId(slotId);
     try {
-      const res: any = await api.post('/sessions/book', { slotId });
+      const res: any = await api.post('/sessions/book', { slotId, subscriptionId: activeSub?.id || activeSub?._id });
       if (res?.bookingQr) {
         router.replace({
           pathname: '/qr',

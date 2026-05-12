@@ -115,7 +115,7 @@ export default function HomepagePage() {
         <Info size={16} style={{ color: '#64A0FF', flexShrink: 0, marginTop: 2 }} />
         <div style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.6 }}>
           <strong style={{ color: 'var(--t)' }}>Homepage Builder</strong> — changes made here are reflected in the mobile
-          app's featured sections. Toggle sections between Active and Draft to control what users see.
+          app&apos;s featured sections. Toggle sections between Active and Draft to control what users see.
           Visibility config is stored locally; connect a CMS API for team-wide changes.
         </div>
       </div>

@@ -1,13 +1,15 @@
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
   ActivityIndicator, ImageBackground, Dimensions, TextInput,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconStar, IconPin, IconFilter, IconCheck, IconSearch } from '../components/Icons';
-import { gymsApi } from '../lib/api';
+import { gymsApi, subscriptionsApi } from '../lib/api';
+import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList } from '../lib/subscriptionAccess';
 
 const { width: W } = Dimensions.get('window');
 
@@ -55,6 +57,10 @@ export default function GymListingPage() {
   const [activeSort, setActiveSort] = useState('rating');
   const [showSortSheet, setShowSortSheet] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [subscribedGymIds, setSubscribedGymIds] = useState<Set<string>>(new Set());
+  const [activeGymSubs, setActiveGymSubs] = useState<Map<string, any>>(new Map());
+  const [multiGymSub, setMultiGymSub] = useState<any>(null);
+  const [hasMultiGymSub, setHasMultiGymSub] = useState(false);
   const pageRef = useRef(1);
 
   const filterByCat = (list: any[], cat: string) => {
@@ -95,6 +101,23 @@ export default function GymListingPage() {
     load(1, activeCategory);
   }, [activeCategory]);
 
+  useEffect(() => {
+    subscriptionsApi.mySubscriptions()
+      .then((data: any) => {
+        const state = getActiveSubscriptionAccess(normalizeSubscriptionList(data));
+        setSubscribedGymIds(state.gymIds);
+        setActiveGymSubs(state.byGymId);
+        setMultiGymSub(state.multiGymSub);
+        setHasMultiGymSub(state.hasMultiGym);
+      })
+      .catch(() => {
+        setSubscribedGymIds(new Set());
+        setActiveGymSubs(new Map());
+        setMultiGymSub(null);
+        setHasMultiGymSub(false);
+      });
+  }, []);
+
   const loadMore = () => {
     if (!loadingMore && hasMore) {
       const next = pageRef.current + 1;
@@ -132,7 +155,7 @@ export default function GymListingPage() {
   const activeSortLabel = SORTS.find((s) => s.id === activeSort)?.label || 'Sort';
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={s.root} edges={['left', 'right', 'bottom']}>
       {/* ── Header ── */}
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
@@ -150,7 +173,7 @@ export default function GymListingPage() {
           <IconSearch size={14} color={colors.t3} />
           <TextInput
             style={s.searchInput}
-            placeholder="Search gyms, areas, amenities…"
+            placeholder="Search gyms, areas..."
             placeholderTextColor={colors.t3}
             value={searchText}
             onChangeText={setSearchText}
@@ -169,8 +192,9 @@ export default function GymListingPage() {
         data={CATS}
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={s.chipScroller}
         keyExtractor={(c) => c.id}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, gap: 8 }}
+        contentContainerStyle={s.chipList}
         renderItem={({ item: cat }) => {
           const active = activeCategory === cat.id;
           return (
@@ -187,7 +211,7 @@ export default function GymListingPage() {
 
       {/* ── Gym list ── */}
       {loading ? (
-        <View style={{ padding: 16, gap: 12 }}>
+        <View style={s.skeletonList}>
           {[1, 2, 3, 4].map((i) => (
             <View key={i} style={{ flexDirection: 'row', gap: 12 }}>
               <Sk h={90} br={14} style={{ width: 90 }} />
@@ -210,7 +234,7 @@ export default function GymListingPage() {
           <FlatList
             data={filtered}
             keyExtractor={(g) => String(g.id || g._id)}
-            contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 12 }}
+            contentContainerStyle={s.listContent}
             onEndReached={loadMore}
             onEndReachedThreshold={0.4}
             ListEmptyComponent={
@@ -218,7 +242,18 @@ export default function GymListingPage() {
                 <Text style={s.emptyText}>No gyms found in this category.</Text>
               </View>
             }
-            renderItem={({ item: g }) => <GymCard gym={g} />}
+            renderItem={({ item: g }) => {
+              const gid = String(g.id || g._id || '');
+              return (
+                <GymCard
+                  gym={g}
+                  isSubscribed={!!gid && subscribedGymIds.has(gid)}
+                  activeSubscription={gid ? activeGymSubs.get(gid) : null}
+                  multiGymSub={multiGymSub}
+                  hasMultiGymSub={hasMultiGymSub}
+                />
+              );
+            }}
           />
         </View>
       )}
@@ -245,7 +280,19 @@ export default function GymListingPage() {
   );
 }
 
-function GymCard({ gym }: { gym: any }) {
+function GymCard({
+  gym,
+  isSubscribed,
+  hasMultiGymSub,
+  activeSubscription,
+  multiGymSub,
+}: {
+  gym: any;
+  isSubscribed?: boolean;
+  hasMultiGymSub?: boolean;
+  activeSubscription?: any;
+  multiGymSub?: any;
+}) {
   const name     = gym.name || gym.gymName || 'Gym';
   const rating   = Number(gym.rating || gym.avgRating || 0).toFixed(1);
   const distance = gym.distance || (gym.distanceKm ? `${gym.distanceKm} km` : '');
@@ -255,6 +302,8 @@ function GymCard({ gym }: { gym: any }) {
   const discount = gym.discount || null;
   const tags: string[] = (gym.amenities || gym.tags || []).slice(0, 3);
   const gid = gym.id || gym._id;
+  const hasAccess = !!isSubscribed || !!hasMultiGymSub;
+  const accessLabel = accessLabelForSubscription(activeSubscription || multiGymSub, !!hasMultiGymSub);
 
   return (
     <TouchableOpacity
@@ -275,11 +324,21 @@ function GymCard({ gym }: { gym: any }) {
         {discount && (
           <View style={s.discountBadge}><Text style={s.discountText}>{discount}</Text></View>
         )}
+        {hasAccess && (
+          <View style={s.subscribedThumbBadge}><Text style={s.subscribedThumbText}>ACTIVE</Text></View>
+        )}
       </ImageBackground>
 
       <View style={s.gymInfo}>
         <View>
-          <Text style={s.gymName} numberOfLines={1}>{name}</Text>
+          <View style={s.nameRow}>
+            <Text style={s.gymName} numberOfLines={1}>{name}</Text>
+            {hasAccess && (
+              <View style={s.subscribedBadge}>
+                <Text style={s.subscribedText} numberOfLines={1}>{accessLabel}</Text>
+              </View>
+            )}
+          </View>
           <View style={s.metaRow}>
             <IconStar size={11} color="#FBBF24" />
             <Text style={s.ratingText}>{rating}</Text>
@@ -299,10 +358,13 @@ function GymCard({ gym }: { gym: any }) {
             <Text style={s.fromPrice}>₹{price}<Text style={s.fromPer}>/day</Text></Text>
           </View>
           <TouchableOpacity
-            style={s.viewBtn}
-            onPress={() => router.push({ pathname: '/plans', params: { gymId: gid, gymName: name } } as any)}
+            style={[s.viewBtn, hasAccess && s.bookBtn]}
+            onPress={() => {
+              if (hasAccess) router.push({ pathname: '/slots', params: { gymId: gid } } as any);
+              else router.push({ pathname: '/plans', params: { gymId: gid, gymName: name } } as any);
+            }}
           >
-            <Text style={s.viewBtnText}>View Plans</Text>
+            <Text style={[s.viewBtnText, hasAccess && s.bookBtnText]}>{hasAccess ? 'Book Slot' : 'View Plans'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -311,27 +373,40 @@ function GymCard({ gym }: { gym: any }) {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1, backgroundColor: colors.bg, paddingTop: Platform.OS === 'android' ? 24 : 0 },
 
   // Header
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 },
   backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff', letterSpacing: -0.3 },
   headerSub:   { fontFamily: fonts.sans,  fontSize: 11, color: colors.t2, marginTop: 1 },
-  sortBtn:  { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7 },
-  sortBtnText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
+  sortBtn:  {
+    height: 44, minWidth: 116, maxWidth: 126, flexShrink: 0,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.055)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 16, paddingHorizontal: 12,
+  },
+  sortBtnText: { flexShrink: 1, fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
 
   // Search
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginBottom: 4 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, marginBottom: 8 },
   searchBox: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
-    borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 9,
+    height: 44, flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.055)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 16, paddingHorizontal: 12,
   },
   searchInput: { flex: 1, fontFamily: fonts.sans, fontSize: 13, color: '#fff' },
 
   // Chips
-  chip:          { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  chipScroller:  { flexGrow: 0, maxHeight: 42, marginBottom: 0 },
+  chipList:      { paddingHorizontal: 16, paddingTop: 0, paddingBottom: 4, gap: 8 },
+  skeletonList:  { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 16, gap: 12 },
+  listContent:   { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 128, gap: 12 },
+  chip:          {
+    height: 34, paddingHorizontal: 14, borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.055)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+  },
   chipActive:    { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
   chipDot:       { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.accent },
   chipText:      { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
@@ -342,8 +417,16 @@ const s = StyleSheet.create({
   gymThumb: { width: 90, height: 100, borderRadius: radius.md, overflow: 'hidden' },
   discountBadge: { position: 'absolute', top: 6, left: 6, backgroundColor: colors.accent, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   discountText:  { fontFamily: fonts.sansBold, fontSize: 8, color: '#060606' },
+  subscribedThumbBadge: { position: 'absolute', left: 6, bottom: 6, backgroundColor: 'rgba(0,0,0,0.68)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: 'rgba(0,212,106,0.45)' },
+  subscribedThumbText: { fontFamily: fonts.sansBold, fontSize: 8, color: colors.accent },
   gymInfo:  { flex: 1, justifyContent: 'space-between' },
-  gymName:  { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', marginBottom: 4 },
+  nameRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  gymName:  { flex: 1, fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', marginBottom: 4 },
+  subscribedBadge: {
+    maxWidth: 96, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2,
+    backgroundColor: 'rgba(0,212,106,0.12)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.35)',
+  },
+  subscribedText: { fontFamily: fonts.sansBold, fontSize: 8, color: colors.accent },
   metaRow:  { flexDirection: 'row', alignItems: 'center', gap: 3, flexWrap: 'wrap', marginBottom: 6 },
   ratingText:{ fontFamily: fonts.sansBold, fontSize: 11, color: '#FBBF24' },
   divider:  { color: colors.t3, fontSize: 11, marginHorizontal: 2 },
@@ -357,6 +440,8 @@ const s = StyleSheet.create({
   fromPer:   { fontFamily: fonts.sans, fontSize: 9, color: colors.t2 },
   viewBtn:  { backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
   viewBtnText: { fontFamily: fonts.sansBold, fontSize: 11, color: '#060606' },
+  bookBtn: { backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder },
+  bookBtnText: { color: colors.accent },
 
   // Empty
   empty: { alignItems: 'center', paddingVertical: 40 },

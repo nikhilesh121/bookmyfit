@@ -7,16 +7,16 @@ import { IconArrowLeft, IconDollar, IconBolt, IconShopping, IconDumbbell } from 
 import { gymStaffApi, api } from '../../lib/api';
 
 const FALLBACK = {
-  totalEarned: 184320,
-  month: 'April 2025',
-  growthPercent: 18,
+  totalEarned: 0,
+  month: new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
+  growthPercent: 0,
   breakdown: [
-    { label: 'Elite Subscriptions', subLabel: '132 members', amount: 119800, color: colors.accent, aurora: 'rgba(0,212,106,0.1)' },
-    { label: 'Premium Subscriptions', subLabel: '96 members', amount: 48960, color: 'rgba(180,100,255,0.9)', aurora: 'rgba(155,0,255,0.1)' },
-    { label: 'Store Sales', subLabel: '28 orders', amount: 15560, color: 'rgba(0,200,255,0.9)', aurora: 'rgba(0,180,255,0.1)' },
+    { label: 'Same Gym Subscriptions', subLabel: 'This month', amount: 0, color: colors.accent, aurora: 'rgba(0,212,106,0.1)' },
+    { label: 'Day Passes', subLabel: 'This month', amount: 0, color: 'rgba(180,100,255,0.9)', aurora: 'rgba(155,0,255,0.1)' },
+    { label: 'Multi Gym Allocation', subLabel: 'Visit-based share', amount: 0, color: 'rgba(0,200,255,0.9)', aurora: 'rgba(0,180,255,0.1)' },
   ],
-  commission: 27648,
-  netPayout: 156672,
+  commission: 0,
+  netPayout: 0,
   recentSettlements: [] as any[],
 };
 
@@ -32,18 +32,23 @@ export default function Earnings() {
 
   useEffect(() => {
     gymStaffApi.settlements()
-      .then((settlements: any[]) => {
-        if (settlements?.length > 0) {
-          const total = settlements.reduce((s: number, x: any) => s + (Number(x.grossAmount) || 0), 0);
-          const comm = settlements.reduce((s: number, x: any) => s + (Number(x.commissionAmount) || 0), 0);
-          setData({
-            ...FALLBACK,
-            totalEarned: total,
-            netPayout: total - comm,
-            commission: comm,
-            recentSettlements: settlements.slice(0, 5),
-          });
-        }
+      .then((res: any) => {
+        const current = res?.current || {};
+        const history = Array.isArray(res?.history) ? res.history : Array.isArray(res) ? res : [];
+        const total = Number(current.grossRevenue || 0);
+        const comm = Number(current.commission || 0);
+        setData({
+          ...FALLBACK,
+          totalEarned: total,
+          netPayout: Number(current.netPayout || total - comm),
+          commission: comm,
+          breakdown: [
+            { ...FALLBACK.breakdown[0], amount: Number(current.individualPool || 0) },
+            { ...FALLBACK.breakdown[1], amount: Number(current.dayPassPool || 0) },
+            { ...FALLBACK.breakdown[2], amount: Number(current.multiGymPool || 0) },
+          ],
+          recentSettlements: history.slice(0, 5),
+        });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -162,7 +167,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff' },
-  scroll: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20 },
+  scroll: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 132 },
   heroCard: {
     height: 160, borderRadius: radius.xl, overflow: 'hidden',
     marginBottom: 24, position: 'relative',

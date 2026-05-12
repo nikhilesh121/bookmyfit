@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Put, Delete, Param, Body, Query, Injectable, UseGuards, Req } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Delete, Param, Body, Query, Injectable, UseGuards, Req, BadRequestException, ConflictException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ApiTags } from '@nestjs/swagger';
@@ -30,10 +30,42 @@ class GymPlansService {
     return this.repo.find({ where: { gymId: gym.id }, order: { price: 'ASC' } });
   }
 
+  private readonly allowedDurations = [30, 90, 180, 365];
+
+  private sanitizePlan(data: any) {
+    const durationDays = Number(data.durationDays);
+    if (!this.allowedDurations.includes(durationDays)) {
+      throw new BadRequestException('Duration must be 30, 90, 180, or 365 days');
+    }
+    const price = Number(data.price);
+    if (!Number.isFinite(price) || price <= 0) throw new BadRequestException('Plan price must be greater than 0');
+    return {
+      name: data.name,
+      description: data.description,
+      price,
+      durationDays,
+      sessionsPerDay: Math.max(1, Number(data.sessionsPerDay) || 1),
+      features: Array.isArray(data.features) ? data.features : [],
+      isActive: data.isActive ?? true,
+    };
+  }
+
+  private async assertNoActiveDuration(gymId: string, durationDays: number, excludeId?: string) {
+    const qb = this.repo.createQueryBuilder('p')
+      .where('p."gymId" = :gymId', { gymId })
+      .andWhere('p."durationDays" = :durationDays', { durationDays })
+      .andWhere('p."isActive" = true');
+    if (excludeId) qb.andWhere('p.id != :excludeId', { excludeId });
+    const existing = await qb.getOne();
+    if (existing) throw new ConflictException(`An active ${durationDays}-day plan already exists. Edit that plan instead.`);
+  }
+
   async create(ownerId: string, data: Partial<GymPlanEntity>) {
     const gym = await this.gyms.findOne({ where: { ownerId } });
     if (!gym) throw new Error('Gym not found');
-    return this.repo.save(this.repo.create({ ...data, gymId: gym.id }));
+    const plan = this.sanitizePlan(data);
+    if (plan.isActive) await this.assertNoActiveDuration(gym.id, plan.durationDays);
+    return this.repo.save(this.repo.create({ ...plan, gymId: gym.id }));
   }
 
   async update(id: string, ownerId: string, data: Partial<GymPlanEntity>) {
@@ -41,7 +73,14 @@ class GymPlansService {
     if (!plan) throw new Error('Plan not found');
     const gym = await this.gyms.findOne({ where: { ownerId } });
     if (!gym || gym.id !== plan.gymId) throw new Error('Unauthorized');
-    await this.repo.update(id, data);
+    const next = { ...plan, ...data };
+    const patch = data.durationDays || data.price || data.features || data.name || data.description || data.sessionsPerDay
+      ? this.sanitizePlan(next)
+      : data;
+    if ((patch as any).isActive !== false) {
+      await this.assertNoActiveDuration(gym.id, Number((patch as any).durationDays ?? plan.durationDays), id);
+    }
+    await this.repo.update(id, patch as any);
     return this.repo.findOne({ where: { id } });
   }
 

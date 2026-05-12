@@ -52,7 +52,7 @@ export default function AmenitiesPage() {
     const isSelected = gymAmenities.includes(name);
     const updated = isSelected ? gymAmenities.filter(a => a !== name) : [...gymAmenities, name];
     try {
-      await api.put(`/gyms/${gymId}`, { amenities: updated });
+      await api.put('/gyms/my-gym/amenities', { amenities: updated });
       setGymAmenities(updated);
       toast(isSelected ? `Removed: ${name}` : `Added: ${name}`, 'success');
     } catch {

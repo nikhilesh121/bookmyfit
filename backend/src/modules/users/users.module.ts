@@ -1,6 +1,6 @@
 import { Module, Controller, Get, Post, Put, Body, UseGuards, Req, Query, Param } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Injectable } from '@nestjs/common';

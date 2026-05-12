@@ -29,15 +29,62 @@ class SettlementService {
 
   async myGymSettlements(ownerId: string) {
     const gym = await this.gyms.findOne({ where: { ownerId } });
-    if (!gym) return [];
-    return this.settlements.find({ where: { gymId: gym.id }, order: { month: 'DESC' } });
+    if (!gym) return { current: this.emptyCurrent(), history: [] };
+    const rows = await this.settlements.find({ where: { gymId: gym.id }, order: { month: 'DESC' } });
+    const mapped = rows.map((s) => this.mapSettlement(s, gym));
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const currentRow = mapped.find((s) => s.period === currentMonth);
+    return {
+      current: currentRow ? this.currentDto(currentRow) : this.emptyCurrent(),
+      history: mapped.filter((s) => s.period !== currentMonth),
+    };
   }
 
   async list(page: any = 1, limit: any = 20, gymId?: string) {
     const where = gymId ? { gymId } : {};
     const { skip, take, page: p, limit: l } = paginate(page, limit);
     const [data, total] = await this.settlements.findAndCount({ where, order: { month: 'DESC' }, skip, take });
-    return paginatedResponse(data, total, p, l);
+    const gymIds = [...new Set(data.map((s) => s.gymId))];
+    const gyms = gymIds.length ? await this.gyms.createQueryBuilder('g').whereInIds(gymIds).getMany() : [];
+    return paginatedResponse(data.map((s) => this.mapSettlement(s, gyms.find((g) => g.id === s.gymId))), total, p, l);
+  }
+
+  private mapSettlement(s: SettlementEntity, gym?: GymEntity) {
+    return {
+      ...s,
+      gymName: gym?.name || 'Unknown Gym',
+      period: s.month,
+      grossRevenue: Number(s.totalRevenue || 0),
+      commission: Number(s.commission || 0),
+      netPayout: Number(s.netPayout || 0),
+      commissionRate: Number(gym?.commissionRate || 0),
+    };
+  }
+
+  private emptyCurrent() {
+    return {
+      grossRevenue: 0,
+      commission: 0,
+      netPayout: 0,
+      commissionRate: 0,
+      status: 'not_generated',
+      individualPool: 0,
+      multiGymPool: 0,
+      dayPassPool: 0,
+    };
+  }
+
+  private currentDto(row: any) {
+    return {
+      grossRevenue: row.grossRevenue,
+      commission: row.commission,
+      netPayout: row.netPayout,
+      commissionRate: row.commissionRate,
+      status: row.status,
+      individualPool: Number(row.breakdown?.sameGymRevenue || 0),
+      multiGymPool: Number(row.breakdown?.multiGymGross || 0),
+      dayPassPool: Number(row.breakdown?.dayPassRevenue || 0),
+    };
   }
 
   /** Runs on the 1st of each month at 2am to compute previous month's settlements */
@@ -69,42 +116,48 @@ class SettlementService {
       subs.forEach(s => subsMap.set(s.id, s));
     }
 
+    const monthlySubs = await this.subs
+      .createQueryBuilder('s')
+      .where('s."createdAt" >= :from AND s."createdAt" < :to', { from, to })
+      .andWhere('s.status IN (:...statuses)', { statuses: ['active', 'frozen', 'expired'] })
+      .getMany();
+
+    const multiGymSubs = monthlySubs.filter((s) => s.planType === 'multi_gym');
+    const totalMultiGymRevenue = multiGymSubs.reduce((sum, s) => sum + Number(s.amountPaid || 0), 0);
+    const multiGymCheckinsAll = allCheckins.filter((c) => subsMap.get(c.subscriptionId)?.planType === 'multi_gym');
+    const totalMultiGymBillableDays = new Set(multiGymCheckinsAll.map((c) =>
+      `${c.gymId}_${c.userId}_${new Date(c.checkinTime).toISOString().slice(0, 10)}`
+    )).size;
+
     const results: SettlementEntity[] = [];
 
     for (const gym of gyms) {
       const gymCheckins = allCheckins.filter(c => c.gymId === gym.id);
 
-      // --- Multi-gym plans (pro/max/elite) ---
-      // Count unique user-days (billable days): 1 visit per user per day
-      const multiGymCheckins = gymCheckins.filter(c => {
-        const sub = subsMap.get(c.subscriptionId);
-        return sub && sub.planType !== 'individual';
-      });
+      // --- Multi-gym plans: allocate actual collected subscription revenue by unique gym/user/day visits ---
+      const multiGymCheckins = gymCheckins.filter(c => subsMap.get(c.subscriptionId)?.planType === 'multi_gym');
       const billableDayKeys = new Set(multiGymCheckins.map(c =>
         `${c.userId}_${new Date(c.checkinTime).toISOString().slice(0, 10)}`
       ));
       const billableDays = billableDayKeys.size;
-      const ratePerDay = Number((gym as any).ratePerDay ?? 50);
       const commissionRate = Number(gym.commissionRate) / 100;
-      const multiGymGrossRevenue = billableDays * ratePerDay;
+      const multiGymGrossRevenue = totalMultiGymBillableDays > 0
+        ? totalMultiGymRevenue * (billableDays / totalMultiGymBillableDays)
+        : 0;
       const multiGymCommission = multiGymGrossRevenue * commissionRate;
       const multiGymPayout = multiGymGrossRevenue - multiGymCommission;
 
-      // --- Individual plans: gym-specific subscriptions ---
-      // Admin collects commission % from individual plan revenue for this gym
-      const activeSubs = await this.subs
-        .createQueryBuilder('s')
-        .where('s.gymIds @> ARRAY[:gymId]::uuid[]', { gymId: gym.id })
-        .andWhere('s.planType = :pt', { pt: 'individual' })
-        .andWhere('s.createdAt >= :from AND s.createdAt < :to', { from, to })
-        .getMany();
-      const individualRevenue = activeSubs.reduce((sum, s) => sum + Number(s.amountPaid), 0);
-      const individualCommission = individualRevenue * commissionRate;
-      const individualPayout = individualRevenue - individualCommission;
+      // --- Single-gym and day-pass subscriptions: use actual paid subscription amount for this gym ---
+      const gymPaidSubs = monthlySubs.filter((s) => (s.gymIds || []).includes(gym.id) && (s.planType === 'same_gym' || s.planType === 'day_pass'));
+      const sameGymRevenue = gymPaidSubs.filter((s) => s.planType === 'same_gym').reduce((sum, s) => sum + Number(s.amountPaid || 0), 0);
+      const dayPassRevenue = gymPaidSubs.filter((s) => s.planType === 'day_pass').reduce((sum, s) => sum + Number(s.amountPaid || 0), 0);
+      const gymSpecificRevenue = sameGymRevenue + dayPassRevenue;
+      const gymSpecificCommission = gymSpecificRevenue * commissionRate;
+      const gymSpecificPayout = gymSpecificRevenue - gymSpecificCommission;
 
-      const totalRevenue = multiGymGrossRevenue + individualRevenue;
-      const totalCommission = multiGymCommission + individualCommission;
-      const netPayout = multiGymPayout + individualPayout;
+      const totalRevenue = multiGymGrossRevenue + gymSpecificRevenue;
+      const totalCommission = multiGymCommission + gymSpecificCommission;
+      const netPayout = multiGymPayout + gymSpecificPayout;
 
       let settlement = await this.settlements.findOne({ where: { gymId: gym.id, month } });
       if (!settlement) settlement = this.settlements.create({ gymId: gym.id, month });
@@ -112,16 +165,19 @@ class SettlementService {
       settlement.commission = totalCommission;
       settlement.netPayout = netPayout;
       settlement.breakdown = {
-        // Multi-gym (per-visit-day model)
+        // Multi-gym
         billableDays,
-        ratePerDay,
+        totalMultiGymBillableDays,
+        totalMultiGymRevenue,
         multiGymGross: multiGymGrossRevenue,
         multiGymCommission,
         multiGymPayout,
-        // Individual plans
-        individualRevenue,
-        individualCommission,
-        individualPayout,
+        // Gym-specific plans
+        sameGymRevenue,
+        dayPassRevenue,
+        individualRevenue: gymSpecificRevenue,
+        individualCommission: gymSpecificCommission,
+        individualPayout: gymSpecificPayout,
         // Totals
         totalCheckins: gymCheckins.length,
       };
@@ -170,8 +226,9 @@ class SettlementController {
   @Post(':id/dispute') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner')
   dispute(@Param('id') id: string, @Body() body: any, @Req() req: any) {
     // Store dispute reason as a note; admin reviews via list endpoint
-    return this.svc.myGymSettlements(req.user.userId).then(async (settlements) => {
-      const s = settlements.find((s: any) => s.id === id);
+    return this.svc.myGymSettlements(req.user.userId).then(async (settlements: any) => {
+      const rows = [...(settlements.history || []), settlements.current].filter(Boolean);
+      const s = rows.find((row: any) => row.id === id);
       if (!s) return { message: 'Settlement not found' };
       return { message: 'Dispute raised. Our team will review within 2 business days.', settlementId: id, reason: body.reason };
     });

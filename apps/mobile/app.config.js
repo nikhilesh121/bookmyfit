@@ -1,5 +1,11 @@
 const { withGradleProperties } = require('@expo/config-plugins');
 
+const apiUrl =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (process.env.EAS_BUILD === 'true' || process.env.NODE_ENV === 'production'
+    ? 'https://bookmyfit.in'
+    : 'http://localhost:3003');
+
 const withArm64Only = (config) =>
   withGradleProperties(config, (props) => {
     props.modResults = props.modResults.filter(
@@ -55,9 +61,7 @@ module.exports = withArm64Only({
     ],
     extra: {
       cashfreeBaseUrl: "https://sandbox.cashfree.com",
-      apiUrl: "https://bookmyfit.in",
-      // To point to a local server during development, uncomment below and comment the line above:
-      // apiUrl: "http://192.168.1.4:3003",
+      apiUrl,
       router: {},
       eas: {
         projectId: "deab094a-848d-483d-9e83-d7f69adac2da",

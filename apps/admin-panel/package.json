@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3004",
-    "build": "next build",
-    "start": "next start -p 3000",
+    "dev": "node ../../scripts/next-react18.js dev -p 3004",
+    "build": "node ../../scripts/next-react18.js build",
+    "start": "node ../../scripts/next-react18.js start -p 3000",
     "lint": "next lint"
   },
   "dependencies": {
@@ -14,7 +14,8 @@
     "react-dom": "^18.2.0",
     "lucide-react": "^0.312.0",
     "clsx": "^2.1.0",
-    "recharts": "^2.10.0"
+    "recharts": "^2.10.0",
+    "styled-jsx": "5.1.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

@@ -16,6 +16,8 @@ interface FormState {
   website: string;
   openingTime: string;
   closingTime: string;
+  breakStartTime: string;
+  breakEndTime: string;
 }
 
 export default function ProfilePage() {
@@ -32,6 +34,8 @@ export default function ProfilePage() {
     website: '',
     openingTime: '05:00',
     closingTime: '23:00',
+    breakStartTime: '',
+    breakEndTime: '',
   });
 
   const [gymId, setGymId] = useState('');
@@ -57,6 +61,8 @@ export default function ProfilePage() {
           website: data.website || '',
           openingTime: data.openingTime || '05:00',
           closingTime: data.closingTime || '23:00',
+          breakStartTime: data.breakStartTime || '',
+          breakEndTime: data.breakEndTime || '',
         });
       } catch {
         const user = getUser();
@@ -71,6 +77,8 @@ export default function ProfilePage() {
           website: 'www.goldsgym.in',
           openingTime: '05:00',
           closingTime: '23:00',
+          breakStartTime: '',
+          breakEndTime: '',
           pinCode: '400050',
         }));
       } finally {
@@ -90,8 +98,14 @@ export default function ProfilePage() {
         description: form.description,
         address: form.address,
         city: form.city,
-        phone: form.phone,
-        openingHours: `${form.openingTime} - ${form.closingTime}`,
+        pinCode: form.pinCode,
+        contactPhone: form.phone,
+        contactEmail: form.email,
+        website: form.website,
+        openingTime: form.openingTime,
+        closingTime: form.closingTime,
+        breakStartTime: form.breakStartTime || null,
+        breakEndTime: form.breakEndTime || null,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -179,6 +193,12 @@ export default function ProfilePage() {
                   <Clock size={14} />
                   <span>Opens: {form.openingTime} - Closes: {form.closingTime}</span>
                 </div>
+                {form.breakStartTime && form.breakEndTime && (
+                  <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--t2)' }}>
+                    <Clock size={14} />
+                    <span>Break: {form.breakStartTime} - {form.breakEndTime}</span>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -323,6 +343,31 @@ export default function ProfilePage() {
                     type="time"
                     value={form.closingTime}
                     onChange={handleChange('closingTime')}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>
+                    Break Start
+                  </label>
+                  <input
+                    className="glass-input w-full"
+                    type="time"
+                    value={form.breakStartTime}
+                    onChange={handleChange('breakStartTime')}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>
+                    Break End
+                  </label>
+                  <input
+                    className="glass-input w-full"
+                    type="time"
+                    value={form.breakEndTime}
+                    onChange={handleChange('breakEndTime')}
                   />
                 </div>
               </div>

@@ -5,18 +5,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { colors, fonts, radius } from '../../theme/brand';
 import {
   IconBell, IconPin, IconStar, IconChevronDown,
   IconBolt, IconShield, IconHeadphones, IconPercent,
 } from '../../components/Icons';
-import { API_BASE } from '../../lib/api';
-import Svg, { Path, Circle } from 'react-native-svg';
+import { API_BASE, appStorage, subscriptionsApi } from '../../lib/api';
+import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList } from '../../lib/subscriptionAccess';
+import Svg, { Path, Circle, Text as SvgText } from 'react-native-svg';
 import * as Location from 'expo-location';
 
 const { width: W } = Dimensions.get('window');
-const CARD_W = W - 44;
+const CARD_W = W;
 
 // ── Category icons ───────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -35,7 +35,20 @@ function CatIcon({ type, size, color }: { type: string; size: number; color: str
   if (type === 'cardio')    return <Svg {...p}><Path d="M3 12h3l3-9 3 18 3-9h3" /></Svg>;
   if (type === 'yoga')      return <Svg {...p}><Circle cx="12" cy="5" r="2" /><Path d="M12 7v4M8 11c0 2 1.5 4 4 4s4-2 4-4M9 21l3-6 3 6" /></Svg>;
   if (type === 'crossfit')  return <Svg {...p}><Path d="M17 3l-5 5-5-5M17 21l-5-5-5 5M3 7l5 5-5 5M21 7l-5 5 5 5" /></Svg>;
+  if (type === 'spa')       return <Svg {...p}><Path d="M12 21c4-4 6-7 6-10a6 6 0 00-12 0c0 3 2 6 6 10z" /><Path d="M12 15c-2-2-3-4-3-6 2 0 4 1 6 3" /></Svg>;
+  if (type === 'shop')      return <Svg {...p}><Path d="M6 2l-3 6v12a2 2 0 002 2h14a2 2 0 002-2V8l-3-6z" /><Path d="M3 8h18M16 12a4 4 0 01-8 0" /></Svg>;
   return <Svg {...p}><Path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></Svg>; // bolt
+}
+
+function categoryMeta(category: any) {
+  const text = `${category.id || ''} ${category.label || category.name || ''}`.toLowerCase();
+  if (text.includes('yoga') || text.includes('pilates') || text.includes('stretch')) return { icon: 'yoga', color: '#22D3EE', bg: 'rgba(34,211,238,0.14)' };
+  if (text.includes('cardio') || text.includes('run') || text.includes('cycle')) return { icon: 'cardio', color: '#F43F5E', bg: 'rgba(244,63,94,0.14)' };
+  if (text.includes('cross') || text.includes('hiit') || text.includes('functional')) return { icon: 'bolt', color: '#FBBF24', bg: 'rgba(251,191,36,0.14)' };
+  if (text.includes('strength') || text.includes('weight') || text.includes('muscle')) return { icon: 'strength', color: '#FB923C', bg: 'rgba(251,146,60,0.14)' };
+  if (text.includes('wellness') || text.includes('spa') || text.includes('physio')) return { icon: 'spa', color: '#A7F3D0', bg: 'rgba(167,243,208,0.12)' };
+  if (text.includes('shop') || text.includes('store')) return { icon: 'shop', color: '#A78BFA', bg: 'rgba(167,139,250,0.14)' };
+  return { icon: category.icon || 'dumbbell', color: category.color || colors.accent, bg: category.bg || colors.accentSoft };
 }
 
 // ── Fallback config (mirrors server defaults) ────────────────────────────────
@@ -80,6 +93,13 @@ const TESTIMONIALS = [
   { id: '3', name: 'Ananya K.', city: 'Cuttack',      rating: 5, avatar: 'A', text: 'QR check-in is seamless. Love the Same Gym pass for my daily workouts.' },
 ];
 
+const FALLBACK_WELLNESS_SERVICES = [
+  { id: 'wl-yoga', name: 'Recovery Yoga', category: 'Yoga', durationMin: 60, price: 699, imageUrl: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=500&q=80' },
+  { id: 'wl-physio', name: 'Sports Physiotherapy', category: 'Physio', durationMin: 45, price: 999, imageUrl: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=500&q=80' },
+  { id: 'wl-diet', name: 'Nutrition Consult', category: 'Nutrition', durationMin: 30, price: 499, imageUrl: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=500&q=80' },
+  { id: 'wl-massage', name: 'Deep Tissue Recovery', category: 'Recovery', durationMin: 50, price: 1199, imageUrl: 'https://images.unsplash.com/photo-1519823551278-64ac92734fb1?w=500&q=80' },
+];
+
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 function Sk({ h, w, br = 12, style }: { h: number; w?: number | string; br?: number; style?: any }) {
   return <View style={[{ height: h, width: w || '100%', borderRadius: br, backgroundColor: 'rgba(255,255,255,0.06)' }, style]} />;
@@ -94,11 +114,16 @@ export default function Home() {
   const [city, setCity] = useState('Bhubaneswar');
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [heroIdx, setHeroIdx] = useState(0);
+  const [wellnessServices, setWellnessServices] = useState<any[]>([]);
+  const [subscribedGymIds, setSubscribedGymIds] = useState<Set<string>>(new Set());
+  const [activeGymSubs, setActiveGymSubs] = useState<Map<string, any>>(new Map());
+  const [multiGymSub, setMultiGymSub] = useState<any>(null);
+  const [hasMultiGymSub, setHasMultiGymSub] = useState(false);
   const heroRef = useRef<FlatList>(null);
 
   useEffect(() => {
     // Load saved city first, fall back to GPS detection
-    SecureStore.getItemAsync('bmf_city').then((saved) => {
+    appStorage.getItem('bmf_city').then((saved) => {
       if (saved) {
         setCity(saved);
       } else {
@@ -125,12 +150,37 @@ export default function Home() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    fetch(`${API_BASE}/api/v1/wellness/services/all`)
+      .then((r) => r.json())
+      .then((data: any) => setWellnessServices(Array.isArray(data) ? data.slice(0, 8) : []))
+      .catch(() => setWellnessServices([]));
+  }, []);
+
+  useEffect(() => {
+    subscriptionsApi.mySubscriptions()
+      .then((data: any) => {
+        const state = getActiveSubscriptionAccess(normalizeSubscriptionList(data));
+        setSubscribedGymIds(state.gymIds);
+        setActiveGymSubs(state.byGymId);
+        setMultiGymSub(state.multiGymSub);
+        setHasMultiGymSub(state.hasMultiGym);
+      })
+      .catch(() => {
+        setSubscribedGymIds(new Set());
+        setActiveGymSubs(new Map());
+        setMultiGymSub(null);
+        setHasMultiGymSub(false);
+      });
+  }, []);
+
   const sections: any[] = config
     ? [...(config.sections || [])].filter((s) => s.visible).sort((a: any, b: any) => a.order - b.order)
     : [];
 
   const heroSection = sections.find((s) => s.type === 'hero');
   const slides = heroSection?.slides || FALLBACK_CONFIG.sections[0].slides;
+  const featuredGymSection = sections.find((s) => s.type === 'featured_gyms') || FALLBACK_CONFIG.sections[2];
 
   // Auto-advance hero
   useEffect(() => {
@@ -194,7 +244,7 @@ export default function Home() {
                   style={[s.cityRow, city === c && s.cityRowActive]}
                   onPress={() => {
                     setCity(c);
-                    SecureStore.setItemAsync('bmf_city', c).catch(() => {});
+                    appStorage.setItem('bmf_city', c).catch(() => {});
                     setShowCityPicker(false);
                   }}
                 >
@@ -212,10 +262,31 @@ export default function Home() {
           switch (section.type) {
             case 'hero':       return <HeroSection key={section.id} slides={slides} heroIdx={heroIdx} setHeroIdx={setHeroIdx} heroRef={heroRef} />;
             case 'categories': return <CategoriesSection key={section.id} title={section.title} />;
-            case 'featured_gyms': return <FeaturedGymsSection key={section.id} section={section} />;
+            case 'featured_gyms': return (
+              <View key={section.id}>
+                <FeaturedGymsSection
+                  section={section}
+                  subscribedGymIds={subscribedGymIds}
+                  activeGymSubs={activeGymSubs}
+                  multiGymSub={multiGymSub}
+                  hasMultiGymSub={hasMultiGymSub}
+                />
+                <WellnessServicesSection services={wellnessServices} />
+              </View>
+            );
             case 'products':   return <ProductsSection key={section.id} section={section} />;
-            case 'trust':      return <TrustSection key={section.id} />;
-            case 'testimonials': return <TestimonialsSection key={section.id} />;
+            case 'trust':      return null;
+            case 'testimonials': return (
+              <View key={section.id}>
+                <GymListingSection
+                  section={featuredGymSection}
+                  subscribedGymIds={subscribedGymIds}
+                  activeGymSubs={activeGymSubs}
+                  multiGymSub={multiGymSub}
+                  hasMultiGymSub={hasMultiGymSub}
+                />
+              </View>
+            );
             default: return null;
           }
         })}
@@ -248,7 +319,7 @@ function HeroSection({ slides, heroIdx, setHeroIdx, heroRef }: any) {
         snapToInterval={CARD_W}
         decelerationRate="fast"
         renderItem={({ item }: any) => (
-          <ImageBackground source={{ uri: item.imageUrl }} style={s.heroSlide} imageStyle={{ borderRadius: radius.xl }}>
+          <ImageBackground source={{ uri: item.imageUrl }} style={s.heroSlide}>
             <View style={s.heroDark} />
             <View style={s.heroContent}>
               <Text style={s.heroKicker}>BOOKMY<Text style={{ color: colors.accent }}>FIT</Text></Text>
@@ -271,23 +342,163 @@ function HeroSection({ slides, heroIdx, setHeroIdx, heroRef }: any) {
 
 function CategoriesSection({ title }: { title: string }) {
   return (
-    <View style={{ marginBottom: 24 }}>
+    <View style={{ marginBottom: 16 }}>
       <SectionRow title={title} onViewAll={() => router.push('/gyms' as any)} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
-        {CATEGORIES.map((cat) => (
-          <TouchableOpacity key={cat.id} style={s.catItem} onPress={() => router.push(`/gyms?category=${cat.id}` as any)}>
-            <View style={[s.catCircle, { backgroundColor: cat.bg }]}>
-              <CatIcon type={cat.icon} size={22} color={cat.color} />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        contentContainerStyle={s.categoryScroll}
+      >
+        {CATEGORIES.map((cat) => {
+          const meta = categoryMeta(cat);
+          return (
+          <TouchableOpacity key={cat.id} style={[s.catChip, { borderColor: meta.bg }]} onPress={() => router.push(`/gyms?category=${cat.id}` as any)}>
+            <View style={[s.catIconWrap, { backgroundColor: meta.bg }]}>
+              <CatIcon type={meta.icon} size={16} color={meta.color} />
             </View>
-            <Text style={[s.catLabel, { color: cat.color }]}>{cat.label}</Text>
+            <Text style={[s.catLabel, { color: meta.color }]}>{cat.label}</Text>
           </TouchableOpacity>
-        ))}
+          );
+        })}
       </ScrollView>
     </View>
   );
 }
 
-function FeaturedGymsSection({ section }: { section: any }) {
+function WellnessServicesSection({ services }: { services: any[] }) {
+  const list = services.length ? services : FALLBACK_WELLNESS_SERVICES;
+  return (
+    <View style={{ marginBottom: 24 }}>
+      <SectionRow title="Wellness Services" onViewAll={() => router.push('/wellness' as any)} />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} decelerationRate="fast" contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
+        {list.map((svc: any) => {
+          const img = svc.imageUrl || svc.image || svc.images?.[0] || svc.partner?.coverPhoto || 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=500&q=80';
+          const category = svc.category || svc.partner?.serviceType || 'Wellness';
+          const price = Number(svc.price || svc.minPrice || 0);
+          return (
+            <TouchableOpacity key={svc.id} style={s.wellnessCard} activeOpacity={0.88} onPress={() => router.push('/wellness' as any)}>
+              <ImageBackground source={{ uri: img }} style={s.wellnessImg} imageStyle={{ borderRadius: radius.xl }}>
+                <View style={s.wellnessDark} />
+                <View style={s.wellnessBadge}>
+                  <Text style={s.wellnessBadgeText}>{category}</Text>
+                </View>
+                <View style={s.wellnessBottom}>
+                  <Text style={s.wellnessName} numberOfLines={2}>{svc.name || svc.title || 'Wellness Service'}</Text>
+                  <Text style={s.wellnessMeta}>{svc.durationMin || svc.duration || 45} min</Text>
+                  {price > 0 && <Text style={s.wellnessPrice}>From Rs {price.toLocaleString('en-IN')}</Text>}
+                </View>
+              </ImageBackground>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+function GymListingSection({
+  section,
+  subscribedGymIds,
+  activeGymSubs,
+  multiGymSub,
+  hasMultiGymSub,
+}: {
+  section: any;
+  subscribedGymIds: Set<string>;
+  activeGymSubs: Map<string, any>;
+  multiGymSub: any;
+  hasMultiGymSub: boolean;
+}) {
+  const gyms: any[] = (section.gyms || []).slice(0, 5);
+  if (!gyms.length) return null;
+
+  return (
+    <View style={s.gymListSection}>
+      <SectionRow title="Gyms Near You" onViewAll={() => router.push('/gyms' as any)} />
+      <View style={s.gymListWrap}>
+        {gyms.map((g: any, idx: number) => {
+          const img = g.images?.[0] || g.coverImage || g.img || 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&q=80';
+          const gid = g.id || g._id || `nearby-gym-${idx}`;
+          const city = [g.area, g.city].filter(Boolean).join(', ');
+          const hasAccess = hasMultiGymSub || subscribedGymIds.has(String(gid));
+          const accessLabel = accessLabelForSubscription(activeGymSubs.get(String(gid)) || multiGymSub, hasMultiGymSub);
+
+          return (
+            <TouchableOpacity
+              key={gid}
+              style={s.gymListCard}
+              activeOpacity={0.88}
+              onPress={() => router.push({
+                pathname: `/gym/${gid}` as any,
+                params: {
+                  fallbackName: g.name || '',
+                  fallbackAddress: city || g.city || '',
+                  fallbackRating: String(g.rating || 0),
+                  fallbackTier: g.tier || 'premium',
+                },
+              })}
+            >
+              <ImageBackground source={{ uri: img }} style={s.gymListImg} imageStyle={{ borderRadius: radius.lg }}>
+                <View style={s.gymListImgDark} />
+                {g.rating ? (
+                  <View style={s.gymListRating}>
+                    <IconStar size={10} color="#FBBF24" />
+                    <Text style={s.gymListRatingText}>{Number(g.rating).toFixed(1)}</Text>
+                  </View>
+                ) : null}
+              </ImageBackground>
+
+              <View style={s.gymListBody}>
+                <View>
+                  <Text style={s.gymListName} numberOfLines={2}>{g.name || 'Gym'}</Text>
+                  <View style={s.gymListCityRow}>
+                    <IconPin size={11} color={colors.t2} />
+                    <Text style={s.gymListCity} numberOfLines={1}>{city || 'Nearby'}</Text>
+                  </View>
+                  {hasAccess && (
+                    <View style={s.gymListSubscribedBadge}>
+                      <Text style={s.gymListSubscribedText}>{accessLabel}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={s.gymListBottomRow}>
+                  <Text style={s.gymListPrice} numberOfLines={1}>
+                    {hasAccess ? 'Ready to book sessions' : (g.dayPassPrice ? `From Rs ${Number(g.dayPassPrice).toLocaleString('en-IN')}/day` : 'View plans')}
+                  </Text>
+                  <TouchableOpacity
+                    style={[s.gymListCta, hasAccess && s.gymListBookCta]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      if (hasAccess) router.push({ pathname: '/slots', params: { gymId: gid } } as any);
+                      else router.push({ pathname: '/plans', params: { gymId: gid, gymName: g.name || 'Gym' } } as any);
+                    }}
+                  >
+                    <Text style={[s.gymListCtaText, hasAccess && s.gymListBookCtaText]}>{hasAccess ? 'Book' : 'View'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function FeaturedGymsSection({
+  section,
+  subscribedGymIds,
+  activeGymSubs,
+  multiGymSub,
+  hasMultiGymSub,
+}: {
+  section: any;
+  subscribedGymIds: Set<string>;
+  activeGymSubs: Map<string, any>;
+  multiGymSub: any;
+  hasMultiGymSub: boolean;
+}) {
   const gyms: any[] = section.gyms || [];
   if (!gyms.length) return null;
   return (
@@ -298,8 +509,10 @@ function FeaturedGymsSection({ section }: { section: any }) {
           const img = g.images?.[0] || g.coverImage || g.img || 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&q=80';
           const name = (g.name || 'Gym').split(' ').slice(0, 2).join(' ');
           const gid = g.id || g._id;
+          const hasAccess = hasMultiGymSub || subscribedGymIds.has(String(gid));
+          const accessLabel = accessLabelForSubscription(activeGymSubs.get(String(gid)) || multiGymSub, hasMultiGymSub);
           return (
-            <TouchableOpacity key={gid} style={s.gymFeatCard} onPress={() => router.push({
+            <TouchableOpacity key={gid} style={s.gymFeatOuter} onPress={() => router.push({
               pathname: `/gym/${gid}` as any,
               params: {
                 fallbackName: g.name || '',
@@ -308,10 +521,11 @@ function FeaturedGymsSection({ section }: { section: any }) {
                 fallbackTier: 'premium',
               },
             })} activeOpacity={0.85}>
-              <ImageBackground source={{ uri: img }} style={s.gymFeatImg} imageStyle={{ borderRadius: radius.xl }}>
-                <View style={s.gymFeatDark} />
-                <Text style={s.gymFeatRank}>#{idx + 1}</Text>
-                <View style={s.gymFeatBottom}>
+              <RankNumber value={idx + 1} />
+              <View style={s.gymFeatCard}>
+                <ImageBackground source={{ uri: img }} style={s.gymFeatImg} imageStyle={{ borderRadius: radius.xl }}>
+                  <View style={s.gymFeatDark} />
+                  <View style={s.gymFeatBottom}>
                   {g.rating ? (
                     <View style={s.gymFeatRating}>
                       <IconStar size={10} color="#FBBF24" />
@@ -320,11 +534,14 @@ function FeaturedGymsSection({ section }: { section: any }) {
                   ) : null}
                   <Text style={s.gymFeatName} numberOfLines={1}>{name}</Text>
                   <Text style={s.gymFeatCity} numberOfLines={1}>{g.city || ''}</Text>
-                  {g.dayPassPrice ? (
+                  {hasAccess ? (
+                    <Text style={s.gymFeatSubscribed}>{accessLabel}</Text>
+                  ) : g.dayPassPrice ? (
                     <Text style={s.gymFeatPrice}>From ₹{g.dayPassPrice}/day</Text>
                   ) : null}
-                </View>
-              </ImageBackground>
+                  </View>
+                </ImageBackground>
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -436,10 +653,30 @@ function SectionRow({ title, onViewAll }: { title: string; onViewAll?: () => voi
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
+function RankNumber({ value }: { value: number }) {
+  return (
+    <View style={s.gymRankWrap} pointerEvents="none">
+      <Svg width={78} height={100} viewBox="0 0 78 100">
+        <SvgText
+          x="2"
+          y="78"
+          fontSize="78"
+          fontWeight="900"
+          stroke={colors.accent}
+          strokeWidth="2.2"
+          fill="rgba(61,255,84,0.03)"
+        >
+          {String(value)}
+        </SvgText>
+      </Svg>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   root:   { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
-  container: { paddingBottom: 40 },
+  container: { paddingBottom: 132 },
 
   // Top bar
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
@@ -453,9 +690,9 @@ const s = StyleSheet.create({
   logoDot: { color: colors.accent },
 
   // Hero
-  heroWrap: { marginHorizontal: 20, marginBottom: 24 },
+  heroWrap: { marginHorizontal: 0, marginBottom: 24 },
   heroSlide: { width: CARD_W, height: 200, justifyContent: 'flex-end' },
-  heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.52)', borderRadius: radius.xl },
+  heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.52)' },
   heroContent: { padding: 18, gap: 2 },
   heroKicker: { fontFamily: fonts.sansBold, fontSize: 9, color: 'rgba(255,255,255,0.5)', letterSpacing: 2, marginBottom: 4 },
   heroHeadline: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', lineHeight: 30 },
@@ -473,21 +710,109 @@ const s = StyleSheet.create({
   viewAll: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.accent },
 
   // Categories
-  catItem:   { alignItems: 'center', gap: 6 },
-  catCircle: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  catLabel:  { fontFamily: fonts.sansMedium, fontSize: 9, letterSpacing: 0.3 },
+  categoryScroll: { paddingHorizontal: 20, gap: 8, paddingBottom: 2 },
+  catChip: {
+    height: 38,
+    minWidth: 92,
+    paddingHorizontal: 10,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  catIconWrap: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  catLabel:  { fontFamily: fonts.sansMedium, fontSize: 11 },
+
+  // Wellness
+  wellnessCard: { width: 170, height: 190, borderRadius: radius.xl, overflow: 'hidden', backgroundColor: colors.surface },
+  wellnessImg: { flex: 1, justifyContent: 'space-between' },
+  wellnessDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.38)' },
+  wellnessBadge: {
+    alignSelf: 'flex-start',
+    margin: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.48)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  wellnessBadgeText: { fontFamily: fonts.sansBold, fontSize: 9, color: colors.accent, textTransform: 'uppercase', letterSpacing: 0.5 },
+  wellnessBottom: { padding: 12, gap: 3 },
+  wellnessName: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', lineHeight: 18 },
+  wellnessMeta: { fontFamily: fonts.sans, fontSize: 10, color: 'rgba(255,255,255,0.68)' },
+  wellnessPrice: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent, marginTop: 2 },
 
   // Featured gyms
-  gymFeatCard:   { width: 160, height: 200, borderRadius: radius.xl, overflow: 'hidden' },
-  gymFeatImg:    { flex: 1, justifyContent: 'space-between' },
-  gymFeatDark:   { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.42)' },
-  gymFeatRank:   { fontFamily: fonts.sansBold, fontSize: 44, color: 'rgba(255,255,255,0.15)', padding: 8, lineHeight: 50 },
-  gymFeatBottom: { padding: 12, gap: 2 },
+  gymFeatOuter:  { width: 198, height: 208, paddingLeft: 30, position: 'relative' },
+  gymFeatCard:   { flex: 1, borderRadius: radius.xl, overflow: 'hidden' },
+  gymFeatImg:    { flex: 1, justifyContent: 'space-between', borderRadius: radius.xl, overflow: 'hidden' },
+  gymFeatDark:   { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.46)', borderRadius: radius.xl },
+  gymRankWrap:   { position: 'absolute', left: 0, top: 42, zIndex: 3 },
+  gymFeatBottom: { padding: 12, paddingLeft: 28, gap: 2 },
   gymFeatRating: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
   gymFeatRatingText: { fontFamily: fonts.sansBold, fontSize: 10, color: '#FBBF24' },
   gymFeatName:   { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
   gymFeatCity:   { fontFamily: fonts.sans, fontSize: 10, color: 'rgba(255,255,255,0.6)' },
   gymFeatPrice:  { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent, marginTop: 2 },
+  gymFeatSubscribed: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent, marginTop: 2 },
+  gymListSection: { marginBottom: 24 },
+  gymListWrap: { marginHorizontal: 20, gap: 12 },
+  gymListCard: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 12,
+    padding: 10,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    overflow: 'hidden',
+  },
+  gymListImg: { width: 104, height: 96, justifyContent: 'flex-start' },
+  gymListImgDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.22)', borderRadius: radius.lg },
+  gymListRating: {
+    alignSelf: 'flex-start',
+    margin: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  gymListRatingText: { fontFamily: fonts.sansBold, fontSize: 10, color: '#FBBF24' },
+  gymListBody: { flex: 1, minWidth: 0, justifyContent: 'space-between', paddingVertical: 2 },
+  gymListName: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', lineHeight: 18 },
+  gymListCityRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5 },
+  gymListCity: { flex: 1, minWidth: 0, fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+  gymListBottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  gymListPrice: { flex: 1, minWidth: 0, fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent },
+  gymListCta: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+  },
+  gymListCtaText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent },
+  gymListBookCta: { backgroundColor: colors.accent, borderColor: colors.accent },
+  gymListBookCtaText: { color: '#060606' },
+  gymListSubscribedBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,212,106,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,212,106,0.35)',
+  },
+  gymListSubscribedText: { fontFamily: fonts.sansBold, fontSize: 9, color: colors.accent },
 
   // Products
   productCard: { width: 148, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: radius.lg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden' },

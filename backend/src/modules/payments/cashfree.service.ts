@@ -21,6 +21,19 @@ export class CashfreeService {
   private readonly clientId = process.env.CASHFREE_CLIENT_ID || 'TEST_CLIENT_ID';
   private readonly clientSecret = process.env.CASHFREE_CLIENT_SECRET || 'TEST_CLIENT_SECRET';
 
+  private get mockModeEnabled(): boolean {
+    return process.env.CASHFREE_MOCK_MODE === 'true' && process.env.NODE_ENV !== 'production';
+  }
+
+  private createMockOrder(orderId: string) {
+    return {
+      orderId,
+      paymentSessionId: `mock_session_${orderId}`,
+      orderStatus: 'ACTIVE',
+      mock: true,
+    };
+  }
+
   /**
    * Create a Cashfree order. Returns payment_session_id which the
    * mobile/web client uses with the Cashfree SDK to render the checkout.
@@ -34,6 +47,8 @@ export class CashfreeService {
     returnUrl?: string;
     notes?: Record<string, any>;
   }) {
+    if (this.mockModeEnabled) return this.createMockOrder(params.orderId);
+
     const body = {
       order_id: params.orderId,
       order_amount: params.amount,
@@ -64,13 +79,8 @@ export class CashfreeService {
       const data: any = await res.json();
       if (!res.ok) {
         this.logger.warn(`Cashfree order failed: ${JSON.stringify(data)}`);
-        // Dev fallback: return a mock payment session
-        return {
-          orderId: params.orderId,
-          paymentSessionId: `mock_session_${params.orderId}`,
-          orderStatus: 'ACTIVE',
-          mock: true,
-        };
+        if (this.mockModeEnabled) return this.createMockOrder(params.orderId);
+        throw new BadRequestException('Cashfree order creation failed');
       }
       return {
         orderId: data.order_id,
@@ -79,13 +89,9 @@ export class CashfreeService {
       };
     } catch (err: any) {
       this.logger.error(`Cashfree API error: ${err.message}`);
-      // Dev fallback
-      return {
-        orderId: params.orderId,
-        paymentSessionId: `mock_session_${params.orderId}`,
-        orderStatus: 'ACTIVE',
-        mock: true,
-      };
+      if (this.mockModeEnabled) return this.createMockOrder(params.orderId);
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException('Cashfree API unavailable');
     }
   }
 

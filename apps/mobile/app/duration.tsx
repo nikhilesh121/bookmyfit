@@ -1,28 +1,92 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AuroraBackground from '../components/AuroraBackground';
 import { useLocalSearchParams, router } from 'expo-router';
-import { colors, fonts, radius, spacing } from '../theme/brand';
-import { IconArrowLeft, IconCheck } from '../components/Icons';
+import { colors, fonts, radius } from '../theme/brand';
+import { IconArrowLeft } from '../components/Icons';
 
 const PT_PRICE = 1600;
 const GST_RATE = 0.18;
+const PT_DURATION_OPTIONS = [1, 3, 6, 12];
+
+type DurationOption = {
+  months: number;
+  label: string;
+  sublabel: string;
+  price: number;
+  save: string | null;
+  isDayPass: boolean;
+  hot: boolean;
+  gymPlanId?: string;
+};
+
+type GymPlanOption = {
+  id?: string;
+  name?: string;
+  price?: number | string;
+  durationDays?: number | string;
+};
+
+function money(value: number) {
+  return `Rs ${Math.round(value).toLocaleString('en-IN')}`;
+}
+
+function monthsLabel(months: number) {
+  return `${months} ${months === 1 ? 'month' : 'months'}`;
+}
 
 export default function Duration() {
-  const { planId, planName, gymId, gymName, basePrice, isDayPass: isDayPassParam } = useLocalSearchParams<{
-    planId: string; planName: string; gymId?: string; gymName?: string; basePrice?: string; isDayPass?: string;
+  const insets = useSafeAreaInsets();
+  const { planId, planName, gymId, gymName, basePrice, isDayPass: isDayPassParam, gymPlansJson } = useLocalSearchParams<{
+    planId: string; planName: string; gymId?: string; gymName?: string; basePrice?: string; isDayPass?: string; gymPlansJson?: string;
   }>();
 
   const monthlyBase = Number(basePrice) || 999;
   const isPlanDayPass = planId === 'day_pass' || isDayPassParam === 'true';
+  const gymPlanOptions = useMemo(() => {
+    if (!gymPlansJson || planId !== 'same_gym') return [];
+    try {
+      const parsed = JSON.parse(String(gymPlansJson));
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((plan: GymPlanOption) => {
+          const price = Number(plan.price);
+          const days = Number(plan.durationDays || 30);
+          if (!plan.id || !Number.isFinite(price) || price <= 0 || !Number.isFinite(days) || days <= 0) return null;
+          return { id: plan.id, name: plan.name, price, days };
+        })
+        .filter(Boolean) as { id: string; name?: string; price: number; days: number }[];
+    } catch {
+      return [];
+    }
+  }, [gymPlansJson, planId]);
 
-  // Build duration options relative to the plan's monthly base price
-  const DURATIONS = useMemo(() => {
+  const DURATIONS: DurationOption[] = useMemo(() => {
     if (isPlanDayPass) {
       return [{ months: 0, label: '1 Day Pass', sublabel: 'Single visit', price: monthlyBase, save: null, isDayPass: true, hot: false }];
+    }
+    if (planId === 'same_gym' && gymPlanOptions.length > 0) {
+      return gymPlanOptions
+        .slice()
+        .sort((a, b) => a.days - b.days)
+        .map((plan) => {
+          const months = Math.max(1, Math.round(plan.days / 30));
+          const rackTotal = monthlyBase * months;
+          const savePct = rackTotal > plan.price ? Math.round((1 - plan.price / rackTotal) * 100) : 0;
+          return {
+            months,
+            label: `${months} ${months === 1 ? 'Month' : 'Months'}`,
+            sublabel: plan.name || 'Gym managed plan',
+            price: Math.round(plan.price),
+            save: savePct > 0 ? `Save ${savePct}%` : null,
+            isDayPass: false,
+            hot: false,
+            gymPlanId: plan.id,
+          };
+        });
     }
     return [
       { months: 1, label: '1 Month', sublabel: 'Most flexible', price: monthlyBase, save: null, isDayPass: false, hot: false },
@@ -30,17 +94,32 @@ export default function Duration() {
       { months: 6, label: '6 Months', sublabel: 'Best value', price: Math.round(monthlyBase * 6 * 0.85), save: 'Save 15%', isDayPass: false, hot: false },
       { months: 12, label: '12 Months', sublabel: 'Maximum savings', price: Math.round(monthlyBase * 12 * 0.75), save: 'Save 25%', isDayPass: false, hot: false },
     ];
-  }, [monthlyBase, isPlanDayPass]);
+  }, [monthlyBase, isPlanDayPass, planId, gymPlanOptions]);
 
-  const [selected, setSelected] = useState(0); // default: first option
+  const [selected, setSelected] = useState(0);
   const [ptAddon, setPtAddon] = useState(false);
+  const [ptDurationMonths, setPtDurationMonths] = useState(1);
 
-  const dur = DURATIONS[selected];
+  const dur = DURATIONS[selected] || DURATIONS[0];
   const base = dur.price;
-  const ptCost = !dur.isDayPass && ptAddon ? PT_PRICE : 0;
+  const ptCost = !dur.isDayPass && ptAddon ? PT_PRICE * ptDurationMonths : 0;
+  const ptSessions = ptDurationMonths * 8;
   const subtotal = base + ptCost;
   const gst = Math.round(subtotal * GST_RATE);
   const total = subtotal + gst;
+  const bottomInset = Math.max(insets.bottom, 34);
+  const availablePtDurations = useMemo(
+    () => PT_DURATION_OPTIONS.filter((months) => months <= Math.max(dur.months || 1, 1)),
+    [dur.months],
+  );
+
+  useEffect(() => {
+    if (selected >= DURATIONS.length) setSelected(0);
+  }, [DURATIONS.length, selected]);
+
+  useEffect(() => {
+    if (!dur.isDayPass) setPtDurationMonths(dur.months || 1);
+  }, [dur.isDayPass, dur.months]);
 
   const handleCheckout = () => {
     router.push({
@@ -49,123 +128,151 @@ export default function Duration() {
         planId: planId || '',
         planName: planName || 'Standard Plan',
         gymId: gymId || '',
+        gymName: gymName || '',
         durationMonths: String(dur.months),
         totalAmount: String(total),
         ptAddon: ptAddon && !dur.isDayPass ? 'true' : 'false',
+        ptDurationMonths: String(ptAddon && !dur.isDayPass ? ptDurationMonths : 0),
         isDayPass: dur.isDayPass ? 'true' : 'false',
+        gymPlanId: dur.gymPlanId || '',
       },
     });
   };
 
   return (
     <AuroraBackground>
-    <SafeAreaView style={s.root}>
-      {/* Header */}
-      <View style={s.header}>
-        <TouchableOpacity style={s.back} onPress={() => router.back()}>
-          <IconArrowLeft size={18} color="#fff" />
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>Choose Duration</Text>
-        <View style={{ width: 38 }} />
-      </View>
+      <SafeAreaView style={s.root}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.back} onPress={() => router.back()}>
+            <IconArrowLeft size={18} color="#fff" />
+          </TouchableOpacity>
+          <Text style={s.headerTitle}>Choose Duration</Text>
+          <View style={{ width: 38 }} />
+        </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
-        <Text style={s.kicker}>Membership Duration</Text>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.scroll, { paddingBottom: 320 + bottomInset }]}>
+          <Text style={s.kicker}>Membership Duration</Text>
 
-        {/* Duration options */}
-        {DURATIONS.map((d, i) => {
-          const active = i === selected;
-          return (
-            <TouchableOpacity
-              key={d.isDayPass ? 'daypass' : d.months}
-              style={[s.optionCard, active && s.optionCardActive, d.hot && s.optionCardHot]}
-              onPress={() => setSelected(i)}
-              activeOpacity={0.8}
-            >
-              {d.hot && (
-                <View style={s.hotBadge}>
-                  <Text style={s.hotBadgeText}>🌶️ HOT</Text>
+          {DURATIONS.map((d, i) => {
+            const active = i === selected;
+            return (
+              <TouchableOpacity
+                key={d.isDayPass ? 'daypass' : d.gymPlanId || d.months}
+                style={[s.optionCard, active && s.optionCardActive, d.hot && s.optionCardHot]}
+                onPress={() => setSelected(i)}
+                activeOpacity={0.8}
+              >
+                {d.hot && (
+                  <View style={s.hotBadge}>
+                    <Text style={s.hotBadgeText}>HOT</Text>
+                  </View>
+                )}
+
+                <View style={[s.radio, active && s.radioActive]}>
+                  {active && <View style={s.radioDot} />}
                 </View>
-              )}
 
-              {/* Radio */}
-              <View style={[s.radio, active && s.radioActive]}>
-                {active && <View style={s.radioDot} />}
-              </View>
-
-              <View style={s.optionInfo}>
-                <View style={s.optionLabelRow}>
-                  <Text style={[s.optionLabel, active && { color: '#fff' }]}>{d.label}</Text>
-                  {d.sublabel && !d.hot && (
-                    <Text style={s.optionSublabel}>{d.sublabel}</Text>
+                <View style={s.optionInfo}>
+                  <View style={s.optionLabelRow}>
+                    <Text style={[s.optionLabel, active && { color: '#fff' }]} numberOfLines={1}>{d.label}</Text>
+                    {d.sublabel && !d.hot && <Text style={s.optionSublabel} numberOfLines={1}>{d.sublabel}</Text>}
+                  </View>
+                  <Text style={[s.optionPrice, active && { color: d.hot ? '#ff6b35' : colors.accent }]} numberOfLines={1}>
+                    {money(d.price)}
+                    <Text style={s.optionPricePer}>{d.isDayPass ? '/day' : ' total'}</Text>
+                  </Text>
+                  {!d.isDayPass && (
+                    <Text style={s.billingHint} numberOfLines={1}>
+                      {money(Math.round(d.price / d.months))}/mo billed every {monthsLabel(d.months)}
+                    </Text>
                   )}
                 </View>
-                <Text style={[s.optionPrice, active && { color: d.hot ? '#ff6b35' : colors.accent }]}>
-                  ₹{d.price.toLocaleString('en-IN')}
-                  <Text style={s.optionPricePer}>{d.isDayPass ? '/day' : '/plan'}</Text>
-                </Text>
+
+                {d.save && (
+                  <View style={s.savePill}>
+                    <Text style={s.savePillText}>{d.save}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+
+          {!dur.isDayPass && (
+            <View style={s.ptCard}>
+              <View style={s.ptHeaderRow}>
+                <View style={s.ptLeft}>
+                  <Text style={s.ptTitle}>Personal Trainer Add-on</Text>
+                  <Text style={s.ptSub} numberOfLines={2}>
+                    {monthsLabel(dur.months)} membership | {monthsLabel(ptDurationMonths)} PT | {ptSessions} sessions
+                  </Text>
+                </View>
+                <View style={s.ptRight}>
+                  <Text style={s.ptPrice}>{money(PT_PRICE)}/mo</Text>
+                  <Switch
+                    value={ptAddon}
+                    onValueChange={setPtAddon}
+                    trackColor={{ false: colors.border, true: colors.accentBorder }}
+                    thumbColor={ptAddon ? colors.accent : 'rgba(255,255,255,0.4)'}
+                  />
+                </View>
               </View>
 
-              {d.save && (
-                <View style={s.savePill}>
-                  <Text style={s.savePillText}>{d.save}</Text>
+              {ptAddon && (
+                <View style={s.ptDurationBlock}>
+                  <Text style={s.ptDurationLabel}>Trainer duration within {monthsLabel(dur.months)} plan</Text>
+                  <View style={s.ptDurationChips}>
+                    {availablePtDurations.map((months) => {
+                      const active = ptDurationMonths === months;
+                      return (
+                        <TouchableOpacity
+                          key={months}
+                          style={[s.ptDurationChip, active && s.ptDurationChipActive]}
+                          onPress={() => setPtDurationMonths(months)}
+                          activeOpacity={0.82}
+                        >
+                          <Text style={[s.ptDurationChipText, active && s.ptDurationChipTextActive]}>
+                            {months} Mo
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </View>
               )}
-            </TouchableOpacity>
-          );
-        })}
-
-        {/* PT Add-on — only for monthly+ plans */}
-        {!dur.isDayPass && (
-          <View style={s.ptCard}>
-            <View style={s.ptLeft}>
-              <Text style={s.ptTitle}>Personal Trainer Add-on</Text>
-              <Text style={s.ptSub}>8 sessions · Expert-matched PT</Text>
-            </View>
-            <View style={s.ptRight}>
-              <Text style={s.ptPrice}>₹{PT_PRICE.toLocaleString('en-IN')}</Text>
-              <Switch
-                value={ptAddon}
-                onValueChange={setPtAddon}
-                trackColor={{ false: colors.border, true: colors.accentBorder }}
-                thumbColor={ptAddon ? colors.accent : 'rgba(255,255,255,0.4)'}
-              />
-            </View>
-          </View>
-        )}
-
-        <View style={{ height: 160 }} />
-      </ScrollView>
-
-      {/* Sticky footer */}
-      <View style={s.footer}>
-        <View style={s.breakdown}>
-          <View style={s.breakRow}>
-            <Text style={s.breakLabel}>{dur.label}</Text>
-            <Text style={s.breakVal}>₹{base.toLocaleString('en-IN')}</Text>
-          </View>
-          {ptAddon && !dur.isDayPass && (
-            <View style={s.breakRow}>
-              <Text style={s.breakLabel}>PT Add-on (8 sessions)</Text>
-              <Text style={s.breakVal}>₹{PT_PRICE.toLocaleString('en-IN')}</Text>
             </View>
           )}
-          <View style={s.breakRow}>
-            <Text style={s.breakLabel}>GST (18%)</Text>
-            <Text style={s.breakVal}>₹{gst.toLocaleString('en-IN')}</Text>
+
+          <View style={s.scrollEndSpacer} />
+        </ScrollView>
+
+        <View style={[s.footer, { paddingBottom: bottomInset + 14 }]}>
+          <View style={s.breakdown}>
+            <View style={s.breakRow}>
+              <Text style={s.breakLabel} numberOfLines={1}>{dur.label}</Text>
+              <Text style={s.breakVal}>{money(base)}</Text>
+            </View>
+            {ptAddon && !dur.isDayPass && (
+              <View style={s.breakRow}>
+                <Text style={s.breakLabel} numberOfLines={1}>PT Add-on ({ptDurationMonths} mo)</Text>
+                <Text style={s.breakVal}>{money(ptCost)}</Text>
+              </View>
+            )}
+            <View style={s.breakRow}>
+              <Text style={s.breakLabel}>GST (18%)</Text>
+              <Text style={s.breakVal}>{money(gst)}</Text>
+            </View>
+            <View style={[s.breakRow, s.totalRow]}>
+              <Text style={s.totalLabel}>Total</Text>
+              <Text style={s.totalVal}>{money(total)}</Text>
+            </View>
           </View>
-          <View style={[s.breakRow, s.totalRow]}>
-            <Text style={s.totalLabel}>Total</Text>
-            <Text style={s.totalVal}>₹{total.toLocaleString('en-IN')}</Text>
-          </View>
+          <TouchableOpacity style={s.btnPrimary} onPress={handleCheckout}>
+            <Text style={s.btnPrimaryText}>
+              {dur.isDayPass ? 'Buy Day Pass' : 'Proceed to Checkout'}
+            </Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={s.btnPrimary} onPress={handleCheckout}>
-          <Text style={s.btnPrimaryText}>
-            {dur.isDayPass ? 'Buy Day Pass' : 'Proceed to Checkout'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
     </AuroraBackground>
   );
 }
@@ -182,15 +289,16 @@ const s = StyleSheet.create({
   },
   headerTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff' },
   scroll: { paddingHorizontal: 20, paddingTop: 8 },
+  scrollEndSpacer: { height: 24 },
   kicker: {
     fontSize: 10, letterSpacing: 3, textTransform: 'uppercase',
     color: colors.accent, fontFamily: fonts.sansBold, marginBottom: 16,
   },
   optionCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
-    borderRadius: radius.xl, padding: 18, marginBottom: 12, overflow: 'hidden',
+    borderRadius: radius.xl, padding: 14, marginBottom: 12, overflow: 'hidden',
   },
   optionCardActive: {
     borderColor: colors.accent, backgroundColor: 'rgba(0,212,106,0.06)',
@@ -206,50 +314,69 @@ const s = StyleSheet.create({
   },
   hotBadgeText: { fontFamily: fonts.sansBold, fontSize: 10, color: '#ff6b35' },
   radio: {
-    width: 22, height: 22, borderRadius: 11,
+    width: 20, height: 20, borderRadius: 10,
     borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center', justifyContent: 'center',
   },
   radioActive: { borderColor: colors.accent },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accent },
-  optionInfo: { flex: 1 },
+  radioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.accent },
+  optionInfo: { flex: 1, minWidth: 0 },
   optionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  optionLabel: { fontFamily: fonts.sansMedium, fontSize: 15, color: colors.t },
-  optionSublabel: { fontFamily: fonts.sans, fontSize: 10, color: colors.t3 },
+  optionLabel: { flexShrink: 1, fontFamily: fonts.sansMedium, fontSize: 15, color: colors.t },
+  optionSublabel: { flexShrink: 1, fontFamily: fonts.sans, fontSize: 10, color: colors.t3 },
   optionPrice: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
   optionPricePer: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+  billingHint: { marginTop: 2, fontFamily: fonts.sans, fontSize: 10, color: colors.t3 },
   savePill: {
+    flexShrink: 0,
     backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
-    borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 4,
   },
-  savePillText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent },
+  savePillText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent },
   ptCard: {
-    flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
-    borderRadius: radius.xl, padding: 18, marginTop: 8,
+    borderRadius: radius.xl, padding: 16, marginTop: 8,
   },
-  ptLeft: { flex: 1 },
+  ptHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  ptLeft: { flex: 1, minWidth: 0 },
   ptTitle: { fontFamily: fonts.sansMedium, fontSize: 14, color: '#fff', marginBottom: 3 },
-  ptSub: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
+  ptSub: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, lineHeight: 17 },
   ptRight: { alignItems: 'flex-end', gap: 6 },
-  ptPrice: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.accent },
+  ptPrice: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
+  ptDurationBlock: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' },
+  ptDurationLabel: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.t2, marginBottom: 9, textTransform: 'uppercase', letterSpacing: 1 },
+  ptDurationChips: { flexDirection: 'row', gap: 8 },
+  ptDurationChip: {
+    flex: 1,
+    minWidth: 0,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.borderGlass,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  ptDurationChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  ptDurationChipText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.t2 },
+  ptDurationChipTextActive: { color: colors.accent },
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(6,6,6,0.95)',
+    backgroundColor: 'rgba(6,6,6,0.96)',
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
-    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 28,
+    paddingHorizontal: 20, paddingTop: 12,
   },
-  breakdown: { marginBottom: 14 },
-  breakRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  breakLabel: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
-  breakVal: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.t },
-  totalRow: { borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.09)', paddingTop: 8, marginTop: 4 },
+  breakdown: { marginBottom: 10 },
+  breakRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5, gap: 10 },
+  breakLabel: { flex: 1, minWidth: 0, fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
+  breakVal: { flexShrink: 0, fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t, textAlign: 'right' },
+  totalRow: { borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.09)', paddingTop: 8, marginTop: 3 },
   totalLabel: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff' },
   totalVal: { fontFamily: fonts.sansBold, fontSize: 18, color: colors.accent },
   btnPrimary: {
-    height: 54, borderRadius: 30, backgroundColor: colors.accent,
+    height: 52, borderRadius: 30, backgroundColor: colors.accent,
     alignItems: 'center', justifyContent: 'center',
   },
-  btnPrimaryText: { fontFamily: fonts.sansBold, fontSize: 16, color: '#060606' },
+  btnPrimaryText: { fontFamily: fonts.sansBold, fontSize: 15, color: '#060606' },
 });

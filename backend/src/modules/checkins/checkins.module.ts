@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Body, Query, Req, Injectable, UseGuards } from '@nestjs/common';
+import { Module, Controller, Get, Post, Body, Query, Req, Injectable, UseGuards, BadRequestException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
@@ -94,8 +94,6 @@ class CheckinsService {
     const planType = activeSub.planType;
     const isSameGym = planType === 'same_gym';
     const isMultiGym = planType === 'multi_gym';
-    const isDayPass = planType === 'day_pass';
-
     // Same-gym plan: user must be at their registered gym
     if (isSameGym) {
       if (!activeSub.gymIds?.includes(gymId)) {
@@ -146,8 +144,12 @@ class CheckinsService {
 class CheckinsController {
   constructor(private readonly svc: CheckinsService) {}
 
-  @Post('scan') @Roles()
+  @Post('scan') @Roles('gym_owner', 'gym_staff')
   scan(@Body() body: any, @Req() req: any) {
+    if (process.env.ALLOW_LEGACY_CHECKINS_SCAN !== 'true') {
+      throw new BadRequestException('Legacy check-in scan is disabled. Use /qr/validate with a signed QR token.');
+    }
+    if (!body.qrToken) throw new BadRequestException('qrToken is required');
     // userId can come from JWT (mobile app) or body (gym staff scanning)
     const userId = body.userId || req.user?.userId;
     return this.svc.scan(userId, body.gymId, body.qrToken);

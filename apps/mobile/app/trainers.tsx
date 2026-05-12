@@ -14,7 +14,9 @@ interface Trainer {
   id: string;
   name: string;
   specialization: string;
-  pricePerSession: number;
+  monthlyPriceInr?: number;
+  monthlyPrice?: number;
+  pricePerSession?: number;
   totalSessions?: number;
   rating?: number;
   gymId?: string;
@@ -27,7 +29,7 @@ export default function TrainersScreen() {
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Trainer | null>(null);
-  const [sessions, setSessions] = useState('1');
+  const [durationMonths, setDurationMonths] = useState('1');
   const [date, setDate] = useState('');
   const [booking, setBooking] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -36,22 +38,25 @@ export default function TrainersScreen() {
     usersApi.me().then((d: any) => setUser(d?.user || d)).catch(() => {});
     if (!gymId) { setLoading(false); return; }
     trainersApi.listByGym(gymId as string)
-      .then((d: any) => setTrainers(Array.isArray(d) ? d.filter((t: any) => t.status !== 'inactive') : []))
+      .then((d: any) => {
+        const rows = Array.isArray(d) ? d : d?.data ?? [];
+        setTrainers(rows.filter((t: any) => t.status !== 'inactive' && t.isActive !== false));
+      })
       .catch(() => setTrainers([]))
       .finally(() => setLoading(false));
   }, [gymId]);
 
   const handleBook = async () => {
     if (!selected || !user) return;
-    const sessionCount = parseInt(sessions) || 1;
-    const sessionDate = date.trim() || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const months = Math.max(1, parseInt(durationMonths) || 1);
+    const startDate = date.trim() || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     setBooking(true);
     try {
       // trainersApi.book creates booking + Cashfree order in one call
       const res: any = await trainersApi.book(selected.id, {
         userId: user.id,
-        sessions: sessionCount,
-        sessionDate,
+        durationMonths: months,
+        startDate,
         phone: user.phone || user.phoneNumber || '',
       });
       const orderId: string = res?.payment?.orderId || res?.payment?.cfOrderId || res?.booking?.cashfreeOrderId || '';
@@ -63,13 +68,13 @@ export default function TrainersScreen() {
           params: {
             orderId,
             sessionId,
-            planId: 'pt_session',
+            planId: 'pt_monthly',
             gymId: selected.gymId || (gymId as string) || '',
           },
         } as any);
       } else {
         // No payment gateway configured — booking created directly
-        Alert.alert('Booked!', `Your session with ${selected.name} has been scheduled. They will contact you shortly.`);
+        Alert.alert('Trainer Added', `Your monthly trainer plan with ${selected.name} has been requested. They will contact you shortly.`);
       }
     } catch (err: any) {
       Alert.alert('Booking Failed', err?.message || 'Please try again');
@@ -121,17 +126,17 @@ export default function TrainersScreen() {
                 {t.totalSessions ? (
                   <View style={s.metaItem}>
                     <IconClock size={12} color={colors.t2} />
-                    <Text style={s.metaText}>{t.totalSessions}+ sessions</Text>
+                    <Text style={s.metaText}>{t.totalSessions}+ members</Text>
                   </View>
                 ) : null}
-                <Text style={s.price}>₹{t.pricePerSession?.toLocaleString() || '—'}/session</Text>
+                <Text style={s.price}>Rs {Number(t.monthlyPriceInr || t.monthlyPrice || t.pricePerSession || 0).toLocaleString()}/month</Text>
               </View>
               <TouchableOpacity
                 style={s.bookBtn}
-                onPress={() => { setSelected(t); setSessions('1'); setDate(''); }}
+                onPress={() => { setSelected(t); setDurationMonths('1'); setDate(''); }}
                 activeOpacity={0.8}
               >
-                <Text style={s.bookBtnText}>Book Session</Text>
+                <Text style={s.bookBtnText}>Choose Monthly Plan</Text>
               </TouchableOpacity>
             </View>
           ))}
@@ -143,7 +148,7 @@ export default function TrainersScreen() {
         <View style={s.modalOverlay}>
           <View style={s.modalCard}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Book a Session</Text>
+              <Text style={s.modalTitle}>Start Monthly Training</Text>
               <TouchableOpacity onPress={() => setSelected(null)}>
                 <Text style={{ color: colors.t3, fontSize: 20 }}>×</Text>
               </TouchableOpacity>
@@ -153,17 +158,17 @@ export default function TrainersScreen() {
                 <Text style={s.modalTrainer}>{selected.name}</Text>
                 <Text style={s.modalSpec}>{selected.specialization || 'General Fitness'}</Text>
 
-                <Text style={s.label}>Number of Sessions</Text>
+                <Text style={s.label}>Duration in Months</Text>
                 <TextInput
                   style={s.input}
-                  value={sessions}
-                  onChangeText={setSessions}
+                  value={durationMonths}
+                  onChangeText={setDurationMonths}
                   keyboardType="number-pad"
                   placeholder="1"
                   placeholderTextColor={colors.t3}
                 />
 
-                <Text style={s.label}>Preferred Date (YYYY-MM-DD)</Text>
+                <Text style={s.label}>Preferred Start Date (YYYY-MM-DD)</Text>
                 <TextInput
                   style={s.input}
                   value={date}
@@ -175,7 +180,7 @@ export default function TrainersScreen() {
                 <View style={s.totalRow}>
                   <Text style={s.totalLabel}>Total Cost</Text>
                   <Text style={s.totalValue}>
-                    ₹{((parseInt(sessions) || 1) * (selected.pricePerSession || 0)).toLocaleString()}
+                    Rs {((parseInt(durationMonths) || 1) * Number(selected.monthlyPriceInr || selected.monthlyPrice || selected.pricePerSession || 0)).toLocaleString()}
                   </Text>
                 </View>
 

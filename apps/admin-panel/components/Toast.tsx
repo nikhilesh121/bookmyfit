@@ -2,7 +2,8 @@
 import { useState, useCallback, useEffect } from 'react';
 let toastFn: ((msg: string, type?: 'success'|'error'|'info') => void) | null = null;
 export function useToast() {
-  return { toast: (msg: string, type: 'success'|'error'|'info' = 'success') => toastFn?.(msg, type) };
+  const toast = useCallback((msg: string, type: 'success'|'error'|'info' = 'success') => toastFn?.(msg, type), []);
+  return { toast };
 }
 export function ToastProvider() {
   const [toasts, setToasts] = useState<{id:number; msg:string; type:string}[]>([]);

@@ -13,7 +13,7 @@ export interface Task {
   priority: TaskPriority;
   estimateHours: number;
   status: TaskStatus;
-  app?: 'mobile' | 'admin' | 'gym' | 'corporate' | 'backend' | 'shared';
+  app?: 'mobile' | 'admin' | 'gym' | 'corporate' | 'wellness' | 'backend' | 'shared';
 }
 
 export const PHASES: Record<TaskPhase, { name: string; weeks: string; color: string }> = {

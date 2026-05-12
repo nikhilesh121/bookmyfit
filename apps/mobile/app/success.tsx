@@ -10,14 +10,15 @@ import { IconCheck, IconCalendar, IconCreditCard } from '../components/Icons';
 import { subscriptionsApi } from '../lib/api';
 
 export default function Success() {
-  const { planName, gymName, validUntil, amountPaid, subscriptionId, orderId, planId } =
+  const { planName, gymName, validUntil, amountPaid, subscriptionId, orderId, planId, gymId } =
     useLocalSearchParams<{
       planName: string; gymName?: string; validUntil: string;
-      amountPaid: string; subscriptionId: string; orderId?: string; planId?: string;
+      amountPaid: string; subscriptionId: string; orderId?: string; planId?: string; gymId?: string;
     }>();
 
   const isStoreOrder = planId === 'store_order';
   const isPtSession = planId === 'pt_session';
+  const hasSingleGymAccess = !!gymId && planId !== 'multi_gym';
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0.4)).current;
@@ -115,8 +116,14 @@ export default function Success() {
             <Text style={s.btnPrimaryText}>Go to Home</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={s.btnPrimary} onPress={() => router.push('/qr')}>
-            <Text style={s.btnPrimaryText}>Generate Check-In QR</Text>
+          <TouchableOpacity
+            style={s.btnPrimary}
+            onPress={() => {
+              if (hasSingleGymAccess) router.replace({ pathname: '/slots', params: { gymId } } as any);
+              else router.replace('/gyms' as any);
+            }}
+          >
+            <Text style={s.btnPrimaryText}>{hasSingleGymAccess ? 'Book Your First Slot' : 'Browse Gyms'}</Text>
           </TouchableOpacity>
         )}
 

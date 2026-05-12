@@ -6,10 +6,11 @@ import { api } from '../../lib/api';
 import { useToast } from '../../components/Toast';
 
 interface Trainer {
-  _id: string;
+  id: string;
   name: string;
-  specialty: string;
-  sessionRateInr: number;
+  specialization: string;
+  specialty?: string;
+  monthlyPriceInr: number;
   bio?: string;
   status?: string;
   rating?: number;
@@ -27,7 +28,7 @@ function SkeletonRow() {
   );
 }
 
-const EMPTY_FORM = { name: '', specialty: '', sessionRateInr: '', bio: '' };
+const EMPTY_FORM = { name: '', specialization: '', monthlyPriceInr: '', bio: '' };
 
 export default function TrainersPage() {
   const { toast } = useToast();
@@ -49,8 +50,8 @@ export default function TrainersPage() {
       const gymData = await api.get<any>('/gyms/my-gym');
       const gid = gymData._id || gymData.id || '';
       setGymId(gid);
-      const data = await api.get<Trainer[]>(`/trainers?gymId=${gid}`);
-      setTrainers(Array.isArray(data) ? data : []);
+      const data = await api.get<any>(`/trainers?gymId=${gid}`);
+      setTrainers(Array.isArray(data) ? data : data?.data ?? []);
     } catch {
       setError('Failed to load trainers.');
     } finally {
@@ -63,23 +64,23 @@ export default function TrainersPage() {
   const openAdd = () => { setEditing(null); setForm({ ...EMPTY_FORM }); setShowModal(true); };
   const openEdit = (t: Trainer) => {
     setEditing(t);
-    setForm({ name: t.name, specialty: t.specialty, sessionRateInr: String(t.sessionRateInr), bio: t.bio || '' });
+    setForm({ name: t.name, specialization: t.specialization || t.specialty || '', monthlyPriceInr: String(t.monthlyPriceInr || 0), bio: t.bio || '' });
     setShowModal(true);
   };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.specialty.trim()) { toast('Name and specialty are required', 'error'); return; }
+    if (!form.name.trim() || !form.specialization.trim()) { toast('Name and specialization are required', 'error'); return; }
     setSaving(true);
     try {
       const payload = {
         name: form.name.trim(),
-        specialty: form.specialty.trim(),
-        sessionRateInr: Number(form.sessionRateInr) || 0,
+        specialization: form.specialization.trim(),
+        monthlyPriceInr: Number(form.monthlyPriceInr) || 0,
         bio: form.bio.trim(),
         gymId,
       };
       if (editing) {
-        await api.put(`/trainers/${editing._id}`, payload);
+        await api.put(`/trainers/${editing.id}`, payload);
         toast('Trainer updated', 'success');
       } else {
         await api.post('/trainers', payload);
@@ -98,7 +99,7 @@ export default function TrainersPage() {
     if (!confirmDeactivate) return;
     setDeactivating(true);
     try {
-      await api.put(`/trainers/${confirmDeactivate._id}`, { status: 'inactive' });
+      await api.put(`/trainers/${confirmDeactivate.id}`, { isActive: false });
       toast(`${confirmDeactivate.name} marked inactive`, 'info');
       setConfirmDeactivate(null);
       loadData();
@@ -110,7 +111,7 @@ export default function TrainersPage() {
   };
 
   const filtered = trainers.filter(t =>
-    !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.specialty.toLowerCase().includes(search.toLowerCase())
+    !search || t.name.toLowerCase().includes(search.toLowerCase()) || (t.specialization || t.specialty || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -143,8 +144,8 @@ export default function TrainersPage() {
         <table className="glass-table">
           <thead>
             <tr>
-              <th>Name</th><th>Specialty</th><th>Rate/Session</th>
-              <th>Sessions</th><th>Rating</th><th>Status</th><th>Actions</th>
+              <th>Name</th><th>Specialization</th><th>Monthly Price</th>
+              <th>Members</th><th>Rating</th><th>Status</th><th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -155,11 +156,11 @@ export default function TrainersPage() {
                     {search ? 'No trainers match your search' : 'No trainers yet. Click Add Trainer to get started.'}
                   </td></tr>
                 : filtered.map(t => (
-                  <tr key={t._id}>
+                  <tr key={t.id}>
                     <td style={{ fontWeight: 600, color: '#fff' }}>{t.name}</td>
-                    <td>{t.specialty}</td>
+                    <td>{t.specialization || t.specialty}</td>
                     <td style={{ color: 'var(--accent)' }}>
-                      {t.sessionRateInr ? `\u20B9${t.sessionRateInr.toLocaleString('en-IN')}/session` : '\u2014'}
+                      {t.monthlyPriceInr ? `Rs ${t.monthlyPriceInr.toLocaleString('en-IN')}/month` : '\u2014'}
                     </td>
                     <td>{t.sessionsCount ?? '\u2014'}</td>
                     <td>
@@ -201,8 +202,8 @@ export default function TrainersPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {[
                 { key: 'name', label: 'Full Name *', placeholder: 'e.g. Vikram Patel', type: 'text' },
-                { key: 'specialty', label: 'Specialty *', placeholder: 'e.g. Strength & Conditioning', type: 'text' },
-                { key: 'sessionRateInr', label: 'Rate per Session (\u20B9)', placeholder: 'e.g. 800', type: 'number' },
+                { key: 'specialization', label: 'Specialization *', placeholder: 'e.g. Strength & Conditioning', type: 'text' },
+                { key: 'monthlyPriceInr', label: 'Monthly Price (Rs)', placeholder: 'e.g. 8000', type: 'number' },
               ].map(({ key, label, placeholder, type }) => (
                 <div key={key}>
                   <label style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>{label}</label>

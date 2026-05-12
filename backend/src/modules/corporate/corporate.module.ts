@@ -1,6 +1,6 @@
 import { Module, Controller, Get, Post, Put, Body, Param, Injectable, BadRequestException, UseGuards, Query, Req } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, MoreThanOrEqual } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import { CorporateAccountEntity, CorporateEmployeeEntity } from '../../database/entities/corporate.entity';
@@ -82,7 +82,7 @@ class CorporateService {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const [totalCheckins, monthCheckins] = await Promise.all([
-      userIds.length ? this.checkins.count({ where: { userId: In(userIds), status: 'success' } }) : Promise.resolve(0),
+      userIds.length ? this.checkins.count({ where: { userId: In(userIds), status: 'success', checkinTime: MoreThanOrEqual(monthStart) } }) : Promise.resolve(0),
       userIds.length ? this.checkins.count({ where: { userId: In(userIds), status: 'success' } }) : Promise.resolve(0),
     ]);
     return {

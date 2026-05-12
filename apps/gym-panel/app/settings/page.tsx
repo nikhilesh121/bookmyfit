@@ -80,10 +80,8 @@ export default function SettingsPage() {
 
   // Pricing state
   const [dayPassPrice, setDayPassPrice] = useState('');
-  const [sameGymMonthlyPrice, setSameGymMonthlyPrice] = useState('');
   const [editingPricing, setEditingPricing] = useState(false);
   const [tempDayPassPrice, setTempDayPassPrice] = useState('');
-  const [tempSameGymMonthlyPrice, setTempSameGymMonthlyPrice] = useState('');
 
   // General Info state
   const [city, setCity] = useState('');
@@ -135,7 +133,6 @@ export default function SettingsPage() {
         setHoursSaturday(data.hoursSaturday ?? '7:00 AM - 8:00 PM');
         setHoursSunday(data.hoursSunday ?? '8:00 AM - 6:00 PM');
         setDayPassPrice(data.dayPassPrice != null ? String(data.dayPassPrice) : '');
-        setSameGymMonthlyPrice(data.sameGymMonthlyPrice != null ? String(data.sameGymMonthlyPrice) : '');
       } catch {
         try {
           const user = getUser();
@@ -233,13 +230,11 @@ export default function SettingsPage() {
 
   function startEditPricing() {
     setTempDayPassPrice(dayPassPrice);
-    setTempSameGymMonthlyPrice(sameGymMonthlyPrice);
     setEditingPricing(true);
   }
 
   function cancelPricing() {
     setDayPassPrice(tempDayPassPrice);
-    setSameGymMonthlyPrice(tempSameGymMonthlyPrice);
     setEditingPricing(false);
   }
 
@@ -248,7 +243,6 @@ export default function SettingsPage() {
       const endpoint = gymId ? `/gyms/${gymId}` : '/gyms/my-gym';
       await api.put(endpoint, {
         dayPassPrice: dayPassPrice !== '' ? Number(dayPassPrice) : null,
-        sameGymMonthlyPrice: sameGymMonthlyPrice !== '' ? Number(sameGymMonthlyPrice) : null,
       });
     } catch {
       // best-effort
@@ -445,7 +439,7 @@ export default function SettingsPage() {
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
             <Settings size={18} style={{ color: 'var(--accent)' }} />
-            <span className="serif text-lg text-white">Pricing</span>
+            <span className="serif text-lg text-white">Day Pass Pricing</span>
           </div>
           {!editingPricing ? (
             <button
@@ -465,11 +459,10 @@ export default function SettingsPage() {
           )}
         </div>
         <p className="text-xs mb-4" style={{ color: 'var(--t3)' }}>
-          Leave blank to use platform default (Rs.149 for Day Pass / Rs.999 for Same Gym Monthly)
+          Leave blank to use the platform day-pass default. Monthly, 3-month, 6-month, and yearly gym memberships are managed from Plans.
         </p>
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <SkeletonField />
             <SkeletonField />
           </div>
         ) : (
@@ -488,17 +481,10 @@ export default function SettingsPage() {
               />
             </div>
             <div>
-              <label style={labelStyle}>Same Gym Monthly Price (Rs.)</label>
-              <input
-                className="glass-input w-full"
-                type="number"
-                min="0"
-                placeholder="e.g. 999"
-                value={sameGymMonthlyPrice}
-                onChange={(e) => setSameGymMonthlyPrice(e.target.value)}
-                readOnly={!editingPricing}
-                style={!editingPricing ? { opacity: 0.7 } : {}}
-              />
+              <label style={labelStyle}>Membership Packages</label>
+              <div className="glass-input w-full" style={{ opacity: 0.75 }}>
+                Use the Plans menu for 1, 3, 6, and 12 month packages.
+              </div>
             </div>
           </div>
         )}

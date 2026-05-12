@@ -1,8 +1,14 @@
 import { Tabs } from 'expo-router';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../theme/brand';
 import { IconQR, IconUser, IconDumbbell, IconDollar, IconCheck } from '../../components/Icons';
 
 export default function GymPortalLayout() {
+  const insets = useSafeAreaInsets();
+  const tabBarBottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 30 : 10);
+  const tabBarHeight = 62 + tabBarBottomPad;
+
   return (
     <Tabs
       screenOptions={{
@@ -11,9 +17,16 @@ export default function GymPortalLayout() {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
+          height: tabBarHeight,
+          paddingTop: 8,
+          paddingBottom: tabBarBottomPad,
+          elevation: 18,
+          shadowColor: '#000',
+          shadowOpacity: 0.35,
+          shadowRadius: 12,
         },
+        tabBarItemStyle: { paddingVertical: 2 },
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.t2,
         tabBarLabelStyle: { fontFamily: fonts.sansBold, fontSize: 10 },

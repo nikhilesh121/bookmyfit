@@ -9,7 +9,8 @@ import { v4 as uuid } from 'uuid';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { AppConfigEntity } from '../../database/entities/app-config.entity';
-import { GymEntity, MultiGymNetworkEntity } from '../../database/entities/gym.entity';
+import { CouponEntity } from '../../database/entities/misc.entity';
+import { GymEntity, GymPlanEntity, MultiGymNetworkEntity } from '../../database/entities/gym.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
@@ -28,13 +29,18 @@ const DEFAULT_MULTIGYM_CONFIG = {
   },
 };
 
+const GST_RATE = 0.18;
+const PT_ADDON_MONTHLY_PRICE = 1600;
+
 @Injectable()
 class SubscriptionsService {
   constructor(
     @InjectRepository(SubscriptionEntity) private readonly repo: Repository<SubscriptionEntity>,
     @InjectRepository(UserEntity) private readonly userRepo: Repository<UserEntity>,
     @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
+    @InjectRepository(CouponEntity) private readonly couponRepo: Repository<CouponEntity>,
     @InjectRepository(GymEntity) private readonly gymRepo: Repository<GymEntity>,
+    @InjectRepository(GymPlanEntity) private readonly gymPlanRepo: Repository<GymPlanEntity>,
     @InjectRepository(MultiGymNetworkEntity) private readonly networkRepo: Repository<MultiGymNetworkEntity>,
     private readonly cashfree: CashfreeService,
   ) {}
@@ -73,20 +79,91 @@ class SubscriptionsService {
     };
   }
 
+  private activeGymPass(userId: string, gymId?: string, excludeId?: string) {
+    if (!gymId) return Promise.resolve(null);
+    const qb = this.repo.createQueryBuilder('s')
+      .select('s.id', 'id')
+      .addSelect('s."endDate"', 'endDate')
+      .addSelect('s."planType"', 'planType')
+      .where('s."userId" = :userId', { userId })
+      .andWhere('s.status = :status', { status: 'active' })
+      .andWhere('s."planType" IN (:...planTypes)', { planTypes: ['same_gym', 'day_pass'] })
+      .andWhere(':gymId = ANY(s."gymIds")', { gymId })
+      .andWhere('s."endDate" >= CURRENT_DATE');
+
+    if (excludeId) qb.andWhere('s.id != :excludeId', { excludeId });
+    return qb.getRawOne();
+  }
+
+  private duplicateGymPassMessage(existing: any) {
+    return `You already have an active pass for this gym${existing?.endDate ? ` until ${existing.endDate}` : ''}`;
+  }
+
+  private async assertNoActiveGymPass(userId: string, gymId?: string, excludeId?: string) {
+    const existing = await this.activeGymPass(userId, gymId, excludeId);
+    if (existing) throw new BadRequestException(this.duplicateGymPassMessage(existing));
+  }
+
+  private async discountForCoupon(code: string | undefined, amount: number) {
+    const couponCode = code?.trim();
+    if (!couponCode) return 0;
+
+    const coupon = await this.couponRepo.findOne({ where: { code: couponCode, isActive: true } });
+    if (!coupon) throw new BadRequestException('Invalid coupon');
+
+    const now = new Date();
+    if (now < new Date(coupon.validFrom) || now > new Date(coupon.validTo)) throw new BadRequestException('Coupon expired');
+    if (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit) throw new BadRequestException('Coupon usage limit reached');
+    if (amount < Number(coupon.minOrderValue || 0)) throw new BadRequestException(`Minimum order value is Rs ${coupon.minOrderValue}`);
+    if (coupon.applicableTo?.length && !coupon.applicableTo.includes('subscription')) throw new BadRequestException('Coupon not applicable to subscriptions');
+
+    let discount = coupon.discountType === 'percentage'
+      ? amount * (Number(coupon.discountValue) / 100)
+      : Number(coupon.discountValue);
+    if (coupon.maxDiscount) discount = Math.min(discount, Number(coupon.maxDiscount));
+    return Math.max(0, Math.min(amount, Math.round(discount)));
+  }
+
   async myActive(userId: string) {
-    const subs = await this.repo.find({ where: { userId }, order: { createdAt: 'DESC' }, take: 50 });
+    const subs = await this.repo.createQueryBuilder('s')
+      .select('s.id', 'id')
+      .addSelect('s."userId"', 'userId')
+      .addSelect('s."planType"', 'planType')
+      .addSelect('s."durationMonths"', 'durationMonths')
+      .addSelect('s."startDate"', 'startDate')
+      .addSelect('s."endDate"', 'endDate')
+      .addSelect('s.status', 'status')
+      .addSelect('s."amountPaid"', 'amountPaid')
+      .addSelect('s."gymIds"', 'gymIds')
+      .addSelect('s."razorpayOrderId"', 'razorpayOrderId')
+      .addSelect('s."createdAt"', 'createdAt')
+      .where('s."userId" = :userId', { userId })
+      .orderBy('s."createdAt"', 'DESC')
+      .limit(50)
+      .getRawMany();
     // Enrich with gym name for same_gym and day_pass
     const allGymIds = [...new Set(subs.flatMap((s: any) => s.gymIds || []).filter(Boolean))];
     const gyms = allGymIds.length > 0
-      ? await this.gymRepo.createQueryBuilder('g').whereInIds(allGymIds).getMany()
+      ? await this.gymRepo.createQueryBuilder('g')
+        .select('g.id', 'id')
+        .addSelect('g.name', 'name')
+        .where('g.id IN (:...ids)', { ids: allGymIds })
+        .getRawMany()
       : [];
-    const gymMap: Record<string, string> = Object.fromEntries(gyms.map((g) => [g.id, g.name]));
+    const gymMap: Record<string, string> = Object.fromEntries(gyms.map((g: any) => [g.id, g.name]));
     const PLAN_LABELS: Record<string, string> = { day_pass: '1-Day Pass', same_gym: 'Same Gym Pass', multi_gym: 'Multi Gym Pass' };
-    return subs.map((sub: any) => ({
-      ...sub,
-      gymName: sub.gymIds?.[0] ? (gymMap[sub.gymIds[0]] || null) : null,
-      planLabel: PLAN_LABELS[sub.planType] || sub.planType,
-    }));
+    return subs.map((sub: any) => {
+      const primaryGymId = sub.gymIds?.[0] || null;
+      const gymName = primaryGymId ? (gymMap[primaryGymId] || null) : null;
+      return {
+        ...sub,
+        primaryGymId,
+        gymId: primaryGymId,
+        gymName,
+        gym: primaryGymId ? { id: primaryGymId, name: gymName } : null,
+        planLabel: PLAN_LABELS[sub.planType] || sub.planType,
+      };
+    });
   }
 
   /**
@@ -103,13 +180,14 @@ class SubscriptionsService {
     amountOverride?: number;
     isDayPass?: boolean;
     ptAddon?: boolean;
+    ptDurationMonths?: number;
     couponCode?: string;
   }) {
     const config = await this.getMultigymConfig();
     let amount: number;
     let gymIds: string[] = [];
     let gymPlanId: string | undefined;
-    const durationMonths = dto.planType === 'day_pass' ? 0 : (dto.durationMonths || 1);
+    let durationMonths = dto.planType === 'day_pass' ? 0 : (dto.durationMonths || 1);
     const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
     if (dto.planType === 'same_gym') {
@@ -117,18 +195,53 @@ class SubscriptionsService {
       if (!uuidRe.test(dto.gymId)) throw new BadRequestException('Invalid gymId format');
       gymIds = [dto.gymId];
       gymPlanId = dto.gymPlanId;
-      amount = dto.amountOverride || 0;
+      const gym = await this.gymRepo.createQueryBuilder('g')
+        .select('g.id', 'id')
+        .addSelect('g.name', 'name')
+        .addSelect('g."sameGymMonthlyPrice"', 'sameGymMonthlyPrice')
+        .where('g.id = :id', { id: dto.gymId })
+        .getRawOne();
+      if (!gym) throw new BadRequestException('Gym not found');
+      await this.assertNoActiveGymPass(userId, dto.gymId);
+
+      if (gymPlanId) {
+        const gymPlan = await this.gymPlanRepo.findOne({ where: { id: gymPlanId, gymId: dto.gymId, isActive: true } });
+        if (!gymPlan) throw new BadRequestException('Gym plan not found');
+
+        amount = Number(gymPlan.price);
+        durationMonths = Math.max(1, Math.round((gymPlan.durationDays || 30) / 30));
+      } else {
+        amount = Number(gym.sameGymMonthlyPrice || 599) * (durationMonths || 1);
+      }
     } else if (dto.planType === 'multi_gym') {
       const price = config.multi_gym?.basePrice || 1499;
       amount = price * (durationMonths || 1);
     } else if (dto.planType === 'day_pass') {
       if (dto.gymId && uuidRe.test(dto.gymId)) gymIds = [dto.gymId];
-      const gym = (dto.gymId && uuidRe.test(dto.gymId)) ? await this.gymRepo.findOne({ where: { id: dto.gymId } }) : null;
-      const gymDayPassPrice = gym?.dayPassPrice ? Number(gym.dayPassPrice) : null;
-      amount = dto.amountOverride || gymDayPassPrice || 149;
+      if (dto.gymId && uuidRe.test(dto.gymId)) {
+        const gym = await this.gymRepo.createQueryBuilder('g')
+          .select('g.id', 'id')
+          .addSelect('g."dayPassPrice"', 'dayPassPrice')
+          .where('g.id = :id', { id: dto.gymId })
+          .getRawOne();
+        if (!gym) throw new BadRequestException('Gym not found');
+        await this.assertNoActiveGymPass(userId, dto.gymId);
+        amount = Number(gym.dayPassPrice || 149);
+      } else {
+        amount = 149;
+      }
     } else {
       throw new BadRequestException('Invalid planType. Use day_pass, same_gym, or multi_gym');
     }
+
+    if (dto.ptAddon && dto.planType !== 'day_pass') {
+      const ptMonths = Math.max(1, Math.min(durationMonths || 1, Math.round(Number(dto.ptDurationMonths) || durationMonths || 1)));
+      amount += PT_ADDON_MONTHLY_PRICE * ptMonths;
+    }
+
+    const couponDiscount = await this.discountForCoupon(dto.couponCode, amount);
+    amount = Math.max(0, amount - couponDiscount);
+    amount = Math.max(1, Math.round(amount * (1 + GST_RATE)));
 
     const startDate = new Date();
     const endDate = new Date();
@@ -161,11 +274,20 @@ class SubscriptionsService {
       customerId: userId,
       customerPhone: phone || user?.phone || '0000000000',
       customerEmail: email || user?.email,
-      notes: { kind: 'subscription', subscriptionId: sub.id, planType: dto.planType },
+      notes: {
+        kind: 'subscription',
+        subscriptionId: sub.id,
+        planType: dto.planType,
+        ptAddon: String(!!dto.ptAddon),
+        ptDurationMonths: String(dto.ptDurationMonths || 0),
+      },
     });
 
     // In dev/mock mode, auto-activate immediately
     if ((payment as any)?.mock) {
+      if ((sub.planType === 'same_gym' || sub.planType === 'day_pass') && sub.gymIds?.[0]) {
+        await this.assertNoActiveGymPass(userId, sub.gymIds[0], sub.id);
+      }
       await this.repo.update(sub.id, { status: 'active' });
       sub.status = 'active';
     }
@@ -178,6 +300,10 @@ class SubscriptionsService {
     const sub = await this.repo.findOne({ where: { id: subId, userId } });
     if (!sub) throw new NotFoundException('Subscription not found');
     if (sub.status === 'active') return { success: true, subscription: sub };
+
+    if ((sub.planType === 'same_gym' || sub.planType === 'day_pass') && sub.gymIds?.[0]) {
+      await this.assertNoActiveGymPass(userId, sub.gymIds[0], sub.id);
+    }
 
     // In dev mode, activate directly. In prod this would verify with Cashfree.
     if (process.env.NODE_ENV !== 'production' || !sub.razorpayOrderId) {
@@ -197,10 +323,23 @@ class SubscriptionsService {
 
   async list(page: any = 1, limit: any = 20, status?: string, gymId?: string) {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
-    const qb = this.repo.createQueryBuilder('s').orderBy('s.createdAt', 'DESC').skip(skip).take(take);
+    const qb = this.repo.createQueryBuilder('s')
+      .select('s.id', 'id')
+      .addSelect('s."userId"', 'userId')
+      .addSelect('s."planType"', 'planType')
+      .addSelect('s."durationMonths"', 'durationMonths')
+      .addSelect('s."startDate"', 'startDate')
+      .addSelect('s."endDate"', 'endDate')
+      .addSelect('s.status', 'status')
+      .addSelect('s."amountPaid"', 'amountPaid')
+      .addSelect('s."gymIds"', 'gymIds')
+      .addSelect('s."createdAt"', 'createdAt')
+      .orderBy('s."createdAt"', 'DESC')
+      .skip(skip)
+      .take(take);
     if (status) qb.andWhere('s.status = :status', { status });
     if (gymId) qb.andWhere(':gymId = ANY(s."gymIds")', { gymId });
-    const [data, total] = await qb.getManyAndCount();
+    const [data, total] = await Promise.all([qb.getRawMany(), qb.getCount()]);
     return paginatedResponse(data, total, p, l);
   }
 
@@ -216,6 +355,9 @@ class SubscriptionsService {
     const sub = await this.repo.findOne({ where: { id: subscriptionId, userId } });
     if (!sub) throw new BadRequestException('Subscription not found');
     if (sub.status !== 'frozen') throw new BadRequestException('Subscription is not frozen');
+    if ((sub.planType === 'same_gym' || sub.planType === 'day_pass') && sub.gymIds?.[0]) {
+      await this.assertNoActiveGymPass(userId, sub.gymIds[0], sub.id);
+    }
     const newEnd = new Date(sub.endDate);
     newEnd.setDate(newEnd.getDate() + 30);
     await this.repo.update(subscriptionId, {
@@ -244,7 +386,7 @@ class SubscriptionsService {
   }
 
   async generateInvoice(id: string, userId: string) {
-    const sub = await this.repo.findOne({ where: { id } });
+    const sub = await this.repo.findOne({ where: { id, userId } });
     if (!sub) throw new NotFoundException('Subscription not found');
     if (!sub.invoiceNumber) {
       const d = new Date();
@@ -396,7 +538,7 @@ class SubscriptionsController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SubscriptionEntity, UserEntity, AppConfigEntity, GymEntity, MultiGymNetworkEntity]), PaymentsModule],
+  imports: [TypeOrmModule.forFeature([SubscriptionEntity, UserEntity, AppConfigEntity, CouponEntity, GymEntity, GymPlanEntity, MultiGymNetworkEntity]), PaymentsModule],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsService],
   exports: [SubscriptionsService],

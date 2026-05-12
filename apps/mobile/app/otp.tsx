@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconCheck } from '../components/Icons';
 import AuroraBackground from '../components/AuroraBackground';
-import { authApi, setUser } from '../lib/api';
+import { authApi, setTokens, setUser } from '../lib/api';
 
 // Expo Router can return string | string[] — always coerce to string
 function str(v: string | string[] | undefined): string {
@@ -39,8 +38,7 @@ export default function OtpScreen() {
       if (!data?.accessToken) throw new Error('Login failed — no token returned. Please try again.');
 
       // Store tokens
-      await SecureStore.setItemAsync('bmf_token', data.accessToken);
-      if (data.refreshToken) await SecureStore.setItemAsync('bmf_refresh', data.refreshToken);
+      await setTokens(data.accessToken, data.refreshToken || '');
 
       // Store user object
       const user = data.user ?? { phone, name: isExistingUser ? (userNameParam || 'Member') : (name.trim() || 'User'), role: 'end_user' };

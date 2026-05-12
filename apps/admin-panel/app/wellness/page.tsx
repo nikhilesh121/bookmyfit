@@ -156,10 +156,15 @@ export default function WellnessPage() {
     }
     setShowPartnerForm(false); setEditingPartner(null);
   };
-  const deletePartner = (id: string) => {
-    setPartners(ps => ps.filter(p => p.id !== id));
-    setServices(ss => ss.filter(s => s.partnerId !== id));
-    flash('Spa centre deleted');
+  const deletePartner = async (id: string) => {
+    try {
+      await api.del(`/wellness/partners/${id}`);
+      setPartners(ps => ps.filter(p => p.id !== id));
+      setServices(ss => ss.filter(s => s.partnerId !== id));
+      flash('Spa centre deleted');
+    } catch {
+      flash('Delete failed. Please retry after checking your login session.', 'error');
+    }
   };
 
   // Service CRUD
@@ -208,8 +213,27 @@ export default function WellnessPage() {
     }
     setShowSvcForm(false); setEditingSvc(null);
   };
-  const toggleService = (id: string) => setServices(ss => ss.map(s => s.id === id ? { ...s, isActive: !s.isActive } : s));
-  const deleteService = (id: string) => { setServices(ss => ss.filter(s => s.id !== id)); flash('Service deleted'); };
+  const toggleService = async (id: string) => {
+    const svc = services.find(s => s.id === id);
+    if (!svc) return;
+    const nextActive = !svc.isActive;
+    try {
+      await api.put(`/wellness/services/${id}`, { isActive: nextActive });
+      setServices(ss => ss.map(s => s.id === id ? { ...s, isActive: nextActive } : s));
+      flash(nextActive ? 'Service activated' : 'Service deactivated');
+    } catch {
+      flash('Status update failed. Please retry after checking your login session.', 'error');
+    }
+  };
+  const deleteService = async (id: string) => {
+    try {
+      await api.del(`/wellness/services/${id}`);
+      setServices(ss => ss.filter(s => s.id !== id));
+      flash('Service deleted');
+    } catch {
+      flash('Delete failed. Please retry after checking your login session.', 'error');
+    }
+  };
 
   const catColor: Record<string, string> = { Massage: '#3DFF54', Cupping: '#9B5DE5', Physio: '#00AFFF', Spa: '#FFD93D', Nutrition: '#FF9F1C', Recovery: '#FF6B6B', Other: '#aaa' };
   const statusColor: Record<string, string> = { active: '#3DFF54', pending: '#FFD93D', inactive: '#ff6b6b' };
@@ -371,7 +395,7 @@ export default function WellnessPage() {
             ))}
             {partners.length === 0 && (
               <div style={{ ...card, textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontFamily: 'DM Sans, sans-serif' }}>
-                No spa centres yet. Click "Add Spa Centre" to get started.
+                No spa centres yet. Click &quot;Add Spa Centre&quot; to get started.
               </div>
             )}
           </div>
@@ -459,6 +483,7 @@ export default function WellnessPage() {
               return (
                 <div key={svc.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16, opacity: svc.isActive ? 1 : 0.5 }}>
                   {svc.imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={svc.imageUrl} alt={svc.name} style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
                   )}
                   <div style={{ flex: 1, minWidth: 0 }}>

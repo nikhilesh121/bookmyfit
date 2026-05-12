@@ -27,7 +27,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     } else {
       setChecked(true);
     }
-  }, [pathname]);
+  }, [pathname, router]);
 
   if (!checked) {
     return (

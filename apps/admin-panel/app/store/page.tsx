@@ -80,13 +80,13 @@ export default function StorePage() {
     } catch { setOrders([]); }
   }, [orderPage, orderLimit]);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     await Promise.all([loadProducts(), loadOrders()]);
     setLoading(false);
-  };
+  }, [loadProducts, loadOrders]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
   useEffect(() => { loadProducts(); }, [loadProducts]);
   useEffect(() => { loadOrders(); }, [loadOrders]);
 

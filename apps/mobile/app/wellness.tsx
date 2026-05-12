@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet,
-  Image, FlatList, Dimensions, ActivityIndicator,
+  Image, FlatList, Dimensions, ActivityIndicator, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import {
   IconArrowLeft, IconStar, IconPin, IconHeart, IconChevronRight,
-  IconShield, IconCheck, IconBuilding, IconHeadphones, IconSearch, IconBolt,
+  IconShield, IconCheck, IconBuilding, IconHeadphones, IconBolt,
 } from '../components/Icons';
 import { API_BASE as API } from '../lib/api';
 
@@ -136,14 +136,16 @@ export default function WellnessScreen() {
   ];
 
   const displayServices: ApiService[] = services.length > 0 ? services : STATIC_SERVICES;
+  const filteredServices = displayServices;
 
-  const filteredPartners = activeFilter === 'all'
+  const partnersByType = activeFilter === 'all'
     ? displayPartners
     : displayPartners.filter(p => {
         const type = (p.serviceType || '').toLowerCase();
         if (activeFilter === 'home') return type === 'home' || type.includes('home');
         return type !== 'home' && !type.includes('home');
       });
+  const filteredPartners = partnersByType;
 
   // Partner tags based on service type
   const getPartnerTags = (partner: ApiPartner) => {
@@ -155,7 +157,7 @@ export default function WellnessScreen() {
   };
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={s.root} edges={['left', 'right', 'bottom']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
 
         {/* Header */}
@@ -167,11 +169,7 @@ export default function WellnessScreen() {
             <Text style={s.headerTitle}>Spa & Recovery</Text>
             <Text style={s.headerSubtitle}>Relax. Rejuvenate. Refresh.</Text>
           </View>
-          <View style={s.headerRight}>
-            <TouchableOpacity style={s.headerIcon}>
-              <IconSearch size={18} color="#fff" />
-            </TouchableOpacity>
-          </View>
+          <View style={s.headerRight} />
         </View>
 
         {/* Hero Slider */}
@@ -212,7 +210,7 @@ export default function WellnessScreen() {
         <Text style={s.sectionTitle}>Choose Your Service Type</Text>
         <View style={s.serviceTypeRow}>
           {/* Spa Centre */}
-          <TouchableOpacity style={s.serviceTypeCard} activeOpacity={0.85}>
+          <TouchableOpacity style={s.serviceTypeCard} activeOpacity={0.85} onPress={() => router.push('/spa-centres' as any)}>
             <View style={[s.serviceTypeIconBox, { backgroundColor: 'rgba(0,212,106,0.08)' }]}>
               <IconBuilding size={24} color={colors.accent} />
             </View>
@@ -224,7 +222,7 @@ export default function WellnessScreen() {
           </TouchableOpacity>
 
           {/* Home Service */}
-          <TouchableOpacity style={[s.serviceTypeCard, s.serviceTypeCardPurple]} activeOpacity={0.85}>
+          <TouchableOpacity style={[s.serviceTypeCard, s.serviceTypeCardPurple]} activeOpacity={0.85} onPress={() => router.push('/home-services' as any)}>
             <View style={[s.serviceTypeIconBox, { backgroundColor: 'rgba(155,0,255,0.12)' }]}>
               <IconShield size={24} color={colors.tierPremium} />
             </View>
@@ -239,18 +237,38 @@ export default function WellnessScreen() {
         {/* Popular Spa Services */}
         <View style={s.sectionHeader}>
           <Text style={s.sectionTitle}>Popular Spa Services</Text>
-          <TouchableOpacity><Text style={s.seeAll}>See all</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/spa-centres' as any)}><Text style={s.seeAll}>See all</Text></TouchableOpacity>
         </View>
         <FlatList
-          data={displayServices}
+          data={filteredServices}
           horizontal
           showsHorizontalScrollIndicator={false}
           keyExtractor={item => item.id}
           contentContainerStyle={s.servicesScroll}
           renderItem={({ item: svc }) => {
             const imgUri = svc.imageUrl || STATIC_SERVICES.find(s => s.name === svc.name)?.imageUrl || STATIC_SERVICES[0].imageUrl;
+            const fallbackPartner = filteredPartners[0] || displayPartners[0];
             return (
-              <TouchableOpacity style={s.svcCard} activeOpacity={0.85}>
+              <TouchableOpacity
+                style={s.svcCard}
+                activeOpacity={0.85}
+                onPress={() => {
+                  if (svc.partnerId) {
+                    router.push({
+                      pathname: '/wellness/book-service',
+                      params: {
+                        serviceId: svc.id,
+                        partnerId: svc.partnerId,
+                        serviceName: svc.name,
+                        price: String(svc.price),
+                        duration: String(svc.durationMinutes),
+                      },
+                    } as any);
+                  } else if (fallbackPartner?.id) {
+                    router.push(`/wellness/${fallbackPartner.id}` as any);
+                  }
+                }}
+              >
                 <Image source={{ uri: imgUri }} style={s.svcImage} />
                 <View style={s.svcInfo}>
                   <Text style={s.svcName} numberOfLines={1}>{svc.name}</Text>
@@ -279,13 +297,18 @@ export default function WellnessScreen() {
         {/* Top Spa Centres */}
         <View style={s.sectionHeader}>
           <Text style={s.sectionTitle}>Top Spa Centres Near You</Text>
-          <TouchableOpacity><Text style={s.seeAll}>See all</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/spa-centres' as any)}><Text style={s.seeAll}>See all</Text></TouchableOpacity>
         </View>
 
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 20 }} />
         ) : (
-          filteredPartners.map((partner, idx) => {
+          filteredPartners.length === 0 ? (
+            <View style={s.emptyState}>
+              <Text style={s.emptyTitle}>No wellness services found</Text>
+              <Text style={s.emptyText}>No providers are available for this filter right now.</Text>
+            </View>
+          ) : filteredPartners.map((partner, idx) => {
             const minPrice = getMinPrice(partner.id);
             const imgUri = getPartnerImage(partner, idx);
             const liked = likedIds.has(partner.id);
@@ -389,10 +412,10 @@ export default function WellnessScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1, backgroundColor: colors.bg, paddingTop: Platform.OS === 'android' ? 24 : 0 },
   content: { paddingBottom: 32 },
 
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 2, paddingBottom: 8 },
   back: {
     width: 38, height: 38, borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
@@ -401,12 +424,7 @@ const s = StyleSheet.create({
   headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
   headerSubtitle: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 1 },
-  headerRight: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  headerIcon: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center', justifyContent: 'center',
-  },
+  headerRight: { width: 38 },
   cartBadge: {
     position: 'absolute', top: 5, right: 5,
     minWidth: 16, height: 16, borderRadius: 8,
@@ -417,9 +435,9 @@ const s = StyleSheet.create({
   cartBadgeText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#fff' },
 
   // Hero
-  heroContainer: { width: W, height: 220, marginBottom: 24 },
-  heroSlide: { width: W, height: 220, overflow: 'hidden' },
-  heroImage: { width: W, height: 220, resizeMode: 'cover' },
+  heroContainer: { width: W, height: 212, marginBottom: 22 },
+  heroSlide: { width: W, height: 212, overflow: 'hidden' },
+  heroImage: { width: W, height: 212, resizeMode: 'cover' },
   heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.52)' },
   heroContent: { position: 'absolute', bottom: 24, left: 20, right: 20 },
   heroKicker: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
@@ -473,6 +491,13 @@ const s = StyleSheet.create({
   svcInfo: { padding: 8 },
   svcName: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff', marginBottom: 3 },
   svcMeta: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+  emptyState: {
+    marginHorizontal: 16, marginBottom: 16, padding: 18, alignItems: 'center',
+    borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+  },
+  emptyTitle: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', marginBottom: 4 },
+  emptyText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, textAlign: 'center' },
 
   // Partner cards
   partnerCard: {

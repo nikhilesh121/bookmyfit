@@ -13,6 +13,8 @@ type DaySchedule = {
   isOpen: boolean;
   openTime: string;
   closeTime: string;
+  breakStartTime?: string | null;
+  breakEndTime?: string | null;
 };
 
 const defaultDay = (i: number): DaySchedule => ({
@@ -21,6 +23,8 @@ const defaultDay = (i: number): DaySchedule => ({
   isOpen: i < 6,
   openTime: '06:00',
   closeTime: '22:00',
+  breakStartTime: null,
+  breakEndTime: null,
 });
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
@@ -159,14 +163,23 @@ export default function SchedulePage() {
                       <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>→</span>
                       <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', minWidth: 44 }}>Closes</span>
                       <TimeInput value={day.closeTime} onChange={(v) => update(i, { closeTime: v })} />
+                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>Break</span>
+                      <TimeInput value={day.breakStartTime || ''} onChange={(v) => update(i, { breakStartTime: v || null })} />
+                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>to</span>
+                      <TimeInput value={day.breakEndTime || ''} onChange={(v) => update(i, { breakEndTime: v || null })} />
 
                       {/* Hours indicator */}
                       <span style={{ fontSize: 12, color: 'var(--accent)', marginLeft: 8, fontWeight: 600 }}>
                         {(() => {
                           const [oh, om] = day.openTime.split(':').map(Number);
                           const [ch, cm] = day.closeTime.split(':').map(Number);
-                          const hrs = ((ch * 60 + cm) - (oh * 60 + om)) / 60;
-                          return hrs > 0 ? `${hrs}h open` : '';
+                          let mins = (ch * 60 + cm) - (oh * 60 + om);
+                          if (day.breakStartTime && day.breakEndTime) {
+                            const [bh, bm] = day.breakStartTime.split(':').map(Number);
+                            const [eh, em] = day.breakEndTime.split(':').map(Number);
+                            mins -= (eh * 60 + em) - (bh * 60 + bm);
+                          }
+                          return mins > 0 ? `${Math.round((mins / 60) * 10) / 10}h bookable` : '';
                         })()}
                       </span>
                     </div>
@@ -208,7 +221,7 @@ export default function SchedulePage() {
         </div>
 
         <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 12 }}>
-          Gym Workout slots will be auto-generated every hour within your opening hours for the next 30 days.
+          Gym Workout slots are auto-generated within opening hours and skip the configured break time.
         </p>
       </div>
 

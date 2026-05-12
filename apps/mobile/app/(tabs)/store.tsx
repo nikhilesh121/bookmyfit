@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, ImageBackground, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, StyleSheet, ImageBackground, ActivityIndicator, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
@@ -34,6 +34,7 @@ export default function Store() {
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [cartCount, setCartCount] = useState(getCartCount());
+  const [search, setSearch] = useState('');
 
   // Refresh badge when returning from cart
   useFocusEffect(useCallback(() => { setCartCount(getCartCount()); }, []));
@@ -60,6 +61,21 @@ export default function Store() {
     setCartCount(getCartCount());
   };
 
+  const searchTerm = search.trim().toLowerCase();
+  const visibleProducts = searchTerm
+    ? products.filter((p: any) => {
+      const text = [
+        p.name,
+        p.productName,
+        p.brand,
+        p.brandName,
+        p.category,
+        p.description,
+      ].filter(Boolean).join(' ').toLowerCase();
+      return text.includes(searchTerm);
+    })
+    : products;
+
   return (
     <AuroraBackground>
     <SafeAreaView style={{ flex: 1 }}>
@@ -77,8 +93,26 @@ export default function Store() {
           </TouchableOpacity>
         </View>
 
+        {/* Search */}
+        <View style={s.searchBox}>
+          <IconTag size={15} color={colors.t2} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search protein, gloves, bands..."
+            placeholderTextColor={colors.t3}
+            style={s.searchInput}
+            returnKeyType="search"
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')} style={s.clearSearchBtn}>
+              <Text style={s.clearSearchText}>Clear</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         {/* Category pills */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }} contentContainerStyle={{ gap: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} decelerationRate="fast" style={{ marginBottom: 16 }} contentContainerStyle={{ gap: 8, paddingRight: 4 }}>
           {CATS.map((c) => (
             <TouchableOpacity key={c} style={[s.pill, activeCat === c && s.pillActive]} onPress={() => setActiveCat(c)}>
               <Text style={[s.pillText, activeCat === c && s.pillTextActive]}>{c}</Text>
@@ -90,15 +124,15 @@ export default function Store() {
           <View style={{ paddingTop: 40, alignItems: 'center' }}>
             <ActivityIndicator color={colors.accent} size="large" />
           </View>
-        ) : products.length === 0 ? (
+        ) : visibleProducts.length === 0 ? (
           <View style={s.emptyState}>
             <IconTag size={40} color={colors.accent} />
             <Text style={s.emptyTitle}>No products found</Text>
-            <Text style={s.emptyBody}>Check back later for {activeCat} products</Text>
+            <Text style={s.emptyBody}>{searchTerm ? 'Try another search term or category' : `Check back later for ${activeCat} products`}</Text>
           </View>
         ) : (
           <View style={s.grid}>
-            {products.map((p: any, idx: number) => {
+            {visibleProducts.map((p: any, idx: number) => {
               const name = p.name || p.productName || 'Product';
               const brand = p.brand || p.brandName || '';
               const price = p.price || p.mrp || 0;
@@ -133,7 +167,7 @@ export default function Store() {
 
 const s = StyleSheet.create({
   scroll: { flex: 1 },
-  container: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 40 },
+  container: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 132 },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   title: { fontFamily: fonts.serif, fontSize: 26, color: '#fff', letterSpacing: -0.5 },
   cartWrap: { position: 'relative', width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
@@ -142,6 +176,33 @@ const s = StyleSheet.create({
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
   },
   cartBadgeText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#000' },
+  searchBox: {
+    minHeight: 48,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: 44,
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    color: '#fff',
+    paddingVertical: 0,
+  },
+  clearSearchBtn: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceStrong,
+  },
+  clearSearchText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent },
   pill: {
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
@@ -149,10 +210,10 @@ const s = StyleSheet.create({
   pillActive: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
   pillText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.t2 },
   pillTextActive: { color: colors.accent },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
   card: {
-    width: '48%', borderRadius: radius.xl, overflow: 'hidden',
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginBottom: 2,
+    width: '48.3%', borderRadius: radius.xl, overflow: 'hidden',
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
   },
   cardImg: { height: 120, position: 'relative' },
   cardAurora: { ...StyleSheet.absoluteFillObject, opacity: 0.6 },

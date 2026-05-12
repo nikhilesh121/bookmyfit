@@ -43,7 +43,7 @@ export default function CorporateEmployeesPage() {
     } catch (e: any) {
       toast(e.message || 'Failed to load employees', 'error');
     } finally { setLoading(false); }
-  }, [id, page, limit]);
+  }, [id, page, limit, toast]);
 
   useEffect(() => { loadCorp(); }, [loadCorp]);
   useEffect(() => { load(); }, [load]);

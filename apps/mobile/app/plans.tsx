@@ -1,8 +1,11 @@
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert, Dimensions, Image } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Dimensions, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconCheck, IconBolt, IconDumbbell, IconStar, IconPercent, IconShield, IconHeadphones, IconChevronRight, IconCalendar, IconPin, IconCreditCard, IconArrowRight } from '../components/Icons';
+import { subscriptionsApi, gymsApi, gymPlansApi } from '../lib/api';
+import { getActiveSubscriptionAccess, normalizeSubscriptionList } from '../lib/subscriptionAccess';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -58,7 +61,7 @@ const PLANS = [
     bg: 'rgba(167,139,250,0.06)',
     border: 'rgba(167,139,250,0.25)',
     img: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&q=80',
-    cta: 'Browse Gyms',
+    cta: 'Continue',
     badge: '🔥 Most Popular',
     features: [
       'Access to 100+ gyms',
@@ -76,33 +79,177 @@ const HOW_STEPS = [
   { num: '4', label: 'Start Workout' },
 ];
 
+type PlanCard = typeof PLANS[number] & { priceNumber?: number };
+
+function positiveNumber(value: any): number | null {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
+function formatPrice(value: number) {
+  return `₹${Math.round(value).toLocaleString('en-IN')}`;
+}
+
+function formatDateLabel(value: any) {
+  if (!value) return '';
+  const date = new Date(String(value));
+  if (!Number.isFinite(date.getTime())) return '';
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function planMonths(plan: any) {
+  return Math.max(1, Math.round(Number(plan?.durationDays || plan?.days || 30) / 30));
+}
+
+function minMonthlyPriceFromGymPlans(plans: any[]) {
+  const monthlyPrices = plans
+    .filter((plan) => plan?.isActive !== false)
+    .map((plan) => {
+      const price = positiveNumber(plan?.price || plan?.basePrice);
+      return price ? price / planMonths(plan) : null;
+    })
+    .filter((price): price is number => !!price);
+
+  return monthlyPrices.length ? Math.min(...monthlyPrices) : null;
+}
+
 export default function PlansScreen() {
   const { gymId, gymName } = useLocalSearchParams<{ gymId?: string; gymName?: string }>();
+  const [serverPlans, setServerPlans] = useState<any>(null);
+  const [selectedGym, setSelectedGym] = useState<any>(null);
+  const [gymPlans, setGymPlans] = useState<any[]>([]);
+  const [activeGymSubIds, setActiveGymSubIds] = useState<Set<string>>(new Set());
+  const [activeGymSubMap, setActiveGymSubMap] = useState<Map<string, any>>(new Map());
+  const [hasMultiGymSub, setHasMultiGymSub] = useState(false);
 
-  const handleSelect = (plan: typeof PLANS[0]) => {
-    if ((plan.id === 'same_gym' || plan.id === 'day_pass') && !gymId) {
-      Alert.alert(
-        'Select a Gym First',
-        `To purchase a ${plan.name}, please browse gyms and select one first.`,
-        [
-          { text: 'Browse Gyms', onPress: () => router.push('/(tabs)/explore' as any) },
-          { text: 'Cancel', style: 'cancel' },
-        ]
-      );
+  useEffect(() => {
+    let active = true;
+    subscriptionsApi.plans()
+      .then((data: any) => { if (active) setServerPlans(data || null); })
+      .catch(() => { if (active) setServerPlans(null); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!gymId) {
+      setSelectedGym(null);
+      setGymPlans([]);
+      return () => { active = false; };
+    }
+
+    Promise.all([
+      gymsApi.getById(gymId).catch(() => null),
+      gymPlansApi.forGym(gymId).catch(() => []),
+    ]).then(([gymRes, planRes]: any[]) => {
+      if (!active) return;
+      setSelectedGym(gymRes?.gym || gymRes || null);
+      setGymPlans(Array.isArray(planRes) ? planRes : planRes?.plans || []);
+    });
+
+    return () => { active = false; };
+  }, [gymId]);
+
+  useEffect(() => {
+    subscriptionsApi.mySubscriptions()
+      .then((data: any) => {
+        const state = getActiveSubscriptionAccess(normalizeSubscriptionList(data));
+        setActiveGymSubIds(state.gymIds);
+        setActiveGymSubMap(state.byGymId);
+        setHasMultiGymSub(state.hasMultiGym);
+      })
+      .catch(() => {
+        setActiveGymSubIds(new Set());
+        setActiveGymSubMap(new Map());
+        setHasMultiGymSub(false);
+      });
+  }, []);
+
+  const hasSelectedGymAccess = !!gymId && (activeGymSubIds.has(String(gymId)) || hasMultiGymSub);
+  const activeSelectedGymSub = gymId ? activeGymSubMap.get(String(gymId)) : null;
+  const selectedGymDisplayName = gymName || selectedGym?.name || 'this gym';
+  const activeUntil = formatDateLabel(activeSelectedGymSub?.endDate || activeSelectedGymSub?.validUntil);
+
+  const displayPlans: PlanCard[] = useMemo(() => {
+    const dayPrice = positiveNumber(selectedGym?.dayPassPrice)
+      || positiveNumber(serverPlans?.day_pass?.basePrice)
+      || 149;
+    const sameMonthly = minMonthlyPriceFromGymPlans(gymPlans)
+      || positiveNumber(selectedGym?.sameGymMonthlyPrice)
+      || positiveNumber(serverPlans?.same_gym?.basePrice)
+      || 599;
+    const multiMonthly = positiveNumber(serverPlans?.multi_gym?.basePrice) || 1499;
+
+    return PLANS.map((plan) => {
+      if (plan.id === 'day_pass') {
+        return {
+          ...plan,
+          price: formatPrice(dayPrice),
+          priceUnit: '/ day',
+          priceNumber: dayPrice,
+          features: serverPlans?.day_pass?.features || plan.features,
+        };
+      }
+
+      if (plan.id === 'same_gym') {
+        return {
+          ...plan,
+          price: formatPrice(sameMonthly),
+          priceUnit: '/ month',
+          priceNumber: sameMonthly,
+          features: serverPlans?.same_gym?.features || plan.features,
+        };
+      }
+
+      return {
+        ...plan,
+        price: formatPrice(multiMonthly),
+        priceUnit: '/ month',
+        priceNumber: multiMonthly,
+        features: serverPlans?.multi_gym?.features || plan.features,
+      };
+    });
+  }, [gymPlans, selectedGym, serverPlans]);
+
+  const handleSelect = (plan: PlanCard) => {
+    if (hasSelectedGymAccess && (plan.id === 'same_gym' || plan.id === 'day_pass')) {
+      router.push({ pathname: '/slots', params: { gymId } } as any);
       return;
     }
+    if ((plan.id === 'same_gym' || plan.id === 'day_pass') && !gymId) {
+      router.push('/gyms' as any);
+      return;
+    }
+    const selectedGymName = gymName || selectedGym?.name || '';
+    const sameGymPlanPayload = plan.id === 'same_gym'
+      ? gymPlans
+        .filter((gymPlan) => gymPlan?.isActive !== false && positiveNumber(gymPlan?.price || gymPlan?.basePrice))
+        .map((gymPlan) => ({
+          id: gymPlan.id,
+          name: gymPlan.name,
+          price: gymPlan.price || gymPlan.basePrice,
+          durationDays: gymPlan.durationDays || gymPlan.days || 30,
+          features: gymPlan.features || [],
+        }))
+      : [];
     router.push({
       pathname: '/duration',
       params: {
         planId: plan.id,
         planName: plan.name,
         gymId: gymId || '',
-        gymName: gymName || '',
-        basePrice: plan.price.replace(/[₹,]/g, ''),
+        gymName: selectedGymName,
+        basePrice: String(plan.priceNumber || Number(plan.price.replace(/[^\d.]/g, '')) || 999),
         isDayPass: plan.id === 'day_pass' ? 'true' : 'false',
+        gymPlansJson: sameGymPlanPayload.length ? JSON.stringify(sameGymPlanPayload) : '',
       },
     });
   };
+
+  const ctaLabel = (plan: PlanCard) =>
+    hasSelectedGymAccess && (plan.id === 'same_gym' || plan.id === 'day_pass')
+      ? 'Book Slot'
+      : (plan.id === 'same_gym' || plan.id === 'day_pass') && !gymId ? 'Select Gym' : plan.cta;
 
   return (
     <SafeAreaView style={s.root}>
@@ -139,7 +286,18 @@ export default function PlansScreen() {
         ) : null}
 
         {/* Plan cards — vertical stacked */}
-        {PLANS.map((plan) => (
+        {hasSelectedGymAccess ? (
+          <View style={s.activePassNotice}>
+            <IconCheck size={14} color={colors.accent} />
+            <Text style={s.activePassNoticeText}>
+              {hasMultiGymSub
+                ? `Your multi-gym pass is active for ${selectedGymDisplayName}.`
+                : `You already have an active pass at ${selectedGymDisplayName}${activeUntil ? ` until ${activeUntil}` : ''}.`}
+            </Text>
+          </View>
+        ) : null}
+
+        {displayPlans.map((plan) => (
           <View key={plan.id} style={[s.card, { borderColor: plan.border }]}>
             {/* Card header */}
             <View style={[s.cardHeader, { backgroundColor: plan.bg }]}>
@@ -186,12 +344,26 @@ export default function PlansScreen() {
               </View>
             </View>
             <TouchableOpacity
-              style={[s.ctaBtn, { backgroundColor: plan.accent }]}
+              style={[
+                s.ctaBtn,
+                { backgroundColor: plan.accent },
+                hasSelectedGymAccess && (plan.id === 'same_gym' || plan.id === 'day_pass') && s.ctaBtnSubscribed,
+              ]}
               onPress={() => handleSelect(plan)}
               activeOpacity={0.85}
             >
-              <Text style={s.ctaBtnText}>{plan.cta}</Text>
-              <IconChevronRight size={16} color="#060606" />
+              <Text
+                style={[
+                  s.ctaBtnText,
+                  hasSelectedGymAccess && (plan.id === 'same_gym' || plan.id === 'day_pass') && s.ctaBtnTextSubscribed,
+                ]}
+              >
+                {ctaLabel(plan)}
+              </Text>
+              <IconChevronRight
+                size={16}
+                color={hasSelectedGymAccess && (plan.id === 'same_gym' || plan.id === 'day_pass') ? colors.accent : '#060606'}
+              />
             </TouchableOpacity>
           </View>
         ))}
@@ -274,6 +446,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 6,
   },
   gymChipText: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.accent },
+  activePassNotice: {
+    marginHorizontal: 20, marginBottom: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: 'rgba(0,212,106,0.08)',
+    borderWidth: 1, borderColor: 'rgba(0,212,106,0.22)',
+    borderRadius: radius.lg, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  activePassNoticeText: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t, lineHeight: 17 },
 
   // Plan card
   card: {
@@ -325,7 +505,13 @@ const s = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 16, marginTop: 12,
     borderRadius: 12, paddingVertical: 14,
   },
+  ctaBtnSubscribed: {
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+  },
   ctaBtnText: { fontFamily: fonts.sansBold, fontSize: 16, color: '#060606' },
+  ctaBtnTextSubscribed: { color: colors.accent },
 
   // How it works
   howTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff', paddingHorizontal: 20, marginTop: 8, marginBottom: 16 },

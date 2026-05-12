@@ -4,12 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AuroraBackground from '../components/AuroraBackground';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
-import { IconArrowLeft, IconQR, IconRefresh, IconFileText, IconCalendar, IconDumbbell, IconBolt } from '../components/Icons';
+import { IconArrowLeft, IconRefresh, IconFileText, IconCalendar, IconDumbbell, IconBolt } from '../components/Icons';
 import { subscriptionsApi } from '../lib/api';
+import { subscriptionPlanType } from '../lib/subscriptionAccess';
 
 function calcProgress(startDate: string, endDate: string) {
-  const start = new Date(startDate).getTime();
-  const end = new Date(endDate).getTime();
+  const start = dateMs(startDate, false);
+  const end = dateMs(endDate, true);
   const now = Date.now();
   if (now >= end) return 1;
   if (now <= start) return 0;
@@ -17,11 +18,18 @@ function calcProgress(startDate: string, endDate: string) {
 }
 
 function daysLeft(endDate: string) {
-  const diff = new Date(endDate).getTime() - Date.now();
+  const diff = dateMs(endDate, true) - Date.now();
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
   if (days <= 0) return 'Expired';
   if (days === 1) return 'Last day';
   return `${days} days left`;
+}
+
+function dateMs(value: string, endOfDay: boolean) {
+  const suffix = endOfDay ? 'T23:59:59.999' : 'T00:00:00.000';
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}${suffix}`) : new Date(value);
+  const ms = date.getTime();
+  return Number.isFinite(ms) ? ms : Date.now();
 }
 
 export default function SubscriptionDetail() {
@@ -112,6 +120,10 @@ export default function SubscriptionDetail() {
   const startFmt = sub2.startDate ? new Date(sub2.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
   const endFmt = sub2.endDate ? new Date(sub2.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
   const subId = sub2.id || sub2._id;
+  const planType = subscriptionPlanType(sub2);
+  const gymIds = Array.isArray(sub2.gymIds) ? sub2.gymIds : [];
+  const actionGymId = sub2.gym?.id || sub2.gymId || fallbackGymId || gymIds[0] || '';
+  const shouldBrowseGyms = planType === 'multi_gym' || !actionGymId;
 
   return (
     <AuroraBackground variant="premium">
@@ -180,10 +192,13 @@ export default function SubscriptionDetail() {
         {isActive && (
           <TouchableOpacity
             style={s.actionBtn}
-            onPress={() => router.push({ pathname: '/qr', params: { subId: subId } } as any)}
+            onPress={() => {
+              if (shouldBrowseGyms) router.push('/gyms' as any);
+              else router.push({ pathname: '/slots', params: { gymId: actionGymId } } as any);
+            }}
           >
-            <IconQR size={16} color="#000" />
-            <Text style={s.actionBtnText}>Generate QR Code</Text>
+            <IconCalendar size={16} color="#000" />
+            <Text style={s.actionBtnText}>{shouldBrowseGyms ? 'Browse Gyms' : 'Book a Slot'}</Text>
           </TouchableOpacity>
         )}
 

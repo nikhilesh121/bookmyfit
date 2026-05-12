@@ -1,9 +1,9 @@
-import { Module, Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Injectable, UseGuards, Req, NotFoundException } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Injectable, UseGuards, Req, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
-import { IsString, IsDateString, IsOptional, IsPhoneNumber } from 'class-validator';
+import { IsString, IsDateString, IsOptional } from 'class-validator';
 import { WellnessPartnerEntity, WellnessServiceEntity, WellnessBookingEntity } from '../../database/entities/wellness.entity';
 import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
@@ -34,10 +34,24 @@ class WellnessService {
     return paginatedResponse(data, total, p, l);
   }
   createPartner(data: Partial<WellnessPartnerEntity>) { return this.partners.save(this.partners.create(data)); }
+  async getPartner(id: string) {
+    const partner = await this.partners.findOne({ where: { id } });
+    if (!partner) throw new NotFoundException('Wellness partner not found');
+    return partner;
+  }
   updatePartner(id: string, data: Partial<WellnessPartnerEntity>) { return this.partners.save({ id, ...data }); }
+  async deletePartner(id: string) {
+    await this.partners.update(id, { status: 'inactive' } as any);
+    await this.services.update({ partnerId: id } as any, { isActive: false } as any);
+    return { success: true };
+  }
   listServicesOf(partnerId: string) { return this.services.find({ where: { partnerId, isActive: true } }); }
   createService(data: Partial<WellnessServiceEntity>) { return this.services.save(this.services.create(data)); }
   updateService(id: string, data: Partial<WellnessServiceEntity>) { return this.services.save({ id, ...data }); }
+  async deleteService(id: string) {
+    await this.services.update(id, { isActive: false } as any);
+    return { success: true };
+  }
 
   async listAllServices(filter: { category?: string } = {}) {
     const qb = this.services.createQueryBuilder('s')
@@ -222,6 +236,12 @@ class WellnessService {
 class WellnessController {
   constructor(private readonly svc: WellnessService) {}
 
+  private async assertPartnerAccess(partnerId: string, req: any) {
+    if (req.user?.role !== 'wellness_partner') return;
+    const partner = await this.svc.getPartner(partnerId);
+    if (partner.ownerId !== req.user.userId) throw new ForbiddenException('Cannot access another wellness partner');
+  }
+
   @Get('partners')
   partners(
     @Query('city') city?: string,
@@ -232,15 +252,29 @@ class WellnessController {
     return this.svc.listPartnersWithMinPrice({ city, serviceType: type }, +page, +limit);
   }
 
+  @Get('partners/:id')
+  getPartner(@Param('id') id: string) { return this.svc.getPartner(id); }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   @Post('partners')
   createPartner(@Body() b: any) { return this.svc.createPartner(b); }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('super_admin')
+  @Roles('super_admin', 'wellness_partner')
   @Put('partners/:id')
-  updatePartner(@Param('id') id: string, @Body() b: any) { return this.svc.updatePartner(id, b); }
+  async updatePartner(@Param('id') id: string, @Body() b: any, @Req() req: any) {
+    if (req.user.role === 'wellness_partner') {
+      const partner = await this.svc.getPartner(id);
+      if (partner.ownerId !== req.user.userId) throw new ForbiddenException('Cannot update another wellness partner');
+    }
+    return this.svc.updatePartner(id, b);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Delete('partners/:id')
+  deletePartner(@Param('id') id: string) { return this.svc.deletePartner(id); }
 
   @Get('services/all')
   allServices(@Query('category') cat?: string) {
@@ -251,14 +285,19 @@ class WellnessController {
   services(@Param('id') id: string) { return this.svc.listServicesOf(id); }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('super_admin', 'wellness_partner')
+  @Roles('super_admin')
   @Post('services')
   createService(@Body() b: any) { return this.svc.createService(b); }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('super_admin', 'wellness_partner')
+  @Roles('super_admin')
   @Put('services/:id')
   updateService(@Param('id') id: string, @Body() b: any) { return this.svc.updateService(id, b); }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Delete('services/:id')
+  deleteService(@Param('id') id: string) { return this.svc.deleteService(id); }
 
   @UseGuards(JwtAuthGuard)
   @Post('services/:id/book')
@@ -289,49 +328,56 @@ class WellnessController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'wellness_partner')
   @Get(':partnerId/bookings')
-  partnerBookings(@Param('partnerId') partnerId: string) {
+  async partnerBookings(@Param('partnerId') partnerId: string, @Req() req: any) {
+    await this.assertPartnerAccess(partnerId, req);
     return this.svc.partnerBookings(partnerId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'wellness_partner')
   @Patch(':partnerId/bookings/:id')
-  updateBooking(@Param('partnerId') partnerId: string, @Param('id') id: string, @Body() body: any) {
+  async updateBooking(@Param('partnerId') partnerId: string, @Param('id') id: string, @Body() body: any, @Req() req: any) {
+    await this.assertPartnerAccess(partnerId, req);
     return this.svc.updateBookingStatus(partnerId, id, body.status);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'wellness_partner')
   @Get(':partnerId/services')
-  partnerServices(@Param('partnerId') partnerId: string) {
+  async partnerServices(@Param('partnerId') partnerId: string, @Req() req: any) {
+    await this.assertPartnerAccess(partnerId, req);
     return this.svc.partnerServices(partnerId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'wellness_partner')
   @Post(':partnerId/services')
-  createPartnerService(@Param('partnerId') partnerId: string, @Body() body: any) {
+  async createPartnerService(@Param('partnerId') partnerId: string, @Body() body: any, @Req() req: any) {
+    await this.assertPartnerAccess(partnerId, req);
     return this.svc.createPartnerService(partnerId, body);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'wellness_partner')
   @Put(':partnerId/services/:id')
-  updatePartnerService(@Param('partnerId') partnerId: string, @Param('id') id: string, @Body() body: any) {
+  async updatePartnerService(@Param('partnerId') partnerId: string, @Param('id') id: string, @Body() body: any, @Req() req: any) {
+    await this.assertPartnerAccess(partnerId, req);
     return this.svc.updatePartnerService(partnerId, id, body);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'wellness_partner')
   @Delete(':partnerId/services/:id')
-  deletePartnerService(@Param('partnerId') partnerId: string, @Param('id') id: string) {
+  async deletePartnerService(@Param('partnerId') partnerId: string, @Param('id') id: string, @Req() req: any) {
+    await this.assertPartnerAccess(partnerId, req);
     return this.svc.deletePartnerService(partnerId, id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin', 'wellness_partner')
   @Get(':partnerId/earnings')
-  partnerEarnings(@Param('partnerId') partnerId: string) {
+  async partnerEarnings(@Param('partnerId') partnerId: string, @Req() req: any) {
+    await this.assertPartnerAccess(partnerId, req);
     return this.svc.partnerEarnings(partnerId);
   }
 }

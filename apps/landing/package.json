@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 5004",
-    "build": "next build",
-    "start": "next start -p 5004",
+    "dev": "node ../../scripts/next-react18.js dev -p 5004",
+    "build": "node ../../scripts/next-react18.js build",
+    "start": "node ../../scripts/next-react18.js start -p 5004",
     "lint": "next lint"
   },
   "dependencies": {

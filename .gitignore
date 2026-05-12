@@ -10,6 +10,7 @@ build/
 .env.*.local
 .DS_Store
 coverage/
+artifacts/
 *.tsbuildinfo
 backend/dist/
 # Expo generated native folders (regenerated via expo prebuild)

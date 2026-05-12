@@ -37,7 +37,7 @@ export default function AnalyticsPage() {
       .then((d: any) => setSummary(d ?? EMPTY_SUMMARY))
       .catch(() => { toast('Failed to load analytics', 'error'); setSummary(EMPTY_SUMMARY); })
       .finally(() => setLoading(false));
-  }, []);
+  }, [toast]);
 
   const revenue = summary.totalRevenue ?? summary.revenue ?? 0;
   const subscribers = summary.activeSubscribers ?? 0;

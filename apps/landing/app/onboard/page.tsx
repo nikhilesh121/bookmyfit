@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
-const GYM_PANEL   = process.env.NEXT_PUBLIC_GYM_PANEL_URL   || 'http://localhost:3005';
+const GYM_PANEL   = process.env.NEXT_PUBLIC_GYM_PANEL_URL   || 'http://localhost:3001';
 const CORP_PANEL  = process.env.NEXT_PUBLIC_CORP_PANEL_URL  || 'http://localhost:3002';
 
 type Tab = 'gym' | 'corporate';

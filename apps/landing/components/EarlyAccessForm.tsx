@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.bookmyfit.in';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
 
 export default function EarlyAccessForm() {
   const [email, setEmail] = useState('');

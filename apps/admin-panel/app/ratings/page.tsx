@@ -182,7 +182,7 @@ export default function RatingsPage() {
                   </div>
                   {r.review && (
                     <p style={{ fontSize: 13, color: 'var(--t)', lineHeight: 1.6, marginBottom: 12 }}>
-                      "{r.review}"
+                      &quot;{r.review}&quot;
                     </p>
                   )}
                   <div className="flex items-center gap-4" style={{ fontSize: 11, color: 'var(--t3)' }}>

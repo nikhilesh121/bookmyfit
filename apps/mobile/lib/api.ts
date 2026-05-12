@@ -1,38 +1,78 @@
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
-export const API_BASE = 'https://bookmyfit.in';
-// To use local backend during development, comment the line above and uncomment below:
-// export const API_BASE = 'http://192.168.1.4:3003';
+const configuredApiBase =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (Constants.expoConfig?.extra as any)?.apiUrl ||
+  'http://localhost:3003';
+
+export const API_BASE = String(configuredApiBase).replace(/\/+$/, '');
+
+const webFallback = new Map<string, string>();
+
+export const appStorage = {
+  async getItem(key: string) {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return window.localStorage.getItem(key);
+      }
+      return webFallback.get(key) ?? null;
+    }
+    return SecureStore.getItemAsync(key);
+  },
+  async setItem(key: string, value: string) {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(key, value);
+        return;
+      }
+      webFallback.set(key, value);
+      return;
+    }
+    await SecureStore.setItemAsync(key, value);
+  },
+  async deleteItem(key: string) {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(key);
+      }
+      webFallback.delete(key);
+      return;
+    }
+    await SecureStore.deleteItemAsync(key);
+  },
+};
 
 // ── Token helpers ───────────────────────────────────────────
-export const getToken = () => SecureStore.getItemAsync('bmf_token');
-export const getRefreshToken = () => SecureStore.getItemAsync('bmf_refresh');
+export const getToken = () => appStorage.getItem('bmf_token');
+export const getRefreshToken = () => appStorage.getItem('bmf_refresh');
 export const setTokens = (access: string, refresh: string) =>
   Promise.all([
-    SecureStore.setItemAsync('bmf_token', access),
-    SecureStore.setItemAsync('bmf_refresh', refresh),
+    appStorage.setItem('bmf_token', access),
+    appStorage.setItem('bmf_refresh', refresh),
   ]);
 export const clearTokens = () =>
   Promise.all([
-    SecureStore.deleteItemAsync('bmf_token'),
-    SecureStore.deleteItemAsync('bmf_refresh'),
+    appStorage.deleteItem('bmf_token'),
+    appStorage.deleteItem('bmf_refresh'),
   ]);
 export const setUser = (user: any) =>
-  SecureStore.setItemAsync('bmf_user', JSON.stringify(user));
+  appStorage.setItem('bmf_user', JSON.stringify(user));
 export const getUser = async () => {
-  const s = await SecureStore.getItemAsync('bmf_user');
+  const s = await appStorage.getItem('bmf_user');
   return s ? JSON.parse(s) : null;
 };
 export const logout = async () => {
   await clearTokens();
-  await SecureStore.deleteItemAsync('bmf_user');
+  await appStorage.deleteItem('bmf_user');
   router.replace('/login');
 };
 
 // ── Core fetch ──────────────────────────────────────────────
 async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = await getToken();
+  const token = path.startsWith('/auth/') ? null : await getToken();
   const res = await fetch(`${API_BASE}/api/v1${path}`, {
     ...init,
     headers: {
@@ -112,18 +152,20 @@ export const subscriptionsApi = {
     amountOverride?: number;
     isDayPass?: boolean;
     ptAddon?: boolean;
+    ptDurationMonths?: number;
     couponCode?: string;
   }) => api.post('/subscriptions/purchase', body),
   /** Legacy alias used in order.tsx - maps planId to planType */
-  createOrder: (body: { planId: string; gymId?: string; durationMonths: number; couponCode?: string; ptAddon?: boolean; totalAmount?: number; isDayPass?: boolean }) => {
+  createOrder: (body: { planId: string; gymId?: string; gymPlanId?: string; durationMonths: number; couponCode?: string; ptAddon?: boolean; ptDurationMonths?: number; totalAmount?: number; isDayPass?: boolean }) => {
     const planType = body.planId === 'multi_gym' ? 'multi_gym' : body.planId === 'day_pass' ? 'day_pass' : 'same_gym';
     return api.post('/subscriptions/purchase', {
       planType,
       gymId: (planType === 'same_gym' || planType === 'day_pass') ? body.gymId : undefined,
+      gymPlanId: planType === 'same_gym' ? body.gymPlanId : undefined,
       durationMonths: body.isDayPass || planType === 'day_pass' ? 0 : body.durationMonths,
-      amountOverride: planType === 'same_gym' || planType === 'day_pass' ? body.totalAmount : undefined,
       couponCode: body.couponCode,
       ptAddon: body.ptAddon,
+      ptDurationMonths: body.ptDurationMonths,
     });
   },
   /** @deprecated — do not call /payments/webhook from mobile; it is a server-to-server Cashfree webhook */
@@ -189,7 +231,7 @@ export const couponsApi = {
 export const trainersApi = {
   listByGym: (gymId: string) => api.get(`/trainers?gymId=${gymId}`),
   get: (id: string) => api.get(`/trainers/${id}`),
-  book: (trainerId: string, body: { userId: string; sessions: number; sessionDate: string; phone: string }) =>
+  book: (trainerId: string, body: { userId: string; durationMonths: number; startDate: string; phone: string }) =>
     api.post(`/trainers/${trainerId}/book`, body),
 };
 

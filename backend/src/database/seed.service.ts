@@ -40,11 +40,23 @@ export class SeedService implements OnApplicationBootstrap {
       { email: 'admin@bookmyfit.in', phone: '9000000001', name: 'Super Admin', role: 'super_admin' as const, password: 'admin123' },
       { email: 'gym@bookmyfit.in', phone: '9000000002', name: 'Gym Owner', role: 'gym_owner' as const, password: 'gym123' },
       { email: 'staff@bookmyfit.in', phone: '9000000003', name: 'Gym Staff', role: 'gym_staff' as const, password: 'staff123' },
-      { email: 'hr@techcorp.in', phone: '9000000004', name: 'HR Admin', role: 'corporate_admin' as const, password: 'hr123' },
+      { email: 'hr@techcorp.in', phone: '9000000004', name: 'HR Admin', role: 'corporate_admin' as const, password: 'hr1234' },
     ];
     for (const u of seeds) {
       const existing = await this.users.findOne({ where: { email: u.email } });
-      if (existing) continue;
+      if (existing) {
+        if (u.email === 'hr@techcorp.in') {
+          const hasExpectedPassword = existing.passwordHash
+            ? await bcrypt.compare(u.password, existing.passwordHash)
+            : false;
+          if (!hasExpectedPassword) {
+            existing.passwordHash = await bcrypt.hash(u.password, 10);
+            await this.users.save(existing);
+            this.log.log(`Updated seeded corporate login: ${u.email} / ${u.password}`);
+          }
+        }
+        continue;
+      }
       await this.users.save(this.users.create({
         email: u.email, phone: u.phone, name: u.name, role: u.role,
         passwordHash: await bcrypt.hash(u.password, 10),

@@ -284,7 +284,7 @@ async function seed() {
   await client.end();
   console.log('\n🎉 All seed data inserted successfully!');
   console.log('\n═══════════════ CORPORATE LOGINS ═══════════════');
-  console.log('TechCorp India  : hr@techcorp.in     / hr123');
+  console.log('TechCorp India  : hr@techcorp.in     / hr1234');
   console.log('Infosys Ltd     : hr@infosys.com     / infosys123');
   console.log('Wipro Tech      : hr@wipro.com       / wipro123');
   console.log('TCS India       : hr@tcs.com         / tcs123');

@@ -267,7 +267,7 @@ const s = StyleSheet.create({
   },
   errorText: { fontFamily: fonts.sans, fontSize: 12, color: colors.error },
 
-  listContent: { paddingHorizontal: spacing.xl, paddingBottom: 40 },
+  listContent: { paddingHorizontal: spacing.xl, paddingBottom: 132 },
   emptyContainer: { flex: 1 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: spacing.sm },
   emptyTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.t },

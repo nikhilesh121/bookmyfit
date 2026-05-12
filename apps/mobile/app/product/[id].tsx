@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Image, Animated, Dimensions, Share, ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fonts, radius } from '../../theme/brand';
@@ -88,6 +88,8 @@ function extractBullets(product: any): string[] {
 }
 
 export default function ProductDetail() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 34);
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [product, setProduct] = useState<any>(null);
@@ -282,12 +284,12 @@ export default function ProductDetail() {
             </View>
 
             {/* Spacer for buttons */}
-            <View style={{ height: 120 }} />
+            <View style={{ height: 120 + bottomInset }} />
           </Animated.View>
         </ScrollView>
 
         {/* Sticky bottom actions */}
-        <View style={s.stickyBar}>
+        <View style={[s.stickyBar, { paddingBottom: bottomInset + 14 }]}>
           <TouchableOpacity
             style={[s.addCartBtn, addedState === 'added' && s.addCartBtnAdded]}
             onPress={() => handleAddToCart(false)}
@@ -433,7 +435,7 @@ const s = StyleSheet.create({
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: 'rgba(6,6,6,0.92)',
     borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.10)',
-    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28,
+    paddingHorizontal: 20, paddingTop: 12,
     flexDirection: 'row', gap: 10,
   },
   addCartBtn: {

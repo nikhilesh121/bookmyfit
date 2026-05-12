@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconArrowLeft, IconCheck, IconClock } from '../../components/Icons';
-import { gymStaffApi } from '../../lib/api';
+import { api, gymStaffApi } from '../../lib/api';
 
 interface KycStep {
   id: string;
@@ -14,12 +14,12 @@ interface KycStep {
 }
 
 const DEFAULT_STEPS: KycStep[] = [
-  { id: 'business', title: 'Business Registration', description: 'GST, MSME or company registration doc', status: 'verified' },
-  { id: 'identity', title: 'Owner Identity Proof', description: 'Aadhaar or PAN card uploaded', status: 'verified' },
-  { id: 'photos', title: 'Gym Photos', description: 'Interior, equipment, and signage', status: 'approved' },
-  { id: 'bank', title: 'Bank Account Details', description: 'IFSC, account number verified', status: 'verified' },
-  { id: 'address', title: 'Address Verification', description: 'Utility bill or NOC from landlord', status: 'in_review' },
-  { id: 'equipment', title: 'Equipment Safety Cert.', description: 'ISO or BIS certification for equipment', status: 'pending' },
+  { id: 'business_registration', title: 'Business Registration', description: 'Legal registration details and document URL', status: 'pending' },
+  { id: 'gst_certificate', title: 'GST Certificate', description: 'GST number and certificate URL', status: 'pending' },
+  { id: 'identity_document', title: 'Owner Identity Proof', description: 'Owner ID details and document URL', status: 'pending' },
+  { id: 'bank_details', title: 'Bank Account Details', description: 'Account, IFSC, bank name, and proof URL', status: 'pending' },
+  { id: 'gym_photos', title: 'Gym Photos', description: 'Exterior, interior, and equipment photos', status: 'pending' },
+  { id: 'trainer_certs', title: 'Trainer Certificates', description: 'Trainer certificate details and URL', status: 'pending' },
 ];
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -52,10 +52,15 @@ export default function KycTracker() {
 
   useEffect(() => {
     gymStaffApi.myGym()
-      .then((gym: any) => {
-        if (gym?.kycSteps && Array.isArray(gym.kycSteps)) {
-          setSteps(gym.kycSteps);
-        }
+      .then(async (gym: any) => {
+        const data: any = gym?.id ? await api.get(`/gyms/${gym.id}/kyc`) : null;
+        const docs = data?.kycDocuments || [];
+        setSteps(DEFAULT_STEPS.map((step) => {
+          const doc = docs.find((d: any) => d.type === step.id);
+          return doc
+            ? { ...step, status: (doc.status || data.kycStatus || 'in_review') as KycStep['status'], description: doc.name || step.description }
+            : step;
+        }));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -146,7 +151,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: { fontFamily: fonts.serif, fontSize: 20, color: '#fff' },
-  scroll: { paddingHorizontal: 20, paddingTop: 4 },
+  scroll: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 132 },
   progressCard: {
     backgroundColor: 'rgba(0,212,106,0.06)',
     borderWidth: 1, borderColor: 'rgba(0,212,106,0.18)',

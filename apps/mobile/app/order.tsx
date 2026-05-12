@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, Alert, ActivityIndicator, ImageBackground,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconCheck, IconLock, IconTag } from '../components/Icons';
@@ -11,20 +11,32 @@ import { subscriptionsApi, couponsApi } from '../lib/api';
 
 const GST_RATE = 0.18;
 
+function formatDateLabel(value: any) {
+  if (!value) return '';
+  const date = new Date(String(value));
+  if (!Number.isFinite(date.getTime())) return '';
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 export default function Order() {
-  const { planId, planName, gymId, durationMonths, totalAmount, ptAddon, maxGyms, isDayPass: isDayPassParam } =
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 34);
+  const { planId, planName, gymId, gymName, durationMonths, totalAmount, ptAddon, ptDurationMonths, maxGyms, isDayPass: isDayPassParam, gymPlanId } =
     useLocalSearchParams<{
-      planId: string; planName: string; gymId?: string;
-      durationMonths: string; totalAmount: string; ptAddon?: string; maxGyms?: string; isDayPass?: string;
+      planId: string; planName: string; gymId?: string; gymName?: string;
+      durationMonths: string; totalAmount: string; ptAddon?: string; ptDurationMonths?: string; maxGyms?: string; isDayPass?: string; gymPlanId?: string;
     }>();
 
   const hasPt = ptAddon === 'true';
   const isDayPassRoute = isDayPassParam === 'true' || planId === 'day_pass';
   const months = Number(durationMonths) || 1;
+  const ptMonths = Math.max(1, Number(ptDurationMonths) || 1);
+  const ptTotal = hasPt ? 1600 * ptMonths : 0;
   const total = Number(totalAmount) || 0;
   const gst = Math.round(total / (1 + GST_RATE) * GST_RATE);
-  const planBase = total - gst - (hasPt ? 1600 : 0);
+  const planBase = total - gst - ptTotal;
   const isMultigym = planId === 'multi_gym';
+  const selectedGymName = gymName || (isMultigym ? 'Any gym on BookMyFit' : 'Selected Gym');
 
   const [coupon, setCoupon] = useState('');
   const [discount, setDiscount] = useState(0);
@@ -48,20 +60,12 @@ export default function Order() {
     if (!coupon.trim()) return;
     try {
       const result: any = await couponsApi.validate(coupon, planBase, planId || 'subscription');
-      const discountPct = result?.discountPercent || result?.discount || 0;
-      const d = Math.round(planBase * (discountPct / 100));
+      const d = Math.min(planBase, Math.round(Number(result?.discount || 0)));
       setDiscount(d);
       setCouponApplied(true);
-      Alert.alert('Coupon Applied!', `${discountPct}% discount added.`);
+      Alert.alert('Coupon Applied!', `Rs ${d.toLocaleString('en-IN')} discount added.`);
     } catch {
-      if (coupon.toUpperCase() === 'BMF20') {
-        const d = Math.round(planBase * 0.20);
-        setDiscount(d);
-        setCouponApplied(true);
-        Alert.alert('Coupon Applied!', '20% discount added.');
-      } else {
-        Alert.alert('Invalid Coupon', 'This code is not valid or has expired.');
-      }
+      Alert.alert('Invalid Coupon', 'This code is not valid or has expired.');
     }
   };
 
@@ -73,8 +77,10 @@ export default function Order() {
       const result: any = await subscriptionsApi.createOrder({
         planId: planId || '',
         gymId: isMultigym ? undefined : (gymId || undefined),
+        gymPlanId: planId === 'same_gym' && gymPlanId ? String(gymPlanId) : undefined,
         durationMonths: months,
         ptAddon: hasPt,
+        ptDurationMonths: hasPt ? ptMonths : 0,
         couponCode: couponApplied ? coupon : undefined,
         totalAmount: finalTotal,
         isDayPass: isDayPassRoute,
@@ -90,25 +96,37 @@ export default function Order() {
       if (sessionId && orderId && !paymentInfo?.mock) {
         router.push({
           pathname: '/payment-webview',
-          params: { orderId, sessionId, planId: planId || '', gymId: gymId || '', subId: subId || '' },
+          params: { orderId, sessionId, planId: planId || '', gymId: gymId || '', gymName: selectedGymName, subId: subId || '' },
         });
       } else {
         // Dev mode or mock payment — subscription already activated by backend
+        const validUntil = formatDateLabel(subRecord?.endDate)
+          || new Date(Date.now() + Math.max(months, 1) * 30 * 24 * 3600 * 1000)
+            .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
         router.replace({
           pathname: '/success',
           params: {
             orderId: orderId || 'N/A',
             planName: planName || 'Standard Plan',
-            gymName: isMultigym ? 'Any gym on BookMyFit' : (gymId ? 'Selected Gym' : 'Multi-gym Access'),
-            validUntil: new Date(Date.now() + Math.max(months, 1) * 30 * 24 * 3600 * 1000)
-              .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-            amountPaid: String(finalTotal),
+            gymName: selectedGymName,
+            validUntil,
+            amountPaid: String(subRecord?.amountPaid ?? finalTotal),
             subscriptionId: subId || 'NEW',
+            planId: planId || '',
+            gymId: gymId || '',
           },
         });
       }
     } catch (err: any) {
-      Alert.alert('Payment Failed', err?.message || 'Unable to create order. Please try again.');
+      const msg = err?.message || 'Unable to create order. Please try again.';
+      if (/active pass|already have/i.test(msg)) {
+        Alert.alert('Already Subscribed', msg, [
+          ...(gymId ? [{ text: 'Book Slot', onPress: () => router.replace({ pathname: '/slots', params: { gymId } } as any) }] : []),
+          { text: 'OK', style: 'cancel' },
+        ]);
+      } else {
+        Alert.alert('Payment Failed', msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -125,7 +143,7 @@ export default function Order() {
         <View style={{ width: 38 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.scroll, { paddingBottom: 130 + bottomInset }]}>
         {/* Plan card */}
         <ImageBackground
           source={{ uri: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=70' }}
@@ -140,7 +158,7 @@ export default function Order() {
             </View>
             <Text style={s.planName}>{planName || 'Standard Plan'}</Text>
             <Text style={s.planGym}>
-              {isMultigym ? 'Any gym in our network · No restrictions' : (gymId ? 'Your selected gym' : 'Gym Access')}
+              {isMultigym ? 'Any gym in our network - no restrictions' : (gymId ? selectedGymName : 'Gym Access')}
             </Text>
           </View>
         </ImageBackground>
@@ -165,8 +183,8 @@ export default function Order() {
           </View>
           {hasPt && (
             <View style={s.row}>
-              <Text style={s.rowLabel}>PT Add-on (8 sessions)</Text>
-              <Text style={s.rowVal}>₹1,600</Text>
+              <Text style={s.rowLabel}>PT Add-on ({ptMonths} mo)</Text>
+              <Text style={s.rowVal}>Rs {ptTotal.toLocaleString('en-IN')}</Text>
             </View>
           )}
           <View style={s.row}>
@@ -221,7 +239,7 @@ export default function Order() {
       </ScrollView>
 
       {/* Footer */}
-      <View style={s.footer}>
+      <View style={[s.footer, { paddingBottom: bottomInset + 14 }]}>
         <TouchableOpacity style={s.payBtn} onPress={handlePay} disabled={loading}>
           {loading
             ? <ActivityIndicator color="#060606" />
@@ -307,7 +325,7 @@ const s = StyleSheet.create({
   checkBox: { width: 22, height: 22 },
   checkBoxActive: {},
   footer: {
-    paddingHorizontal: 20, paddingBottom: 28, paddingTop: 14,
+    paddingHorizontal: 20, paddingTop: 14,
     borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
     backgroundColor: 'rgba(6,6,6,0.95)',
   },

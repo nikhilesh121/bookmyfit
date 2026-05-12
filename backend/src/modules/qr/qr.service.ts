@@ -8,11 +8,17 @@ import { CheckinEntity } from '../../database/entities/checkin.entity';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
 import { FraudAlertEntity } from '../../database/entities/misc.entity';
+import { BookingQrEntity } from '../../database/entities/booking-qr.entity';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 
 const QR_EXPIRY_SECONDS = 30;
 const VELOCITY_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const VELOCITY_THRESHOLD = 3;
+
+function isPastDateOnly(endDate: string | Date) {
+  const iso = endDate instanceof Date ? endDate.toISOString().slice(0, 10) : String(endDate).slice(0, 10);
+  return iso < new Date().toISOString().slice(0, 10);
+}
 
 @Injectable()
 export class QrService {
@@ -22,6 +28,7 @@ export class QrService {
     @InjectRepository(SubscriptionEntity) private readonly subs: Repository<SubscriptionEntity>,
     @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
     @InjectRepository(FraudAlertEntity) private readonly fraudAlerts: Repository<FraudAlertEntity>,
+    @InjectRepository(BookingQrEntity) private readonly bookingQrs: Repository<BookingQrEntity>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
@@ -30,7 +37,7 @@ export class QrService {
     const sub = await this.subs.findOne({ where: { id: subscriptionId, userId } });
     if (!sub) throw new BadRequestException('Subscription not found');
     if (sub.status !== 'active') throw new BadRequestException('Subscription is not active');
-    if (new Date(sub.endDate) < new Date()) throw new BadRequestException('Subscription has expired');
+    if (isPastDateOnly(sub.endDate)) throw new BadRequestException('Subscription has expired');
 
     const jti = uuidv4();
     const payload = {
@@ -55,12 +62,41 @@ export class QrService {
     }
 
     const { sub: userId, sid: subscriptionId, jti } = payload;
+    const isBookingQr = payload.type === 'booking' || !!payload.bid;
 
     // 2. Idempotency: has this JTI been used?
     const alreadyUsed = await this.redis.exists(`qr:used:${jti}`);
     if (alreadyUsed) {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'Duplicate QR');
       throw new ConflictException('QR already used');
+    }
+
+    let bookingQr: BookingQrEntity | null = null;
+    if (isBookingQr) {
+      if (payload.gym !== gymId) {
+        await this.logFailure(qrToken, gymId, 'failed_invalid', 'QR booked for another gym');
+        throw new UnauthorizedException('This booking QR is for another gym');
+      }
+
+      bookingQr = await this.bookingQrs.findOne({ where: { qrToken } });
+      if (
+        !bookingQr ||
+        bookingQr.userId !== userId ||
+        bookingQr.subscriptionId !== subscriptionId ||
+        bookingQr.gymId !== gymId ||
+        (payload.bid && bookingQr.slotBookingId !== payload.bid)
+      ) {
+        await this.logFailure(qrToken, gymId, 'failed_invalid', 'Booking QR record mismatch');
+        throw new UnauthorizedException('Booking QR is invalid');
+      }
+      if (bookingQr.usedAt) {
+        await this.logFailure(qrToken, gymId, 'failed_invalid', 'Booking QR already used');
+        throw new ConflictException('QR already used');
+      }
+      if (new Date(bookingQr.expiresAt) <= new Date()) {
+        await this.logFailure(qrToken, gymId, 'failed_expired', 'Booking QR expired');
+        throw new UnauthorizedException('QR code expired or invalid');
+      }
     }
 
     // 3. Daily lock: has user already checked in today?
@@ -74,14 +110,19 @@ export class QrService {
 
     // 4. Validate subscription + plan allows this gym
     const sub = await this.subs.findOne({ where: { id: subscriptionId } });
-    if (!sub || sub.status !== 'active' || new Date(sub.endDate) < new Date()) {
+    if (!sub || sub.userId !== userId || sub.status !== 'active' || isPastDateOnly(sub.endDate)) {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'No active subscription');
       throw new UnauthorizedException('Subscription not active');
     }
 
-    if (sub.planType === 'same_gym' && !sub.gymIds?.includes(gymId)) {
+    const coveredGyms = sub.gymIds || [];
+    if (sub.planType === 'same_gym' && !coveredGyms.includes(gymId)) {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'Gym not in plan');
       throw new UnauthorizedException('This plan does not cover this gym');
+    }
+    if (sub.planType === 'day_pass' && coveredGyms.length > 0 && !coveredGyms.includes(gymId)) {
+      await this.logFailure(qrToken, gymId, 'failed_invalid', 'Day pass is for a different gym');
+      throw new UnauthorizedException('This day pass does not cover this gym');
     }
 
     const gym = await this.gyms.findOne({ where: { id: gymId } });
@@ -91,8 +132,19 @@ export class QrService {
     }
 
     // 5. Mark used + daily lock
-    await this.redis.set(`qr:used:${jti}`, '1', 'EX', 60);
+    const ttl = payload.exp ? Math.max(60, payload.exp - Math.floor(Date.now() / 1000)) : 60;
+    await this.redis.set(`qr:used:${jti}`, '1', 'EX', ttl);
     await this.redis.set(dailyKey, gymId, 'EX', 24 * 60 * 60);
+    if (bookingQr) {
+      const update = await this.bookingQrs
+        .createQueryBuilder()
+        .update(BookingQrEntity)
+        .set({ usedAt: new Date() })
+        .where('id = :id', { id: bookingQr.id })
+        .andWhere('"usedAt" IS NULL')
+        .execute();
+      if (!update.affected) throw new ConflictException('QR already used');
+    }
 
     // 6. Record check-in
     const checkin = await this.checkins.save(
@@ -113,6 +165,7 @@ export class QrService {
       checkinId: checkin.id,
       user: { id: userId },
       gym: { id: gym.id, name: gym.name },
+      planType: sub.planType,
       checkinTime: checkin.checkinTime,
     };
   }

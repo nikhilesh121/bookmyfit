@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { gymStaffApi } from '../../lib/api';
+import { gymStaffApi, qrApi } from '../../lib/api';
 import { colors, fonts, radius, spacing } from '../../theme/brand';
 import { IconQR, IconCheck, IconClose, IconRefresh } from '../../components/Icons';
 
@@ -45,6 +45,7 @@ export default function ScanScreen() {
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [scanned, setScanned] = useState(false);
+  const [gymId, setGymId] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -61,6 +62,9 @@ export default function ScanScreen() {
   useFocusEffect(
     useCallback(() => {
       startPulse();
+      gymStaffApi.myGym()
+        .then((data: any) => setGymId(data?.id ?? null))
+        .catch(() => setGymId(null));
     }, [startPulse])
   );
 
@@ -77,11 +81,16 @@ export default function ScanScreen() {
       return;
     }
 
+    if (!gymId) {
+      setResult({ success: false, errorMessage: 'Gym profile is not loaded yet.', reason: 'Refresh this screen and try again.' });
+      return;
+    }
+
     setLoading(true);
     setResult(null);
 
     try {
-      const data = await gymStaffApi.checkin(memberId);
+      const data = await qrApi.validate(trimmed, gymId);
       if (data?.success === false) {
         setResult({
           success: false,
@@ -91,8 +100,8 @@ export default function ScanScreen() {
       } else {
         setResult({
           success: true,
-          memberName: data.user?.name ?? data.memberName ?? 'Member',
-          planType: data.sessionType?.name ?? data.planType ?? 'Gym Workout',
+          memberName: data.user?.name ?? (data.user?.id ? `Member ${String(data.user.id).slice(0, 8)}` : 'Member'),
+          planType: data.planType ?? 'QR Check-in',
           checkinTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
         });
         // Auto reset after 5 seconds so next person can scan
@@ -267,7 +276,7 @@ const FRAME_SIZE = 220;
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: spacing.xl, paddingBottom: 40, paddingTop: spacing.lg },
+  content: { paddingHorizontal: spacing.xl, paddingBottom: 132, paddingTop: spacing.lg },
 
   title: { fontFamily: fonts.serif, fontSize: 28, color: colors.text, marginBottom: 4 },
   subtitle: { fontFamily: fonts.sans, fontSize: 14, color: colors.t, marginBottom: spacing.xxl },
@@ -316,7 +325,7 @@ const s = StyleSheet.create({
     marginBottom: spacing.md,
   },
   input: {
-    fontFamily: 'DMSans_400Regular',
+    fontFamily: fonts.sans,
     fontSize: 14,
     color: colors.text,
     height: 52,

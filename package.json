@@ -24,20 +24,16 @@
     "clean": "pnpm -r exec rm -rf node_modules .next dist build"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
+    "@typescript-eslint/eslint-plugin": "7.18.0",
+    "@typescript-eslint/parser": "7.18.0",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.1.0",
     "prettier": "^3.2.4",
-    "turbo": "^1.12.0"
+    "turbo": "^1.12.0",
+    "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=18.17.0",
     "pnpm": ">=8.0.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "react": "18.3.1",
-      "react-dom": "18.3.1",
-      "@types/react": "^18.3.0",
-      "@types/react-dom": "^18.3.0"
-    }
   }
 }

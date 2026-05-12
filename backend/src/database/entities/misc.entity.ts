@@ -72,6 +72,8 @@ export class AmenityEntity {
   @Column({ length: 255, nullable: true }) iconUrl: string;
   @Column({ default: true }) isActive: boolean;
   @Column({ default: false }) requestedByGym: boolean;
+  @Column({ type: 'uuid', nullable: true }) requestedByGymId: string | null;
+  @Column({ type: 'uuid', nullable: true }) requestedByUserId: string | null;
   @Column({ length: 20, default: 'approved' }) status: string;
 }
 

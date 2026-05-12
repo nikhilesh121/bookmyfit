@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -6,13 +6,7 @@ import { colors, fonts, radius } from '../../theme/brand';
 import { IconRefresh, IconDumbbell, IconCalendar, IconArrowRight } from '../../components/Icons';
 import { subscriptionsApi } from '../../lib/api';
 import AuroraBackground from '../../components/AuroraBackground';
-
-// Fallback with gym IDs so "Book Slot" can navigate
-const FALLBACK_SUBS = [
-  { id: 's1', planType: 'multi_gym', gymIds: [], gym: { id: '1', name: 'All Partner Gyms', images: ['https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80'] }, plan: { name: 'Multi Gym Pass' }, durationMonths: 3, startDate: '2025-04-14', endDate: '2025-07-14', status: 'active' },
-  { id: 's2', planType: 'same_gym', gymIds: ['2'], gymId: '2', gym: { id: '2', name: 'Anytime Fitness', images: ['https://images.unsplash.com/photo-1532384661954-a0e26f4f065c?w=600&q=80'] }, plan: { name: 'Same Gym Pass' }, durationMonths: 1, startDate: '2025-03-28', endDate: '2025-05-28', status: 'active' },
-  { id: 's3', planType: 'same_gym', gymIds: ['3'], gymId: '3', gym: { id: '3', name: "Gold's Gym", images: ['https://images.unsplash.com/photo-1549476464-37392f717541?w=600&q=80'] }, plan: { name: 'Same Gym Pass' }, durationMonths: 1, startDate: '2025-03-01', endDate: '2025-03-31', status: 'expired' },
-];
+import { isActiveSubscription } from '../../lib/subscriptionAccess';
 
 const PLAN_COLOR: Record<string, string> = {
   day_pass: '#60A5FA',
@@ -47,12 +41,52 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function endOfDayMs(value: string) {
+  const text = String(value);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T23:59:59.999`) : new Date(text);
+  const ms = date.getTime();
+  return Number.isFinite(ms) ? ms : Date.now();
+}
+
 function derivePlanType(sub: any): string {
   if (sub.planType) return sub.planType;
   const pname = (sub.plan?.name || sub.planName || '').toLowerCase();
   if (pname.includes('multi')) return 'multi_gym';
   if (pname.includes('day')) return 'day_pass';
   return 'same_gym';
+}
+
+function unwrapSubscriptions(data: any) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.subscriptions)) return data.subscriptions;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data?.items)) return data.data.items;
+  return [];
+}
+
+function normalizeSubscription(sub: any) {
+  const rawGymIds = Array.isArray(sub.gymIds) ? sub.gymIds : [];
+  const gymId = sub.gymId || sub.gym?.id || sub.gym?._id || rawGymIds[0] || '';
+  const gymIds = rawGymIds.length ? rawGymIds : (gymId ? [gymId] : []);
+  const planType = derivePlanType(sub);
+  const planName = sub.plan?.name || sub.planLabel || sub.planName || PLAN_BADGE_LABEL[planType] || 'Membership';
+  const gymName = sub.gymName || sub.gym?.name || (planType === 'multi_gym' ? 'All Partner Gyms' : '');
+
+  return {
+    ...sub,
+    id: sub.id || sub._id || sub.subscriptionId || sub.razorpayOrderId || `${planType}-${sub.createdAt || Date.now()}`,
+    planType,
+    gymIds,
+    gymId,
+    gymName,
+    plan: sub.plan || { name: planName },
+    startDate: sub.startDate || sub.start_date || sub.validFrom || sub.createdAt || '',
+    endDate: sub.endDate || sub.end_date || sub.validUntil || sub.expiresAt || '',
+    status: sub.status || 'active',
+    amountPaid: sub.amountPaid || sub.amount || sub.totalAmount,
+    gym: sub.gym || (gymName ? { id: gymId, name: gymName, images: [] } : undefined),
+  };
 }
 
 function SkeletonCard() {
@@ -62,18 +96,26 @@ function SkeletonCard() {
 export default function Subscriptions() {
   const [subs, setSubs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [apiError, setApiError] = useState(false);
+  const [apiError, setApiError] = useState('');
 
-  useEffect(() => {
+  const loadSubscriptions = useCallback(() => {
+    setLoading(true);
+    setApiError('');
     subscriptionsApi.mySubscriptions()
       .then((data: any) => {
-        const list = Array.isArray(data) ? data : data?.subscriptions || data?.data || [];
-        setSubs(list.length > 0 ? list : FALLBACK_SUBS);
-        setApiError(false);
+        const list = unwrapSubscriptions(data).map(normalizeSubscription);
+        setSubs(list);
       })
-      .catch(() => { setSubs(FALLBACK_SUBS); setApiError(true); })
+      .catch((err: any) => {
+        setSubs([]);
+        setApiError(err?.message || 'Could not load your memberships. Please try again.');
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    loadSubscriptions();
+  }, [loadSubscriptions]);
 
   return (
     <AuroraBackground variant="premium">
@@ -85,9 +127,12 @@ export default function Subscriptions() {
             <Text style={s.pageSub}>Your active passes & subscriptions</Text>
           </View>
 
-          {apiError && (
+          {!!apiError && (
             <View style={s.errorBanner}>
-              <Text style={s.errorText}>⚠️ Could not load live data — showing cached results.</Text>
+              <Text style={s.errorText}>{apiError}</Text>
+              <TouchableOpacity style={s.retryBtn} onPress={loadSubscriptions}>
+                <Text style={s.retryText}>Retry</Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -98,9 +143,11 @@ export default function Subscriptions() {
               <View style={s.emptyIconWrap}>
                 <IconDumbbell size={48} color={colors.t3} />
               </View>
-              <Text style={s.emptyTitle}>No Active Memberships</Text>
-              <Text style={s.emptyBody}>Purchase a pass to start booking gym sessions.</Text>
-              <TouchableOpacity style={s.browseBtn} onPress={() => router.push('/(tabs)/explore' as any)}>
+              <Text style={s.emptyTitle}>{apiError ? 'Could Not Load Memberships' : 'No Active Memberships'}</Text>
+              <Text style={s.emptyBody}>
+                {apiError ? 'Please retry after checking your connection or login session.' : 'Purchase a pass to start booking gym sessions.'}
+              </Text>
+              <TouchableOpacity style={s.browseBtn} onPress={() => router.push('/gyms' as any)}>
                 <Text style={s.browseBtnText}>Browse Gyms</Text>
               </TouchableOpacity>
             </View>
@@ -109,13 +156,14 @@ export default function Subscriptions() {
               const subId = sub.id || sub._id;
               const planType = derivePlanType(sub);
               const status = (sub.status || 'active').toLowerCase();
-              const isActive = status === 'active';
+              const isActive = isActiveSubscription(sub);
               const planColor = isActive ? (PLAN_COLOR[planType] || colors.accent) : colors.t3;
               const badgeLabel = PLAN_BADGE_LABEL[planType] || 'PASS';
+              const planDisplayName = sub.plan?.name || sub.planLabel || sub.planName || badgeLabel;
 
               const gymDisplayName =
                 planType === 'multi_gym'
-                  ? 'Multi Gym Pass'
+                  ? 'All Partner Gyms'
                   : (sub.gymName || sub.gym?.name || (planType === 'day_pass' ? 'Selected Gym' : 'Your Gym'));
 
               const validityText =
@@ -130,7 +178,7 @@ export default function Subscriptions() {
               const total = sub.startDate && sub.endDate ? totalDays(sub.startDate, sub.endDate) : 0;
               const daysLeftNum = sub.endDate
                 ? (isActive
-                    ? Math.max(1, Math.ceil((new Date(sub.endDate).getTime() - Date.now()) / 86400000))
+                    ? Math.max(1, Math.ceil((endOfDayMs(sub.endDate) - Date.now()) / 86400000))
                     : 0)
                 : null;
 
@@ -179,7 +227,7 @@ export default function Subscriptions() {
                   params: {
                     subscriptionId: subId,
                     fallbackName: gymDisplayName,
-                    fallbackPlan: sub.plan?.name || planType,
+                    fallbackPlan: planDisplayName,
                     fallbackStatus: status,
                     fallbackStart: sub.startDate || '',
                     fallbackEnd: sub.endDate || '',
@@ -204,6 +252,7 @@ export default function Subscriptions() {
                       <View style={[s.passTypeBadge, { backgroundColor: `${planColor}30`, borderColor: `${planColor}60` }]}>
                         <Text style={[s.passTypeBadgeText, { color: planColor }]}>{badgeLabel}</Text>
                       </View>
+                      <Text style={s.planNameText} numberOfLines={1}>{planDisplayName}</Text>
                       <Text style={s.gymNameText} numberOfLines={1}>{gymDisplayName}</Text>
                       {!!validityText && <Text style={s.validityHero}>{validityText}</Text>}
                     </View>
@@ -286,7 +335,7 @@ export default function Subscriptions() {
 }
 
 const s = StyleSheet.create({
-  container: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
+  container: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 132 },
   pageHeader: { marginBottom: 20, paddingHorizontal: 4 },
   pageTitle: { fontFamily: fonts.serif, fontSize: 28, color: '#fff', letterSpacing: -0.5 },
   pageSub: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, marginTop: 4 },
@@ -309,6 +358,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 3, marginBottom: 8,
   },
   passTypeBadgeText: { fontFamily: fonts.sansBold, fontSize: 10, letterSpacing: 1.2 },
+  planNameText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent, marginBottom: 3 },
   gymNameText: { fontFamily: fonts.serif, fontSize: 22, color: '#fff', letterSpacing: -0.3 },
   validityHero: { fontFamily: fonts.sans, fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 4 },
   daysChip: {
@@ -368,8 +418,20 @@ const s = StyleSheet.create({
   },
   browseBtnText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#000' },
   errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     backgroundColor: 'rgba(255,180,0,0.08)', borderWidth: 1, borderColor: 'rgba(255,180,0,0.25)',
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12,
   },
-  errorText: { fontFamily: fonts.sans, fontSize: 12, color: '#FFB400' },
+  errorText: { flex: 1, minWidth: 0, fontFamily: fonts.sans, fontSize: 12, color: '#FFB400' },
+  retryBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,180,0,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,180,0,0.3)',
+  },
+  retryText: { fontFamily: fonts.sansBold, fontSize: 11, color: '#FFB400' },
 });

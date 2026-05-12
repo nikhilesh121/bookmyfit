@@ -3,7 +3,7 @@ import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet,
   TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius, spacing } from '../../theme/brand';
 import { IconArrowLeft, IconClock, IconCalendar } from '../../components/Icons';
@@ -36,6 +36,8 @@ function getNext14Days() {
 }
 
 export default function BookServiceScreen() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 34);
   const { serviceId, partnerId, serviceName, price, originalPrice, duration } =
     useLocalSearchParams<{
       serviceId: string; partnerId: string; serviceName: string;
@@ -113,7 +115,7 @@ export default function BookServiceScreen() {
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 120 }}
+          contentContainerStyle={{ paddingBottom: 120 + bottomInset }}
         >
           {/* Service Summary Card */}
           <View style={s.summaryCard}>
@@ -203,7 +205,7 @@ export default function BookServiceScreen() {
         </ScrollView>
 
         {/* Bottom Bar */}
-        <View style={s.bottomBar}>
+        <View style={[s.bottomBar, { paddingBottom: bottomInset + 14 }]}>
           <View>
             <Text style={s.totalLabel}>Total</Text>
             <Text style={s.totalPrice}>₹{priceNum.toLocaleString()}</Text>
@@ -297,7 +299,7 @@ const s = StyleSheet.create({
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.border,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg, paddingVertical: 16, paddingBottom: 28,
+    paddingHorizontal: spacing.lg, paddingTop: 16,
   },
   totalLabel: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, marginBottom: 2 },
   totalPrice: { fontFamily: fonts.sansBold, fontSize: 20, color: '#fff' },

@@ -36,12 +36,13 @@ export const colors = {
 };
 
 export const fonts = {
-  serif: 'PlayfairDisplay_700Bold',
-  serifBlack: 'PlayfairDisplay_900Black',
-  serifItalic: 'PlayfairDisplay_400Regular_Italic',
-  sans: 'DMSans_400Regular',
-  sansMedium: 'DMSans_500Medium',
-  sansBold: 'DMSans_700Bold',
+  serif: 'Poppins_700Bold',
+  serifBlack: 'Poppins_800ExtraBold',
+  serifItalic: 'Poppins_400Regular',
+  sans: 'Poppins_400Regular',
+  sansMedium: 'Poppins_500Medium',
+  sansSemiBold: 'Poppins_600SemiBold',
+  sansBold: 'Poppins_700Bold',
 };
 
 export const radius = {
