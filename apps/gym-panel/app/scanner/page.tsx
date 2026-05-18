@@ -327,10 +327,10 @@ export default function ScannerPage() {
           <div className="glass p-5">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <QrCode size={16} style={{ color: 'var(--accent)' }} />
-              <span style={{ fontWeight: 700, fontSize: 13 }}>{mode === 'camera' ? 'Or enter token manually' : 'Enter QR Token'}</span>
+              <span style={{ fontWeight: 700, fontSize: 13 }}>{mode === 'camera' ? 'Or enter manual verification code' : 'Enter QR Token or Manual Code'}</span>
             </div>
             <textarea value={qrToken} onChange={e => setQrToken(e.target.value)}
-              placeholder="Paste QR token, booking ref, or booking ID here..." className="glass-input w-full mb-3"
+              placeholder="Enter the code shown below the member QR, booking ref, booking ID, or paste QR token..." className="glass-input w-full mb-3"
               style={{ minHeight: 72, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }} />
             <button onClick={() => validateToken()} disabled={validating || !qrToken.trim()} className="btn btn-primary w-full justify-center"
               style={{ opacity: validating || !qrToken.trim() ? 0.5 : 1 }}>

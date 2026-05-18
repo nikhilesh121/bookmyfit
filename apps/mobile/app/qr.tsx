@@ -165,14 +165,6 @@ export default function QrScreen() {
             </Text>
           )}
 
-          {manualCode ? (
-            <View style={s.manualBox}>
-              <Text style={s.manualLabel}>Manual Check-in ID</Text>
-              <Text selectable style={s.manualCode}>#{manualCode}</Text>
-              <Text style={s.manualHint}>Use this if the QR scan fails.</Text>
-            </View>
-          ) : null}
-
           {/* QR code */}
           <View style={[s.qrBox, isExpired && { opacity: 0.5 }]}>
             {isExpired && (
@@ -194,6 +186,14 @@ export default function QrScreen() {
             )}
           </View>
 
+          {manualCode ? (
+            <View style={s.manualBox}>
+              <Text style={s.manualLabel}>Manual Verification Code</Text>
+              <Text selectable style={s.manualCode}>#{manualCode}</Text>
+              <Text style={s.manualHint}>If the camera does not scan, gym staff can enter this code manually.</Text>
+            </View>
+          ) : null}
+
           {/* Reverse countdown timer */}
           {!isExpired ? (
             <View style={s.timerBox}>
@@ -211,7 +211,7 @@ export default function QrScreen() {
           )}
 
           <Text style={s.notice}>
-            Show this QR to the gym staff. Valid for 2 hours from booking time.
+            Show this QR to the gym staff. If scanning fails, share the manual code below the QR.
           </Text>
 
           {/* Steps */}
@@ -219,7 +219,7 @@ export default function QrScreen() {
             {[
               'Walk into your booked gym',
               'Show this QR to the gym staff',
-              'Staff scans to mark your check-in',
+              'Staff scans the QR or enters the manual code',
             ].map((step, i) => (
               <View key={i} style={s.step}>
                 <View style={s.stepNum}><Text style={s.stepNumText}>{i + 1}</Text></View>
@@ -274,7 +274,7 @@ const s = StyleSheet.create({
   },
   manualLabel: { fontFamily: fonts.sansBold, fontSize: 10, letterSpacing: 1.2, color: colors.t2, textTransform: 'uppercase' },
   manualCode: { fontFamily: fonts.sansBold, fontSize: 22, letterSpacing: 2, color: colors.accent, marginTop: 3 },
-  manualHint: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 3 },
+  manualHint: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, marginTop: 3, textAlign: 'center', lineHeight: 16 },
   qrBox: {
     backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 24,
     padding: 24, borderWidth: 1, borderColor: colors.borderGlass,

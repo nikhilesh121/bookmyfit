@@ -214,7 +214,7 @@ export default function ScanScreen() {
               <IconQR size={52} color={colors.accent} />
               <Text style={s.tapToScanText}>Tap to scan</Text>
             </TouchableOpacity>
-            <Text style={s.frameHint}>Tap frame to use camera, or paste token below</Text>
+            <Text style={s.frameHint}>Tap frame to scan, or enter the manual code below</Text>
           </View>
         )}
 
@@ -224,7 +224,7 @@ export default function ScanScreen() {
             style={s.input}
             value={token}
             onChangeText={setToken}
-            placeholder="Paste QR token, booking ref, or booking ID"
+            placeholder="Manual code below QR, booking ref, booking ID, or QR token"
             placeholderTextColor={colors.t3}
             multiline={false}
             autoCapitalize="none"
