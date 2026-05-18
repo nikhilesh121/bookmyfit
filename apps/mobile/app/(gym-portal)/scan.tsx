@@ -18,16 +18,9 @@ import { gymStaffApi, qrApi } from '../../lib/api';
 import { colors, fonts, radius, spacing } from '../../theme/brand';
 import { IconQR, IconCheck, IconClose, IconRefresh } from '../../components/Icons';
 
-/** Decode a JWT payload without verifying signature — used to extract member userId from QR token */
-function decodeJwtPayload(token: string): Record<string, any> | null {
-  try {
-    const part = token.split('.')[1];
-    if (!part) return null;
-    const padded = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
-    return JSON.parse(atob(padded));
-  } catch {
-    return null;
-  }
+/** QR tokens are JWT-shaped; manual codes are booking refs/IDs. */
+function isQrToken(value: string) {
+  return value.split('.').length === 3;
 }
 
 type ValidationResult = {
@@ -50,6 +43,16 @@ export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const scrollRef = useRef<any>(null);
+
+  const showResult = useCallback((next: ValidationResult) => {
+    setResult(next);
+    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+    if (!next.success) {
+      const detail = [next.errorMessage, next.reason].filter(Boolean).join('\n');
+      Alert.alert('Check-in Denied', detail || 'Could not validate this QR code.');
+    }
+  }, []);
 
   const startPulse = useCallback(() => {
     Animated.loop(
@@ -73,21 +76,17 @@ export default function ScanScreen() {
     const trimmed = (tokenOverride ?? token).trim();
     if (!trimmed) return;
 
-    // Decode the QR JWT to extract the member's userId
-    const payload = decodeJwtPayload(trimmed);
-    const memberId: string | undefined = payload?.sub;
-
     if (!gymId) {
-      setResult({ success: false, errorMessage: 'Gym profile is not loaded yet.', reason: 'Refresh this screen and try again.' });
+      showResult({ success: false, errorMessage: 'Gym profile is not loaded yet.', reason: 'Refresh this screen and try again.' });
       return;
     }
 
-    if (!memberId) {
+    if (!isQrToken(trimmed)) {
       setLoading(true);
       setResult(null);
       try {
         const data = await qrApi.validateManual(trimmed, gymId);
-        setResult({
+        showResult({
           success: true,
           memberName: data.user?.name ?? (data.user?.id ? `Member ${String(data.user.id).slice(0, 8)}` : 'Member'),
           planType: data.planType ?? 'Manual Check-in',
@@ -96,7 +95,7 @@ export default function ScanScreen() {
         });
         setTimeout(() => { setToken(''); setResult(null); }, 5000);
       } catch (err: any) {
-        setResult({
+        showResult({
           success: false,
           errorMessage: err?.message ?? 'Manual check-in failed.',
           reason: err?.reason ?? 'Booking ref may be invalid or outside the booked slot time.',
@@ -107,29 +106,19 @@ export default function ScanScreen() {
       return;
     }
 
-    if (!memberId) {
-      setResult({ success: false, errorMessage: 'Invalid QR code — could not read member ID.', reason: 'Token is not a valid BMF QR.' });
-      return;
-    }
-
-    if (!gymId) {
-      setResult({ success: false, errorMessage: 'Gym profile is not loaded yet.', reason: 'Refresh this screen and try again.' });
-      return;
-    }
-
     setLoading(true);
     setResult(null);
 
     try {
       const data = await qrApi.validate(trimmed, gymId);
       if (data?.success === false) {
-        setResult({
+        showResult({
           success: false,
           errorMessage: data.message || 'Check-in denied',
           reason: data.reason || '',
         });
       } else {
-        setResult({
+        showResult({
           success: true,
           memberName: data.user?.name ?? (data.user?.id ? `Member ${String(data.user.id).slice(0, 8)}` : 'Member'),
           planType: data.planType ?? 'QR Check-in',
@@ -140,7 +129,7 @@ export default function ScanScreen() {
         setTimeout(() => { setToken(''); setResult(null); }, 5000);
       }
     } catch (err: any) {
-      setResult({
+      showResult({
         success: false,
         errorMessage: err?.message ?? 'QR validation failed.',
         reason: err?.reason ?? 'Token may be expired or invalid.',
@@ -178,7 +167,7 @@ export default function ScanScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <Text style={s.title}>Scan QR</Text>
         <Text style={s.subtitle}>Validate member access tokens</Text>

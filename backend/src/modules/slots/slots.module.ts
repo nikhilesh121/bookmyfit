@@ -133,6 +133,7 @@ class SlotsService {
       gym: slot.gymId,
       sid: sub.id,
       bid: booking.id,
+      ref: booking.id,
       jti,
       type: 'booking',
     };

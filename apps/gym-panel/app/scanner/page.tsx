@@ -4,16 +4,9 @@ import Shell from '../../components/Shell';
 import { QrCode, CheckCircle2, XCircle, Camera, CameraOff, Keyboard, Users, Clock, IndianRupee, RefreshCw } from 'lucide-react';
 import { api } from '../../lib/api';
 
-/** Decode a JWT payload without verifying signature — used to extract member userId from scanned QR token */
-function decodeJwtPayload(token: string): Record<string, any> | null {
-  try {
-    const part = token.split('.')[1];
-    if (!part) return null;
-    const padded = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
-    return JSON.parse(atob(padded));
-  } catch {
-    return null;
-  }
+/** QR tokens are JWT-shaped; manual codes are booking refs/IDs. */
+function isQrToken(value: string) {
+  return value.split('.').length === 3;
 }
 
 type ScanResult = {
@@ -55,6 +48,11 @@ export default function ScannerPage() {
   }, []);
 
   const startScanLoop = useCallback(() => {
+    if (!('BarcodeDetector' in window)) {
+      setCameraError('This browser cannot scan QR codes automatically. Use the manual code below.');
+      setMode('manual');
+      return;
+    }
     if (scanLoopRef.current) clearInterval(scanLoopRef.current);
     scanLoopRef.current = setInterval(() => {
       if (pausedRef.current) return;
@@ -67,15 +65,16 @@ export default function ScannerPage() {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      if ('BarcodeDetector' in window) {
-        const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
-        detector.detect(canvas).then((codes: any[]) => {
-          if (codes.length > 0 && !pausedRef.current) {
-            pausedRef.current = true;
-            validateToken(codes[0].rawValue as string);
-          }
-        }).catch(() => {});
-      }
+      const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+      detector.detect(canvas).then((codes: any[]) => {
+        if (codes.length > 0 && !pausedRef.current) {
+          pausedRef.current = true;
+          validateToken(codes[0].rawValue as string);
+        }
+      }).catch(() => {
+        setCameraError('Could not read camera frames. Use the manual code below.');
+        setMode('manual');
+      });
     }, 400);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -141,16 +140,12 @@ export default function ScannerPage() {
     const t = (token ?? qrToken).trim();
     if (!t) return;
 
-    // Decode the QR JWT to extract the member's userId
-    const payload = decodeJwtPayload(t);
-    const memberId: string | undefined = payload?.sub;
-
     if (!gymId) {
       showResultAndResume({ ok: false, message: 'Gym profile is not loaded yet. Refresh and try again.' });
       return;
     }
 
-    if (!memberId) {
+    if (!isQrToken(t)) {
       setValidating(true);
       try {
         const scanRes = await api.post<any>('/qr/validate-manual', { code: t, gymId });
@@ -177,16 +172,6 @@ export default function ScannerPage() {
         setValidating(false);
         setQrToken('');
       }
-      return;
-    }
-
-    if (!memberId) {
-      showResultAndResume({ ok: false, message: 'Invalid QR — could not read member ID. Ask member to regenerate.' });
-      return;
-    }
-
-    if (!gymId) {
-      showResultAndResume({ ok: false, message: 'Gym profile is not loaded yet. Refresh and try again.' });
       return;
     }
 

@@ -89,8 +89,10 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<T
       const d = JSON.parse(body);
       if (d?.message) errMsg = d.message;
     } catch {}
+    const isQrValidation = path === '/qr/validate' || path === '/qr/validate-manual';
     // Only force-logout on non-auth endpoints (OTP/login legitimately returns 401 for bad codes)
-    if (!path.startsWith('/auth/')) {
+    // QR validation can return 401 for expired/wrong-gym/inactive booking; show that on the scanner.
+    if (!path.startsWith('/auth/') && !isQrValidation) {
       await clearTokens();
       router.replace('/login');
     }

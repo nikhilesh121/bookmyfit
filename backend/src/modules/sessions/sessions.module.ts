@@ -637,6 +637,7 @@ export class SessionsService {
       gym: slot.gymId,
       sid: sub.id,
       bid: booking.id,
+      ref: booking.bookingRef || booking.id,
       jti,
       type: 'booking',
     };

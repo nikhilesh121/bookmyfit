@@ -24,6 +24,56 @@ function formatDateTime(iso: string) {
   });
 }
 
+function textParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0] || '';
+  return value || '';
+}
+
+function decodeBase64Url(value: string) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
+  let output = '';
+  let i = 0;
+
+  while (i < padded.length) {
+    const enc1 = chars.indexOf(padded.charAt(i++));
+    const enc2 = chars.indexOf(padded.charAt(i++));
+    const enc3 = chars.indexOf(padded.charAt(i++));
+    const enc4 = chars.indexOf(padded.charAt(i++));
+    if (enc1 < 0 || enc2 < 0) break;
+
+    output += String.fromCharCode((enc1 << 2) | (enc2 >> 4));
+    if (enc3 >= 0 && enc3 !== 64) output += String.fromCharCode(((enc2 & 15) << 4) | (enc3 >> 2));
+    if (enc4 >= 0 && enc4 !== 64) output += String.fromCharCode(((enc3 & 3) << 6) | enc4);
+  }
+
+  try {
+    return decodeURIComponent(output.split('').map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join(''));
+  } catch {
+    return output;
+  }
+}
+
+function decodeManualCodeFromToken(qrToken?: string | null) {
+  if (!qrToken) return '';
+  try {
+    const payload = qrToken.split('.')[1];
+    if (!payload) return '';
+    const parsed = JSON.parse(decodeBase64Url(payload));
+    return String(parsed.ref || parsed.bid || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function firstManualCode(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const clean = String(value || '').trim();
+    if (clean) return clean;
+  }
+  return '';
+}
+
 type QrMode = 'loading' | 'slot' | 'empty';
 
 export default function QrScreen() {
@@ -31,21 +81,31 @@ export default function QrScreen() {
     token?: string; expiresAt?: string; gymId?: string; gymName?: string; bookedAt?: string;
     bookingId?: string; bookingRef?: string; manualCode?: string;
   }>();
+  const routeToken = textParam(params.token);
+  const routeExpiresAt = textParam(params.expiresAt);
+  const routeBookedAt = textParam(params.bookedAt);
+  const routeGymName = textParam(params.gymName);
+  const routeBookingId = textParam(params.bookingId);
+  const routeBookingRef = textParam(params.bookingRef);
+  const routeManualCode = textParam(params.manualCode);
 
   const [mode, setMode] = useState<QrMode>('loading');
-  const [token, setToken] = useState<string | null>(params.token || null);
-  const [expiresAt, setExpiresAt] = useState<string | null>(params.expiresAt || null);
-  const [bookedAt, setBookedAt] = useState<string | null>(params.bookedAt || null);
-  const [gymName, setGymName] = useState<string>(params.gymName || '');
-  const [manualCode, setManualCode] = useState<string>(params.manualCode || params.bookingRef || params.bookingId || '');
+  const [token, setToken] = useState<string | null>(routeToken || null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(routeExpiresAt || null);
+  const [bookedAt, setBookedAt] = useState<string | null>(routeBookedAt || null);
+  const [gymName, setGymName] = useState<string>(routeGymName);
+  const [manualCode, setManualCode] = useState<string>(
+    firstManualCode(routeManualCode, routeBookingRef, routeBookingId, decodeManualCodeFromToken(routeToken)),
+  );
   const [secondsLeft, setSecondsLeft] = useState(0);
 
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Bootstrap: QR is ONLY shown when a slot/session is actively booked ─────────
   useEffect(() => {
-    if (params.token && params.expiresAt) {
+    if (routeToken && routeExpiresAt) {
       // QR passed via navigation params (e.g. right after booking a slot)
+      setManualCode(firstManualCode(routeManualCode, routeBookingRef, routeBookingId, decodeManualCodeFromToken(routeToken)));
       setMode('slot');
       return;
     }
@@ -53,11 +113,17 @@ export default function QrScreen() {
       try {
         const booking: any = await qrApi.getActiveBooking();
         if (booking?.active && booking.bookingQr) {
-          setToken(booking.bookingQr.token);
+          const nextToken = booking.bookingQr.token || '';
+          setToken(nextToken);
           setExpiresAt(booking.bookingQr.expiresAt);
           setBookedAt(booking.bookingQr.bookedAt);
           setGymName(booking.bookingQr.gymName || '');
-          setManualCode(booking.bookingQr.manualCode || booking.bookingQr.bookingRef || booking.bookingQr.bookingId || '');
+          setManualCode(firstManualCode(
+            booking.bookingQr.manualCode,
+            booking.bookingQr.bookingRef,
+            booking.bookingQr.bookingId,
+            decodeManualCodeFromToken(nextToken),
+          ));
           setMode('slot');
           return;
         }
@@ -67,7 +133,7 @@ export default function QrScreen() {
       // Subscriptions alone do NOT generate a QR — user must book a slot first.
       setMode('empty');
     })();
-  }, []);
+  }, [routeToken, routeExpiresAt, routeManualCode, routeBookingRef, routeBookingId]);
 
   // ── Reverse timer: counts from now down to expiresAt (= bookedAt + 2 hours) ───
   useEffect(() => {
@@ -86,6 +152,7 @@ export default function QrScreen() {
   }, []);
 
   const isExpired = mode === 'slot' && secondsLeft <= 0 && expiresAt !== null;
+  const visibleManualCode = firstManualCode(manualCode, decodeManualCodeFromToken(token));
   const isLowTime = secondsLeft > 0 && secondsLeft < 600; // < 10 min → red
 
   // ── Loading ──────────────────────────────────────────────────────────────────
@@ -186,10 +253,10 @@ export default function QrScreen() {
             )}
           </View>
 
-          {manualCode ? (
+          {visibleManualCode ? (
             <View style={s.manualBox}>
               <Text style={s.manualLabel}>Manual Verification Code</Text>
-              <Text selectable style={s.manualCode}>#{manualCode}</Text>
+              <Text selectable style={s.manualCode}>#{visibleManualCode}</Text>
               <Text style={s.manualHint}>If the camera does not scan, gym staff can enter this code manually.</Text>
             </View>
           ) : null}

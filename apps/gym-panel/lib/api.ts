@@ -22,13 +22,19 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<T
       ...(init.headers || {}),
     },
   });
-  if (res.status === 401) {
-    localStorage.removeItem(TOKEN_KEY);
-    redirectToLogin();
-    throw new Error('Session expired');
-  }
   const raw = await res.text().catch(() => '');
   const parsed = raw ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : null;
+  if (res.status === 401) {
+    const message = Array.isArray(parsed?.message)
+      ? parsed.message.join(', ')
+      : parsed?.message || raw || 'Session expired';
+    const isQrValidation = path === '/qr/validate' || path === '/qr/validate-manual';
+    if (!isQrValidation) {
+      localStorage.removeItem(TOKEN_KEY);
+      redirectToLogin();
+    }
+    throw new Error(message);
+  }
   if (!res.ok) {
     const message = Array.isArray(parsed?.message)
       ? parsed.message.join(', ')
