@@ -42,10 +42,23 @@ export default function ScannerPage() {
 
   useEffect(() => {
     api.get<any>('/gyms/my-gym').then(data => {
-      if (data?.id) setGymId(data.id);
+      if (data?._id || data?.id) setGymId(data._id || data.id);
       if (data?.ratePerDay) setRatePerDay(Number(data.ratePerDay));
     }).catch(() => {});
   }, []);
+
+  const resolveGymId = useCallback(async () => {
+    if (gymId) return gymId;
+    try {
+      const data = await api.get<any>('/gyms/my-gym');
+      const nextGymId = data?._id || data?.id || null;
+      if (nextGymId) setGymId(nextGymId);
+      if (data?.ratePerDay) setRatePerDay(Number(data.ratePerDay));
+      return nextGymId;
+    } catch {
+      return null;
+    }
+  }, [gymId]);
 
   const startScanLoop = useCallback(() => {
     if (!('BarcodeDetector' in window)) {
@@ -140,15 +153,16 @@ export default function ScannerPage() {
     const t = (token ?? qrToken).trim();
     if (!t) return;
 
-    if (!gymId) {
-      showResultAndResume({ ok: false, message: 'Gym profile is not loaded yet. Refresh and try again.' });
+    const activeGymId = await resolveGymId();
+    if (!activeGymId) {
+      showResultAndResume({ ok: false, message: 'Gym profile could not be loaded. Please log in with a gym account linked to a gym.' });
       return;
     }
 
     if (!isQrToken(t)) {
       setValidating(true);
       try {
-        const scanRes = await api.post<any>('/qr/validate-manual', { code: t, gymId });
+        const scanRes = await api.post<any>('/qr/validate-manual', { code: t, gymId: activeGymId });
         const gymEarns = scanRes?.gymEarns != null
           ? Number(scanRes.gymEarns)
           : ratePerDay;
@@ -177,7 +191,7 @@ export default function ScannerPage() {
 
     setValidating(true);
     try {
-      const scanRes = await api.post<any>('/qr/validate', { qrToken: t, gymId });
+      const scanRes = await api.post<any>('/qr/validate', { qrToken: t, gymId: activeGymId });
       if (scanRes?.success === false) {
         showResultAndResume({ ok: false, message: scanRes.message || 'Check-in denied' });
       } else {
@@ -205,7 +219,7 @@ export default function ScannerPage() {
       setValidating(false);
       setQrToken('');
     }
-  }, [gymId, qrToken, ratePerDay, showResultAndResume]);
+  }, [qrToken, ratePerDay, resolveGymId, showResultAndResume]);
 
   const todaySuccess = attendance.filter(a => a.ok).length;
   const todayGymEarnings = attendance.filter(a => a.ok && a.gymEarns).reduce((s, a) => s + (a.gymEarns ?? 0), 0);

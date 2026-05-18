@@ -61,6 +61,25 @@ function hasValidGymLocation(gym: Pick<Gym, 'lat' | 'lng'>) {
   return Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
 }
 
+const REQUIRED_KYC_TYPES = [
+  ['business_registration', 'Business Registration'],
+  ['gst_certificate', 'GST Certificate'],
+  ['bank_details', 'Bank Details'],
+  ['identity_document', 'Owner Identity Document'],
+  ['gym_photos', 'Gym Photos'],
+  ['trainer_certs', 'Trainer Certificates'],
+] as const;
+
+function missingKycDetails(gym: Gym, requireApproved = false) {
+  const docs = new Map((gym.kycDocuments || []).map((doc) => [doc.type, doc]));
+  return REQUIRED_KYC_TYPES
+    .filter(([type]) => {
+      const doc = docs.get(type);
+      return requireApproved ? doc?.status !== 'approved' : !doc;
+    })
+    .map(([, label]) => label);
+}
+
 export default function KYCPage() {
   const { toast } = useToast();
   const [gyms, setGyms] = useState<Gym[]>([]);
@@ -217,7 +236,13 @@ export default function KYCPage() {
                 )
                 : gyms.map((g) => {
                   const locationReady = hasValidGymLocation(g);
-                  const approveBlocked = actionLoading === g.id || !locationReady;
+                  const missingKyc = missingKycDetails(g);
+                  const approveBlocked = actionLoading === g.id || !locationReady || missingKyc.length > 0;
+                  const approveTitle = !locationReady
+                    ? 'Set valid gym coordinates before approval'
+                    : missingKyc.length > 0
+                      ? `Missing required KYC: ${missingKyc.join(', ')}`
+                      : undefined;
                   return (
                   <Fragment key={g.id}>
                     <tr>
@@ -240,7 +265,7 @@ export default function KYCPage() {
                               <button
                                 onClick={() => handleApprove(g.id)}
                                 disabled={approveBlocked}
-                                title={locationReady ? undefined : 'Set valid gym coordinates before approval'}
+                                title={approveTitle}
                                 className="btn btn-primary text-xs"
                                 style={{ padding: '4px 10px', fontSize: 11, opacity: approveBlocked ? 0.55 : 1 }}>
                                 {actionLoading === g.id ? '…' : 'Approve'}
@@ -270,6 +295,11 @@ export default function KYCPage() {
                             <div>
                               <div className="kicker mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>KYC Status</div>
                               <div style={{ color: 'var(--t)', marginBottom: 12 }}>{g.kycStatus || g.status || 'not_started'}</div>
+                              {missingKyc.length > 0 && (
+                                <div style={{ color: '#FFB400', marginBottom: 12, fontSize: 12 }}>
+                                  Missing required KYC: {missingKyc.join(', ')}
+                                </div>
+                              )}
                               {g.kycReviewNote && (
                                 <>
                                   <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Review Note</div>

@@ -17,12 +17,16 @@ import { IconUser, IconSearch, IconRefresh } from '../../components/Icons';
 
 type Member = {
   id: string;
+  memberId?: string;
   name?: string;
   phone?: string;
   planName?: string;
   planTier?: string;
   status: 'active' | 'pending' | 'expired' | 'cancelled';
   lastVisit?: string;
+  subscriptionCount?: number;
+  lifetimeGymAmount?: number;
+  history?: Array<{ id: string; planType?: string; status?: string; startDate?: string; endDate?: string; gymAmount?: number }>;
 };
 
 type FilterType = 'all' | 'active' | 'pending' | 'expired' | 'cancelled';
@@ -70,7 +74,8 @@ export default function MembersScreen() {
       const data = await gymStaffApi.myMembers();
       const raw = Array.isArray(data) ? data : data?.members ?? data?.data ?? [];
       const list: Member[] = raw.map((m: any) => ({
-        id: m.id ?? m._id ?? String(Math.random()),
+        id: m.memberId ?? m.userId ?? m.id ?? m._id ?? String(Math.random()),
+        memberId: m.memberId ?? m.userId,
         name: m.name ?? m.memberName,
         phone: m.phone ?? m.memberPhone,
         planName: m.planName ?? m.plan?.name ?? 'Standard',
@@ -79,6 +84,9 @@ export default function MembersScreen() {
           ? String(m.status) as Member['status']
           : 'expired',
         lastVisit: m.lastVisit ?? m.lastCheckin ?? 'No visits',
+        subscriptionCount: Number(m.subscriptionCount || m.history?.length || 1),
+        lifetimeGymAmount: Number(m.lifetimeGymAmount || 0),
+        history: Array.isArray(m.history) ? m.history : [],
       }));
       setMembers(list);
       applyFilters(list, search, filter);
@@ -126,6 +134,9 @@ export default function MembersScreen() {
           <Text style={s.memberName}>{item.name ?? 'Unknown Member'}</Text>
           <Text style={s.memberPhone}>{item.phone ?? ''}</Text>
           <Text style={s.memberVisit}>Last visit: {item.lastVisit}</Text>
+          {Number(item.subscriptionCount || 0) > 1 && (
+            <Text style={s.memberHistory}>{item.subscriptionCount} subscriptions in history</Text>
+          )}
         </View>
         <View style={s.memberRight}>
           <View style={[s.planBadge, { backgroundColor: tierColor + '22', borderColor: tierColor + '55' }]}>
@@ -142,6 +153,9 @@ export default function MembersScreen() {
               {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
             </Text>
           </View>
+          {Number(item.lifetimeGymAmount || 0) > 0 && (
+            <Text style={s.amountText}>Rs {Number(item.lifetimeGymAmount || 0).toLocaleString('en-IN')}</Text>
+          )}
         </View>
       </View>
     );
@@ -292,7 +306,9 @@ const s = StyleSheet.create({
   memberName: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.text },
   memberPhone: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
   memberVisit: { fontFamily: fonts.sans, fontSize: 11, color: colors.t3 },
+  memberHistory: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent },
   memberRight: { alignItems: 'flex-end', gap: 6 },
+  amountText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.t2 },
   planBadge: {
     paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: radius.pill, borderWidth: 1,

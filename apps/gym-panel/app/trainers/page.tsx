@@ -50,7 +50,7 @@ export default function TrainersPage() {
       const gymData = await api.get<any>('/gyms/my-gym');
       const gid = gymData._id || gymData.id || '';
       setGymId(gid);
-      const data = await api.get<any>(`/trainers?gymId=${gid}`);
+      const data = await api.get<any>(`/trainers?gymId=${gid}&includeInactive=true`);
       setTrainers(Array.isArray(data) ? data : data?.data ?? []);
     } catch {
       setError('Failed to load trainers.');

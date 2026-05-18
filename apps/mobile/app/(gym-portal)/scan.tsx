@@ -40,6 +40,7 @@ export default function ScanScreen() {
   const [cameraActive, setCameraActive] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [gymId, setGymId] = useState<string | null>(null);
+  const [gymLoading, setGymLoading] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -63,21 +64,35 @@ export default function ScanScreen() {
     ).start();
   }, [pulseAnim]);
 
+  const loadGymId = useCallback(async () => {
+    setGymLoading(true);
+    try {
+      const data: any = await gymStaffApi.myGym();
+      const nextGymId = data?._id || data?.id || null;
+      setGymId(nextGymId);
+      return nextGymId;
+    } catch {
+      setGymId(null);
+      return null;
+    } finally {
+      setGymLoading(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       startPulse();
-      gymStaffApi.myGym()
-        .then((data: any) => setGymId(data?.id ?? null))
-        .catch(() => setGymId(null));
-    }, [startPulse])
+      loadGymId();
+    }, [startPulse, loadGymId])
   );
 
   const handleValidate = async (tokenOverride?: string) => {
     const trimmed = (tokenOverride ?? token).trim();
     if (!trimmed) return;
 
-    if (!gymId) {
-      showResult({ success: false, errorMessage: 'Gym profile is not loaded yet.', reason: 'Refresh this screen and try again.' });
+    const activeGymId = gymId || await loadGymId();
+    if (!activeGymId) {
+      showResult({ success: false, errorMessage: 'Gym profile could not be loaded.', reason: 'Please log in with a gym account that is linked to a gym, then try again.' });
       return;
     }
 
@@ -85,7 +100,7 @@ export default function ScanScreen() {
       setLoading(true);
       setResult(null);
       try {
-        const data = await qrApi.validateManual(trimmed, gymId);
+        const data = await qrApi.validateManual(trimmed, activeGymId);
         showResult({
           success: true,
           memberName: data.user?.name ?? (data.user?.id ? `Member ${String(data.user.id).slice(0, 8)}` : 'Member'),
@@ -110,7 +125,7 @@ export default function ScanScreen() {
     setResult(null);
 
     try {
-      const data = await qrApi.validate(trimmed, gymId);
+      const data = await qrApi.validate(trimmed, activeGymId);
       if (data?.success === false) {
         showResult({
           success: false,
@@ -170,7 +185,7 @@ export default function ScanScreen() {
       <ScrollView ref={scrollRef} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* Header */}
         <Text style={s.title}>Scan QR</Text>
-        <Text style={s.subtitle}>Validate member access tokens</Text>
+        <Text style={s.subtitle}>{gymLoading && !gymId ? 'Loading gym profile...' : 'Validate member access tokens'}</Text>
 
         {/* Camera / scan frame area */}
         {cameraActive ? (
@@ -228,7 +243,7 @@ export default function ScanScreen() {
           <TouchableOpacity
             style={[s.validateBtn, (!token.trim() || loading) && s.validateBtnDisabled]}
             onPress={() => handleValidate()}
-            disabled={!token.trim() || loading}
+            disabled={!token.trim() || loading || gymLoading}
             activeOpacity={0.85}
           >
             {loading

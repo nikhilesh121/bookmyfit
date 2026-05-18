@@ -13,6 +13,7 @@ import { SubscriptionEntity } from '../../database/entities/subscription.entity'
 import { BookingQrEntity } from '../../database/entities/booking-qr.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
 import { GymScheduleEntity } from '../../database/entities/gym-schedule.entity';
+import { SessionBookingEntity } from '../../database/entities/session-booking.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
@@ -48,6 +49,7 @@ class SlotsService {
     @InjectRepository(BookingQrEntity) private readonly qrRepo: Repository<BookingQrEntity>,
     @InjectRepository(GymEntity) private readonly gymRepo: Repository<GymEntity>,
     @InjectRepository(GymScheduleEntity) private readonly scheduleRepo: Repository<GymScheduleEntity>,
+    @InjectRepository(SessionBookingEntity) private readonly sessionBookingRepo: Repository<SessionBookingEntity>,
     private readonly jwt: JwtService,
   ) {}
 
@@ -194,9 +196,13 @@ class SlotsService {
     const active = qrs.find(q => new Date(q.expiresAt) > now);
     if (!active) return { active: false };
     const gym = await this.gymRepo.findOne({ where: { id: active.gymId } });
-    const booking = active.slotBookingId
+    const legacyBooking = active.slotBookingId
       ? await this.bookingRepo.findOne({ where: { id: active.slotBookingId } })
       : null;
+    const sessionBooking = !legacyBooking && active.slotBookingId
+      ? await this.sessionBookingRepo.findOne({ where: { id: active.slotBookingId } })
+      : null;
+    const booking: any = legacyBooking || sessionBooking;
     return {
       active: true,
       bookingQr: {
@@ -259,7 +265,7 @@ class SlotsController {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([GymSlotEntity, SlotBookingEntity, SubscriptionEntity, BookingQrEntity, GymEntity, GymScheduleEntity]),
+    TypeOrmModule.forFeature([GymSlotEntity, SlotBookingEntity, SubscriptionEntity, BookingQrEntity, GymEntity, GymScheduleEntity, SessionBookingEntity]),
     JwtModule.register({
       secret: process.env.QR_SECRET || 'qr-hmac-secret-change-me',
       signOptions: { algorithm: 'HS256' },

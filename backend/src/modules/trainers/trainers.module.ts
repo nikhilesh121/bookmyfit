@@ -34,9 +34,11 @@ class TrainersService {
     };
   }
 
-  async listByGym(gymId: string, page: any = 1, limit: any = 20) {
+  async listByGym(gymId: string, page: any = 1, limit: any = 20, includeInactive = false) {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
-    const [data, total] = await this.repo.findAndCount({ where: { gymId, isActive: true }, skip, take });
+    const where: any = { gymId };
+    if (!includeInactive) where.isActive = true;
+    const [data, total] = await this.repo.findAndCount({ where, skip, take });
     return paginatedResponse(data.map((t) => this.trainerDto(t)), total, p, l);
   }
   async get(id: string) {
@@ -52,6 +54,11 @@ class TrainersService {
       return gym;
     }
     const gym = await this.gyms.findOne({ where: { ownerId: user?.userId } });
+    if (!gym && user?.role === 'gym_staff' && requestedGymId) {
+      const staffGym = await this.gyms.findOne({ where: { id: requestedGymId } });
+      if (!staffGym) throw new NotFoundException('Gym not found');
+      return staffGym;
+    }
     if (!gym) throw new NotFoundException('Gym not found');
     if (requestedGymId && requestedGymId !== gym.id) throw new ForbiddenException('Cannot manage trainers for another gym');
     return gym;
@@ -125,14 +132,15 @@ class TrainersService {
 class TrainersController {
   constructor(private readonly svc: TrainersService) {}
   @Get() @Roles('end_user', 'gym_owner', 'gym_staff', 'super_admin', 'corporate_admin')
-  list(@Query('gymId') gymId: string, @Query('page') page = 1, @Query('limit') limit = 20) {
-    return this.svc.listByGym(gymId, +page, +limit);
+  list(@Req() req: any, @Query('gymId') gymId: string, @Query('page') page = 1, @Query('limit') limit = 20, @Query('includeInactive') includeInactive?: string) {
+    const canSeeInactive = ['gym_owner', 'gym_staff', 'super_admin'].includes(req.user?.role) && includeInactive === 'true';
+    return this.svc.listByGym(gymId, +page, +limit, canSeeInactive);
   }
   @Get(':id') @Roles('end_user', 'gym_owner', 'gym_staff', 'super_admin')
   get(@Param('id') id: string) { return this.svc.get(id); }
-  @Post() @Roles('gym_owner', 'super_admin')
+  @Post() @Roles('gym_owner', 'gym_staff', 'super_admin')
   create(@Req() req: any, @Body() body: any) { return this.svc.create(req.user, body); }
-  @Put(':id') @Roles('gym_owner', 'super_admin')
+  @Put(':id') @Roles('gym_owner', 'gym_staff', 'super_admin')
   update(@Param('id') id: string, @Req() req: any, @Body() body: any) { return this.svc.update(id, req.user, body); }
   @Post(':id/book') @Roles('end_user', 'corporate_admin')
   book(@Req() req: any, @Param('id') id: string, @Body() body: any) {

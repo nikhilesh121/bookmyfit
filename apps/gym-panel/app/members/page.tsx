@@ -1,12 +1,14 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import Shell from '../../components/Shell';
-import { Users, UserCheck, Clock, UserX, Download, Plus, Edit2, Trash2, RefreshCw, AlertTriangle, Search } from 'lucide-react';
+import { Users, UserCheck, Clock, UserX, Download, Plus, Edit2, Trash2, RefreshCw, AlertTriangle, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../../lib/api';
 import Pagination from '../../components/Pagination';
 
 type Member = {
   id: string;
+  memberId?: string;
+  currentSubscriptionId?: string;
   userId: string;
   name: string;
   phone: string;
@@ -24,6 +26,11 @@ type Member = {
   trainerGymAmount?: number;
   trainerSummary?: string | null;
   trainerAddons?: Array<{ trainerName: string; status: string; gymAmount: number; monthlyPrice: number }>;
+  subscriptionCount?: number;
+  lifetimeGymAmount?: number;
+  totalCheckinsAtGym?: number;
+  lastVisit?: string;
+  history?: Member[];
   createdAt: string;
   todayCheckins?: number;
   canDeactivate?: boolean;
@@ -131,6 +138,7 @@ export default function MembersPage() {
   const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [expandedMember, setExpandedMember] = useState<string | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -320,11 +328,19 @@ export default function MembersPage() {
                 : members.map(m => {
                   const days = daysLeft(m.endDate);
                   const expiring = days !== null && days > 0 && days <= 7;
+                  const rowKey = m.memberId || m.userId || m.id;
+                  const isExpanded = expandedMember === rowKey;
                   return (
-                    <tr key={m.id}>
+                    <Fragment key={rowKey}>
+                    <tr key={rowKey}>
                       <td>
                         <div style={{ fontWeight: 600, color: '#fff', fontSize: 13 }}>{m.name}</div>
                         <div style={{ color: 'var(--t2)', fontSize: 11, fontFamily: 'monospace' }}>{m.phone}</div>
+                        {Number(m.subscriptionCount || 0) > 1 && (
+                          <div style={{ color: 'var(--accent)', fontSize: 10, marginTop: 4, fontWeight: 700 }}>
+                            {m.subscriptionCount} subscriptions in history
+                          </div>
+                        )}
                       </td>
                       <td>
                         <PlanBadge plan={m.planType} />
@@ -367,14 +383,28 @@ export default function MembersPage() {
                         )}
                       </td>
                       <td style={{ fontWeight: 600, fontSize: 13 }}>
-                        {m.amountPaid ? `₹${Number(m.amountPaid).toLocaleString('en-IN')}` : '—'}
+                        {m.amountPaid ? `Rs ${Number(m.amountPaid).toLocaleString('en-IN')}` : '—'}
+                        {Number(m.lifetimeGymAmount || 0) > Number(m.amountPaid || 0) && (
+                          <div style={{ color: 'var(--t2)', fontSize: 11, fontWeight: 500, marginTop: 3 }}>
+                            Total: Rs {Number(m.lifetimeGymAmount || 0).toLocaleString('en-IN')}
+                          </div>
+                        )}
                       </td>
                       <td>
                         <div className="flex items-center gap-2">
+                          {Number(m.history?.length || 0) > 0 && (
+                            <button
+                              onClick={() => setExpandedMember(isExpanded ? null : rowKey)}
+                              title="View member history"
+                              style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--t)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '5px 9px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                            >
+                              {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />} History
+                            </button>
+                          )}
                           {m.status === 'active' && m.canDeactivate !== false && (
                             <button
-                              onClick={() => setConfirm({ id: m.id, name: m.name })}
-                              disabled={actionLoading === m.id}
+                              onClick={() => setConfirm({ id: m.currentSubscriptionId || m.id, name: m.name })}
+                              disabled={actionLoading === (m.currentSubscriptionId || m.id)}
                               title="Deactivate member"
                               style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '5px 10px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                             >
@@ -384,6 +414,30 @@ export default function MembersPage() {
                         </div>
                       </td>
                     </tr>
+                    {isExpanded && (
+                      <tr key={`${rowKey}-history`} style={{ background: 'rgba(255,255,255,0.025)' }}>
+                        <td colSpan={9} style={{ padding: '14px 20px' }}>
+                          <div style={{ display: 'grid', gap: 8 }}>
+                            {(m.history || []).map((item) => (
+                              <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.8fr 0.8fr 0.8fr 1fr', gap: 12, alignItems: 'center', fontSize: 12, color: 'var(--t2)', padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                <div>
+                                  <PlanBadge plan={item.planType} />
+                                  {item.planName && <div style={{ marginTop: 4 }}>{item.planName}</div>}
+                                </div>
+                                <div>{item.startDate ? new Date(item.startDate).toLocaleDateString('en-IN') : '—'}</div>
+                                <div>{item.endDate ? new Date(item.endDate).toLocaleDateString('en-IN') : '—'}</div>
+                                <div><StatusBadge status={item.status} /></div>
+                                <div style={{ textAlign: 'right', color: '#fff', fontWeight: 700 }}>
+                                  Rs {Number(item.gymAmount || item.amountPaid || 0).toLocaleString('en-IN')}
+                                  {item.trainerSummary && <div style={{ color: 'var(--t2)', fontWeight: 500, marginTop: 3 }}>{item.trainerSummary}</div>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
           </tbody>

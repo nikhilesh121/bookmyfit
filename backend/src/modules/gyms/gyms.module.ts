@@ -289,14 +289,43 @@ class GymsService {
   };
 
   private recomputeKycStatus(docs: any[] = []) {
-    const requiredTypes = Object.keys(this.kycSchemas);
     if (!docs.length) return 'not_started';
-    const byType = new Map(docs.map((doc) => [doc.type, doc]));
-    const allRequiredApproved = requiredTypes.every((type) => byType.get(type)?.status === 'approved');
-    if (allRequiredApproved) return 'approved';
+    if (this.areRequiredKycDocsApproved(docs)) return 'approved';
     if (docs.some((doc) => doc.status === 'in_review')) return 'in_review';
     if (docs.some((doc) => doc.status === 'rejected')) return 'rejected';
     return 'in_review';
+  }
+
+  private requiredKycTypes() {
+    return Object.keys(this.kycSchemas);
+  }
+
+  private areRequiredKycDocsSubmitted(docs: any[] = []) {
+    const byType = new Map(docs.map((doc) => [doc.type, doc]));
+    return this.requiredKycTypes().every((type) => !!byType.get(type));
+  }
+
+  private areRequiredKycDocsApproved(docs: any[] = []) {
+    const byType = new Map(docs.map((doc) => [doc.type, doc]));
+    return this.requiredKycTypes().every((type) => byType.get(type)?.status === 'approved');
+  }
+
+  private missingKycLabels(docs: any[] = [], requireApproved = false) {
+    const byType = new Map(docs.map((doc) => [doc.type, doc]));
+    return this.requiredKycTypes()
+      .filter((type) => {
+        const doc = byType.get(type);
+        return requireApproved ? doc?.status !== 'approved' : !doc;
+      })
+      .map((type) => this.kycSchemas[type]?.label || type);
+  }
+
+  private assertKycApproved(gym: any) {
+    const docs = gym?.kycDocuments || [];
+    if (!this.areRequiredKycDocsApproved(docs)) {
+      const missing = this.missingKycLabels(docs, true).join(', ');
+      throw new BadRequestException(`Approve all required KYC details before activating this gym${missing ? `: ${missing}` : ''}`);
+    }
   }
 
   private statusForKyc(kycStatus: string, currentStatus?: string): GymStatus {
@@ -541,6 +570,176 @@ class GymsService {
     };
   }
 
+  async myMembersGrouped(ownerId: string, opts: { page?: number; limit?: number; search?: string; status?: string } = {}) {
+    const gym = await this.myGym(ownerId) as any;
+    if (!gym) return { data: [], total: 0, page: 1, limit: 20, pages: 0, stats: { total: 0, active: 0, pending: 0, expired: 0, cancelled: 0 } };
+    const page = opts.page || 1;
+    const limit = opts.limit || 20;
+    const skip = (page - 1) * limit;
+    const search = opts.search?.trim();
+
+    const makeBaseQuery = () => this.gymSubscriptionsQuery(gym.id);
+    const applySearch = (qb: ReturnType<typeof makeBaseQuery>) => {
+      if (!search) return qb;
+      return qb.andWhere(new Brackets((where) => {
+        where
+          .where('s."userId"::text ILIKE :q', { q: `%${search}%` })
+          .orWhere('u.name ILIKE :q', { q: `%${search}%` })
+          .orWhere('u.phone ILIKE :q', { q: `%${search}%` })
+          .orWhere('u.email ILIKE :q', { q: `%${search}%` });
+      }));
+    };
+
+    const subs = await applySearch(makeBaseQuery()).orderBy('s.createdAt', 'DESC').getMany();
+    const userIds = [...new Set(subs.map((s) => s.userId).filter(Boolean))];
+    const subIds = [...new Set(subs.map((s) => s.id).filter(Boolean))];
+    const gymPlanIds = [...new Set(subs.map((s) => s.gymPlanId).filter(Boolean))];
+    const [users, planRows] = await Promise.all([
+      userIds.length ? this.users.find({ where: { id: In(userIds) } }) : [],
+      gymPlanIds.length ? this.gymPlans.find({ where: { id: In(gymPlanIds as string[]) } }) : [],
+    ]);
+    const userMap = new Map<string, UserEntity>(users.map((u): [string, UserEntity] => [u.id, u]));
+    const planMap = new Map<string, GymPlanEntity>(planRows.map((p): [string, GymPlanEntity] => [p.id, p]));
+    const { byOrder: trainerAddonsByOrder, amountByOrder: trainerAmountByOrder } = await this.trainerAddonsByOrder(
+      gym.id,
+      subs.map((s) => s.razorpayOrderId).filter(Boolean),
+    );
+    const multiGymVisitCount = await this.multiGymVisitCounts(gym.id, subs.filter((s) => s.planType === 'multi_gym').map((s) => s.id));
+    const ratePerDay = Number(gym.ratePerDay || 0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    const [todayRows, checkinRows] = await Promise.all([
+      userIds.length ? this.checkins
+        .createQueryBuilder('c')
+        .select('c."userId"', 'userId')
+        .addSelect('COUNT(*)', 'count')
+        .where('c."gymId" = :gymId', { gymId: gym.id })
+        .andWhere('c.status = :status', { status: 'success' })
+        .andWhere('c."checkinTime" >= :today AND c."checkinTime" < :tomorrow', { today, tomorrow })
+        .andWhere('c."userId" IN (:...userIds)', { userIds })
+        .groupBy('c."userId"')
+        .getRawMany() : [],
+      subIds.length ? this.checkins
+        .createQueryBuilder('c')
+        .select('c."subscriptionId"', 'subscriptionId')
+        .addSelect('c."userId"', 'userId')
+        .addSelect('COUNT(*)', 'count')
+        .addSelect('MAX(c."checkinTime")', 'lastVisit')
+        .where('c."gymId" = :gymId', { gymId: gym.id })
+        .andWhere('c.status = :status', { status: 'success' })
+        .andWhere('c."subscriptionId" IN (:...subIds)', { subIds })
+        .groupBy('c."subscriptionId"')
+        .addGroupBy('c."userId"')
+        .getRawMany() : [],
+    ]);
+    const todayCheckins = new Map(todayRows.map((row: any) => [row.userId, Number(row.count || 0)]));
+    const checkinsBySub = new Map(checkinRows.map((row: any) => [row.subscriptionId, {
+      count: Number(row.count || 0),
+      lastVisit: row.lastVisit ? new Date(row.lastVisit).toISOString() : null,
+    }]));
+    const checkinsByUser = new Map<string, { count: number; lastVisit: string | null }>();
+    for (const row of checkinRows as any[]) {
+      const current = checkinsByUser.get(row.userId) || { count: 0, lastVisit: null };
+      const rowLast = row.lastVisit ? new Date(row.lastVisit).toISOString() : null;
+      current.count += Number(row.count || 0);
+      if (rowLast && (!current.lastVisit || rowLast > current.lastVisit)) current.lastVisit = rowLast;
+      checkinsByUser.set(row.userId, current);
+    }
+
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const historyRows = subs.map((s) => {
+      const user = userMap.get(s.userId);
+      const gymPlan = s.gymPlanId ? planMap.get(s.gymPlanId) : null;
+      const belongsByGymPlan = gymPlan?.gymId === gym.id;
+      const isExpired = s.endDate ? String(s.endDate).slice(0, 10) < todayIso : false;
+      const gymCount = Math.max((s.gymIds || []).length, belongsByGymPlan ? 1 : 0);
+      const canDeactivate = s.planType !== 'multi_gym' && ((s.gymIds || []).includes(gym.id) || belongsByGymPlan);
+      const subscriptionGymAmount = s.planType === 'multi_gym'
+        ? this.money((multiGymVisitCount.get(s.id) || 0) * ratePerDay)
+        : this.gymPlanAmount(s, gym, gymPlan);
+      const trainerAddons = s.razorpayOrderId ? (trainerAddonsByOrder.get(s.razorpayOrderId) || []) : [];
+      const trainerGymAmount = s.razorpayOrderId ? (trainerAmountByOrder.get(s.razorpayOrderId) || 0) : 0;
+      const checkinSummary = checkinsBySub.get(s.id) || { count: 0, lastVisit: null };
+      return {
+        id: s.id,
+        subscriptionId: s.id,
+        userId: s.userId,
+        name: user?.name || user?.email || `User-${s.userId.slice(0, 6)}`,
+        phone: user?.phone || user?.email || '-',
+        planType: s.planType,
+        planName: gymPlan?.name || null,
+        gymType: s.planType === 'multi_gym' ? 'Multi Gym' : 'Single Gym',
+        gymCount: s.planType === 'multi_gym' ? Math.max(gymCount, 1) : gymCount,
+        status: s.status === 'cancelled' ? 'cancelled' : (isExpired ? 'expired' : s.status),
+        subscriptionStatus: s.status,
+        startDate: s.startDate,
+        endDate: s.endDate,
+        amountPaid: subscriptionGymAmount + trainerGymAmount,
+        gymAmount: subscriptionGymAmount + trainerGymAmount,
+        subscriptionGymAmount,
+        trainerGymAmount,
+        trainerAddons,
+        hasTrainerAddon: trainerAddons.length > 0,
+        trainerSummary: trainerAddons.length
+          ? trainerAddons.map((addon) => `${addon.trainerName} (${addon.status})`).join(', ')
+          : null,
+        userPaidAmount: undefined,
+        createdAt: s.createdAt,
+        todayCheckins: todayCheckins.get(s.userId) || 0,
+        checkinsAtGym: (checkinSummary as any).count || 0,
+        lastVisitAt: (checkinSummary as any).lastVisit,
+        canDeactivate,
+      };
+    });
+
+    const grouped = new Map<string, any>();
+    for (const row of historyRows) {
+      const group = grouped.get(row.userId) || { userId: row.userId, name: row.name, phone: row.phone, history: [] };
+      group.history.push(row);
+      grouped.set(row.userId, group);
+    }
+
+    const members = Array.from(grouped.values()).map((group: any) => {
+      const history = group.history.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      const current = history.find((item: any) => item.status === 'active') || history[0];
+      const userCheckins = checkinsByUser.get(group.userId) || { count: 0, lastVisit: null };
+      const lifetimeGymAmount = history.reduce((sum: number, item: any) => sum + Number(item.gymAmount || item.amountPaid || 0), 0);
+      return {
+        ...current,
+        id: current.id,
+        memberId: group.userId,
+        currentSubscriptionId: current.id,
+        subscriptionCount: history.length,
+        history,
+        totalCheckinsAtGym: userCheckins.count,
+        lastVisitAt: userCheckins.lastVisit,
+        lastVisit: userCheckins.lastVisit ? new Date(userCheckins.lastVisit).toLocaleString('en-IN') : 'No visits',
+        lifetimeGymAmount,
+      };
+    });
+
+    const statusFilter = opts.status && opts.status !== 'all' ? opts.status : null;
+    const filtered = statusFilter ? members.filter((member) => member.status === statusFilter) : members;
+    const total = filtered.length;
+    const data = filtered.slice(skip, skip + limit);
+    const stats = {
+      total: members.length,
+      active: members.filter((member) => member.status === 'active').length,
+      pending: members.filter((member) => member.status === 'pending').length,
+      expired: members.filter((member) => member.status === 'expired').length,
+      cancelled: members.filter((member) => member.status === 'cancelled').length,
+    };
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+      stats,
+    };
+  }
+
   async deactivateMember(ownerId: string, subId: string) {
     const gym = await this.myGym(ownerId) as any;
     if (!gym) throw new NotFoundException('Gym not found');
@@ -750,7 +949,7 @@ class GymsService {
   }
 
   private publicVisibilityPredicate(alias = 'g') {
-    return `${alias}.status = :publicStatus AND ${this.publicLocationPredicate(alias)}`;
+    return `${alias}.status = :publicStatus AND ${alias}."kycStatus" = 'approved' AND ${this.publicLocationPredicate(alias)}`;
   }
 
   private publicLocationPredicate(alias = 'g') {
@@ -826,7 +1025,7 @@ class GymsService {
   async get(id: string, options: { publicOnly?: boolean } = {}) {
     const row = await this.safeGymQuery('g').where('g.id = :id', { id }).getRawOne();
     if (!row) throw new NotFoundException('Gym not found');
-    if (options.publicOnly && (row.status !== 'active' || !this.hasValidGymLocation(row))) {
+    if (options.publicOnly && (row.status !== 'active' || row.kycStatus !== 'approved' || !this.hasValidGymLocation(row))) {
       throw new NotFoundException('Gym not found');
     }
     return this.attachSchedule(row);
@@ -840,7 +1039,10 @@ class GymsService {
     const patch = this.sanitizeGymPatch(data, true);
     const categories = await this.canonicalCategories((data as any)?.categories);
     if (categories !== undefined) (patch as any).categories = categories;
-    if ((patch as any).status === 'active') this.assertGymLocationReady(patch);
+    if ((patch as any).status === 'active') {
+      this.assertGymLocationReady(patch);
+      this.assertKycApproved(patch);
+    }
     return this.repo.save(this.repo.create(patch));
   }
 
@@ -854,7 +1056,10 @@ class GymsService {
     const categories = await this.canonicalCategories((data as any)?.categories);
     if (categories !== undefined) (patch as any).categories = categories;
     const effectiveGym = { ...gym, ...patch };
-    if ((patch as any).status === 'active' || gym.status === 'active') this.assertGymLocationReady(effectiveGym);
+    if ((patch as any).status === 'active' || gym.status === 'active') {
+      this.assertGymLocationReady(effectiveGym);
+      this.assertKycApproved(effectiveGym);
+    }
     await this.repo.update(id, patch);
     await this.syncProfileHoursToSchedule(id, patch as any);
     return this.get(id);
@@ -910,11 +1115,19 @@ class GymsService {
     const gym = await this.repo.findOne({ where: { id } });
     if (!gym) throw new NotFoundException('Gym not found');
     this.assertGymLocationReady(gym);
-    const docs = (gym?.kycDocuments || []).map((d: any) => ({
+    if (!this.areRequiredKycDocsSubmitted(gym.kycDocuments || [])) {
+      const missing = this.missingKycLabels(gym.kycDocuments || []).join(', ');
+      throw new BadRequestException(`All required KYC details must be submitted before approval${missing ? `: ${missing}` : ''}`);
+    }
+    const docs = (gym.kycDocuments || []).map((d: any) => ({
       ...d,
       status: 'approved',
       reviewedAt: new Date().toISOString(),
     }));
+    if (!this.areRequiredKycDocsApproved(docs)) {
+      const missing = this.missingKycLabels(docs, true).join(', ');
+      throw new BadRequestException(`Approve all required KYC details before activating this gym${missing ? `: ${missing}` : ''}`);
+    }
     const kycPhotos = this.kycPhotoUrls(docs);
     const existingPhotos = Array.isArray(gym?.photos) ? gym.photos.filter(Boolean) : [];
     const photos = [...new Set([...existingPhotos, ...kycPhotos])];
@@ -982,7 +1195,10 @@ class GymsService {
     if (!allowedStatuses.includes(status)) throw new BadRequestException('Invalid gym status');
     const gym = await this.repo.findOne({ where: { id } });
     if (!gym) throw new NotFoundException('Gym not found');
-    if (status === 'active') this.assertGymLocationReady(gym);
+    if (status === 'active') {
+      this.assertGymLocationReady(gym);
+      this.assertKycApproved(gym);
+    }
     await this.repo.update(id, { status });
     return this.get(id);
   }
@@ -1010,7 +1226,9 @@ class GymsService {
     const existingIndex = docs.findIndex((d: any) => d.type === doc.type);
     if (existingIndex >= 0) docs[existingIndex] = nextDoc;
     else docs.push(nextDoc);
-    await this.repo.update(gymId, { kycDocuments: docs, kycStatus: 'in_review', kycReviewNote: null });
+    const kycStatus = this.recomputeKycStatus(docs);
+    const nextStatus = this.statusForKyc(kycStatus, gym.status);
+    await this.repo.update(gymId, { kycDocuments: docs, kycStatus, status: nextStatus, kycReviewNote: null });
     return { success: true, documents: docs };
   }
 
@@ -1088,7 +1306,7 @@ class GymsController {
     @Query('limit') limit = 20,
     @Query('search') search?: string,
     @Query('status') status?: string,
-  ) { return this.svc.myMembers(req.user.userId, { page: +page, limit: +limit, search, status }); }
+  ) { return this.svc.myMembersGrouped(req.user.userId, { page: +page, limit: +limit, search, status }); }
 
   @Patch('my-members/:subId/deactivate') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
   deactivateMember(@Req() req: any, @Param('subId') subId: string) {
