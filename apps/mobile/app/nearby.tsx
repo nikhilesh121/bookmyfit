@@ -13,6 +13,7 @@ import { gymsApi } from '../lib/api';
 const { width: W, height: H } = Dimensions.get('window');
 const CARD_W = W * 0.72;
 const MAP_H = H * 0.52;
+const DEFAULT_CENTER = { lat: 20.2961, lng: 85.8245 };
 
 interface NearbyGym {
   id: string; name: string; address?: string; city?: string;
@@ -24,13 +25,38 @@ const TIER_COLORS: Record<string, string> = {
   elite: '#FBBF24', pro: colors.accent, individual: '#60A5FA',
 };
 
-// Bhubaneswar bounding box
-const MIN_LAT = 20.22, MAX_LAT = 20.40, MIN_LNG = 85.74, MAX_LNG = 85.90;
+type MapBounds = { minLat: number; maxLat: number; minLng: number; maxLng: number };
 
-function toScreen(lat: number, lng: number) {
-  const x = ((lng - MIN_LNG) / (MAX_LNG - MIN_LNG)) * (W - 60) + 16;
-  const y = ((MAX_LAT - lat) / (MAX_LAT - MIN_LAT)) * (MAP_H - 80) + 24;
-  return { x, y };
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function boundsFrom(points: Array<{ lat: number; lng: number }>): MapBounds {
+  const safePoints = points.length ? points : [DEFAULT_CENTER];
+  let minLat = Math.min(...safePoints.map((point) => point.lat));
+  let maxLat = Math.max(...safePoints.map((point) => point.lat));
+  let minLng = Math.min(...safePoints.map((point) => point.lng));
+  let maxLng = Math.max(...safePoints.map((point) => point.lng));
+  const minSpan = 0.025;
+  if (maxLat - minLat < minSpan) {
+    const mid = (maxLat + minLat) / 2;
+    minLat = mid - minSpan / 2;
+    maxLat = mid + minSpan / 2;
+  }
+  if (maxLng - minLng < minSpan) {
+    const mid = (maxLng + minLng) / 2;
+    minLng = mid - minSpan / 2;
+    maxLng = mid + minSpan / 2;
+  }
+  const latPad = (maxLat - minLat) * 0.18;
+  const lngPad = (maxLng - minLng) * 0.18;
+  return { minLat: minLat - latPad, maxLat: maxLat + latPad, minLng: minLng - lngPad, maxLng: maxLng + lngPad };
+}
+
+function toScreen(lat: number, lng: number, bounds: MapBounds) {
+  const x = ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * (W - 60) + 16;
+  const y = ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat)) * (MAP_H - 80) + 24;
+  return { x: clamp(x, 14, W - 46), y: clamp(y, 24, MAP_H - 56) };
 }
 
 function gymLat(gym: NearbyGym) {
@@ -47,32 +73,39 @@ export default function NearbyScreen() {
   const insets = useSafeAreaInsets();
   const flatRef = useRef<FlatList>(null);
   const [gyms, setGyms] = useState<NearbyGym[]>([]);
-  const [userPos, setUserPos] = useState<{ x: number; y: number } | null>(null);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      let lat = 20.2961, lng = 85.8245;
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        try {
+      let coords: { lat: number; lng: number } | null = null;
+      let notice: string | null = null;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          notice = 'Enable GPS permission to show gyms closest to you.';
+        } else {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          lat = loc.coords.latitude;
-          lng = loc.coords.longitude;
-        } catch {}
+          coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+          setUserCoords(coords);
+        }
+      } catch {
+        notice = 'Could not read your GPS location. Showing mapped gyms for now.';
       }
-      setUserPos(toScreen(lat, lng));
 
       try {
-        const data: any = await gymsApi.list({ limit: 50, lat, lng, sort: 'nearest' });
+        const params = coords
+          ? { limit: 50, lat: coords.lat, lng: coords.lng, sort: 'nearest', radiusKm: 50 }
+          : { limit: 50 };
+        const data: any = await gymsApi.list(params);
         const list = Array.isArray(data) ? data : data?.data || data?.gyms || data?.items || [];
         const items: NearbyGym[] = list
           .filter((g: NearbyGym) => gymLat(g) !== null && gymLng(g) !== null)
           .sort((a: any, b: any) => Number(a.distanceKm ?? 999999) - Number(b.distanceKm ?? 999999));
         setGyms(items);
-        setError(null);
+        setError(notice);
       } catch {
         setGyms([]);
         setError('Could not load gyms from the API.');
@@ -80,6 +113,17 @@ export default function NearbyScreen() {
       setLoading(false);
     })();
   }, []);
+
+  const mappedGymPoints = gyms
+    .map((gym) => {
+      const lat = gymLat(gym);
+      const lng = gymLng(gym);
+      return lat === null || lng === null ? null : { lat, lng };
+    })
+    .filter((point): point is { lat: number; lng: number } => !!point);
+  const bounds = boundsFrom([...(userCoords ? [userCoords] : []), ...mappedGymPoints]);
+  const userPos = userCoords ? toScreen(userCoords.lat, userCoords.lng, bounds) : null;
+  const mapLabel = userCoords ? 'Your area' : (gyms[0]?.city || 'Mapped gyms');
 
   const selectGym = (gym: NearbyGym) => {
     setSelectedId(gym.id);
@@ -124,7 +168,7 @@ export default function NearbyScreen() {
           const lat = gymLat(gym);
           const lng = gymLng(gym);
           if (lat === null || lng === null) return null;
-          const { x, y } = toScreen(lat, lng);
+          const { x, y } = toScreen(lat, lng, bounds);
           const tc = TIER_COLORS[gym.tier || 'individual'] ?? colors.accent;
           const sel = selectedId === gym.id;
           return (
@@ -142,7 +186,7 @@ export default function NearbyScreen() {
         {/* City label */}
         <View style={s.cityLabel}>
           <View style={[s.cityDot, { backgroundColor: colors.accent }]} />
-          <Text style={s.cityText}>Bhubaneswar</Text>
+          <Text style={s.cityText}>{mapLabel}</Text>
         </View>
       </View>
 
@@ -153,13 +197,19 @@ export default function NearbyScreen() {
         </TouchableOpacity>
         <View style={[s.headerWrap, { top: insets.top + 10 }]}>
           <Text style={s.headerTitle}>Gyms Near You</Text>
-          <Text style={s.headerSub}>{gyms.length} found · Tap pin to select</Text>
+          <Text style={s.headerSub}>{userCoords ? `${gyms.length} found nearby` : `${gyms.length} mapped gyms`} · Tap pin to select</Text>
         </View>
       </SafeAreaView>
 
       {/* ── Bottom sheet ── */}
       <View style={s.sheet}>
         <View style={s.sheetPill} />
+        {error && (
+          <View style={s.notice}>
+            <IconPin size={12} color={colors.accent} />
+            <Text style={s.noticeText}>{error}</Text>
+          </View>
+        )}
         <FlatList
           ref={flatRef}
           data={gyms}
@@ -249,6 +299,8 @@ const s = StyleSheet.create({
   // Sheet
   sheet:     { flex: 1, backgroundColor: '#0e0e14', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingTop: 12 },
   sheetPill: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'center', marginBottom: 16 },
+  notice: { marginHorizontal: 18, marginBottom: 12, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSoft, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  noticeText: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 11, color: colors.accent },
 
   // Cards
   card:     { width: CARD_W, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.xl, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden', flexDirection: 'row' },

@@ -54,6 +54,8 @@ module.exports = withArm64Only({
       [
         "expo-location",
         {
+          locationWhenInUsePermission:
+            "Allow BookMyFit to use your location to show gyms near you.",
           locationAlwaysAndWhenInUsePermission:
             "Allow BookMyFit to use your location to find nearby gyms.",
         },

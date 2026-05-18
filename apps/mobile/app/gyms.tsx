@@ -63,18 +63,32 @@ export default function GymListingPage() {
   const [loadError, setLoadError] = useState('');
   const [passPricingConfig, setPassPricingConfig] = useState<any>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationState, setLocationState] = useState<'checking' | 'ready' | 'denied' | 'unavailable'>('checking');
+  const [detectingLocation, setDetectingLocation] = useState(false);
   const pageRef = useRef(1);
 
-  useEffect(() => {
-    let alive = true;
-    Location.requestForegroundPermissionsAsync()
-      .then(({ status }) => status === 'granted' ? Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }) : null)
-      .then((loc) => {
-        if (alive && loc?.coords) setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
-      })
-      .catch(() => {});
-    return () => { alive = false; };
+  const requestUserLocation = useCallback(async () => {
+    setDetectingLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationState('denied');
+        return null;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const next = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+      setUserLocation(next);
+      setLocationState('ready');
+      return next;
+    } catch {
+      setLocationState('unavailable');
+      return null;
+    } finally {
+      setDetectingLocation(false);
+    }
   }, []);
+
+  useEffect(() => { requestUserLocation(); }, [requestUserLocation]);
 
   useEffect(() => {
     let alive = true;
@@ -118,7 +132,10 @@ export default function GymListingPage() {
       if (userLocation) {
         params.lat = userLocation.lat;
         params.lng = userLocation.lng;
-        params.sort = activeSort === 'distance' ? 'nearest' : undefined;
+        if (activeSort === 'distance') {
+          params.sort = 'nearest';
+          params.radiusKm = 50;
+        }
       }
       const res: any = await gymsApi.list(params);
       const raw = Array.isArray(res) ? res : res?.gyms || res?.data || [];
@@ -215,6 +232,13 @@ export default function GymListingPage() {
     : sorted;
 
   const activeSortLabel = SORTS.find((s) => s.id === activeSort)?.label || 'Sort';
+  const gpsText = userLocation
+    ? 'GPS active - showing distance from your location'
+    : detectingLocation || locationState === 'checking'
+      ? 'Finding your GPS location...'
+      : locationState === 'denied'
+        ? 'Enable GPS permission to sort gyms near you'
+        : 'Tap to use GPS for nearest gyms';
 
   return (
     <SafeAreaView style={s.root} edges={['left', 'right', 'bottom']}>
@@ -225,7 +249,7 @@ export default function GymListingPage() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Gyms Near You</Text>
-          <Text style={s.headerSub}>{filtered.length}+ gyms available</Text>
+          <Text style={s.headerSub}>{activeSort === 'distance' && userLocation ? `${filtered.length}+ nearest gyms` : `${filtered.length}+ gyms available`}</Text>
         </View>
       </View>
 
@@ -248,6 +272,16 @@ export default function GymListingPage() {
           <Text style={s.sortBtnText} numberOfLines={1}>{activeSortLabel}</Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity
+        style={[s.gpsBanner, userLocation && s.gpsBannerActive]}
+        onPress={requestUserLocation}
+        disabled={detectingLocation}
+        activeOpacity={0.82}
+      >
+        {detectingLocation ? <ActivityIndicator size="small" color={colors.accent} /> : <IconPin size={13} color={userLocation ? colors.accent : colors.t2} />}
+        <Text style={[s.gpsText, userLocation && { color: colors.accent }]} numberOfLines={1}>{gpsText}</Text>
+      </TouchableOpacity>
 
       {/* ── Category chips ── */}
       <FlatList
@@ -331,7 +365,11 @@ export default function GymListingPage() {
               <TouchableOpacity
                 key={sort.id}
                 style={s.sheetOption}
-                onPress={() => { setActiveSort(sort.id); setShowSortSheet(false); }}
+                onPress={() => {
+                  setActiveSort(sort.id);
+                  setShowSortSheet(false);
+                  if (sort.id === 'distance' && !userLocation) requestUserLocation();
+                }}
               >
                 <Text style={[s.sheetOptionText, activeSort === sort.id && { color: colors.accent }]}>{sort.label}</Text>
                 {activeSort === sort.id && <IconCheck size={15} color={colors.accent} />}
@@ -476,6 +514,14 @@ const s = StyleSheet.create({
     borderRadius: 16, paddingHorizontal: 12,
   },
   searchInput: { flex: 1, fontFamily: fonts.sans, fontSize: 13, color: '#fff' },
+  gpsBanner: {
+    height: 34, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12,
+    borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.045)', flexDirection: 'row',
+    alignItems: 'center', gap: 7,
+  },
+  gpsBannerActive: { borderColor: colors.accentBorder, backgroundColor: colors.accentSoft },
+  gpsText: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
 
   // Chips
   chipScroller:  { flexGrow: 0, height: 42, marginBottom: 0 },

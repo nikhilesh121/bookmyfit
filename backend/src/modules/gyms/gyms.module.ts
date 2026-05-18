@@ -729,8 +729,14 @@ class GymsService {
       : null;
   }
 
+  private validRadiusKm(value: any) {
+    const radius = Number(value);
+    if (!Number.isFinite(radius) || radius <= 0) return null;
+    return Math.min(radius, 500);
+  }
+
   async list(
-    filter: { city?: string; status?: string; kycStatus?: string; search?: string; tier?: string; category?: string; lat?: string; lng?: string; sort?: string } = {},
+    filter: { city?: string; status?: string; kycStatus?: string; search?: string; tier?: string; category?: string; lat?: string; lng?: string; sort?: string; radiusKm?: string } = {},
     page: any = 1,
     limit: any = 20,
     options: { includeSensitive?: boolean; publicOnly?: boolean } = {},
@@ -762,14 +768,22 @@ class GymsService {
       `, { category: filter.category });
     }
     const location = this.validCoordinate(filter.lat, filter.lng);
+    const radiusKm = location ? this.validRadiusKm(filter.radiusKm) : null;
     if (location) {
+      const distanceExpr = `(6371 * acos(least(1, greatest(-1, cos(radians(:lat)) * cos(radians(g.lat)) * cos(radians(g.lng) - radians(:lng)) + sin(radians(:lat)) * sin(radians(g.lat))))))`;
       qb.addSelect(
-        `(6371 * acos(least(1, greatest(-1, cos(radians(:lat)) * cos(radians(g.lat)) * cos(radians(g.lng) - radians(:lng)) + sin(radians(:lat)) * sin(radians(g.lat))))))`,
+        distanceExpr,
         'distanceKm',
       ).setParameters(location);
+      if (filter.sort === 'nearest' || radiusKm !== null) {
+        qb.andWhere('NOT (g.lat = 0 AND g.lng = 0)');
+      }
+      if (radiusKm !== null) {
+        qb.andWhere(`${distanceExpr} <= :radiusKm`, { radiusKm });
+      }
     }
     const { skip, take, page: p, limit: l } = paginate(page, limit);
-    const orderColumn = location && filter.sort === 'nearest' ? '"distanceKm"' : (filter.kycStatus ? 'g.updatedAt' : 'g.rating');
+    const orderColumn = location && (filter.sort === 'nearest' || radiusKm !== null) ? '"distanceKm"' : (filter.kycStatus ? 'g.updatedAt' : 'g.rating');
     const [data, total] = await Promise.all([
       qb.clone().orderBy(orderColumn, orderColumn === '"distanceKm"' ? 'ASC' : 'DESC').skip(skip).take(take).getRawMany(),
       qb.clone().getCount(),
@@ -1042,10 +1056,11 @@ class GymsController {
     @Query('lat') lat?: string,
     @Query('lng') lng?: string,
     @Query('sort') sort?: string,
+    @Query('radiusKm') radiusKm?: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.svc.list({ city, status, kycStatus, search, tier, category, lat, lng, sort }, +page, +limit, { publicOnly: true });
+    return this.svc.list({ city, status, kycStatus, search, tier, category, lat, lng, sort, radiusKm }, +page, +limit, { publicOnly: true });
   }
 
   @Get('admin/list') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')

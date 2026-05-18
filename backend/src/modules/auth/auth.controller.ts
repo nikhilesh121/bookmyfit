@@ -1,6 +1,6 @@
 import { Body, Controller, Post, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { ArrayMinSize, IsArray, IsNotEmpty, IsOptional, IsString, Length, IsEmail, MinLength } from 'class-validator';
+import { ArrayMinSize, IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, Length, IsEmail, Max, Min, MinLength } from 'class-validator';
 import { AuthService } from './auth.service';
 
 class SendOtpDto {
@@ -26,6 +26,8 @@ class GymRegisterDto {
   @IsString() @IsNotEmpty() address: string;
   @IsString() @Length(10, 15) phone: string;
   @IsArray() @ArrayMinSize(1) categories: string[];
+  @IsOptional() @IsNumber() @Min(-90) @Max(90) lat?: number;
+  @IsOptional() @IsNumber() @Min(-180) @Max(180) lng?: number;
 }
 class CorporateRegisterDto {
   @IsEmail() email: string;

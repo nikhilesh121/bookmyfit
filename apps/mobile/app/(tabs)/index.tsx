@@ -10,7 +10,7 @@ import {
   IconBell, IconPin, IconStar, IconChevronDown,
   IconBolt, IconShield, IconHeadphones, IconPercent,
 } from '../../components/Icons';
-import { API_BASE, appStorage, subscriptionsApi } from '../../lib/api';
+import { API_BASE, appStorage, gymsApi, subscriptionsApi } from '../../lib/api';
 import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList } from '../../lib/subscriptionAccess';
 import { applyPassCommission, positiveNumber } from '../../lib/passPricing';
 import {
@@ -127,26 +127,26 @@ export default function Home() {
   const [multiGymSub, setMultiGymSub] = useState<any>(null);
   const [hasMultiGymSub, setHasMultiGymSub] = useState(false);
   const [passPricingConfig, setPassPricingConfig] = useState<any>(null);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const heroRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    // Load saved city first, fall back to GPS detection
+    // Load saved city for display, but still use GPS for nearby gym ordering.
     appStorage.getItem('bmf_city').then((saved) => {
-      if (saved) {
-        setCity(saved);
-      } else {
-        // Auto-detect from GPS (fire-and-forget, no crash if denied)
-        (async () => {
-          try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') return;
-            const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      if (saved) setCity(saved);
+      (async () => {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== 'granted') return;
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          setUserCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+          if (!saved) {
             const [geo] = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
             const c = geo?.city || geo?.subregion || geo?.region;
             if (c) setCity(c);
-          } catch {}
-        })();
-      }
+          }
+        } catch {}
+      })();
     }).catch(() => {});
   }, []);
 
@@ -166,13 +166,19 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/v1/gyms?limit=100`)
-      .then((r) => r.json())
+    const params: any = { limit: 100 };
+    if (userCoords) {
+      params.lat = userCoords.lat;
+      params.lng = userCoords.lng;
+      params.sort = 'nearest';
+      params.radiusKm = 50;
+    }
+    gymsApi.list(params)
       .then((data: any) => {
         setHomeGyms(listFrom(data, ['gyms']));
       })
       .catch(() => setHomeGyms([]));
-  }, []);
+  }, [userCoords]);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/v1/store/products?limit=8`)

@@ -12,7 +12,7 @@ type Tab = 'gym' | 'corporate';
 
 interface GymForm {
   name: string; email: string; password: string; confirm: string;
-  gymName: string; city: string; area: string; address: string;
+  gymName: string; city: string; area: string; address: string; lat: string; lng: string;
 }
 interface CorpForm {
   companyName: string; email: string; password: string; confirm: string; billingContact: string;
@@ -22,9 +22,10 @@ function OnboardContent() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>('gym');
   const [gymStep, setGymStep] = useState(1);
-  const [gymForm, setGymForm] = useState<GymForm>({ name: '', email: '', password: '', confirm: '', gymName: '', city: '', area: '', address: '' });
+  const [gymForm, setGymForm] = useState<GymForm>({ name: '', email: '', password: '', confirm: '', gymName: '', city: '', area: '', address: '', lat: '', lng: '' });
   const [corpForm, setCorpForm] = useState<CorpForm>({ companyName: '', email: '', password: '', confirm: '', billingContact: '' });
   const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState<'gym' | 'corporate' | null>(null);
 
@@ -45,7 +46,16 @@ function OnboardContent() {
       const res = await fetch(`${API}/api/v1/auth/gym/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: gymForm.name, email: gymForm.email, password: gymForm.password, gymName: gymForm.gymName, city: gymForm.city, area: gymForm.area, address: gymForm.address }),
+        body: JSON.stringify({
+          name: gymForm.name,
+          email: gymForm.email,
+          password: gymForm.password,
+          gymName: gymForm.gymName,
+          city: gymForm.city,
+          area: gymForm.area,
+          address: gymForm.address,
+          ...(gymForm.lat && gymForm.lng ? { lat: Number(gymForm.lat), lng: Number(gymForm.lng) } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Registration failed');
@@ -53,6 +63,30 @@ function OnboardContent() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Something went wrong');
     } finally { setLoading(false); }
+  };
+
+  const useGymCurrentLocation = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setError('GPS is not available in this browser.');
+      return;
+    }
+    setLocating(true);
+    setError('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGymForm((prev) => ({
+          ...prev,
+          lat: pos.coords.latitude.toFixed(6),
+          lng: pos.coords.longitude.toFixed(6),
+        }));
+        setLocating(false);
+      },
+      () => {
+        setError('Could not read current location. You can enter latitude and longitude manually.');
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
   };
 
   const handleCorpSubmit = async () => {
@@ -194,6 +228,13 @@ function OnboardContent() {
                       <Input label="Area" placeholder="Bandra West" value={gymForm.area} onChange={v => setGymForm(p => ({ ...p, area: v }))} />
                     </div>
                     <Input label="Full Address" placeholder="123, Main St, Bandra West, Mumbai" value={gymForm.address} onChange={v => setGymForm(p => ({ ...p, address: v }))} />
+                    <button type="button" className="ob-btn-ghost" onClick={useGymCurrentLocation} disabled={locating}>
+                      {locating ? 'Reading GPS...' : 'Use Current GPS Location'}
+                    </button>
+                    <div className="ob-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                      <Input label="Latitude" placeholder="20.296100" value={gymForm.lat} onChange={v => setGymForm(p => ({ ...p, lat: v }))} />
+                      <Input label="Longitude" placeholder="85.824500" value={gymForm.lng} onChange={v => setGymForm(p => ({ ...p, lng: v }))} />
+                    </div>
                   </>)}
 
                   {error && <div style={{ background: 'rgba(255,80,80,0.08)', border: '1px solid rgba(255,80,80,0.2)', borderRadius: 10, padding: '10px 14px', color: '#ff8080', fontSize: '0.85rem' }}>{error}</div>}
