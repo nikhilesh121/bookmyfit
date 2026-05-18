@@ -64,7 +64,6 @@ export default function ProfilePage() {
   const [gymId, setGymId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [locating, setLocating] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [partnerTier, setPartnerTier] = useState('');
@@ -113,7 +112,6 @@ export default function ProfilePage() {
     setError(null);
     try {
       if (selectedCategories.length === 0) throw new Error('Select at least one workout category');
-      const location = parseGymCoordinates(form.lat, form.lng);
       const endpoint = gymId ? `/gyms/${gymId}` : '/gyms/my-gym';
       await api.put(endpoint, {
         name: form.displayName,
@@ -125,8 +123,6 @@ export default function ProfilePage() {
         contactPhone: form.phone,
         contactEmail: form.email,
         website: form.website,
-        lat: location.lat,
-        lng: location.lng,
         categories: selectedCategories,
       });
       setSaved(true);
@@ -146,30 +142,6 @@ export default function ProfilePage() {
     setSelectedCategories((prev) => (
       prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name]
     ));
-  };
-
-  const useCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setError('GPS is not available in this browser. Enter coordinates manually.');
-      return;
-    }
-    setLocating(true);
-    setError(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setForm((prev) => ({
-          ...prev,
-          lat: pos.coords.latitude.toFixed(6),
-          lng: pos.coords.longitude.toFixed(6),
-        }));
-        setLocating(false);
-      },
-      () => {
-        setError('Could not read current location. Enter coordinates manually.');
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 12000 },
-    );
   };
 
   const hasValidLocation = (() => {
@@ -253,7 +225,7 @@ export default function ProfilePage() {
                   <div className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
                     {hasValidLocation
                       ? `Lat ${form.lat}, Lng ${form.lng}`
-                      : 'Set GPS coordinates so users can find this gym near them.'}
+                      : 'Set GPS coordinates in Settings so users can find this gym near them.'}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--t2)' }}>
@@ -403,47 +375,14 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>
-                    Latitude
-                  </label>
-                  <input
-                    className="glass-input w-full"
-                    value={form.lat}
-                    onChange={handleChange('lat')}
-                    placeholder="e.g. 20.2961"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>
-                    Longitude
-                  </label>
-                  <input
-                    className="glass-input w-full"
-                    value={form.lng}
-                    onChange={handleChange('lng')}
-                    placeholder="e.g. 85.8245"
-                    required
-                  />
-                </div>
-              </div>
               <div
                 className="rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
               >
                 <div className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
-                  Required for nearby gym discovery. Use GPS from this browser or enter exact coordinates manually.
+                  Gym location is managed from Settings. Gym users can submit it once; admin can correct it later.
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-ghost text-xs"
-                  onClick={useCurrentLocation}
-                  disabled={locating}
-                >
-                  {locating ? 'Reading GPS...' : 'Use current location'}
-                </button>
+                <a href="/settings" className="btn btn-ghost text-xs">Manage Location</a>
               </div>
 
               {/* Phone + Email */}

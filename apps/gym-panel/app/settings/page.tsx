@@ -3,7 +3,36 @@
 import Shell from '../../components/Shell';
 import { api } from '../../lib/api';
 import { useEffect, useState } from 'react';
-import { Settings, Bell, Shield, Edit2, Check, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Settings, Bell, Shield, Edit2, Check, AlertTriangle, Eye, EyeOff, MapPin, Navigation } from 'lucide-react';
+
+function parseGymCoordinates(latValue: string, lngValue: string) {
+  const latText = latValue.trim();
+  const lngText = lngValue.trim();
+  if (!latText || !lngText) {
+    throw new Error('Use GPS or enter both latitude and longitude for your gym location.');
+  }
+  const lat = Number(latText);
+  const lng = Number(lngText);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+    throw new Error('Latitude must be a number between -90 and 90.');
+  }
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+    throw new Error('Longitude must be a number between -180 and 180.');
+  }
+  if (lat === 0 && lng === 0) {
+    throw new Error('Use the real gym location, not 0 latitude and 0 longitude.');
+  }
+  return { lat, lng };
+}
+
+function hasValidGymLocation(latValue: string, lngValue: string) {
+  try {
+    parseGymCoordinates(latValue, lngValue);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
@@ -83,6 +112,10 @@ export default function SettingsPage() {
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [gymName, setGymName] = useState('');
+  const [lat, setLat] = useState('');
+  const [lng, setLng] = useState('');
+  const [locating, setLocating] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
 
   // Edit mode per group
   const [editingContact, setEditingContact] = useState(false);
@@ -117,6 +150,8 @@ export default function SettingsPage() {
         setCity(data.city ?? '');
         setContactEmail(data.contactEmail ?? '');
         setContactPhone(data.contactPhone ?? '');
+        setLat(data.lat != null ? String(data.lat) : '');
+        setLng(data.lng != null ? String(data.lng) : '');
       } catch {
         showToast('Could not load gym settings.');
       } finally {
@@ -161,6 +196,42 @@ export default function SettingsPage() {
     showToast('Contact details saved.');
   }
 
+  function useCurrentLocation() {
+    if (!navigator.geolocation) {
+      showToast('GPS is not available in this browser. Enter coordinates manually.');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude.toFixed(6));
+        setLng(pos.coords.longitude.toFixed(6));
+        setLocating(false);
+      },
+      () => {
+        setLocating(false);
+        showToast('Could not read current location. Enter coordinates manually.');
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  }
+
+  async function submitLocation() {
+    setSavingLocation(true);
+    try {
+      const location = parseGymCoordinates(lat, lng);
+      const updated = await api.put('/gyms/my-gym/location', location);
+      const data = updated?.data ?? updated;
+      setLat(data.lat != null ? String(data.lat) : String(location.lat));
+      setLng(data.lng != null ? String(data.lng) : String(location.lng));
+      showToast('Gym location submitted.');
+    } catch (e: any) {
+      showToast(e?.message || 'Gym location was not saved.');
+    } finally {
+      setSavingLocation(false);
+    }
+  }
+
   async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
     setPwError('');
@@ -186,6 +257,7 @@ export default function SettingsPage() {
   }
 
   const labelStyle: React.CSSProperties = { color: 'var(--t2)', fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 };
+  const locationSubmitted = hasValidGymLocation(lat, lng);
 
   return (
     <Shell title="Gym Settings">
@@ -282,6 +354,88 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
+          )}
+        </div>
+
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--t)' }}>
+              <MapPin size={15} style={{ color: locationSubmitted ? 'var(--accent)' : '#FFB400' }} />
+              Gym Location
+            </span>
+            <span
+              className={locationSubmitted ? 'badge-active' : 'badge-pending'}
+              style={{ fontSize: 10 }}
+            >
+              {locationSubmitted ? 'Submitted' : 'Required'}
+            </span>
+          </div>
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <SkeletonField />
+              <SkeletonField />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label style={labelStyle}>Latitude</label>
+                  <input
+                    className="glass-input w-full"
+                    value={lat}
+                    onChange={(e) => setLat(e.target.value)}
+                    readOnly={locationSubmitted}
+                    placeholder="20.296100"
+                    style={locationSubmitted ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Longitude</label>
+                  <input
+                    className="glass-input w-full"
+                    value={lng}
+                    onChange={(e) => setLng(e.target.value)}
+                    readOnly={locationSubmitted}
+                    placeholder="85.824500"
+                    style={locationSubmitted ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
+                  />
+                </div>
+              </div>
+              <div
+                className="rounded-xl p-3 mt-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                style={{
+                  background: locationSubmitted ? 'rgba(61,255,84,0.06)' : 'rgba(255,180,0,0.06)',
+                  border: locationSubmitted ? '1px solid rgba(61,255,84,0.16)' : '1px solid rgba(255,180,0,0.2)',
+                }}
+              >
+                <p className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
+                  {locationSubmitted
+                    ? 'Location is locked for gym users. Contact admin if latitude or longitude needs correction.'
+                    : 'Submit this once so users can find your gym nearby. You can use GPS or enter coordinates manually.'}
+                </p>
+                {!locationSubmitted && (
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      className="btn btn-ghost text-xs flex items-center gap-1"
+                      onClick={useCurrentLocation}
+                      disabled={locating || savingLocation}
+                    >
+                      <Navigation size={13} />
+                      {locating ? 'Reading GPS...' : 'Use GPS'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary text-xs"
+                      onClick={submitLocation}
+                      disabled={savingLocation}
+                    >
+                      {savingLocation ? 'Submitting...' : 'Submit Location'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
 

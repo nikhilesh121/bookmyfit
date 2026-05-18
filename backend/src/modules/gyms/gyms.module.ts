@@ -741,6 +741,14 @@ class GymsService {
     }
   }
 
+  private requireSubmittedLocation(data: any) {
+    const location = this.validCoordinate(data?.lat, data?.lng);
+    if (!location || (location.lat === 0 && location.lng === 0)) {
+      throw new BadRequestException('Set a valid latitude and longitude for the gym location');
+    }
+    return location;
+  }
+
   private publicVisibilityPredicate(alias = 'g') {
     return `${alias}.status = :publicStatus AND ${this.publicLocationPredicate(alias)}`;
   }
@@ -839,6 +847,10 @@ class GymsService {
   async update(id: string, data: Partial<GymEntity>, user: any) {
     const gym = await this.assertGymAccess(id, user);
     const patch = this.sanitizeGymPatch(data, user?.role === 'super_admin');
+    if (user?.role !== 'super_admin') {
+      delete (patch as any).lat;
+      delete (patch as any).lng;
+    }
     const categories = await this.canonicalCategories((data as any)?.categories);
     if (categories !== undefined) (patch as any).categories = categories;
     const effectiveGym = { ...gym, ...patch };
@@ -846,6 +858,17 @@ class GymsService {
     await this.repo.update(id, patch);
     await this.syncProfileHoursToSchedule(id, patch as any);
     return this.get(id);
+  }
+
+  async submitMyLocation(ownerId: string, data: { lat?: number; lng?: number }) {
+    const gym = await this.repo.findOne({ where: { ownerId } });
+    if (!gym) throw new NotFoundException('Gym not found');
+    if (this.hasValidGymLocation(gym)) {
+      throw new BadRequestException('Gym location is already submitted. Contact admin to change latitude or longitude.');
+    }
+    const location = this.requireSubmittedLocation(data);
+    await this.repo.update(gym.id, { lat: location.lat, lng: location.lng });
+    return this.get(gym.id);
   }
 
   private async syncProfileHoursToSchedule(gymId: string, patch: any) {
@@ -1088,6 +1111,11 @@ class GymsController {
   @Put('my-gym/amenities') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
   updateMyAmenities(@Req() req: any, @Body() body: { amenities: string[] }) {
     return this.svc.updateMyAmenities(req.user.userId, body.amenities || []);
+  }
+
+  @Put('my-gym/location') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
+  submitMyLocation(@Req() req: any, @Body() body: { lat?: number; lng?: number }) {
+    return this.svc.submitMyLocation(req.user.userId, body);
   }
 
   @Get() list(

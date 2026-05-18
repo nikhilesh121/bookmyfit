@@ -49,10 +49,10 @@ export class GymEntity {
   @Column({ length: 5, nullable: true })
   breakEndTime: string | null;
 
-  @Column({ type: 'double precision' })
+  @Column({ type: 'double precision', default: 0 })
   lat: number;
 
-  @Column({ type: 'double precision' })
+  @Column({ type: 'double precision', default: 0 })
   lng: number;
 
   @Column({ length: 30, default: 'standard' })
