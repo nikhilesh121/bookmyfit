@@ -7,6 +7,26 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
 const CITIES = ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Pune', 'Kolkata', 'Ahmedabad', 'Jaipur', 'Surat', 'Other'];
 type CategoryOption = { id: string; name: string };
 
+function parseGymCoordinates(latValue: string, lngValue: string) {
+  const latText = latValue.trim();
+  const lngText = lngValue.trim();
+  if (!latText || !lngText) {
+    throw new Error('Use GPS or enter both latitude and longitude for your gym location');
+  }
+  const lat = Number(latText);
+  const lng = Number(lngText);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+    throw new Error('Latitude must be a number between -90 and 90');
+  }
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+    throw new Error('Longitude must be a number between -180 and 180');
+  }
+  if (lat === 0 && lng === 0) {
+    throw new Error('Use the real gym location, not 0 latitude and 0 longitude');
+  }
+  return { lat, lng };
+}
+
 export default function GymSignup() {
   const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({
@@ -16,6 +36,7 @@ export default function GymSignup() {
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [done, setDone] = useState(false);
 
   type TextFormKey = Exclude<keyof typeof form, 'categories'>;
@@ -52,14 +73,15 @@ export default function GymSignup() {
     setLoading(true); setError('');
     try {
       if (form.categories.length === 0) throw new Error('Select at least one workout category');
+      const location = parseGymCoordinates(form.lat, form.lng);
       const res = await fetch(`${API}/api/v1/auth/gym/register`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name, email: form.email, phone: form.phone, password: form.password,
           gymName: form.gymName, city: form.city, area: form.area, address: form.address,
           categories: form.categories,
-          lat: form.lat ? Number(form.lat) : undefined,
-          lng: form.lng ? Number(form.lng) : undefined,
+          lat: location.lat,
+          lng: location.lng,
         }),
       });
       const data = await res.json();
@@ -84,13 +106,23 @@ export default function GymSignup() {
       setError('Location is not available in this browser');
       return;
     }
+    setLocating(true);
+    setError('');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setForm((f) => ({ ...f, lat: String(pos.coords.latitude), lng: String(pos.coords.longitude) }));
+        setForm((f) => ({
+          ...f,
+          lat: pos.coords.latitude.toFixed(6),
+          lng: pos.coords.longitude.toFixed(6),
+        }));
         setError('');
+        setLocating(false);
       },
-      () => setError('Could not read current location. You can add latitude and longitude later from Profile.'),
-      { enableHighAccuracy: true, timeout: 10000 },
+      () => {
+        setError('Could not read current location. Enter latitude and longitude manually.');
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
     );
   };
 
@@ -213,18 +245,18 @@ export default function GymSignup() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={labelStyle}>Latitude</label>
-                <input style={inputStyle} value={form.lat} onChange={set('lat')} placeholder="20.2961" />
+                <input style={inputStyle} value={form.lat} onChange={set('lat')} placeholder="20.2961" required />
               </div>
               <div>
                 <label style={labelStyle}>Longitude</label>
-                <input style={inputStyle} value={form.lng} onChange={set('lng')} placeholder="85.8245" />
+                <input style={inputStyle} value={form.lng} onChange={set('lng')} placeholder="85.8245" required />
               </div>
             </div>
-            <button type="button" className="btn btn-ghost text-xs justify-center" onClick={useCurrentLocation}>
-              Use current browser location
+            <button type="button" className="btn btn-ghost text-xs justify-center" onClick={useCurrentLocation} disabled={locating}>
+              {locating ? 'Reading GPS...' : 'Use current browser location'}
             </button>
             <div style={{ background: 'rgba(255,180,0,0.06)', border: '1px solid rgba(255,180,0,0.2)', borderRadius: 10, padding: '12px 14px', fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
-              ⚠️ After registration, complete <strong style={{ color: '#FFB400' }}>KYC verification</strong> in your dashboard. Your gym will go live only after admin approval.
+              GPS coordinates are required for nearby gym discovery. Use the browser location button or enter latitude and longitude manually. After registration, complete <strong style={{ color: '#FFB400' }}>KYC verification</strong> in your dashboard.
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button type="button" className="btn btn-ghost flex-1" onClick={() => { setStep(1); setError(''); }}>← Back</button>

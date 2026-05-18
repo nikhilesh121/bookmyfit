@@ -15,6 +15,20 @@ function normalizeCatalogName(value: any): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+function requiredGymLocation(lat: any, lng: any) {
+  const parsedLat = Number(lat);
+  const parsedLng = Number(lng);
+  if (
+    !Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)
+    || parsedLat < -90 || parsedLat > 90
+    || parsedLng < -180 || parsedLng > 180
+    || (parsedLat === 0 && parsedLng === 0)
+  ) {
+    throw new BadRequestException('Set a valid gym latitude and longitude before registration');
+  }
+  return { lat: parsedLat, lng: parsedLng };
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -115,6 +129,7 @@ export class AuthService {
     const categoryByName = new Map(activeCategories.map((category) => [normalizeCatalogName(category.name), category.name.trim()]));
     const categories = [...new Set((data.categories || []).map((name) => categoryByName.get(normalizeCatalogName(name))).filter(Boolean) as string[])];
     if (categories.length === 0) throw new BadRequestException('Select at least one valid workout category');
+    const location = requiredGymLocation(data.lat, data.lng);
     const passwordHash = await bcrypt.hash(data.password, 10);
     const user = await this.users.save(
       this.users.create({ email: data.email, name: data.name, phone: data.phone, passwordHash, role: 'gym_owner', isActive: true }),
@@ -124,8 +139,8 @@ export class AuthService {
         name: data.gymName, city: data.city, area: data.area,
         address: data.address,
         categories,
-        lat: Number.isFinite(Number(data.lat)) ? Number(data.lat) : 0,
-        lng: Number.isFinite(Number(data.lng)) ? Number(data.lng) : 0,
+        lat: location.lat,
+        lng: location.lng,
         status: 'pending', ownerId: user.id, kycStatus: 'not_started',
       }),
     );

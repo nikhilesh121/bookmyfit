@@ -24,6 +24,26 @@ interface CategoryOption {
   name: string;
 }
 
+function parseGymCoordinates(latValue: string, lngValue: string) {
+  const latText = latValue.trim();
+  const lngText = lngValue.trim();
+  if (!latText || !lngText) {
+    throw new Error('Use GPS or enter both latitude and longitude before saving');
+  }
+  const lat = Number(latText);
+  const lng = Number(lngText);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+    throw new Error('Latitude must be a number between -90 and 90');
+  }
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+    throw new Error('Longitude must be a number between -180 and 180');
+  }
+  if (lat === 0 && lng === 0) {
+    throw new Error('Use the real gym location, not 0 latitude and 0 longitude');
+  }
+  return { lat, lng };
+}
+
 export default function ProfilePage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -44,6 +64,7 @@ export default function ProfilePage() {
   const [gymId, setGymId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [partnerTier, setPartnerTier] = useState('');
@@ -92,6 +113,7 @@ export default function ProfilePage() {
     setError(null);
     try {
       if (selectedCategories.length === 0) throw new Error('Select at least one workout category');
+      const location = parseGymCoordinates(form.lat, form.lng);
       const endpoint = gymId ? `/gyms/${gymId}` : '/gyms/my-gym';
       await api.put(endpoint, {
         name: form.displayName,
@@ -103,8 +125,8 @@ export default function ProfilePage() {
         contactPhone: form.phone,
         contactEmail: form.email,
         website: form.website,
-        lat: form.lat,
-        lng: form.lng,
+        lat: location.lat,
+        lng: location.lng,
         categories: selectedCategories,
       });
       setSaved(true);
@@ -125,6 +147,39 @@ export default function ProfilePage() {
       prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name]
     ));
   };
+
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError('GPS is not available in this browser. Enter coordinates manually.');
+      return;
+    }
+    setLocating(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm((prev) => ({
+          ...prev,
+          lat: pos.coords.latitude.toFixed(6),
+          lng: pos.coords.longitude.toFixed(6),
+        }));
+        setLocating(false);
+      },
+      () => {
+        setError('Could not read current location. Enter coordinates manually.');
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  };
+
+  const hasValidLocation = (() => {
+    try {
+      parseGymCoordinates(form.lat, form.lng);
+      return true;
+    } catch {
+      return false;
+    }
+  })();
 
   return (
     <Shell title="Gym Profile">
@@ -184,6 +239,22 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--t2)' }}>
                   <MapPin size={14} />
                   <span>{form.address || '--'}{form.area ? `, ${form.area}` : ''}{form.city ? `, ${form.city}` : ''}</span>
+                </div>
+                <div
+                  className="rounded-xl p-3"
+                  style={{
+                    background: hasValidLocation ? 'rgba(61,255,84,0.07)' : 'rgba(255,180,0,0.07)',
+                    border: hasValidLocation ? '1px solid rgba(61,255,84,0.16)' : '1px solid rgba(255,180,0,0.22)',
+                  }}
+                >
+                  <div className="text-xs font-semibold mb-1" style={{ color: hasValidLocation ? 'var(--accent)' : '#FFB400' }}>
+                    {hasValidLocation ? 'Nearby discovery ready' : 'Location required'}
+                  </div>
+                  <div className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
+                    {hasValidLocation
+                      ? `Lat ${form.lat}, Lng ${form.lng}`
+                      : 'Set GPS coordinates so users can find this gym near them.'}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--t2)' }}>
                   <Phone size={14} />
@@ -342,6 +413,7 @@ export default function ProfilePage() {
                     value={form.lat}
                     onChange={handleChange('lat')}
                     placeholder="e.g. 20.2961"
+                    required
                   />
                 </div>
                 <div>
@@ -353,8 +425,25 @@ export default function ProfilePage() {
                     value={form.lng}
                     onChange={handleChange('lng')}
                     placeholder="e.g. 85.8245"
+                    required
                   />
                 </div>
+              </div>
+              <div
+                className="rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                <div className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
+                  Required for nearby gym discovery. Use GPS from this browser or enter exact coordinates manually.
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-ghost text-xs"
+                  onClick={useCurrentLocation}
+                  disabled={locating}
+                >
+                  {locating ? 'Reading GPS...' : 'Use current location'}
+                </button>
               </div>
 
               {/* Phone + Email */}

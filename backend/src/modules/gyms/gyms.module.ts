@@ -729,6 +729,26 @@ class GymsService {
       : null;
   }
 
+  private hasValidGymLocation(gym: any) {
+    const location = this.validCoordinate(gym?.lat, gym?.lng);
+    return !!location && !(location.lat === 0 && location.lng === 0);
+  }
+
+  private assertGymLocationReady(gym: any) {
+    if (!gym) throw new NotFoundException('Gym not found');
+    if (!this.hasValidGymLocation(gym)) {
+      throw new BadRequestException('Set valid gym latitude and longitude before approving or activating this gym');
+    }
+  }
+
+  private publicVisibilityPredicate(alias = 'g') {
+    return `${alias}.status = :publicStatus AND ${this.publicLocationPredicate(alias)}`;
+  }
+
+  private publicLocationPredicate(alias = 'g') {
+    return `${alias}.lat IS NOT NULL AND ${alias}.lng IS NOT NULL AND NOT (${alias}.lat = 0 AND ${alias}.lng = 0)`;
+  }
+
   private validRadiusKm(value: any) {
     const radius = Number(value);
     if (!Number.isFinite(radius) || radius <= 0) return null;
@@ -743,8 +763,12 @@ class GymsService {
   ) {
     const qb = this.safeGymQuery('g', !!options.includeSensitive);
     if (filter.city) qb.andWhere('g.city = :city', { city: filter.city });
-    if (filter.status) qb.andWhere('g.status = :status', { status: filter.status });
-    else if (options.publicOnly !== false) qb.andWhere('g.status = :status', { status: 'active' });
+    if (options.publicOnly !== false) {
+      if (filter.status && filter.status !== 'active') qb.andWhere('1 = 0');
+      else qb.andWhere(this.publicVisibilityPredicate('g'), { publicStatus: 'active' });
+    } else if (filter.status) {
+      qb.andWhere('g.status = :status', { status: filter.status });
+    }
     if (filter.kycStatus) qb.andWhere('g."kycStatus" = :kycStatus', { kycStatus: filter.kycStatus });
     if (filter.search) qb.andWhere('g.name ILIKE :search', { search: `%${filter.search}%` });
     if (filter.tier) {
@@ -791,8 +815,12 @@ class GymsService {
     return paginatedResponse(data.map((row) => this.normalizeGym(row)), total, p, l);
   }
 
-  async get(id: string) {
+  async get(id: string, options: { publicOnly?: boolean } = {}) {
     const row = await this.safeGymQuery('g').where('g.id = :id', { id }).getRawOne();
+    if (!row) throw new NotFoundException('Gym not found');
+    if (options.publicOnly && (row.status !== 'active' || !this.hasValidGymLocation(row))) {
+      throw new NotFoundException('Gym not found');
+    }
     return this.attachSchedule(row);
   }
 
@@ -804,14 +832,17 @@ class GymsService {
     const patch = this.sanitizeGymPatch(data, true);
     const categories = await this.canonicalCategories((data as any)?.categories);
     if (categories !== undefined) (patch as any).categories = categories;
+    if ((patch as any).status === 'active') this.assertGymLocationReady(patch);
     return this.repo.save(this.repo.create(patch));
   }
 
   async update(id: string, data: Partial<GymEntity>, user: any) {
-    await this.assertGymAccess(id, user);
+    const gym = await this.assertGymAccess(id, user);
     const patch = this.sanitizeGymPatch(data, user?.role === 'super_admin');
     const categories = await this.canonicalCategories((data as any)?.categories);
     if (categories !== undefined) (patch as any).categories = categories;
+    const effectiveGym = { ...gym, ...patch };
+    if ((patch as any).status === 'active' || gym.status === 'active') this.assertGymLocationReady(effectiveGym);
     await this.repo.update(id, patch);
     await this.syncProfileHoursToSchedule(id, patch as any);
     return this.get(id);
@@ -854,6 +885,8 @@ class GymsService {
 
   async approve(id: string) {
     const gym = await this.repo.findOne({ where: { id } });
+    if (!gym) throw new NotFoundException('Gym not found');
+    this.assertGymLocationReady(gym);
     const docs = (gym?.kycDocuments || []).map((d: any) => ({
       ...d,
       status: 'approved',
@@ -904,8 +937,10 @@ class GymsService {
     const kycPhotos = kycStatus === 'approved' ? this.kycPhotoUrls(docs) : [];
     const existingPhotos = Array.isArray(gym.photos) ? gym.photos.filter(Boolean) : [];
     const photos = kycStatus === 'approved' ? [...new Set([...existingPhotos, ...kycPhotos])] : existingPhotos;
+    const nextStatus = this.statusForKyc(kycStatus, gym.status);
+    if (nextStatus === 'active') this.assertGymLocationReady(gym);
     await this.repo.update(id, {
-      status: this.statusForKyc(kycStatus, gym.status),
+      status: nextStatus,
       kycStatus,
       kycDocuments: docs,
       kycReviewNote: kycStatus === 'rejected' ? (body.reason || 'One or more KYC documents were rejected') : null,
@@ -922,6 +957,9 @@ class GymsService {
   async setStatus(id: string, status: GymStatus) {
     const allowedStatuses: GymStatus[] = ['pending', 'active', 'suspended', 'rejected', 'inactive'];
     if (!allowedStatuses.includes(status)) throw new BadRequestException('Invalid gym status');
+    const gym = await this.repo.findOne({ where: { id } });
+    if (!gym) throw new NotFoundException('Gym not found');
+    if (status === 'active') this.assertGymLocationReady(gym);
     await this.repo.update(id, { status });
     return this.get(id);
   }
@@ -977,23 +1015,29 @@ class GymsService {
     const excludeIds = gymIds.length > 0 ? gymIds : ['00000000-0000-0000-0000-000000000000'];
 
     const qb = this.safeGymQuery('gym')
-      .where('gym.status = :status', { status: 'active' })
+      .where(this.publicVisibilityPredicate('gym'), { publicStatus: 'active' })
       .andWhere('gym.id NOT IN (:...usedIds)', { usedIds: excludeIds })
       .orderBy('gym.rating', 'DESC')
       .take(10);
 
     if (preferredCities.length > 0) {
-      qb.orWhere('gym.city IN (:...cities)', { cities: preferredCities });
+      qb.andWhere('gym.city IN (:...cities)', { cities: preferredCities });
     }
     if (preferredCategories.length > 0) {
-      qb.orWhere('gym.city IN (:...cats)', { cats: preferredCategories });
+      qb.andWhere(`
+        EXISTS (
+          SELECT 1
+          FROM unnest(COALESCE(gym.categories, ARRAY[]::text[]) || COALESCE(gym.amenities, ARRAY[]::text[])) AS cat(name)
+          WHERE lower(cat.name) IN (:...cats)
+        )
+      `, { cats: preferredCategories.map((category) => String(category).toLowerCase()) });
     }
 
     const recommended = await qb.getRawMany();
 
     if (recommended.length < 5) {
       const topRated = await this.safeGymQuery('g')
-        .where('g.status = :status', { status: 'active' })
+        .where(this.publicVisibilityPredicate('g'), { publicStatus: 'active' })
         .orderBy('g.rating', 'DESC')
         .take(10)
         .getRawMany();
@@ -1079,7 +1123,7 @@ class GymsController {
   @Get('recommended') @UseGuards(JwtAuthGuard)
   recommended(@Req() req: any) { return this.svc.getRecommended(req.user.userId); }
 
-  @Get(':id') get(@Param('id') id: string) { return this.svc.get(id); }
+  @Get(':id') get(@Param('id') id: string) { return this.svc.get(id, { publicOnly: true }); }
   @Post() @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin', 'gym_owner')
   create(@Body() body: Partial<GymEntity>) { return this.svc.create(body); }
 

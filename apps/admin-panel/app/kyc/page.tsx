@@ -14,6 +14,8 @@ type Gym = {
   status: string;
   createdAt?: string;
   address?: string;
+  lat?: number;
+  lng?: number;
   description?: string;
   amenities?: string[];
   commissionRate?: number;
@@ -51,6 +53,12 @@ function latestSubmittedAt(gym: Gym) {
     .filter((time) => Number.isFinite(time));
   const latest = dates.length ? Math.max(...dates) : (gym.createdAt ? new Date(gym.createdAt).getTime() : NaN);
   return Number.isFinite(latest) ? new Date(latest).toLocaleDateString() : '—';
+}
+
+function hasValidGymLocation(gym: Pick<Gym, 'lat' | 'lng'>) {
+  const lat = Number(gym.lat);
+  const lng = Number(gym.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
 }
 
 export default function KYCPage() {
@@ -207,7 +215,10 @@ export default function KYCPage() {
                     </td>
                   </tr>
                 )
-                : gyms.map((g) => (
+                : gyms.map((g) => {
+                  const locationReady = hasValidGymLocation(g);
+                  const approveBlocked = actionLoading === g.id || !locationReady;
+                  return (
                   <Fragment key={g.id}>
                     <tr>
                       <td className="font-semibold" style={{ color: '#fff' }}>{g.name}</td>
@@ -228,9 +239,10 @@ export default function KYCPage() {
                             <>
                               <button
                                 onClick={() => handleApprove(g.id)}
-                                disabled={actionLoading === g.id}
+                                disabled={approveBlocked}
+                                title={locationReady ? undefined : 'Set valid gym coordinates before approval'}
                                 className="btn btn-primary text-xs"
-                                style={{ padding: '4px 10px', fontSize: 11 }}>
+                                style={{ padding: '4px 10px', fontSize: 11, opacity: approveBlocked ? 0.55 : 1 }}>
                                 {actionLoading === g.id ? '…' : 'Approve'}
                               </button>
                               <button
@@ -266,6 +278,10 @@ export default function KYCPage() {
                               )}
                               <div className="kicker mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Address</div>
                               <div style={{ color: 'var(--t)' }}>{g.address || 'Not provided'}</div>
+                              <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Nearby Location</div>
+                              <div style={{ color: locationReady ? 'var(--t)' : '#FFB400' }}>
+                                {locationReady ? `${Number(g.lat).toFixed(6)}, ${Number(g.lng).toFixed(6)}` : 'Coordinates required before approval'}
+                              </div>
                               <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Description</div>
                               <div style={{ color: 'var(--t2)', lineHeight: 1.6 }}>{g.description || 'No description'}</div>
                             </div>
@@ -333,7 +349,8 @@ export default function KYCPage() {
                       </tr>
                     )}
                     </Fragment>
-                  ))}
+                  );
+                })}
           </tbody>
         </table>
       </div>

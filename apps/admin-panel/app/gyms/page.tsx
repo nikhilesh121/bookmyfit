@@ -40,6 +40,12 @@ function titleCase(value?: string) {
   return String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase()) || '-';
 }
 
+function hasValidGymLocation(gym: Pick<Gym, 'lat' | 'lng'>) {
+  const lat = Number(gym.lat);
+  const lng = Number(gym.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
+}
+
 function StatusBadge({ status }: { status: string }) {
   const cls: Record<string, string> = {
     active: 'badge-active',
@@ -243,28 +249,33 @@ export default function GymsPage() {
               ? Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
               : gyms.length === 0
                 ? <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--t2)', padding: '40px 0' }}>No gyms found</td></tr>
-                : gyms.map((g) => (
+                : gyms.map((g) => {
+                  const locationReady = hasValidGymLocation(g);
+                  const locationTitle = locationReady ? undefined : 'Set valid coordinates before approval or activation';
+                  const disabledStyle = locationReady ? {} : { opacity: 0.45, cursor: 'not-allowed' };
+                  return (
                   <tr key={g.id}>
                     <td className="font-semibold" style={{ color: '#fff' }}>{g.name}</td>
                     <td>{g.city}{g.area ? `, ${g.area}` : ''}</td>
                     <td>{titleCase(g.tier)}</td>
                     <td><StatusBadge status={g.status} /></td>
-                    <td style={{ color: g.lat && g.lng ? 'var(--t2)' : '#FFB400', fontSize: 12 }}>
-                      {g.lat && g.lng ? `${Number(g.lat).toFixed(4)}, ${Number(g.lng).toFixed(4)}` : 'Needs location'}
+                    <td style={{ color: locationReady ? 'var(--t2)' : '#FFB400', fontSize: 12 }}>
+                      {locationReady ? `${Number(g.lat).toFixed(4)}, ${Number(g.lng).toFixed(4)}` : 'Needs location'}
                     </td>
                     <td><Star size={12} color="#FFB400" fill="#FFB400" style={{ display:'inline', verticalAlign:'middle', marginRight:3 }} />{g.rating ?? '--'}</td>
                     <td>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button onClick={() => setSelectedGym(g)} className="btn btn-ghost text-xs" style={{ padding: '4px 10px', fontSize: 11 }}><Eye size={12} /> View</button>
                         <button onClick={() => openEdit(g)} className="btn btn-ghost text-xs" style={{ padding: '4px 10px', fontSize: 11 }}><Edit3 size={12} /> Edit</button>
-                        {g.status === 'pending' && <button onClick={() => changeStatus(g, 'approve')} className="btn btn-primary text-xs" style={{ padding: '4px 10px', fontSize: 11 }}>Approve</button>}
-                        {g.status !== 'active' && <button onClick={() => changeStatus(g, 'activate')} className="btn text-xs" style={{ padding: '4px 10px', fontSize: 11, background: 'rgba(61,255,84,0.15)', color: 'var(--accent)', border: '1px solid rgba(61,255,84,0.3)' }}><Power size={12} /> Activate</button>}
+                        {g.status === 'pending' && <button onClick={() => changeStatus(g, 'approve')} disabled={!locationReady} title={locationTitle} className="btn btn-primary text-xs" style={{ padding: '4px 10px', fontSize: 11, ...disabledStyle }}>Approve</button>}
+                        {g.status !== 'active' && <button onClick={() => changeStatus(g, 'activate')} disabled={!locationReady} title={locationTitle} className="btn text-xs" style={{ padding: '4px 10px', fontSize: 11, background: 'rgba(61,255,84,0.15)', color: 'var(--accent)', border: '1px solid rgba(61,255,84,0.3)', ...disabledStyle }}><Power size={12} /> Activate</button>}
                         {g.status === 'active' && <button onClick={() => changeStatus(g, 'suspend')} className="btn text-xs" style={{ padding: '4px 10px', fontSize: 11, background: 'rgba(255,180,0,0.15)', color: '#FFB400', border: '1px solid rgba(255,180,0,0.3)' }}>Suspend</button>}
                         {g.status !== 'inactive' && <button onClick={() => changeStatus(g, 'deactivate')} className="btn text-xs" style={{ padding: '4px 10px', fontSize: 11, background: 'rgba(255,60,60,0.15)', color: '#FF3C3C', border: '1px solid rgba(255,60,60,0.3)' }}>Deactivate</button>}
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
           </tbody>
         </table>
       </div>

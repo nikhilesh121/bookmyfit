@@ -137,6 +137,15 @@ class SubscriptionsService {
     };
   }
 
+  private hasPublicGymLocation(gym: any) {
+    const lat = Number(gym?.lat);
+    const lng = Number(gym?.lng);
+    return gym?.status === 'active'
+      && Number.isFinite(lat)
+      && Number.isFinite(lng)
+      && !(lat === 0 && lng === 0);
+  }
+
   private async assertNoActiveGymPass(userId: string, gymId?: string, excludeId?: string) {
     const existing = await this.activeGymPass(userId, gymId, excludeId);
     if (existing) throw new BadRequestException(this.duplicateGymPassMessage(existing));
@@ -254,9 +263,12 @@ class SubscriptionsService {
       const gym = await this.gymRepo.createQueryBuilder('g')
         .select('g.id', 'id')
         .addSelect('g.name', 'name')
+        .addSelect('g.status', 'status')
+        .addSelect('g.lat', 'lat')
+        .addSelect('g.lng', 'lng')
         .where('g.id = :id', { id: dto.gymId })
         .getRawOne();
-      if (!gym) throw new BadRequestException('Gym not found');
+      if (!this.hasPublicGymLocation(gym)) throw new BadRequestException('Gym is not available for booking');
       await this.assertNoActiveGymPass(userId, dto.gymId);
 
       if (!gymPlanId) {
@@ -278,9 +290,12 @@ class SubscriptionsService {
       const gym = await this.gymRepo.createQueryBuilder('g')
         .select('g.id', 'id')
         .addSelect('g."dayPassPrice"', 'dayPassPrice')
+        .addSelect('g.status', 'status')
+        .addSelect('g.lat', 'lat')
+        .addSelect('g.lng', 'lng')
         .where('g.id = :id', { id: dto.gymId })
         .getRawOne();
-      if (!gym) throw new BadRequestException('Gym not found');
+      if (!this.hasPublicGymLocation(gym)) throw new BadRequestException('Gym is not available for booking');
       await this.assertNoActiveGymPass(userId, dto.gymId);
       amount = this.amountWithCheckoutCommission(Number(gym.dayPassPrice || config.day_pass?.basePrice || 149), 'day_pass', config);
     } else {
@@ -526,10 +541,14 @@ class SubscriptionsService {
     const gymIds = entries.map(e => e.gymId);
     if (gymIds.length === 0) return [];
     const gyms = await this.gymRepo.findByIds(gymIds);
-    return gyms.map((gym) => this.normalizeGymSummary(gym));
+    return gyms.filter((gym) => this.hasPublicGymLocation(gym)).map((gym) => this.normalizeGymSummary(gym));
   }
 
   async addToNetwork(gymId: string) {
+    const gym = await this.gymRepo.findOne({ where: { id: gymId } });
+    if (!this.hasPublicGymLocation(gym)) {
+      throw new BadRequestException('Only active gyms with valid coordinates can be added to the multi-gym network');
+    }
     const existing = await this.networkRepo.findOne({ where: { gymId } });
     if (existing) { existing.isActive = true; return this.networkRepo.save(existing); }
     return this.networkRepo.save(this.networkRepo.create({ gymId, isActive: true }));
