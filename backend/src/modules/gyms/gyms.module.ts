@@ -773,11 +773,11 @@ class GymsService {
     const subMap = new Map<string, SubscriptionEntity>(subs.map((s): [string, SubscriptionEntity] => [s.id, s]));
     const userMap = new Map<string, UserEntity>(users.map((u): [string, UserEntity] => [u.id, u]));
     const ratePerDay = Number((gym as any).ratePerDay ?? 50);
-    const gymShare = ratePerDay;
     const adminShare = 0;
     const enriched = data.map(c => {
       const sub = subMap.get(c.subscriptionId);
       const user = userMap.get(c.userId);
+      const gymShare = sub?.planType === 'multi_gym' ? ratePerDay : 0;
       return {
         ...c,
         planType: sub?.planType || null,
@@ -788,7 +788,7 @@ class GymsService {
         adminEarns: c.status === 'success' ? adminShare : 0,
       };
     });
-    return { data: enriched, total, page: p, limit: l, pages: Math.ceil(total / l), gym: { name: gym.name, ratePerDay, commissionRate: 0, payoutMode: 'fixed_visit_payout' } };
+    return { data: enriched, total, page: p, limit: l, pages: Math.ceil(total / l), gym: { name: gym.name, ratePerDay, commissionRate: 0, payoutMode: 'multi_gym_visit_payout' } };
   }
 
   async myTodayStats(ownerId: string) {

@@ -185,36 +185,40 @@ class SlotsService {
     });
   }
 
-  /** Returns the user's currently active booking QR (not expired, not used), or null */
+  /** Returns the user's current booking QR state. */
   async getActiveBooking(userId: string) {
     const now = new Date();
     const qrs = await this.qrRepo.find({
-      where: { userId, usedAt: IsNull() },
+      where: { userId },
       order: { createdAt: 'DESC' },
       take: 5,
     });
-    const active = qrs.find(q => new Date(q.expiresAt) > now);
-    if (!active) return { active: false };
-    const gym = await this.gymRepo.findOne({ where: { id: active.gymId } });
-    const legacyBooking = active.slotBookingId
-      ? await this.bookingRepo.findOne({ where: { id: active.slotBookingId } })
+    const active = qrs.find(q => !q.usedAt && new Date(q.expiresAt) > now);
+    const checkedIn = !active ? qrs.find(q => q.usedAt && new Date(q.expiresAt) > now) : null;
+    const current = active || checkedIn;
+    if (!current) return { active: false };
+    const gym = await this.gymRepo.findOne({ where: { id: current.gymId } });
+    const legacyBooking = current.slotBookingId
+      ? await this.bookingRepo.findOne({ where: { id: current.slotBookingId } })
       : null;
-    const sessionBooking = !legacyBooking && active.slotBookingId
-      ? await this.sessionBookingRepo.findOne({ where: { id: active.slotBookingId } })
+    const sessionBooking = !legacyBooking && current.slotBookingId
+      ? await this.sessionBookingRepo.findOne({ where: { id: current.slotBookingId } })
       : null;
     const booking: any = legacyBooking || sessionBooking;
     return {
-      active: true,
+      active: !!active,
+      checkedIn: !!checkedIn,
+      checkedInAt: checkedIn?.usedAt ? checkedIn.usedAt.toISOString() : null,
       bookingQr: {
-        id: active.id,
-        token: active.qrToken,
-        expiresAt: active.expiresAt.toISOString(),
-        bookedAt: active.bookedAt ? active.bookedAt.toISOString() : active.createdAt.toISOString(),
-        gymId: active.gymId,
+        id: current.id,
+        token: current.qrToken,
+        expiresAt: current.expiresAt.toISOString(),
+        bookedAt: current.bookedAt ? current.bookedAt.toISOString() : current.createdAt.toISOString(),
+        gymId: current.gymId,
         gymName: gym?.name ?? '',
-        bookingId: active.slotBookingId,
+        bookingId: current.slotBookingId,
         bookingRef: (booking as any)?.bookingRef || null,
-        manualCode: (booking as any)?.bookingRef || active.slotBookingId,
+        manualCode: (booking as any)?.bookingRef || current.slotBookingId,
       },
     };
   }

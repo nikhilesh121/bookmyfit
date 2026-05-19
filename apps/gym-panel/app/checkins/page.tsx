@@ -79,7 +79,7 @@ export default function GymCheckinsPage() {
         {[
           { label: 'Total Records', value: total, icon: Activity, color: 'var(--accent)' },
           { label: 'Successful', value: successCount, icon: CheckCircle, color: '#22c55e' },
-          { label: 'Gym Earns (page)', value: `₹${totalGymEarnings.toFixed(0)}`, icon: IndianRupee, color: 'var(--accent)' },
+          { label: 'Multi-gym Payout (page)', value: `₹${totalGymEarnings.toFixed(0)}`, icon: IndianRupee, color: 'var(--accent)' },
           { label: 'Platform Fee (page)', value: `₹${totalAdminEarnings.toFixed(0)}`, icon: TrendingUp, color: 'var(--t2)' },
         ].map(s => {
           const Icon = s.icon;
@@ -98,9 +98,9 @@ export default function GymCheckinsPage() {
       {/* Rate info banner */}
       {gymMeta && (
         <div className="glass card p-3 mb-5 flex items-center gap-6" style={{ fontSize: 13 }}>
-          <span style={{ color: 'var(--t2)' }}>Rate per visit-day: <strong style={{ color: 'var(--t)' }}>₹{gymMeta.ratePerDay}</strong></span>
-          <span style={{ color: 'var(--t2)' }}>Platform fee / scan: <strong style={{ color: 'var(--t)' }}>₹0</strong></span>
-          <span style={{ color: 'var(--t2)' }}>Your payout per visit: <strong style={{ color: 'var(--accent)' }}>₹{Number(gymMeta.ratePerDay || 0).toFixed(0)}</strong></span>
+          <span style={{ color: 'var(--t2)' }}>Multi-gym visit payout: <strong style={{ color: 'var(--t)' }}>₹{gymMeta.ratePerDay}</strong></span>
+          <span style={{ color: 'var(--t2)' }}>Same-gym/day-pass scan: <strong style={{ color: 'var(--t)' }}>No visit payout</strong></span>
+          <span style={{ color: 'var(--t2)' }}>Gym gets per multi-gym visit: <strong style={{ color: 'var(--accent)' }}>₹{Number(gymMeta.ratePerDay || 0).toFixed(0)}</strong></span>
           <span style={{ color: 'var(--t3)', fontSize: 11, marginLeft: 'auto' }}>Settled end of month</span>
         </div>
       )}
@@ -113,7 +113,7 @@ export default function GymCheckinsPage() {
               <th>Date & Time</th>
               <th>Plan</th>
               <th>Status</th>
-              <th>Gym Earns</th>
+              <th>Multi-gym Payout</th>
               <th>Platform Fee</th>
             </tr>
           </thead>

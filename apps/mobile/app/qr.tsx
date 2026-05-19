@@ -74,7 +74,7 @@ function firstManualCode(...values: Array<string | null | undefined>) {
   return '';
 }
 
-type QrMode = 'loading' | 'slot' | 'empty';
+type QrMode = 'loading' | 'slot' | 'empty' | 'checked_in';
 
 export default function QrScreen() {
   const params = useLocalSearchParams<{
@@ -100,6 +100,21 @@ export default function QrScreen() {
   const [secondsLeft, setSecondsLeft] = useState(0);
 
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const applyBookingQr = (bookingQr: any) => {
+    const nextToken = bookingQr?.token || '';
+    setToken(nextToken);
+    setExpiresAt(bookingQr?.expiresAt || null);
+    setBookedAt(bookingQr?.bookedAt || null);
+    setGymName(bookingQr?.gymName || '');
+    setManualCode(firstManualCode(
+      bookingQr?.manualCode,
+      bookingQr?.bookingRef,
+      bookingQr?.bookingId,
+      decodeManualCodeFromToken(nextToken),
+    ));
+  };
 
   // ── Bootstrap: QR is ONLY shown when a slot/session is actively booked ─────────
   useEffect(() => {
@@ -113,18 +128,13 @@ export default function QrScreen() {
       try {
         const booking: any = await qrApi.getActiveBooking();
         if (booking?.active && booking.bookingQr) {
-          const nextToken = booking.bookingQr.token || '';
-          setToken(nextToken);
-          setExpiresAt(booking.bookingQr.expiresAt);
-          setBookedAt(booking.bookingQr.bookedAt);
-          setGymName(booking.bookingQr.gymName || '');
-          setManualCode(firstManualCode(
-            booking.bookingQr.manualCode,
-            booking.bookingQr.bookingRef,
-            booking.bookingQr.bookingId,
-            decodeManualCodeFromToken(nextToken),
-          ));
+          applyBookingQr(booking.bookingQr);
           setMode('slot');
+          return;
+        }
+        if (booking?.checkedIn) {
+          if (booking.bookingQr) applyBookingQr(booking.bookingQr);
+          setMode('checked_in');
           return;
         }
       } catch { /* network/auth error — show empty */ }
@@ -148,7 +158,42 @@ export default function QrScreen() {
   }, [mode, expiresAt]);
 
   useEffect(() => {
-    return () => { if (countdownRef.current) clearInterval(countdownRef.current); };
+    if (mode !== 'slot') return;
+
+    const checkStatus = async () => {
+      try {
+        const booking: any = await qrApi.getActiveBooking();
+        if (booking?.active && booking.bookingQr) {
+          applyBookingQr(booking.bookingQr);
+          return;
+        }
+        if (booking?.checkedIn) {
+          if (booking.bookingQr) applyBookingQr(booking.bookingQr);
+          setMode('checked_in');
+          return;
+        }
+        const expired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
+        setMode(expired ? 'empty' : 'checked_in');
+      } catch {
+        // Keep the current QR visible during temporary network failures.
+      }
+    };
+
+    checkStatus();
+    statusPollRef.current = setInterval(checkStatus, 5000);
+    return () => {
+      if (statusPollRef.current) {
+        clearInterval(statusPollRef.current);
+        statusPollRef.current = null;
+      }
+    };
+  }, [mode, expiresAt]);
+
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      if (statusPollRef.current) clearInterval(statusPollRef.current);
+    };
   }, []);
 
   const isExpired = mode === 'slot' && secondsLeft <= 0 && expiresAt !== null;
@@ -170,7 +215,7 @@ export default function QrScreen() {
   }
 
   // ── No booked slot ────────────────────────────────────────────────────────────
-  if (mode === 'empty') {
+  if (mode === 'empty' || mode === 'checked_in') {
     return (
       <AuroraBackground>
         <SafeAreaView style={s.root}>
@@ -178,25 +223,30 @@ export default function QrScreen() {
             <TouchableOpacity style={s.back} onPress={() => router.back()}>
               <IconArrowLeft size={18} color="#fff" />
             </TouchableOpacity>
-            <Text style={s.title}>Check-In QR</Text>
+            <Text style={s.title}>{mode === 'checked_in' ? 'Checked In' : 'Check-In QR'}</Text>
             <View style={{ width: 38 }} />
           </View>
           <View style={s.empty}>
-            <View style={s.emptyIcon}>
-              <IconClock size={32} color={colors.t2} />
+            <View style={[s.emptyIcon, mode === 'checked_in' && { borderColor: colors.accentBorder, backgroundColor: colors.accentSoft }]}>
+              {mode === 'checked_in'
+                ? <Text style={s.checkedIcon}>✓</Text>
+                : <IconClock size={32} color={colors.t2} />}
             </View>
-            <Text style={s.emptyTitle}>No Booked Session</Text>
+            <Text style={s.emptyTitle}>{mode === 'checked_in' ? 'Check-In Recorded' : 'No Booked Session'}</Text>
             <Text style={s.emptySub}>
-              Book a slot at a gym first. Your check-in QR will appear here once you have an active booking.
+              {mode === 'checked_in'
+                ? 'Your gym check-in has been marked successfully. This QR is now closed and cannot be used again.'
+                : 'Book a slot at a gym first. Your check-in QR will appear here once you have an active booking.'}
             </Text>
-            <TouchableOpacity style={s.bookBtn} onPress={() => router.push('/gyms' as any)}>
-              <Text style={s.bookBtnText}>Browse Gyms & Book Slot</Text>
+            {mode === 'checked_in' && gymName ? <Text style={s.checkedGym}>{gymName}</Text> : null}
+            <TouchableOpacity style={s.bookBtn} onPress={() => router.push((mode === 'checked_in' ? '/bookings' : '/gyms') as any)}>
+              <Text style={s.bookBtnText}>{mode === 'checked_in' ? 'View My Bookings' : 'Browse Gyms & Book Slot'}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.bookBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderGlass, marginTop: 8 }]}
-              onPress={() => router.push('/plans' as any)}
+              onPress={() => router.push((mode === 'checked_in' ? '/gyms' : '/plans') as any)}
             >
-              <Text style={[s.bookBtnText, { color: colors.t }]}>View Plans</Text>
+              <Text style={[s.bookBtnText, { color: colors.t }]}>{mode === 'checked_in' ? 'Book Another Slot' : 'View Plans'}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -382,6 +432,18 @@ const s = StyleSheet.create({
   },
   emptyTitle: { fontFamily: fonts.serif, fontSize: 22, color: '#fff', textAlign: 'center' },
   emptySub: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2, textAlign: 'center', lineHeight: 20 },
+  checkedIcon: { fontFamily: fonts.sansBold, fontSize: 34, color: colors.accent },
+  checkedGym: {
+    fontFamily: fonts.sansBold,
+    fontSize: 13,
+    color: colors.accent,
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
   bookBtn: {
     backgroundColor: colors.accent, borderRadius: radius.pill,
     paddingHorizontal: 28, paddingVertical: 14, marginTop: 8,

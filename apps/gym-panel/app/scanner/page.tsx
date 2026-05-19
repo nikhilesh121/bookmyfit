@@ -21,6 +21,10 @@ type ScanResult = {
 
 type AttendanceRecord = ScanResult & { time: string; id: string };
 
+function isMultiGym(planType?: string) {
+  return String(planType || '').toLowerCase() === 'multi_gym';
+}
+
 export default function ScannerPage() {
   const [mode, setMode] = useState<'camera' | 'manual'>('camera');
   const [qrToken, setQrToken] = useState('');
@@ -163,16 +167,17 @@ export default function ScannerPage() {
       setValidating(true);
       try {
         const scanRes = await api.post<any>('/qr/validate-manual', { code: t, gymId: activeGymId });
+        const planType = scanRes?.planType || 'Manual Check-in';
         const gymEarns = scanRes?.gymEarns != null
           ? Number(scanRes.gymEarns)
-          : ratePerDay;
+          : isMultiGym(planType) ? ratePerDay : 0;
         const adminEarns = scanRes?.adminEarns != null
           ? Number(scanRes.adminEarns)
           : 0;
         showResultAndResume({
           ok: true,
           userName: scanRes?.user?.name || (scanRes?.user?.id ? `Member ${String(scanRes.user.id).slice(0, 8)}` : 'Member'),
-          planType: scanRes?.planType || 'Manual Check-in',
+          planType,
           bookingRef: scanRes?.bookingRef || undefined,
           message: scanRes?.message || 'Manual check-in recorded!',
           gymEarns,
@@ -195,16 +200,17 @@ export default function ScannerPage() {
       if (scanRes?.success === false) {
         showResultAndResume({ ok: false, message: scanRes.message || 'Check-in denied' });
       } else {
+        const planType = scanRes?.planType || 'QR Check-in';
         const gymEarns = scanRes?.gymEarns != null
           ? Number(scanRes.gymEarns)
-          : ratePerDay;
+          : isMultiGym(planType) ? ratePerDay : 0;
         const adminEarns = scanRes?.adminEarns != null
           ? Number(scanRes.adminEarns)
           : 0;
         showResultAndResume({
           ok: true,
           userName: scanRes?.user?.name || (scanRes?.user?.id ? `Member ${String(scanRes.user.id).slice(0, 8)}` : 'Member'),
-          planType: scanRes?.planType || 'QR Check-in',
+          planType,
           bookingRef: scanRes?.bookingRef || undefined,
           message: scanRes?.message || 'Check-in recorded!',
           gymEarns,
@@ -298,9 +304,9 @@ export default function ScannerPage() {
                         {result.ok ? '✓ Check-in Recorded' : '✗ Denied'}
                       </div>
                       {result.message && <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginBottom: 8 }}>{result.message}</div>}
-                      {result.gymEarns != null && (
+                      {Number(result.gymEarns || 0) > 0 && (
                         <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, marginBottom: 4 }}>
-                          Gym earns ₹{result.gymEarns.toFixed(0)} for this visit
+                          Gym earns ₹{Number(result.gymEarns || 0).toFixed(0)} for this visit
                         </div>
                       )}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12 }}>
@@ -349,11 +355,11 @@ export default function ScannerPage() {
                   {result.message && <div style={{ fontSize: 12, color: 'var(--t2)' }}>{result.message}</div>}
                 </div>
               </div>
-              {result.ok && result.gymEarns != null && (
+              {result.ok && Number(result.gymEarns || 0) > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div className="card p-3" style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 4 }}>Gym Earns</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>₹{result.gymEarns.toFixed(0)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 4 }}>Multi-gym Payout</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>₹{Number(result.gymEarns || 0).toFixed(0)}</div>
                   </div>
                   <div className="card p-3" style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 4 }}>Platform Fee</div>
@@ -374,7 +380,7 @@ export default function ScannerPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
             {[
               { label: 'Checked In', value: String(todaySuccess), icon: <Users size={13} />, color: 'var(--accent)' },
-              { label: 'Gym Earns', value: `₹${todayGymEarnings.toFixed(0)}`, icon: <IndianRupee size={13} />, color: 'var(--accent)' },
+              { label: 'Multi-gym Payout', value: `₹${todayGymEarnings.toFixed(0)}`, icon: <IndianRupee size={13} />, color: 'var(--accent)' },
               { label: 'Platform', value: `₹${todayAdminEarnings.toFixed(0)}`, icon: <IndianRupee size={13} />, color: 'var(--t2)' },
             ].map(s => (
               <div key={s.label} className="card" style={{ padding: '10px 12px' }}>
@@ -386,11 +392,11 @@ export default function ScannerPage() {
 
           {/* Rate config */}
           <div className="glass card p-3">
-            <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Rate Config</div>
+            <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Multi-gym Payout Config</div>
             {[
-              { label: 'Rate / visit-day', value: `₹${ratePerDay}` },
-              { label: 'Platform fee / scan', value: '₹0' },
-              { label: 'Gym gets / visit', value: `₹${ratePerDay.toFixed(0)}`, highlight: true },
+              { label: 'Multi-gym visit-day', value: `₹${ratePerDay}` },
+              { label: 'Same-gym/day-pass scan', value: 'No visit payout' },
+              { label: 'Gym gets for multi-gym visit', value: `₹${ratePerDay.toFixed(0)}`, highlight: true },
             ].map(r => (
               <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
                 <span style={{ color: 'var(--t2)' }}>{r.label}</span>
@@ -427,8 +433,8 @@ export default function ScannerPage() {
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    {a.ok && a.gymEarns != null && (
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>+₹{a.gymEarns.toFixed(0)}</div>
+                    {a.ok && Number(a.gymEarns || 0) > 0 && (
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>+₹{Number(a.gymEarns || 0).toFixed(0)}</div>
                     )}
                     <div style={{ fontSize: 10, color: 'var(--t3)' }}>{a.time}</div>
                   </div>

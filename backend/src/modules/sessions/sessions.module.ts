@@ -841,7 +841,7 @@ export class SessionsService {
 
     // Fetch gym to get its configured ratePerDay for the billing record
     const gymEntity = await this.gymRepo.findOne({ where: { id: gymId } });
-    const commissionAmount = gymEntity?.ratePerDay ?? 30;
+    const commissionAmount = sub.planType === 'multi_gym' ? Number(gymEntity?.ratePerDay ?? 0) : 0;
 
     // Create Attendance record — commissionAmount is what BMF owes this gym per visit-day
     const attendance = await this.attendanceRepo.save(

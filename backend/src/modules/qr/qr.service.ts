@@ -53,8 +53,8 @@ export class QrService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  private visitSplit(ratePerDay: number) {
-    const payout = Math.max(0, Number(ratePerDay) || 0);
+  private visitSplit(ratePerDay: number, planType?: string | null) {
+    const payout = planType === 'multi_gym' ? Math.max(0, Number(ratePerDay) || 0) : 0;
     return { adminEarns: 0, gymEarns: payout };
   }
 
@@ -217,7 +217,7 @@ export class QrService {
     );
     const user = await this.users.findOne({ where: { id: userId } });
     const ratePerDay = Number((gym as any).ratePerDay ?? 50);
-    const { gymEarns, adminEarns } = this.visitSplit(ratePerDay);
+    const { gymEarns, adminEarns } = this.visitSplit(ratePerDay, sub.planType);
 
     // 7. Async velocity fraud check (non-blocking)
     this.checkVelocityFraud(userId, gymId, gym.name);
@@ -285,6 +285,15 @@ export class QrService {
     booking.status = 'attended';
     (booking as any).checkinAt = new Date();
     await this.sessionBookings.save(booking);
+    await this.bookingQrs
+      .createQueryBuilder()
+      .update(BookingQrEntity)
+      .set({ usedAt: new Date() })
+      .where('"slotBookingId" = :bookingId', { bookingId: booking.id })
+      .andWhere('"userId" = :userId', { userId: booking.userId })
+      .andWhere('"gymId" = :gymId', { gymId })
+      .andWhere('"usedAt" IS NULL')
+      .execute();
     await this.redis.set(dailyKey, gymId, 'EX', 24 * 60 * 60);
 
     const qrToken = `MANUAL_${booking.id}_${Date.now()}`;
@@ -299,7 +308,7 @@ export class QrService {
     );
     const user = await this.users.findOne({ where: { id: booking.userId } });
     const ratePerDay = Number((gym as any).ratePerDay ?? 50);
-    const { gymEarns, adminEarns } = this.visitSplit(ratePerDay);
+    const { gymEarns, adminEarns } = this.visitSplit(ratePerDay, sub.planType);
 
     return {
       success: true,
