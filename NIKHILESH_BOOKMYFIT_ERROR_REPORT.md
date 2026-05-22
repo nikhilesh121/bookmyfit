@@ -99,6 +99,9 @@ This section is the single checklist for all requested work. Status meanings:
 | BMF-071 | Admin/Gym/User | Amenity/category icons from admin should display in gym portal and user app too | LOCAL FIXED / NEEDS APK FOR USER APP |
 | BMF-072 | User app | Homepage featured gyms must use the same active/KYC-approved/location-ready visibility rule as gym listing | LOCAL FIXED / NEEDS APK |
 | BMF-073 | Landing | Landing/onboard gym registration must send required phone and workout categories | LOCAL FIXED |
+| BMF-074 | User app | Gym and wellness discovery should be GPS-first but also consider rating, review count, and popularity | LOCAL FIXED / NEEDS APK |
+| BMF-075 | User app | Gym Near Me page design/loading should be stable and safe on Android/iOS system nav areas | LOCAL FIXED / NEEDS APK |
+| BMF-076 | User app | Standalone Personal Trainers page should not be a dead empty page when no gym is selected | LOCAL FIXED / NEEDS API DATA VERIFY |
 
 ## Current Status Summary
 
@@ -1538,6 +1541,7 @@ Work completed:
 Verification:
 - `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
 - `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter mobile exec expo export --platform web --output-dir dist-web` passed.
 - `git diff --check` passed for the edited mobile/backend files.
 - Synced changed files to `C:\bmf-apk-build`.
 - Android `gradlew.bat assembleRelease` passed.
@@ -2950,6 +2954,40 @@ Status:
 - Fixed and tested locally.
 - Not pushed live in this change.
 - APK was not regenerated in this change.
+
+## Change 043 - Mobile nearby-best discovery and trainer page repair
+
+Date: 2026-05-22
+
+Scope requested:
+- Make user-side gym and service discovery GPS-first from Home, filters, Gym Near Me, and related listing/sliders.
+- Do not rank only by distance; include rating, review count, and popularity so nearby quality is preferred.
+- Fix Gym Near Me design/loading and Android/iOS safe-area spacing.
+- Fix Personal Trainers page showing only "No trainer available" when opened without a gym.
+
+Changes made locally:
+- Added shared mobile location/ranking helper:
+  - Uses cached/last-known GPS first for faster first load.
+  - Falls back cleanly when permission is denied or unavailable.
+  - Adds `nearby_best` query params and client-side nearby-best sorting.
+  - Ranking uses distance bands first, then rating, reviews, and popularity/check-in/service signals.
+- Backend:
+  - Gym list now supports `sort=nearby_best` with distance buckets, rating, rating count, and total check-ins.
+  - Wellness partner list now supports lat/lng/radius/sort and returns distance labels.
+- Mobile app:
+  - Home gym section, Gym Listing, Gym Near Me, Multi Gym Network, Spa & Recovery, Spa Centres, and Home Services now use nearby-best ordering.
+  - Gym Near Me page was rebuilt into a safer card/list UI with search, refresh, GPS status, images, rating, distance, tags, and safe bottom padding.
+  - Wellness/spa/home-service pages now use GPS-aware partner lists and safe-area top/bottom handling.
+  - Personal Trainers page now searches nearby gyms for monthly trainers when opened without a `gymId`; if no trainers exist, it shows a useful empty state with Browse Gyms.
+
+Verification:
+- `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
+- `pnpm.cmd --filter backend build` passed.
+
+Status:
+- Fixed locally.
+- Not pushed live yet.
+- APK not regenerated yet.
 
 ## Change 043 - Gym Member History viewport overflow fix
 

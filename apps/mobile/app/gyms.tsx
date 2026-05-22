@@ -1,7 +1,6 @@
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
   ActivityIndicator, ImageBackground, Dimensions, TextInput,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -10,6 +9,7 @@ import * as Location from 'expo-location';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconStar, IconPin, IconFilter, IconCheck, IconSearch } from '../components/Icons';
 import { gymsApi, subscriptionsApi } from '../lib/api';
+import { getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../lib/location';
 import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList } from '../lib/subscriptionAccess';
 import { DEFAULT_GYM_IMAGE, firstImage } from '../lib/imageFallbacks';
 import { applyPassCommission } from '../lib/passPricing';
@@ -83,8 +83,8 @@ function gymRatingInfo(gym: any) {
 }
 
 const SORTS = [
+  { id: 'distance',  label: 'Best Nearby' },
   { id: 'rating',    label: 'Top Rated' },
-  { id: 'distance',  label: 'Nearest' },
   { id: 'price_asc', label: 'Price: Low to High' },
   { id: 'price_desc',label: 'Price: High to Low' },
 ];
@@ -103,7 +103,7 @@ export default function GymListingPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [activeCategory, setActiveCategory] = useState(paramCat ? categoryKey(paramCat) : 'all');
-  const [activeSort, setActiveSort] = useState('rating');
+  const [activeSort, setActiveSort] = useState('distance');
   const [showSortSheet, setShowSortSheet] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [subscribedGymIds, setSubscribedGymIds] = useState<Set<string>>(new Set());
@@ -120,13 +120,16 @@ export default function GymListingPage() {
   const requestUserLocation = useCallback(async () => {
     setDetectingLocation(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      const existing = await Location.getForegroundPermissionsAsync();
+      if (existing.status !== 'granted' && existing.canAskAgain === false) {
         setLocationState('denied');
         return null;
       }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const next = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+      const next = await getNearbyCoords();
+      if (!next) {
+        setLocationState(existing.status === 'denied' ? 'denied' : 'unavailable');
+        return null;
+      }
       setUserLocation(next);
       setLocationState('ready');
       return next;
@@ -179,14 +182,8 @@ export default function GymListingPage() {
       setLoadError('');
       const params: any = { page: pg, limit: 100 }; // show every active gym returned by the database, then filter locally
       if (cat !== 'all') params.category = cat;
-      if (userLocation) {
-        params.lat = userLocation.lat;
-        params.lng = userLocation.lng;
-        if (activeSort === 'distance') {
-          params.sort = 'nearest';
-          params.radiusKm = 50;
-        }
-      }
+      if (userLocation && activeSort === 'distance') Object.assign(params, nearbyQueryParams(userLocation));
+      else if (userLocation) Object.assign(params, { lat: userLocation.lat, lng: userLocation.lng });
       const res: any = await gymsApi.list(params);
       const raw = Array.isArray(res) ? res : res?.gyms || res?.data || [];
       const list = filterByCat(raw, cat);
@@ -252,9 +249,7 @@ export default function GymListingPage() {
   const sorted = [...gyms].sort((a, b) => {
     if (activeSort === 'rating')     return (gymRatingInfo(b).rating || 0) - (gymRatingInfo(a).rating || 0);
     if (activeSort === 'distance') {
-      const da = parseFloat(a.distance || a.distanceKm || '999');
-      const db = parseFloat(b.distance || b.distanceKm || '999');
-      return da - db;
+      return nearbyBestSort(a, b);
     }
     if (activeSort === 'price_asc') {
       const ap = applyPassCommission(positiveNumber(a.dayPassPrice || a.day_pass_price) || positiveNumber(passPricingConfig?.day_pass?.basePrice), passPricingConfig?.day_pass?.commission);
@@ -284,15 +279,15 @@ export default function GymListingPage() {
 
   const activeSortLabel = SORTS.find((s) => s.id === activeSort)?.label || 'Sort';
   const gpsText = userLocation
-    ? 'GPS active - showing distance from your location'
+    ? 'GPS active - showing best nearby gyms first'
     : detectingLocation || locationState === 'checking'
       ? 'Finding your GPS location...'
       : locationState === 'denied'
-        ? 'Enable GPS permission to sort gyms near you'
-        : 'Tap to use GPS for nearest gyms';
+        ? 'Enable GPS permission to rank gyms near you'
+        : 'Tap to use GPS for best nearby gyms';
 
   return (
-    <SafeAreaView style={s.root} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={s.root} edges={['top', 'left', 'right', 'bottom']}>
       {/* ── Header ── */}
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
@@ -300,7 +295,7 @@ export default function GymListingPage() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Gyms Near You</Text>
-          <Text style={s.headerSub}>{activeSort === 'distance' && userLocation ? `${filtered.length}+ nearest gyms` : `${filtered.length}+ gyms available`}</Text>
+          <Text style={s.headerSub}>{activeSort === 'distance' && userLocation ? `${filtered.length}+ best nearby gyms` : `${filtered.length}+ gyms available`}</Text>
         </View>
       </View>
 
@@ -553,7 +548,7 @@ function positiveNumber(value: any): number | null {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg, paddingTop: Platform.OS === 'android' ? 24 : 0 },
+  root: { flex: 1, backgroundColor: colors.bg },
 
   // Header
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 },

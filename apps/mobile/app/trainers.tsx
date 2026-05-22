@@ -3,13 +3,14 @@ import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet,
   ActivityIndicator, TextInput, Alert, Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AuroraBackground from '../components/AuroraBackground';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconUser, IconStar, IconClock, IconCheck } from '../components/Icons';
-import { subscriptionsApi, trainersApi, usersApi } from '../lib/api';
+import { gymsApi, subscriptionsApi, trainersApi, usersApi } from '../lib/api';
 import { applyPassCommission } from '../lib/passPricing';
+import { distanceLabel, getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../lib/location';
 
 interface Trainer {
   id: string;
@@ -23,10 +24,13 @@ interface Trainer {
   gymId?: string;
   bio?: string;
   status?: string;
+  gymName?: string;
+  gymDistance?: string;
 }
 
 export default function TrainersScreen() {
   const { gymId } = useLocalSearchParams<{ gymId: string }>();
+  const insets = useSafeAreaInsets();
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Trainer | null>(null);
@@ -35,6 +39,7 @@ export default function TrainersScreen() {
   const [booking, setBooking] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [serverPlans, setServerPlans] = useState<any>(null);
+  const [gpsActive, setGpsActive] = useState(false);
 
   const trainerMonthlyPrice = (trainer?: Trainer | null) =>
     Number(trainer?.monthlyPriceInr || trainer?.monthlyPrice || trainer?.pricePerSession || 0);
@@ -48,16 +53,50 @@ export default function TrainersScreen() {
     Math.max(0, trainerCheckoutMonthlyPrice(trainer) * Math.max(1, parseInt(monthsValue) || 1));
 
   useEffect(() => {
+    let alive = true;
     usersApi.me().then((d: any) => setUser(d?.user || d)).catch(() => {});
     subscriptionsApi.plans().then((data: any) => setServerPlans(data || null)).catch(() => setServerPlans(null));
-    if (!gymId) { setLoading(false); return; }
-    trainersApi.listByGym(gymId as string)
-      .then((d: any) => {
-        const rows = Array.isArray(d) ? d : d?.data ?? [];
-        setTrainers(rows.filter((t: any) => t.status !== 'inactive' && t.isActive !== false));
-      })
-      .catch(() => setTrainers([]))
-      .finally(() => setLoading(false));
+    (async () => {
+      try {
+        if (gymId) {
+          const d: any = await trainersApi.listByGym(gymId as string);
+          if (!alive) return;
+          const rows = Array.isArray(d) ? d : d?.data ?? [];
+          setTrainers(rows.filter((t: any) => t.status !== 'inactive' && t.isActive !== false));
+          return;
+        }
+
+        const coords = await getNearbyCoords();
+        const gymsData: any = await gymsApi.list({ page: 1, limit: 24, ...nearbyQueryParams(coords) });
+        const gyms = (Array.isArray(gymsData) ? gymsData : gymsData?.data || gymsData?.gyms || [])
+          .sort(nearbyBestSort)
+          .slice(0, 10);
+        const rows = await Promise.all(gyms.map(async (gym: any) => {
+          try {
+            const result: any = await trainersApi.listByGym(String(gym.id || gym._id));
+            const list = Array.isArray(result) ? result : result?.data || [];
+            return list
+              .filter((trainer: any) => trainer.status !== 'inactive' && trainer.isActive !== false)
+              .map((trainer: any) => ({
+                ...trainer,
+                gymId: trainer.gymId || gym.id || gym._id,
+                gymName: gym.name || gym.gymName || 'Gym',
+                gymDistance: distanceLabel(gym),
+              }));
+          } catch {
+            return [];
+          }
+        }));
+        if (!alive) return;
+        setGpsActive(!!coords);
+        setTrainers(rows.flat().sort((a: any, b: any) => Number(b.rating || 0) - Number(a.rating || 0)));
+      } catch {
+        if (alive) setTrainers([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
   }, [gymId]);
 
   const handleBook = async () => {
@@ -103,7 +142,7 @@ export default function TrainersScreen() {
 
   return (
     <AuroraBackground variant="gym">
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top', 'left', 'right', 'bottom']}>
       <View style={s.aurora} />
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
@@ -118,12 +157,17 @@ export default function TrainersScreen() {
       ) : trainers.length === 0 ? (
         <View style={s.center}>
           <IconUser size={40} color={colors.t3} />
-          <Text style={s.emptyTitle}>No Trainers Available</Text>
-          <Text style={s.emptyText}>This gym hasn't listed personal trainers yet.</Text>
+          <Text style={s.emptyTitle}>No Monthly Trainers Available</Text>
+          <Text style={s.emptyText}>{gymId ? "This gym hasn't listed monthly trainers yet." : 'No nearby gyms have listed monthly trainers yet. Browse gyms and check again after partners add trainer pricing.'}</Text>
+          {!gymId && (
+            <TouchableOpacity style={s.emptyBtn} onPress={() => router.push('/gyms' as any)}>
+              <Text style={s.emptyBtnText}>Browse Gyms</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
-          <Text style={s.sectionTitle}>Available at this Gym</Text>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
+          <Text style={s.sectionTitle}>{gymId ? 'Available at this Gym' : gpsActive ? 'Monthly Trainers Near You' : 'Monthly Trainers from Partner Gyms'}</Text>
           {trainers.map((t) => (
             <View key={t.id} style={s.card}>
               <View style={s.cardRow}>
@@ -133,6 +177,7 @@ export default function TrainersScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={s.trainerName}>{t.name}</Text>
                   <Text style={s.spec}>{t.specialization || 'General Fitness'}</Text>
+                  {!gymId && t.gymName ? <Text style={s.gymLine} numberOfLines={1}>{[t.gymName, t.gymDistance].filter(Boolean).join(' | ')}</Text> : null}
                   {t.bio ? <Text style={s.bio} numberOfLines={2}>{t.bio}</Text> : null}
                 </View>
               </View>
@@ -164,7 +209,7 @@ export default function TrainersScreen() {
       {/* Booking Modal */}
       <Modal visible={!!selected} animationType="slide" transparent>
         <View style={s.modalOverlay}>
-          <View style={s.modalCard}>
+          <View style={[s.modalCard, { paddingBottom: insets.bottom + 24 }]}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Start Monthly Training</Text>
               <TouchableOpacity onPress={() => setSelected(null)}>
@@ -247,6 +292,17 @@ const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   emptyTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.t, marginTop: 16, marginBottom: 8 },
   emptyText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2, textAlign: 'center' },
+  emptyBtn: {
+    marginTop: 18,
+    minWidth: 130,
+    minHeight: 40,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  emptyBtnText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#000' },
   sectionTitle: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t3, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 },
   card: {
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
@@ -260,6 +316,7 @@ const s = StyleSheet.create({
   },
   trainerName: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.t, marginBottom: 2 },
   spec: { fontFamily: fonts.sans, fontSize: 12, color: colors.accent, marginBottom: 4 },
+  gymLine: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2, marginBottom: 4 },
   bio: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, lineHeight: 17 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },

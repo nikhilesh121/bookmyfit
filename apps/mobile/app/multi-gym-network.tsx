@@ -6,6 +6,7 @@ import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconStar, IconPin, IconSearch } from '../components/Icons';
 import { gymsApi } from '../lib/api';
 import { DEFAULT_GYM_IMAGE, firstImage } from '../lib/imageFallbacks';
+import { distanceLabel, getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../lib/location';
 
 const { width: W } = Dimensions.get('window');
 
@@ -28,19 +29,28 @@ export default function MultiGymNetwork() {
   const [searchText, setSearchText] = useState('');
   const [activeArea, setActiveArea] = useState('All Areas');
   const [error, setError] = useState<string | null>(null);
+  const [gpsActive, setGpsActive] = useState(false);
 
   useEffect(() => {
-    gymsApi.list({ page: 1, limit: 100 })
-      .then((data: any) => {
+    let alive = true;
+    (async () => {
+      try {
+        const coords = await getNearbyCoords();
+        const data: any = await gymsApi.list({ page: 1, limit: 100, ...nearbyQueryParams(coords) });
+        if (!alive) return;
         const list = Array.isArray(data) ? data : data?.gyms || data?.data || [];
-        setGyms(list);
+        setGyms([...list].sort(nearbyBestSort));
+        setGpsActive(!!coords);
         setError(null);
-      })
-      .catch(() => {
+      } catch {
+        if (!alive) return;
         setGyms([]);
         setError('Could not load partner gyms from the API.');
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
   }, []);
 
   const areaFilters = useMemo(() => {
@@ -70,7 +80,7 @@ export default function MultiGymNetwork() {
   });
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={s.root} edges={['top', 'left', 'right', 'bottom']}>
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
@@ -78,7 +88,7 @@ export default function MultiGymNetwork() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Partner Gyms</Text>
-          <Text style={s.headerSub}>{loading ? '...' : `${filtered.length} gyms in network`}</Text>
+          <Text style={s.headerSub}>{loading ? '...' : gpsActive ? `${filtered.length} best nearby gyms` : `${filtered.length} gyms in network`}</Text>
         </View>
       </View>
 
@@ -139,6 +149,7 @@ export default function MultiGymNetwork() {
             const rating = Number(gym.rating || gym.avgRating || 0);
             const img = firstImage(gym.images, gym.photos, gym.coverImage, gym.coverPhoto) || DEFAULT_GYM_IMAGE;
             const amenities: string[] = (gym.amenities || []).slice(0, 3);
+            const distance = distanceLabel(gym);
 
             return (
               <TouchableOpacity
@@ -154,7 +165,7 @@ export default function MultiGymNetwork() {
                   <Text style={s.gymName} numberOfLines={1}>{name}</Text>
                   <View style={s.metaRow}>
                     <IconPin size={10} color={colors.t2} />
-                    <Text style={s.metaText} numberOfLines={1}>{area ? `${area}, ` : ''}{city}</Text>
+                    <Text style={s.metaText} numberOfLines={1}>{[distance, area, city].filter(Boolean).join(' | ')}</Text>
                   </View>
                   {rating > 0 && (
                     <View style={s.ratingRow}>

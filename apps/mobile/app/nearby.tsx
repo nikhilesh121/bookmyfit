@@ -1,322 +1,356 @@
+import { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, FlatList,
-  Dimensions, ActivityIndicator,
+  ActivityIndicator,
+  FlatList,
+  ImageBackground,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import * as Location from 'expo-location';
-import { useEffect, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
-import { IconChevronLeft, IconStar, IconPin } from '../components/Icons';
+import { IconArrowLeft, IconPin, IconRefresh, IconSearch, IconStar } from '../components/Icons';
 import { gymsApi } from '../lib/api';
-
-const { width: W, height: H } = Dimensions.get('window');
-const CARD_W = W * 0.72;
-const MAP_H = H * 0.52;
-const DEFAULT_CENTER = { lat: 20.2961, lng: 85.8245 };
+import { DEFAULT_GYM_IMAGE, firstImage } from '../lib/imageFallbacks';
+import { distanceLabel, getNearbyCoords, nearbyBestSort, nearbyQueryParams, UserCoords } from '../lib/location';
 
 interface NearbyGym {
-  id: string; name: string; address?: string; city?: string;
-  latitude?: number; longitude?: number; lat?: number; lng?: number;
-  rating?: number; tier?: string; minPrice?: number; distanceKm?: number; distance?: string;
+  id: string;
+  _id?: string;
+  name: string;
+  address?: string;
+  city?: string;
+  area?: string;
+  location?: { area?: string; city?: string };
+  rating?: number;
+  avgRating?: number;
+  reviewCount?: number;
+  distance?: string;
+  distanceKm?: number;
+  images?: string[];
+  photos?: string[];
+  coverImage?: string;
+  coverPhoto?: string;
+  amenities?: string[];
+  categories?: string[];
 }
 
-const TIER_COLORS: Record<string, string> = {
-  elite: '#FBBF24', pro: colors.accent, individual: '#60A5FA',
-};
-
-type MapBounds = { minLat: number; maxLat: number; minLng: number; maxLng: number };
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
+function gymId(gym: NearbyGym) {
+  return String(gym.id || gym._id || '');
 }
 
-function boundsFrom(points: Array<{ lat: number; lng: number }>): MapBounds {
-  const safePoints = points.length ? points : [DEFAULT_CENTER];
-  let minLat = Math.min(...safePoints.map((point) => point.lat));
-  let maxLat = Math.max(...safePoints.map((point) => point.lat));
-  let minLng = Math.min(...safePoints.map((point) => point.lng));
-  let maxLng = Math.max(...safePoints.map((point) => point.lng));
-  const minSpan = 0.025;
-  if (maxLat - minLat < minSpan) {
-    const mid = (maxLat + minLat) / 2;
-    minLat = mid - minSpan / 2;
-    maxLat = mid + minSpan / 2;
-  }
-  if (maxLng - minLng < minSpan) {
-    const mid = (maxLng + minLng) / 2;
-    minLng = mid - minSpan / 2;
-    maxLng = mid + minSpan / 2;
-  }
-  const latPad = (maxLat - minLat) * 0.18;
-  const lngPad = (maxLng - minLng) * 0.18;
-  return { minLat: minLat - latPad, maxLat: maxLat + latPad, minLng: minLng - lngPad, maxLng: maxLng + lngPad };
+function gymImage(gym: NearbyGym) {
+  return firstImage(gym.coverPhoto, gym.coverImage, gym.photos, gym.images) || DEFAULT_GYM_IMAGE;
 }
 
-function toScreen(lat: number, lng: number, bounds: MapBounds) {
-  const x = ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * (W - 60) + 16;
-  const y = ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat)) * (MAP_H - 80) + 24;
-  return { x: clamp(x, 14, W - 46), y: clamp(y, 24, MAP_H - 56) };
-}
-
-function gymLat(gym: NearbyGym) {
-  const num = Number(gym.lat ?? gym.latitude);
-  return Number.isFinite(num) && num !== 0 ? num : null;
-}
-
-function gymLng(gym: NearbyGym) {
-  const num = Number(gym.lng ?? gym.longitude);
-  return Number.isFinite(num) && num !== 0 ? num : null;
+function gymRating(gym: NearbyGym) {
+  const value = Number(gym.avgRating || gym.rating || 0);
+  return Number.isFinite(value) && value > 0 ? Math.min(5, value) : null;
 }
 
 export default function NearbyScreen() {
   const insets = useSafeAreaInsets();
-  const flatRef = useRef<FlatList>(null);
   const [gyms, setGyms] = useState<NearbyGym[]>([]);
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [coords, setCoords] = useState<UserCoords | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [notice, setNotice] = useState('');
 
-  useEffect(() => {
-    (async () => {
-      let coords: { lat: number; lng: number } | null = null;
-      let notice: string | null = null;
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          notice = 'Enable GPS permission to show gyms closest to you.';
-        } else {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          coords = { lat: loc.coords.latitude, lng: loc.coords.longitude };
-          setUserCoords(coords);
-        }
-      } catch {
-        notice = 'Could not read your GPS location. Showing mapped gyms for now.';
-      }
-
-      try {
-        const params = coords
-          ? { limit: 50, lat: coords.lat, lng: coords.lng, sort: 'nearest', radiusKm: 50 }
-          : { limit: 50 };
-        const data: any = await gymsApi.list(params);
-        const list = Array.isArray(data) ? data : data?.data || data?.gyms || data?.items || [];
-        const items: NearbyGym[] = list
-          .filter((g: NearbyGym) => gymLat(g) !== null && gymLng(g) !== null)
-          .sort((a: any, b: any) => Number(a.distanceKm ?? 999999) - Number(b.distanceKm ?? 999999));
-        setGyms(items);
-        setError(notice);
-      } catch {
-        setGyms([]);
-        setError('Could not load gyms from the API.');
-      }
+  const load = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
+    if (mode === 'refresh') setRefreshing(true);
+    else setLoading(true);
+    try {
+      const nextCoords = await getNearbyCoords();
+      setCoords(nextCoords);
+      const params: any = { page: 1, limit: 100, ...nearbyQueryParams(nextCoords) };
+      const data: any = await gymsApi.list(params);
+      const list: NearbyGym[] = Array.isArray(data) ? data : data?.data || data?.gyms || data?.items || [];
+      setGyms(list);
+      setNotice(nextCoords ? '' : 'GPS permission is needed for exact nearby sorting. Showing available partner gyms for now.');
+    } catch (e: any) {
+      setGyms([]);
+      setNotice(e?.message || 'Could not load gyms near you.');
+    } finally {
       setLoading(false);
-    })();
+      setRefreshing(false);
+    }
   }, []);
 
-  const mappedGymPoints = gyms
-    .map((gym) => {
-      const lat = gymLat(gym);
-      const lng = gymLng(gym);
-      return lat === null || lng === null ? null : { lat, lng };
-    })
-    .filter((point): point is { lat: number; lng: number } => !!point);
-  const bounds = boundsFrom([...(userCoords ? [userCoords] : []), ...mappedGymPoints]);
-  const userPos = userCoords ? toScreen(userCoords.lat, userCoords.lng, bounds) : null;
-  const mapLabel = userCoords ? 'Your area' : (gyms[0]?.city || 'Mapped gyms');
+  useFocusEffect(useCallback(() => {
+    load('initial');
+  }, [load]));
 
-  const selectGym = (gym: NearbyGym) => {
-    setSelectedId(gym.id);
-    const idx = gyms.findIndex((g) => g.id === gym.id);
-    if (idx >= 0) flatRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
-  };
+  const filteredGyms = useMemo(() => {
+    const q = searchText.trim().toLowerCase();
+    const list = [...gyms].sort(nearbyBestSort);
+    if (!q) return list;
+    return list.filter((gym) => {
+      const haystack = [
+        gym.name,
+        gym.city,
+        gym.area,
+        gym.location?.area,
+        gym.location?.city,
+        ...(gym.amenities || []),
+        ...(gym.categories || []),
+      ].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [gyms, searchText]);
+
+  const headerSubtitle = coords
+    ? `${filteredGyms.length} best nearby gyms`
+    : `${filteredGyms.length} partner gyms`;
 
   return (
-    <View style={s.root}>
-      {/* ── Custom map canvas ── */}
-      <View style={[s.mapCanvas, { height: MAP_H }]}>
-        {/* Grid — simulates map tiles */}
-        {[0.2, 0.4, 0.6, 0.8].map((f) => (
-          <View key={`h${f}`} style={[s.gridH, { top: MAP_H * f }]} />
-        ))}
-        {[0.15, 0.3, 0.45, 0.6, 0.75, 0.9].map((f) => (
-          <View key={`v${f}`} style={[s.gridV, { left: W * f }]} />
-        ))}
-        {/* Simulated roads */}
-        <View style={[s.road, { top: MAP_H * 0.38, width: W * 0.7, left: W * 0.15 }]} />
-        <View style={[s.road, { top: MAP_H * 0.62, width: W * 0.55, left: W * 0.2 }]} />
-        <View style={[s.roadV, { left: W * 0.45, height: MAP_H * 0.6, top: MAP_H * 0.1 }]} />
-        <View style={[s.roadV, { left: W * 0.68, height: MAP_H * 0.5, top: MAP_H * 0.25 }]} />
-
-        {loading && (
-          <View style={s.loadingOverlay}>
-            <ActivityIndicator color={colors.accent} size="large" />
-            <Text style={s.loadingText}>Finding gyms near you…</Text>
-          </View>
-        )}
-
-        {/* User location dot */}
-        {!loading && userPos && (
-          <View style={[s.userDot, { left: userPos.x - 10, top: userPos.y - 10 }]}>
-            <View style={s.userPulse} />
-            <View style={s.userCore} />
-          </View>
-        )}
-
-        {/* Gym pins */}
-        {!loading && gyms.map((gym) => {
-          const lat = gymLat(gym);
-          const lng = gymLng(gym);
-          if (lat === null || lng === null) return null;
-          const { x, y } = toScreen(lat, lng, bounds);
-          const tc = TIER_COLORS[gym.tier || 'individual'] ?? colors.accent;
-          const sel = selectedId === gym.id;
-          return (
-            <TouchableOpacity key={gym.id} style={[s.pinWrap, { left: x - 32, top: y - 38 }]} onPress={() => selectGym(gym)} activeOpacity={0.8}>
-              <View style={[s.pinBubble, { borderColor: sel ? tc : tc + '60', backgroundColor: sel ? tc : 'rgba(12,12,18,0.92)' }]}>
-                <Text style={[s.pinLabel, { color: sel ? '#000' : tc }]} numberOfLines={1}>
-                  {gym.name.split(' ')[0]}
-                </Text>
-              </View>
-              <View style={[s.pinTail, { borderTopColor: sel ? tc : tc + '60' }]} />
-            </TouchableOpacity>
-          );
-        })}
-
-        {/* City label */}
-        <View style={s.cityLabel}>
-          <View style={[s.cityDot, { backgroundColor: colors.accent }]} />
-          <Text style={s.cityText}>{mapLabel}</Text>
+    <SafeAreaView style={s.root} edges={['top', 'left', 'right', 'bottom']}>
+      <View style={s.header}>
+        <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.82}>
+          <IconArrowLeft size={18} color="#fff" />
+        </TouchableOpacity>
+        <View style={s.headerText}>
+          <Text style={s.headerTitle}>Gyms Near You</Text>
+          <Text style={s.headerSub}>{headerSubtitle}</Text>
         </View>
+        <TouchableOpacity style={s.refreshBtn} onPress={() => load('refresh')} activeOpacity={0.82}>
+          {refreshing ? <ActivityIndicator size="small" color={colors.accent} /> : <IconRefresh size={16} color={colors.accent} />}
+        </TouchableOpacity>
       </View>
 
-      {/* ── Back + header overlay ── */}
-      <SafeAreaView style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        <TouchableOpacity style={[s.backBtn, { top: insets.top + 8 }]} onPress={() => router.back()} activeOpacity={0.8}>
-          <IconChevronLeft size={18} color="#fff" />
-        </TouchableOpacity>
-        <View style={[s.headerWrap, { top: insets.top + 10 }]}>
-          <Text style={s.headerTitle}>Gyms Near You</Text>
-          <Text style={s.headerSub}>{userCoords ? `${gyms.length} found nearby` : `${gyms.length} mapped gyms`} · Tap pin to select</Text>
-        </View>
-      </SafeAreaView>
+      <View style={s.searchRow}>
+        <IconSearch size={15} color={colors.t3} />
+        <TextInput
+          style={s.searchInput}
+          placeholder="Search nearby gym, area, amenity..."
+          placeholderTextColor={colors.t3}
+          value={searchText}
+          onChangeText={setSearchText}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+        />
+      </View>
 
-      {/* ── Bottom sheet ── */}
-      <View style={s.sheet}>
-        <View style={s.sheetPill} />
-        {error && (
-          <View style={s.notice}>
-            <IconPin size={12} color={colors.accent} />
-            <Text style={s.noticeText}>{error}</Text>
-          </View>
-        )}
+      {loading ? (
+        <View style={s.loadingBox}>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={s.loadingText}>Finding nearby gyms...</Text>
+        </View>
+      ) : (
         <FlatList
-          ref={flatRef}
-          data={gyms}
-          keyExtractor={(g) => g.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={CARD_W + 12}
-          decelerationRate="fast"
-          contentContainerStyle={{ paddingHorizontal: 18, gap: 12, paddingBottom: 8 }}
-          onScrollToIndexFailed={() => {}}
+          data={filteredGyms}
+          keyExtractor={(item) => gymId(item)}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={colors.accent} />}
+          contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 28 }]}
+          ListHeaderComponent={(
+            <View style={[s.statusCard, coords && s.statusCardActive]}>
+              <View style={s.statusIcon}>
+                <IconPin size={17} color={coords ? colors.accent : colors.t2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.statusTitle}>{coords ? 'Best nearby ranking is active' : 'Turn on GPS for nearby gyms'}</Text>
+                <Text style={s.statusText}>
+                  {notice || 'Nearby results use distance first, then rating, reviews, and popularity.'}
+                </Text>
+              </View>
+            </View>
+          )}
+          ListEmptyComponent={(
+            <View style={s.empty}>
+              <IconPin size={34} color={colors.t3} />
+              <Text style={s.emptyTitle}>No gyms found</Text>
+              <Text style={s.emptyText}>{notice || 'Try another search or refresh your GPS location.'}</Text>
+            </View>
+          )}
           renderItem={({ item }) => {
-            const sel = selectedId === item.id;
-            const tc = TIER_COLORS[item.tier || 'individual'] ?? colors.accent;
+            const id = gymId(item);
+            const rating = gymRating(item);
+            const distance = distanceLabel(item);
+            const area = item.area || item.location?.area || '';
+            const city = item.city || item.location?.city || '';
+            const tags = [...(item.amenities || []), ...(item.categories || [])].filter(Boolean).slice(0, 3);
             return (
-              <TouchableOpacity style={[s.card, sel && { borderColor: tc + '55', backgroundColor: tc + '08' }]} onPress={() => selectGym(item)} activeOpacity={0.88}>
-                <View style={[s.cardBar, { backgroundColor: tc }]} />
+              <TouchableOpacity
+                style={s.card}
+                activeOpacity={0.88}
+                onPress={() => router.push({ pathname: '/gym/[id]', params: { id } } as any)}
+              >
+                <ImageBackground source={{ uri: gymImage(item) }} style={s.cardImage} imageStyle={s.cardImageRadius}>
+                  <LinearGradient colors={['rgba(0,0,0,0.08)', 'rgba(0,0,0,0.72)']} style={s.cardShade}>
+                    {distance ? (
+                      <View style={s.distancePill}>
+                        <IconPin size={11} color={colors.accent} />
+                        <Text style={s.distanceText}>{distance}</Text>
+                      </View>
+                    ) : null}
+                    <Text style={s.cardTitle} numberOfLines={1}>{item.name || 'Gym'}</Text>
+                    <Text style={s.cardLocation} numberOfLines={1}>{[area, city].filter(Boolean).join(', ') || item.address || 'Location not added'}</Text>
+                  </LinearGradient>
+                </ImageBackground>
                 <View style={s.cardBody}>
-                  <View style={s.cardRow}>
-                    <Text style={s.cardName} numberOfLines={1}>{item.name}</Text>
-                    {item.tier === 'elite' && (
-                      <View style={s.eliteBadge}><Text style={s.eliteBadgeText}>Elite</Text></View>
+                  <View style={s.metaRow}>
+                    {rating !== null ? (
+                      <>
+                        <IconStar size={12} color="#FBBF24" />
+                        <Text style={s.ratingText}>{rating.toFixed(1)}</Text>
+                        <Text style={s.metaText}>{Number(item.reviewCount || 0)} reviews</Text>
+                      </>
+                    ) : (
+                      <Text style={s.metaText}>No reviews yet</Text>
                     )}
                   </View>
-                  <View style={s.locRow}>
-                    <IconPin size={10} color={colors.t2} />
-                    <Text style={s.locText} numberOfLines={1}>{item.distance || (item.distanceKm ? `${Number(item.distanceKm).toFixed(1)} km` : item.address || 'Nearby')}</Text>
-                  </View>
-                  {item.rating && (
-                    <View style={s.ratingRow}>
-                      <IconStar size={11} color="#FBBF24" />
-                      <Text style={s.ratingText}>{item.rating.toFixed(1)}</Text>
+                  {tags.length > 0 ? (
+                    <View style={s.tagRow}>
+                      {tags.map((tag) => (
+                        <View key={String(tag)} style={s.tag}><Text style={s.tagText} numberOfLines={1}>{String(tag)}</Text></View>
+                      ))}
                     </View>
-                  )}
-                  <TouchableOpacity style={[s.viewBtn, sel && { borderColor: tc, backgroundColor: tc + '18' }]} onPress={() => router.push({ pathname: '/gym/[id]', params: { id: item.id } } as any)} activeOpacity={0.85}>
-                    <Text style={[s.viewBtnText, sel && { color: tc }]}>View Details</Text>
-                  </TouchableOpacity>
+                  ) : null}
+                  <View style={s.actionRow}>
+                    <Text style={s.actionHint}>View plans, timings, gallery, and amenities</Text>
+                    <View style={s.viewBtn}><Text style={s.viewBtnText}>View</Text></View>
+                  </View>
                 </View>
               </TouchableOpacity>
             );
           }}
-          ListEmptyComponent={!loading ? (
-            <View style={s.emptyState}>
-              <Text style={s.emptyTitle}>{error ? 'Gyms unavailable' : 'No mapped gyms found'}</Text>
-              <Text style={s.emptySub}>{error || 'Gyms with latitude and longitude will appear here.'}</Text>
-            </View>
-          ) : null}
         />
-      </View>
-    </View>
+      )}
+    </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-
-  // Map canvas
-  mapCanvas: { width: W, backgroundColor: '#080810', overflow: 'hidden', position: 'relative' },
-  gridH: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255,255,255,0.04)' },
-  gridV: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255,255,255,0.04)' },
-  road:  { position: 'absolute', height: 2, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 1 },
-  roadV: { position: 'absolute', width: 2,  backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 1 },
-
-  loadingOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 10,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: colors.glass,
+    borderWidth: 1,
+    borderColor: colors.borderGlass,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refreshBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerText: { flex: 1, minWidth: 0 },
+  headerTitle: { fontFamily: fonts.serif, fontSize: 22, color: '#fff' },
+  headerSub: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, marginTop: 1 },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 13,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: colors.glass,
+    borderWidth: 1,
+    borderColor: colors.borderGlass,
+  },
+  searchInput: { flex: 1, fontFamily: fonts.sans, fontSize: 13, color: '#fff' },
+  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2 },
-
-  // User location
-  userDot:   { position: 'absolute', width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
-  userPulse: { position: 'absolute', width: 20, height: 20, borderRadius: 10, backgroundColor: '#60A5FA18', borderWidth: 1, borderColor: '#60A5FA44' },
-  userCore:  { width: 10, height: 10, borderRadius: 5, backgroundColor: '#60A5FA', borderWidth: 2, borderColor: '#fff' },
-
-  // Gym pins
-  pinWrap:   { position: 'absolute', alignItems: 'center' },
-  pinBubble: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 16, borderWidth: 1.5, minWidth: 64, alignItems: 'center' },
-  pinLabel:  { fontFamily: fonts.sansBold, fontSize: 10 },
-  pinTail:   { width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 6, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
-
-  cityLabel: { position: 'absolute', bottom: 12, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
-  cityDot:   { width: 6, height: 6, borderRadius: 3 },
-  cityText:  { fontFamily: fonts.sansMedium, fontSize: 11, color: 'rgba(255,255,255,0.35)', letterSpacing: 1 },
-
-  // Back button + header
-  backBtn: { position: 'absolute', left: 16, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  headerWrap:  { position: 'absolute', left: W / 2 - 90, width: 180, alignItems: 'center' },
-  headerTitle: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
-  headerSub:   { fontFamily: fonts.sans, fontSize: 10, color: 'rgba(255,255,255,0.55)', textShadowColor: 'rgba(0,0,0,0.9)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 6 },
-
-  // Sheet
-  sheet:     { flex: 1, backgroundColor: '#0e0e14', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.08)', paddingTop: 12 },
-  sheetPill: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'center', marginBottom: 16 },
-  notice: { marginHorizontal: 18, marginBottom: 12, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSoft, paddingHorizontal: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  noticeText: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 11, color: colors.accent },
-
-  // Cards
-  card:     { width: CARD_W, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: radius.xl, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', overflow: 'hidden', flexDirection: 'row' },
-  cardBar:  { width: 3 },
-  cardBody: { flex: 1, padding: 14, gap: 7 },
-  cardRow:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardName: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', flex: 1 },
-  eliteBadge: { backgroundColor: '#FBBF2415', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: '#FBBF2440' },
-  eliteBadgeText: { fontFamily: fonts.sansBold, fontSize: 9, color: '#FBBF24' },
-  locRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locText: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
-  ratingRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  ratingText: { fontFamily: fonts.sansMedium, fontSize: 12, color: '#FBBF24' },
-  viewBtn:     { alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 6 },
-  viewBtnText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.t2 },
-  emptyState: { width: W - 36, alignItems: 'center', justifyContent: 'center', paddingVertical: 28, paddingHorizontal: 20 },
-  emptyTitle: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', marginBottom: 6 },
-  emptySub: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, textAlign: 'center' },
+  listContent: { paddingHorizontal: 16, paddingTop: 2, gap: 14 },
+  statusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: radius.xl,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+  },
+  statusCardActive: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  statusIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusTitle: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', marginBottom: 3 },
+  statusText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, lineHeight: 17 },
+  card: {
+    borderRadius: radius.xl,
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    overflow: 'hidden',
+  },
+  cardImage: { height: 174 },
+  cardImageRadius: { borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl },
+  cardShade: { flex: 1, justifyContent: 'flex-end', padding: 14 },
+  distancePill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,212,106,0.28)',
+  },
+  distanceText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent },
+  cardTitle: { fontFamily: fonts.sansBold, fontSize: 19, color: '#fff', marginBottom: 4 },
+  cardLocation: { fontFamily: fonts.sans, fontSize: 12, color: 'rgba(255,255,255,0.76)' },
+  cardBody: { padding: 14, gap: 11 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  ratingText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#FBBF24' },
+  metaText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  tag: {
+    maxWidth: 120,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  tagText: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t2 },
+  actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  actionHint: { flex: 1, fontFamily: fonts.sans, fontSize: 11, color: colors.t3 },
+  viewBtn: {
+    minWidth: 72,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 14,
+  },
+  viewBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#050505' },
+  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 70, paddingHorizontal: 20 },
+  emptyTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: '#fff', marginTop: 14, marginBottom: 6 },
+  emptyText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2, textAlign: 'center', lineHeight: 19 },
 });

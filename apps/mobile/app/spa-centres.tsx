@@ -7,15 +7,15 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconChevronRight, IconPin, IconStar } from '../components/Icons';
-import { api } from '../lib/api';
+import { wellnessApi } from '../lib/api';
 import { wellnessPartnerImage } from '../lib/imageFallbacks';
+import { distanceLabel, getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../lib/location';
 
 const CATEGORIES = ['All', 'Spa', 'Massage', 'Physio', 'Recovery'];
 
@@ -30,6 +30,8 @@ type Partner = {
   photos?: string[];
   minPrice?: number | null;
   serviceCount?: number;
+  distanceKm?: number;
+  distanceLabel?: string;
 };
 
 function isHomeService(partner: Partner) {
@@ -41,25 +43,28 @@ export default function SpaCentresScreen() {
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('All');
   const [error, setError] = useState('');
+  const [gpsActive, setGpsActive] = useState(false);
 
   useEffect(() => {
     let active = true;
-    api.get('/wellness/partners?limit=100')
-      .then((res: any) => {
+    (async () => {
+      try {
+        const coords = await getNearbyCoords();
+        const res: any = await wellnessApi.list({ limit: 100, ...nearbyQueryParams(coords) });
         if (!active) return;
         const raw: Partner[] = Array.isArray(res) ? res : res?.data || [];
         const spaCentres = raw.filter((partner) => !isHomeService(partner));
-        setPartners(spaCentres);
-      })
-      .catch((e: any) => {
+        setPartners([...spaCentres].sort(nearbyBestSort));
+        setGpsActive(!!coords);
+      } catch (e: any) {
         if (active) {
           setPartners([]);
           setError(e?.message || 'Could not load spa centres.');
         }
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoading(false);
-      });
+      }
+    })();
     return () => { active = false; };
   }, []);
 
@@ -70,14 +75,14 @@ export default function SpaCentresScreen() {
   }, [category, partners]);
 
   return (
-    <SafeAreaView style={s.root} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={s.root} edges={['top', 'left', 'right', 'bottom']}>
       <View style={s.header}>
         <TouchableOpacity style={s.back} onPress={() => router.back()}>
           <IconArrowLeft size={18} color="#fff" />
         </TouchableOpacity>
         <View style={s.headerText}>
           <Text style={s.title}>Spa Centres Near You</Text>
-          <Text style={s.subtitle}>{filtered.length}+ verified wellness partners</Text>
+          <Text style={s.subtitle}>{gpsActive ? `${filtered.length}+ best nearby partners` : `${filtered.length}+ verified wellness partners`}</Text>
         </View>
         <View style={{ width: 38 }} />
       </View>
@@ -121,7 +126,7 @@ export default function SpaCentresScreen() {
                     <Text style={s.cardTitle} numberOfLines={1}>{partner.name}</Text>
                     <View style={s.locationRow}>
                       <IconPin size={12} color={colors.accent} />
-                      <Text style={s.locationText} numberOfLines={1}>{[partner.area, partner.city].filter(Boolean).join(', ') || 'Location not added'}</Text>
+                      <Text style={s.locationText} numberOfLines={1}>{[distanceLabel(partner), partner.area, partner.city].filter(Boolean).join(' | ') || 'Location not added'}</Text>
                     </View>
                   </LinearGradient>
                 </ImageBackground>
@@ -153,7 +158,7 @@ export default function SpaCentresScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg, paddingTop: Platform.OS === 'android' ? 24 : 0 },
+  root: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 },
   back: {
     width: 38, height: 38, borderRadius: 12,

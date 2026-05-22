@@ -11,6 +11,7 @@ import {
   IconBolt, IconShield, IconHeadphones, IconPercent,
 } from '../../components/Icons';
 import { API_BASE, appStorage, gymsApi, subscriptionsApi } from '../../lib/api';
+import { getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../../lib/location';
 import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList } from '../../lib/subscriptionAccess';
 import { applyPassCommission, positiveNumber } from '../../lib/passPricing';
 import {
@@ -196,12 +197,11 @@ export default function Home() {
       if (saved) setCity(saved);
       (async () => {
         try {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== 'granted') return;
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          setUserCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+          const coords = await getNearbyCoords();
+          if (!coords) return;
+          setUserCoords(coords);
           if (!saved) {
-            const [geo] = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+            const [geo] = await Location.reverseGeocodeAsync({ latitude: coords.lat, longitude: coords.lng });
             const c = geo?.city || geo?.subregion || geo?.region;
             if (c) setCity(c);
           }
@@ -244,16 +244,10 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const params: any = { limit: 100 };
-    if (userCoords) {
-      params.lat = userCoords.lat;
-      params.lng = userCoords.lng;
-      params.sort = 'nearest';
-      params.radiusKm = 50;
-    }
+    const params: any = { limit: 100, ...nearbyQueryParams(userCoords) };
     gymsApi.list(params)
       .then((data: any) => {
-        setHomeGyms(listFrom(data, ['gyms']));
+        setHomeGyms([...listFrom(data, ['gyms'])].sort(nearbyBestSort));
       })
       .catch(() => setHomeGyms([]));
   }, [userCoords]);

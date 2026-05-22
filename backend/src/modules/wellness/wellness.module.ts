@@ -128,17 +128,80 @@ class WellnessService {
       .getMany();
   }
 
-  async listPartnersWithMinPrice(filter: { city?: string; serviceType?: string } = {}, page: any = 1, limit: any = 20) {
-    const where: any = { status: 'active' };
-    if (filter.city) where.city = filter.city;
-    if (filter.serviceType) where.serviceType = filter.serviceType;
+  private validLatLng(lat: any, lng: any) {
+    const parsedLat = Number(lat);
+    const parsedLng = Number(lng);
+    if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) return null;
+    if (Math.abs(parsedLat) > 90 || Math.abs(parsedLng) > 180) return null;
+    return { lat: parsedLat, lng: parsedLng };
+  }
+
+  private validRadius(radiusKm: any) {
+    const parsed = Number(radiusKm);
+    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    return Math.min(parsed, 250);
+  }
+
+  private distanceSql(alias = 'p') {
+    return `(6371 * acos(LEAST(1, GREATEST(-1, cos(radians(:lat)) * cos(radians(${alias}.lat)) * cos(radians(${alias}.lng) - radians(:lng)) + sin(radians(:lat)) * sin(radians(${alias}.lat))))))`;
+  }
+
+  async listPartnersWithMinPrice(filter: { city?: string; serviceType?: string; lat?: any; lng?: any; sort?: string; radiusKm?: any } = {}, page: any = 1, limit: any = 20) {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
-    const [partners, total] = await this.partners.findAndCount({ where, order: { rating: 'DESC' }, skip, take });
+    const coords = this.validLatLng(filter.lat, filter.lng);
+    const radiusKm = this.validRadius(filter.radiusKm);
+    const distanceSql = this.distanceSql('p');
+    const qb = this.partners.createQueryBuilder('p')
+      .where("p.status = 'active'");
+    if (filter.city) qb.andWhere('p.city = :city', { city: filter.city });
+    if (filter.serviceType) qb.andWhere('p."serviceType" = :serviceType', { serviceType: filter.serviceType });
+    if (coords) {
+      qb.andWhere('p.lat IS NOT NULL')
+        .andWhere('p.lng IS NOT NULL')
+        .andWhere('p.lat <> 0')
+        .andWhere('p.lng <> 0')
+        .addSelect(distanceSql, 'distanceKm')
+        .setParameters(coords);
+      if (radiusKm) qb.andWhere(`${distanceSql} <= :radiusKm`, { radiusKm });
+    }
+    if (coords && (filter.sort === 'nearby_best' || filter.sort === 'nearest' || radiusKm)) {
+      if (filter.sort === 'nearby_best') {
+        qb.orderBy(`CASE
+          WHEN ${distanceSql} <= 2 THEN 0
+          WHEN ${distanceSql} <= 5 THEN 1
+          WHEN ${distanceSql} <= 10 THEN 2
+          WHEN ${distanceSql} <= 25 THEN 3
+          WHEN ${distanceSql} <= 50 THEN 4
+          ELSE 5
+        END`, 'ASC')
+          .addOrderBy('p.rating', 'DESC')
+          .addOrderBy('p."reviewCount"', 'DESC')
+          .addOrderBy(distanceSql, 'ASC');
+      } else {
+        qb.orderBy(distanceSql, 'ASC').addOrderBy('p.rating', 'DESC').addOrderBy('p."reviewCount"', 'DESC');
+      }
+    } else {
+      qb.orderBy('p.rating', 'DESC').addOrderBy('p."reviewCount"', 'DESC').addOrderBy('p.createdAt', 'DESC');
+    }
+    const total = await qb.clone().getCount();
+    const { entities: partners, raw } = await qb.skip(skip).take(take).getRawAndEntities();
+    const distanceById = new Map<string, number>();
+    raw.forEach((row: any) => {
+      const id = row.p_id || row.p_id_id || row.id;
+      const distance = Number(row.distanceKm);
+      if (id && Number.isFinite(distance)) distanceById.set(id, distance);
+    });
     const result = await Promise.all(partners.map(async (partner) => {
       const svcs = await this.services.find({ where: { partnerId: partner.id, isActive: true } });
       const priced = await this.withCheckoutPrices(svcs as any[]);
       const minPrice = priced.length ? Math.min(...priced.map(s => Number((s as any).price))) : null;
-      return { ...partner, minPrice, serviceCount: svcs.length };
+      const distanceKm = distanceById.get(partner.id);
+      return {
+        ...partner,
+        minPrice,
+        serviceCount: svcs.length,
+        ...(distanceKm !== undefined ? { distanceKm: Number(distanceKm.toFixed(2)), distanceLabel: `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km` } : {}),
+      };
     }));
     return paginatedResponse(result, total, p, l);
   }
@@ -327,10 +390,14 @@ class WellnessController {
   partners(
     @Query('city') city?: string,
     @Query('serviceType') type?: string,
+    @Query('lat') lat?: string,
+    @Query('lng') lng?: string,
+    @Query('sort') sort?: string,
+    @Query('radiusKm') radiusKm?: string,
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.svc.listPartnersWithMinPrice({ city, serviceType: type }, +page, +limit);
+    return this.svc.listPartnersWithMinPrice({ city, serviceType: type, lat, lng, sort, radiusKm }, +page, +limit);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -260,8 +260,11 @@ export const trainersApi = {
 };
 
 export const wellnessApi = {
-  list: (params?: { city?: string; serviceType?: string }) => {
-    const q = params ? '?' + Object.entries(params).filter(([,v]) => v).map(([k, v]) => `${k}=${v}`).join('&') : '';
+  list: (params?: { city?: string; serviceType?: string; page?: number; limit?: number; lat?: number; lng?: number; sort?: string; radiusKm?: number }) => {
+    const q = params ? '?' + Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== null && v !== '')
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+      .join('&') : '';
     return api.get(`/wellness/partners${q}`);
   },
   services: (partnerId: string) => api.get(`/wellness/partners/${partnerId}/services`),

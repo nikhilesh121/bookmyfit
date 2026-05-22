@@ -8,8 +8,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { colors, fonts, radius, spacing } from '../theme/brand';
 import { IconArrowLeft, IconStar, IconPin } from '../components/Icons';
-import { api } from '../lib/api';
+import { wellnessApi } from '../lib/api';
 import { wellnessPartnerImage } from '../lib/imageFallbacks';
+import { distanceLabel, getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../lib/location';
 
 // ─── Fallback data ────────────────────────────────────────────────────────────
 const CATEGORIES = ['All', 'Massage', 'Facial', 'Hair', 'Cleaning', 'Physio'];
@@ -17,7 +18,7 @@ const CATEGORIES = ['All', 'Massage', 'Facial', 'Hair', 'Cleaning', 'Physio'];
 type Provider = {
   id: string; name: string; serviceType: string; city: string; area: string;
   rating: number; reviewCount: number; photos?: string[]; minPrice?: number;
-  services?: string[];
+  services?: string[]; distanceKm?: number; distanceLabel?: string;
 };
 
 export default function HomeServicesScreen() {
@@ -25,18 +26,27 @@ export default function HomeServicesScreen() {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
   const [error, setError] = useState('');
+  const [gpsActive, setGpsActive] = useState(false);
 
   useEffect(() => {
-    api.get('/wellness/partners?serviceType=home&limit=50')
-      .then((res: any) => {
+    let active = true;
+    (async () => {
+      try {
+        const coords = await getNearbyCoords();
+        const res: any = await wellnessApi.list({ serviceType: 'home', limit: 50, ...nearbyQueryParams(coords) });
+        if (!active) return;
         const list: Provider[] = res?.data || (Array.isArray(res) ? res : []);
-        setProviders(list);
-      })
-      .catch((e: any) => {
+        setProviders([...list].sort(nearbyBestSort));
+        setGpsActive(!!coords);
+      } catch (e: any) {
+        if (!active) return;
         setProviders([]);
         setError(e?.message || 'Could not load home service providers.');
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
   }, []);
 
   const filtered = providers.filter(p => {
@@ -46,7 +56,7 @@ export default function HomeServicesScreen() {
   });
 
   return (
-    <SafeAreaView style={s.screen} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={s.screen} edges={['top', 'left', 'right', 'bottom']}>
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
@@ -54,7 +64,7 @@ export default function HomeServicesScreen() {
         </TouchableOpacity>
         <View style={s.headerText}>
           <Text style={s.headerTitle}>Home Services</Text>
-          <Text style={s.headerSubtitle}>Expert services at your doorstep</Text>
+          <Text style={s.headerSubtitle}>{gpsActive ? 'Best nearby providers first' : 'Expert services at your doorstep'}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
@@ -111,7 +121,7 @@ export default function HomeServicesScreen() {
                       <Text style={s.providerName}>{provider.name}</Text>
                       <View style={s.locationRow}>
                         <IconPin size={12} color={colors.accent} />
-                        <Text style={s.locationText}>{[provider.area, provider.city].filter(Boolean).join(', ') || 'Location not added'}</Text>
+                        <Text style={s.locationText}>{[distanceLabel(provider), provider.area, provider.city].filter(Boolean).join(' | ') || 'Location not added'}</Text>
                       </View>
                     </LinearGradient>
                   </ImageBackground>

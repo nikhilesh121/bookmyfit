@@ -73,6 +73,10 @@ class GymsService {
     return `COALESCE((SELECT COUNT(*)::int FROM ratings r WHERE r."gymId" = ${alias}.id AND r.status = 'approved'), 0)`;
   }
 
+  private totalCheckinsSelect(alias = 'g') {
+    return `COALESCE((SELECT COUNT(*)::int FROM checkins c WHERE c."gymId" = ${alias}.id AND c.status = 'success'), 0)`;
+  }
+
   private memberCode(userId?: string | null) {
     const id = String(userId || '').replace(/-/g, '').toUpperCase();
     return id ? `BMF-${id.slice(0, 10)}` : 'BMF-UNKNOWN';
@@ -104,6 +108,7 @@ class GymsService {
       .addSelect(`${alias}.tier`, 'tier')
       .addSelect(this.approvedRatingAverageSelect(alias), 'rating')
       .addSelect(this.approvedRatingCountSelect(alias), 'ratingCount')
+      .addSelect(this.totalCheckinsSelect(alias), 'totalCheckins')
       .addSelect(`${alias}.status`, 'status')
       .addSelect(`${alias}.commissionRate`, 'commissionRate')
       .addSelect(`${alias}.coverPhoto`, 'coverPhoto')
@@ -141,6 +146,8 @@ class GymsService {
       ratingCount,
       ratingsCount: ratingCount,
       reviewCount: ratingCount,
+      totalCheckins: Number(row.totalCheckins || 0),
+      popularityScore: Number(row.totalCheckins || 0) + ratingCount,
       distanceKm: row.distanceKm !== undefined && row.distanceKm !== null ? Math.round(Number(row.distanceKm) * 10) / 10 : undefined,
       distance: row.distanceKm !== undefined && row.distanceKm !== null ? `${(Math.round(Number(row.distanceKm) * 10) / 10).toFixed(1)} km` : undefined,
       coverPhoto,
@@ -1277,13 +1284,13 @@ class GymsService {
     }
     const location = this.validCoordinate(filter.lat, filter.lng);
     const radiusKm = location ? this.validRadiusKm(filter.radiusKm) : null;
+    const distanceExpr = `(6371 * acos(least(1, greatest(-1, cos(radians(:lat)) * cos(radians(g.lat)) * cos(radians(g.lng) - radians(:lng)) + sin(radians(:lat)) * sin(radians(g.lat))))))`;
     if (location) {
-      const distanceExpr = `(6371 * acos(least(1, greatest(-1, cos(radians(:lat)) * cos(radians(g.lat)) * cos(radians(g.lng) - radians(:lng)) + sin(radians(:lat)) * sin(radians(g.lat))))))`;
       qb.addSelect(
         distanceExpr,
         'distanceKm',
       ).setParameters(location);
-      if (filter.sort === 'nearest' || radiusKm !== null) {
+      if (filter.sort === 'nearest' || filter.sort === 'nearby_best' || radiusKm !== null) {
         qb.andWhere('NOT (g.lat = 0 AND g.lng = 0)');
       }
       if (radiusKm !== null) {
@@ -1291,9 +1298,30 @@ class GymsService {
       }
     }
     const { skip, take, page: p, limit: l } = paginate(page, limit);
-    const orderColumn = location && (filter.sort === 'nearest' || radiusKm !== null) ? '"distanceKm"' : (filter.kycStatus ? 'g.updatedAt' : '"rating"');
+    const rankedQuery = qb.clone();
+    if (location && (filter.sort === 'nearby_best' || filter.sort === 'nearest' || radiusKm !== null)) {
+      if (filter.sort === 'nearby_best') {
+        rankedQuery
+          .orderBy(`CASE
+            WHEN ${distanceExpr} <= 2 THEN 0
+            WHEN ${distanceExpr} <= 5 THEN 1
+            WHEN ${distanceExpr} <= 10 THEN 2
+            WHEN ${distanceExpr} <= 25 THEN 3
+            WHEN ${distanceExpr} <= 50 THEN 4
+            ELSE 5
+          END`, 'ASC')
+          .addOrderBy('"rating"', 'DESC')
+          .addOrderBy('"ratingCount"', 'DESC')
+          .addOrderBy('"totalCheckins"', 'DESC')
+          .addOrderBy('"distanceKm"', 'ASC');
+      } else {
+        rankedQuery.orderBy('"distanceKm"', 'ASC').addOrderBy('"rating"', 'DESC').addOrderBy('"ratingCount"', 'DESC');
+      }
+    } else {
+      rankedQuery.orderBy(filter.kycStatus ? 'g.updatedAt' : '"rating"', 'DESC').addOrderBy('"ratingCount"', 'DESC');
+    }
     const [data, total] = await Promise.all([
-      qb.clone().orderBy(orderColumn, orderColumn === '"distanceKm"' ? 'ASC' : 'DESC').skip(skip).take(take).getRawMany(),
+      rankedQuery.skip(skip).take(take).getRawMany(),
       qb.clone().getCount(),
     ]);
     const liveRows = await this.withLiveRatings(data);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Alert, ScrollView, View, Text, TouchableOpacity, StyleSheet,
-  Image, FlatList, Dimensions, ActivityIndicator, Platform, useWindowDimensions,
+  Image, FlatList, Dimensions, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -10,7 +10,8 @@ import {
   IconArrowLeft, IconStar, IconPin, IconHeart, IconChevronRight,
   IconShield, IconCheck, IconBuilding, IconHeadphones, IconBolt,
 } from '../components/Icons';
-import { API_BASE as API } from '../lib/api';
+import { API_BASE as API, wellnessApi } from '../lib/api';
+import { distanceLabel, getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../lib/location';
 import {
   wellnessPartnerImage,
   wellnessServiceImage,
@@ -42,7 +43,7 @@ const HERO_SLIDES = [
 
 type ApiPartner = {
   id: string; name: string; serviceType: string; city: string; area: string;
-  rating: number; reviewCount: number; distanceLabel: string; photos: string[];
+  rating: number; reviewCount: number; distanceLabel: string; distanceKm?: number; photos: string[];
   discountPercent?: number; minPrice?: number | null; serviceCount?: number;
 };
 type ApiService = {
@@ -57,21 +58,32 @@ export default function WellnessScreen() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [heroIndex, setHeroIndex] = useState(0);
   const [activeFilter, setActiveFilter] = useState<'all' | 'spa' | 'home'>('all');
+  const [gpsActive, setGpsActive] = useState(false);
   const heroRef = useRef<FlatList>(null);
   const heroTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const { width: screenW } = useWindowDimensions();
   const heroW = Math.max(1, Math.round(screenW || W));
 
   useEffect(() => {
-    Promise.all([
-      fetch(`${API}/api/v1/wellness/partners?page=1&limit=20`).then(r => r.json()).catch(() => null),
-      fetch(`${API}/api/v1/wellness/services/all`).then(r => r.json()).catch(() => null),
-    ]).then(([pRes, sRes]) => {
-      const pts = pRes?.data || pRes;
-      const svcs = Array.isArray(sRes) ? sRes : sRes?.data || sRes?.services || [];
-      if (Array.isArray(pts) && pts.length > 0) setPartners(pts);
-      if (Array.isArray(svcs) && svcs.length > 0) setServices(svcs);
-    }).catch(() => {}).finally(() => setLoading(false));
+    let alive = true;
+    (async () => {
+      try {
+        const coords = await getNearbyCoords();
+        const [pRes, sRes] = await Promise.all([
+          wellnessApi.list({ page: 1, limit: 50, ...nearbyQueryParams(coords) }).catch(() => null),
+          fetch(`${API}/api/v1/wellness/services/all`).then(r => r.json()).catch(() => null),
+        ]);
+        if (!alive) return;
+        const pts = pRes?.data || pRes;
+        const svcs = Array.isArray(sRes) ? sRes : sRes?.data || sRes?.services || [];
+        setGpsActive(!!coords);
+        if (Array.isArray(pts)) setPartners([...pts].sort(nearbyBestSort));
+        if (Array.isArray(svcs)) setServices(svcs);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {
@@ -119,7 +131,7 @@ export default function WellnessScreen() {
         if (activeFilter === 'home') return type === 'home' || type.includes('home');
         return type !== 'home' && !type.includes('home');
       });
-  const filteredPartners = partnersByType;
+  const filteredPartners = [...partnersByType].sort(nearbyBestSort);
   const partnerSectionTitle = activeFilter === 'home'
     ? 'Top Home Services Near You'
     : activeFilter === 'spa'
@@ -137,7 +149,7 @@ export default function WellnessScreen() {
   };
 
   return (
-    <SafeAreaView style={s.root} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={s.root} edges={['top', 'left', 'right', 'bottom']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
 
         {/* Header */}
@@ -147,7 +159,7 @@ export default function WellnessScreen() {
           </TouchableOpacity>
           <View style={s.headerCenter}>
             <Text style={s.headerTitle}>Spa & Recovery</Text>
-            <Text style={s.headerSubtitle}>Relax. Rejuvenate. Refresh.</Text>
+            <Text style={s.headerSubtitle}>{gpsActive ? 'Best nearby partners first' : 'Relax. Rejuvenate. Refresh.'}</Text>
           </View>
           <View style={s.headerRight} />
         </View>
@@ -350,7 +362,7 @@ export default function WellnessScreen() {
                   <View style={s.locationRow}>
                     <IconPin size={12} color={colors.t2} />
                     <Text style={s.locationText} numberOfLines={1}>
-                      {[partner.area, partner.city].filter(Boolean).join(', ') || 'Location not added'}{partner.distanceLabel ? ` | ${partner.distanceLabel}` : ''}
+                      {[partner.area, partner.city].filter(Boolean).join(', ') || 'Location not added'}{distanceLabel(partner) ? ` | ${distanceLabel(partner)}` : ''}
                     </Text>
                   </View>
 
@@ -412,7 +424,7 @@ export default function WellnessScreen() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg, paddingTop: Platform.OS === 'android' ? 24 : 0 },
+  root: { flex: 1, backgroundColor: colors.bg },
   content: { paddingBottom: 16 },
 
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 2, paddingBottom: 8 },
