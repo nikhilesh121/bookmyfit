@@ -61,7 +61,7 @@ export class NotificationEntity {
 export class CategoryEntity {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Index({ unique: true }) @Column({ length: 100 }) name: string;
-  @Column({ length: 255, nullable: true }) iconUrl: string;
+  @Column({ type: 'text', nullable: true }) iconUrl: string;
   @Column({ default: true }) isActive: boolean;
 }
 
@@ -69,7 +69,7 @@ export class CategoryEntity {
 export class AmenityEntity {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Index({ unique: true }) @Column({ length: 100 }) name: string;
-  @Column({ length: 255, nullable: true }) iconUrl: string;
+  @Column({ type: 'text', nullable: true }) iconUrl: string;
   @Column({ default: true }) isActive: boolean;
   @Column({ default: false }) requestedByGym: boolean;
   @Column({ type: 'uuid', nullable: true }) requestedByGymId: string | null;

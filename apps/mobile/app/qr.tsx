@@ -239,7 +239,7 @@ export default function QrScreen() {
                 : 'Book a slot at a gym first. Your check-in QR will appear here once you have an active booking.'}
             </Text>
             {mode === 'checked_in' && gymName ? <Text style={s.checkedGym}>{gymName}</Text> : null}
-            <TouchableOpacity style={s.bookBtn} onPress={() => router.push((mode === 'checked_in' ? '/bookings' : '/gyms') as any)}>
+            <TouchableOpacity style={s.bookBtn} onPress={() => router.push((mode === 'checked_in' ? '/(tabs)/bookings' : '/gyms') as any)}>
               <Text style={s.bookBtnText}>{mode === 'checked_in' ? 'View My Bookings' : 'Browse Gyms & Book Slot'}</Text>
             </TouchableOpacity>
             <TouchableOpacity

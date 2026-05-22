@@ -34,7 +34,7 @@ export default function Review() {
       await miscApi.submitReview({
         targetType: isGym ? 'gym' : 'trainer',
         targetId: (isGym ? gymId : trainerId) || '',
-        userId: user?.id || '',
+        userId: user?.id || user?._id || '',
         stars: rating,
         review: text.trim() || undefined,
       });

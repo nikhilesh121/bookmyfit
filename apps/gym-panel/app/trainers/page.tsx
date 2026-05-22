@@ -7,12 +7,15 @@ import { useToast } from '../../components/Toast';
 
 interface Trainer {
   id: string;
+  _id?: string;
   name: string;
   specialization: string;
   specialty?: string;
+  monthlyPrice?: number;
   monthlyPriceInr: number;
   bio?: string;
   status?: string;
+  isActive?: boolean;
   rating?: number;
   sessionsCount?: number;
   gymId?: string;
@@ -51,7 +54,13 @@ export default function TrainersPage() {
       const gid = gymData._id || gymData.id || '';
       setGymId(gid);
       const data = await api.get<any>(`/trainers?gymId=${gid}&includeInactive=true`);
-      setTrainers(Array.isArray(data) ? data : data?.data ?? []);
+      const rows = Array.isArray(data) ? data : data?.data ?? [];
+      setTrainers(rows.map((trainer: Trainer) => ({
+        ...trainer,
+        id: trainer.id || trainer._id || '',
+        monthlyPriceInr: Number(trainer.monthlyPriceInr ?? trainer.monthlyPrice ?? 0),
+        status: trainer.status || (trainer.isActive === false ? 'inactive' : 'active'),
+      })));
     } catch {
       setError('Failed to load trainers.');
     } finally {
@@ -64,7 +73,12 @@ export default function TrainersPage() {
   const openAdd = () => { setEditing(null); setForm({ ...EMPTY_FORM }); setShowModal(true); };
   const openEdit = (t: Trainer) => {
     setEditing(t);
-    setForm({ name: t.name, specialization: t.specialization || t.specialty || '', monthlyPriceInr: String(t.monthlyPriceInr || 0), bio: t.bio || '' });
+    setForm({
+      name: t.name || '',
+      specialization: t.specialization || t.specialty || '',
+      monthlyPriceInr: String(t.monthlyPriceInr ?? t.monthlyPrice ?? 0),
+      bio: t.bio || '',
+    });
     setShowModal(true);
   };
 
@@ -75,11 +89,13 @@ export default function TrainersPage() {
       const payload = {
         name: form.name.trim(),
         specialization: form.specialization.trim(),
+        monthlyPrice: Number(form.monthlyPriceInr) || 0,
         monthlyPriceInr: Number(form.monthlyPriceInr) || 0,
         bio: form.bio.trim(),
         gymId,
       };
       if (editing) {
+        if (!editing.id) throw new Error('Trainer ID is missing. Refresh and try again.');
         await api.put(`/trainers/${editing.id}`, payload);
         toast('Trainer updated', 'success');
       } else {
@@ -97,9 +113,10 @@ export default function TrainersPage() {
 
   const handleDeactivate = async () => {
     if (!confirmDeactivate) return;
+    if (!confirmDeactivate.id) { toast('Trainer ID is missing. Refresh and try again.', 'error'); return; }
     setDeactivating(true);
     try {
-      await api.put(`/trainers/${confirmDeactivate.id}`, { isActive: false });
+      await api.put(`/trainers/${confirmDeactivate.id}`, { isActive: false, status: 'inactive' });
       toast(`${confirmDeactivate.name} marked inactive`, 'info');
       setConfirmDeactivate(null);
       loadData();

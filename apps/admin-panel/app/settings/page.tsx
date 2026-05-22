@@ -8,6 +8,11 @@ import { ListChecks, Plus, Sparkles, Users, X } from 'lucide-react';
 
 type PassCommission = { mode?: 'percent' | 'fixed'; value?: number };
 interface AdminUser { id: string; name: string; email: string; role: string; lastLogin?: string; isActive?: boolean; }
+interface AdminSettings {
+  settlements?: { cycle?: string; minPayout?: number; processingWindow?: number };
+  flags?: Record<string, boolean>;
+  planManagement?: any;
+}
 
 function mapAdminUser(u: any): AdminUser {
   return {
@@ -43,6 +48,7 @@ function formatCommission(value: PassCommission | undefined) {
 export default function SettingsPage() {
   const { toast } = useToast();
   const [plans, setPlans] = useState<any>(null);
+  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
   const [availability, setAvailability] = useState({ plans: false });
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,15 +62,18 @@ export default function SettingsPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const [planRes, adminRes] = await Promise.all([
+        const [planRes, settingsRes, adminRes] = await Promise.all([
           api.get('/subscriptions/plans').catch(() => null),
+          api.get('/admin/settings').catch(() => null),
           api.get('/users?role=super_admin&limit=50').catch(() => null),
         ]);
 
         if (!alive) return;
 
-        setPlans(planRes || null);
-        setAvailability({ plans: Boolean(planRes) });
+        const livePlans = settingsRes?.planManagement || planRes || null;
+        setPlans(livePlans);
+        setAdminSettings(settingsRes || null);
+        setAvailability({ plans: Boolean(livePlans) });
 
         const adminArr = asArray(adminRes);
         setAdmins(adminArr.map(mapAdminUser).filter((user: AdminUser) => user.isActive));
@@ -142,6 +151,9 @@ export default function SettingsPage() {
       icon: Sparkles,
     },
   ];
+  const settlements = adminSettings?.settlements;
+  const flags = adminSettings?.flags || {};
+  const enabledFlags = Object.entries(flags).filter(([, enabled]) => enabled).map(([key]) => key.replace(/([A-Z])/g, ' $1').toLowerCase());
 
   return (
     <Shell title="Settings">
@@ -168,6 +180,16 @@ export default function SettingsPage() {
             <p className="text-sm max-w-3xl" style={{ color: 'var(--t2)' }}>
               Checkout and service add-on commission is managed from Plan Management. Set one global value, then override only the services that need a different percentage or fixed amount.
             </p>
+            {!loading && settlements && (
+              <p className="text-xs mt-3" style={{ color: 'var(--t3)' }}>
+                Settlement policy: {settlements.cycle || 'Monthly'} cycle, {formatMoney(settlements.minPayout)} minimum payout, {settlements.processingWindow || 0}-day processing window.
+              </p>
+            )}
+            {!loading && enabledFlags.length > 0 && (
+              <p className="text-xs mt-2 capitalize" style={{ color: 'var(--t3)' }}>
+                Enabled modules: {enabledFlags.join(', ')}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2 justify-end">
             <Link href="/plans" className="btn btn-primary text-sm">Plan Management</Link>

@@ -4,15 +4,17 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const API = RAW_API.replace(/\/api\/v1\/?$/i, '').replace(/\/$/, '');
 const GYM_PANEL   = process.env.NEXT_PUBLIC_GYM_PANEL_URL   || 'http://localhost:3001';
 const CORP_PANEL  = process.env.NEXT_PUBLIC_CORP_PANEL_URL  || 'http://localhost:3002';
 
 type Tab = 'gym' | 'corporate';
 
 interface GymForm {
-  name: string; email: string; password: string; confirm: string;
-  gymName: string; city: string; area: string; address: string; lat: string; lng: string;
+  name: string; email: string; phone: string; password: string; confirm: string;
+  gymName: string; city: string; area: string; address: string;
+  categories: string[];
 }
 interface CorpForm {
   companyName: string; email: string; password: string; confirm: string; billingContact: string;
@@ -22,10 +24,11 @@ function OnboardContent() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>('gym');
   const [gymStep, setGymStep] = useState(1);
-  const [gymForm, setGymForm] = useState<GymForm>({ name: '', email: '', password: '', confirm: '', gymName: '', city: '', area: '', address: '', lat: '', lng: '' });
+  const [gymForm, setGymForm] = useState<GymForm>({ name: '', email: '', phone: '', password: '', confirm: '', gymName: '', city: '', area: '', address: '', categories: [] });
   const [corpForm, setCorpForm] = useState<CorpForm>({ companyName: '', email: '', password: '', confirm: '', billingContact: '' });
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [locating, setLocating] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState<'gym' | 'corporate' | null>(null);
 
@@ -34,13 +37,37 @@ function OnboardContent() {
     if (t === 'gym' || t === 'corporate') setTab(t);
   }, [searchParams]);
 
+  useEffect(() => {
+    setCategoriesLoading(true);
+    fetch(`${API}/api/v1/master/categories`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Could not load categories');
+        return res.json();
+      })
+      .then((data) => setCategories(Array.isArray(data) ? data : data?.data || []))
+      .catch(() => setCategories([]))
+      .finally(() => setCategoriesLoading(false));
+  }, []);
+
+  const toggleGymCategory = (name: string) => {
+    setGymForm((prev) => ({
+      ...prev,
+      categories: prev.categories.includes(name)
+        ? prev.categories.filter((item) => item !== name)
+        : [...prev.categories, name],
+    }));
+  };
+
   const handleGymSubmit = async () => {
     if (gymStep === 1) {
-      if (!gymForm.name || !gymForm.email || !gymForm.password) { setError('All fields are required.'); return; }
+      if (!gymForm.name || !gymForm.email || !gymForm.phone || !gymForm.password) { setError('All fields are required.'); return; }
+      if (!/^\d{10}$/.test(gymForm.phone)) { setError('Enter a valid 10-digit mobile number.'); return; }
       if (gymForm.password !== gymForm.confirm) { setError('Passwords do not match.'); return; }
       setError(''); setGymStep(2); return;
     }
     if (!gymForm.gymName || !gymForm.city || !gymForm.area || !gymForm.address) { setError('All fields are required.'); return; }
+    if (categoriesLoading) { setError('Workout categories are still loading. Please try again.'); return; }
+    if (gymForm.categories.length === 0) { setError('Select at least one workout category.'); return; }
     setLoading(true); setError('');
     try {
       const res = await fetch(`${API}/api/v1/auth/gym/register`, {
@@ -49,12 +76,13 @@ function OnboardContent() {
         body: JSON.stringify({
           name: gymForm.name,
           email: gymForm.email,
+          phone: gymForm.phone,
           password: gymForm.password,
           gymName: gymForm.gymName,
           city: gymForm.city,
           area: gymForm.area,
           address: gymForm.address,
-          ...(gymForm.lat && gymForm.lng ? { lat: Number(gymForm.lat), lng: Number(gymForm.lng) } : {}),
+          categories: gymForm.categories,
         }),
       });
       const data = await res.json();
@@ -63,30 +91,6 @@ function OnboardContent() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Something went wrong');
     } finally { setLoading(false); }
-  };
-
-  const useGymCurrentLocation = () => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setError('GPS is not available in this browser.');
-      return;
-    }
-    setLocating(true);
-    setError('');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGymForm((prev) => ({
-          ...prev,
-          lat: pos.coords.latitude.toFixed(6),
-          lng: pos.coords.longitude.toFixed(6),
-        }));
-        setLocating(false);
-      },
-      () => {
-        setError('Could not read current location. You can enter latitude and longitude manually.');
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 12000 },
-    );
   };
 
   const handleCorpSubmit = async () => {
@@ -217,6 +221,7 @@ function OnboardContent() {
                   {gymStep === 1 && (<>
                     <Input label="Full Name" placeholder="John Smith" value={gymForm.name} onChange={v => setGymForm(p => ({ ...p, name: v }))} />
                     <Input label="Email Address" type="email" placeholder="john@mygym.com" value={gymForm.email} onChange={v => setGymForm(p => ({ ...p, email: v }))} />
+                    <Input label="Phone Number" type="tel" placeholder="10-digit mobile number" value={gymForm.phone} onChange={v => setGymForm(p => ({ ...p, phone: v.replace(/\D/g, '').slice(0, 10) }))} />
                     <Input label="Password" type="password" placeholder="Min 8 characters" value={gymForm.password} onChange={v => setGymForm(p => ({ ...p, password: v }))} />
                     <Input label="Confirm Password" type="password" placeholder="Repeat password" value={gymForm.confirm} onChange={v => setGymForm(p => ({ ...p, confirm: v }))} />
                   </>)}
@@ -228,12 +233,31 @@ function OnboardContent() {
                       <Input label="Area" placeholder="Bandra West" value={gymForm.area} onChange={v => setGymForm(p => ({ ...p, area: v }))} />
                     </div>
                     <Input label="Full Address" placeholder="123, Main St, Bandra West, Mumbai" value={gymForm.address} onChange={v => setGymForm(p => ({ ...p, address: v }))} />
-                    <button type="button" className="ob-btn-ghost" onClick={useGymCurrentLocation} disabled={locating}>
-                      {locating ? 'Reading GPS...' : 'Use Current GPS Location'}
-                    </button>
-                    <div className="ob-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                      <Input label="Latitude" placeholder="20.296100" value={gymForm.lat} onChange={v => setGymForm(p => ({ ...p, lat: v }))} />
-                      <Input label="Longitude" placeholder="85.824500" value={gymForm.lng} onChange={v => setGymForm(p => ({ ...p, lng: v }))} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Workout Categories</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {categoriesLoading ? (
+                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem' }}>Loading categories...</span>
+                        ) : categories.length > 0 ? categories.map((category) => {
+                          const active = gymForm.categories.includes(category.name);
+                          return (
+                            <button
+                              key={category.id}
+                              type="button"
+                              onClick={() => toggleGymCategory(category.name)}
+                              className={active ? 'ob-btn-primary' : 'ob-btn-ghost'}
+                              style={{ width: 'auto', padding: '8px 12px', borderRadius: 999, fontSize: '0.78rem' }}
+                            >
+                              {category.name}
+                            </button>
+                          );
+                        }) : (
+                          <span style={{ color: '#ff8080', fontSize: '0.85rem' }}>No categories found. Please ask admin to create categories.</span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ background: 'rgba(255,180,0,0.06)', border: '1px solid rgba(255,180,0,0.18)', borderRadius: 10, padding: '10px 12px', color: 'rgba(255,255,255,0.55)', fontSize: '0.8rem', lineHeight: 1.5 }}>
+                      After registration, set your gym latitude/longitude once from the Gym Partner settings page, then complete KYC to go live.
                     </div>
                   </>)}
 

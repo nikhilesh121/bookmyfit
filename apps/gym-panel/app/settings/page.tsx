@@ -114,6 +114,7 @@ export default function SettingsPage() {
   const [gymName, setGymName] = useState('');
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
+  const [locationLocked, setLocationLocked] = useState(false);
   const [locating, setLocating] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
 
@@ -152,6 +153,10 @@ export default function SettingsPage() {
         setContactPhone(data.contactPhone ?? '');
         setLat(data.lat != null ? String(data.lat) : '');
         setLng(data.lng != null ? String(data.lng) : '');
+        setLocationLocked(hasValidGymLocation(
+          data.lat != null ? String(data.lat) : '',
+          data.lng != null ? String(data.lng) : '',
+        ));
       } catch {
         showToast('Could not load gym settings.');
       } finally {
@@ -224,6 +229,7 @@ export default function SettingsPage() {
       const data = updated?.data ?? updated;
       setLat(data.lat != null ? String(data.lat) : String(location.lat));
       setLng(data.lng != null ? String(data.lng) : String(location.lng));
+      setLocationLocked(true);
       showToast('Gym location submitted.');
     } catch (e: any) {
       showToast(e?.message || 'Gym location was not saved.');
@@ -257,7 +263,8 @@ export default function SettingsPage() {
   }
 
   const labelStyle: React.CSSProperties = { color: 'var(--t2)', fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 };
-  const locationSubmitted = hasValidGymLocation(lat, lng);
+  const locationReady = hasValidGymLocation(lat, lng);
+  const locationSubmitted = locationLocked;
 
   return (
     <Shell title="Gym Settings">
@@ -367,7 +374,7 @@ export default function SettingsPage() {
               className={locationSubmitted ? 'badge-active' : 'badge-pending'}
               style={{ fontSize: 10 }}
             >
-              {locationSubmitted ? 'Submitted' : 'Required'}
+              {locationSubmitted ? 'Submitted' : locationReady ? 'Ready to submit' : 'Required'}
             </span>
           </div>
           {loading ? (
@@ -384,9 +391,9 @@ export default function SettingsPage() {
                     className="glass-input w-full"
                     value={lat}
                     onChange={(e) => setLat(e.target.value)}
-                    readOnly={locationSubmitted}
+                    readOnly={locationLocked}
                     placeholder="20.296100"
-                    style={locationSubmitted ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
+                    style={locationLocked ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
                   />
                 </div>
                 <div>
@@ -395,9 +402,9 @@ export default function SettingsPage() {
                     className="glass-input w-full"
                     value={lng}
                     onChange={(e) => setLng(e.target.value)}
-                    readOnly={locationSubmitted}
+                    readOnly={locationLocked}
                     placeholder="85.824500"
-                    style={locationSubmitted ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
+                    style={locationLocked ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
                   />
                 </div>
               </div>
@@ -413,7 +420,7 @@ export default function SettingsPage() {
                     ? 'Location is locked for gym users. Contact admin if latitude or longitude needs correction.'
                     : 'Submit this once so users can find your gym nearby. You can use GPS or enter coordinates manually.'}
                 </p>
-                {!locationSubmitted && (
+                {!locationLocked && (
                   <div className="flex gap-2 flex-wrap">
                     <button
                       type="button"
@@ -439,16 +446,6 @@ export default function SettingsPage() {
           )}
         </div>
 
-        <div
-          className="rounded-xl p-4"
-          style={{ background: 'rgba(61,255,84,0.06)', border: '1px solid rgba(61,255,84,0.16)' }}
-        >
-          <div className="text-sm font-semibold mb-1" style={{ color: 'var(--t)' }}>Operating Hours</div>
-          <p className="text-xs mb-3" style={{ color: 'var(--t2)' }}>
-            Opening, closing, and break-time setup is managed from one place so gym workout slots stay consistent.
-          </p>
-          <a href="/schedule" className="btn btn-ghost inline-flex text-xs">Manage Operating Hours</a>
-        </div>
       </div>
 
       {/* Section B - Notification Preferences */}

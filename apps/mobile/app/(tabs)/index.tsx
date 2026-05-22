@@ -1,6 +1,6 @@
 import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet,
-  ImageBackground, FlatList, Dimensions, Modal, Pressable, useWindowDimensions,
+  ImageBackground, FlatList, Dimensions, Modal, Pressable, useWindowDimensions, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -95,6 +95,14 @@ function CatIcon({ type, size, color }: { type: string; size: number; color: str
 
 function categoryMeta(category: any) {
   const text = `${category.id || ''} ${category.label || category.name || ''}`.toLowerCase();
+  const iconUrl = String(category.iconUrl || '').toLowerCase();
+  if (iconUrl.startsWith('lucide:activity')) return { icon: 'cardio', color: '#F43F5E', bg: 'rgba(244,63,94,0.14)' };
+  if (iconUrl.startsWith('lucide:zap')) return { icon: 'bolt', color: '#FBBF24', bg: 'rgba(251,191,36,0.14)' };
+  if (iconUrl.startsWith('lucide:waves')) return { icon: 'spa', color: '#22D3EE', bg: 'rgba(34,211,238,0.14)' };
+  if (iconUrl.startsWith('lucide:flower')) return { icon: 'yoga', color: '#22D3EE', bg: 'rgba(34,211,238,0.14)' };
+  if (iconUrl.startsWith('lucide:music')) return { icon: 'yoga', color: '#A78BFA', bg: 'rgba(167,139,250,0.14)' };
+  if (iconUrl.startsWith('lucide:badge')) return { icon: 'crossfit', color: '#FB923C', bg: 'rgba(251,146,60,0.14)' };
+  if (iconUrl.startsWith('lucide:dumbbell')) return { icon: 'dumbbell', color: colors.accent, bg: colors.accentSoft };
   if (text.includes('yoga') || text.includes('pilates') || text.includes('stretch')) return { icon: 'yoga', color: '#22D3EE', bg: 'rgba(34,211,238,0.14)' };
   if (text.includes('cardio') || text.includes('run') || text.includes('cycle')) return { icon: 'cardio', color: '#F43F5E', bg: 'rgba(244,63,94,0.14)' };
   if (text.includes('cross') || text.includes('hiit') || text.includes('functional')) return { icon: 'bolt', color: '#FBBF24', bg: 'rgba(251,191,36,0.14)' };
@@ -102,6 +110,57 @@ function categoryMeta(category: any) {
   if (text.includes('wellness') || text.includes('spa') || text.includes('physio')) return { icon: 'spa', color: '#A7F3D0', bg: 'rgba(167,243,208,0.12)' };
   if (text.includes('shop') || text.includes('store')) return { icon: 'shop', color: '#A78BFA', bg: 'rgba(167,139,250,0.14)' };
   return { icon: category.icon || 'dumbbell', color: category.color || colors.accent, bg: category.bg || colors.accentSoft };
+}
+
+function categoryKey(value: any) {
+  return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function ratingNumber(value: any): number | null {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return Math.min(5, Math.max(0, num));
+}
+
+function firstRatingNumber(...values: any[]): number | null {
+  for (const value of values) {
+    const rating = ratingNumber(value);
+    if (rating !== null) return rating;
+  }
+  return null;
+}
+
+function countNumber(value: any): number | null {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) return null;
+  return Math.round(num);
+}
+
+function firstCountNumber(...values: any[]): number | null {
+  for (const value of values) {
+    const count = countNumber(value);
+    if (count !== null) return count;
+  }
+  return null;
+}
+
+function reviewCountLabel(count: number) {
+  return `${count} ${count === 1 ? 'review' : 'reviews'}`;
+}
+
+function gymRatingInfo(gym: any) {
+  const count = firstCountNumber(
+    gym?.ratingCount,
+    gym?.ratingsCount,
+    gym?.reviewCount,
+    gym?.reviewsCount,
+    gym?.rating_count,
+    gym?.ratings_count,
+    gym?.review_count,
+    gym?.reviews_count,
+  ) || 0;
+  const rating = count > 0 ? firstRatingNumber(gym?.rating, gym?.avgRating, gym?.averageRating, gym?.avg_rating, gym?.average_rating) : null;
+  return { rating, count };
 }
 
 
@@ -122,6 +181,7 @@ export default function Home() {
   const [wellnessServices, setWellnessServices] = useState<any[]>([]);
   const [homeProducts, setHomeProducts] = useState<any[]>([]);
   const [homeGyms, setHomeGyms] = useState<any[]>([]);
+  const [homeCategories, setHomeCategories] = useState<any[]>(CATEGORIES);
   const [subscribedGymIds, setSubscribedGymIds] = useState<Set<string>>(new Set());
   const [activeGymSubs, setActiveGymSubs] = useState<Map<string, any>>(new Map());
   const [multiGymSub, setMultiGymSub] = useState<any>(null);
@@ -163,6 +223,24 @@ export default function Home() {
       .then((r) => r.json())
       .then((data: any) => setWellnessServices(listFrom(data, ['services']).slice(0, 8)))
       .catch(() => setWellnessServices([]));
+  }, []);
+
+  useEffect(() => {
+    gymsApi.categories()
+      .then((data: any) => {
+        const rows = Array.isArray(data) ? data : data?.data || [];
+        const fromApi = rows
+          .map((item: any) => ({ id: categoryKey(item?.name), label: String(item?.name || '').trim(), iconUrl: item?.iconUrl }))
+          .filter((item: any) => item.id && item.label);
+        if (!fromApi.length) return;
+        const seen = new Set<string>();
+        setHomeCategories([CATEGORIES[0], ...fromApi].filter((item) => {
+          if (seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
+        }));
+      })
+      .catch(() => setHomeCategories(CATEGORIES));
   }, []);
 
   useEffect(() => {
@@ -327,7 +405,7 @@ export default function Home() {
         {sections.map((section) => {
           switch (section.type) {
             case 'hero':       return <HeroSection key={section.id} slides={slides} heroIdx={heroIdx} setHeroIdx={setHeroIdx} heroRef={heroRef} />;
-            case 'categories': return <CategoriesSection key={section.id} title={section.title} />;
+            case 'categories': return <CategoriesSection key={section.id} title={section.title} categories={homeCategories} />;
             case 'featured_gyms': return (
               <View key={section.id}>
                 <FeaturedGymsSection
@@ -422,7 +500,7 @@ function HeroSection({ slides, heroIdx, setHeroIdx, heroRef }: any) {
   );
 }
 
-function CategoriesSection({ title }: { title: string }) {
+function CategoriesSection({ title, categories }: { title: string; categories: any[] }) {
   return (
     <View style={{ marginBottom: 16 }}>
       <SectionRow title={title} onViewAll={() => router.push('/gyms' as any)} />
@@ -432,12 +510,21 @@ function CategoriesSection({ title }: { title: string }) {
         decelerationRate="fast"
         contentContainerStyle={s.categoryScroll}
       >
-        {CATEGORIES.map((cat) => {
+        {categories.map((cat) => {
           const meta = categoryMeta(cat);
+          const customIcon = String(cat.iconUrl || '');
           return (
-          <TouchableOpacity key={cat.id} style={[s.catChip, { borderColor: meta.bg }]} onPress={() => router.push(`/gyms?category=${cat.id}` as any)}>
+          <TouchableOpacity
+            key={cat.id}
+            style={[s.catChip, { borderColor: meta.bg }]}
+            onPress={() => router.push(cat.id === 'all'
+              ? '/gyms' as any
+              : { pathname: '/gyms', params: { category: cat.label || cat.id } } as any)}
+          >
             <View style={[s.catIconWrap, { backgroundColor: meta.bg }]}>
-              <CatIcon type={meta.icon} size={16} color={meta.color} />
+              {customIcon && !customIcon.startsWith('lucide:') && firstImage(customIcon)
+                ? <Image source={{ uri: firstImage(customIcon) }} style={{ width: 16, height: 16 }} resizeMode="contain" />
+                : <CatIcon type={meta.icon} size={16} color={meta.color} />}
             </View>
             <Text style={[s.catLabel, { color: meta.color }]}>{cat.label}</Text>
           </TouchableOpacity>
@@ -503,7 +590,8 @@ function GymListingSection({
       <SectionRow title="Gyms Near You" onViewAll={() => router.push('/gyms' as any)} />
       <View style={s.gymListWrap}>
         {gyms.map((g: any, idx: number) => {
-          const img = firstImage(g.images, g.photos, g.coverImage, g.coverPhoto, g.img) || DEFAULT_GYM_IMAGE;
+          const img = firstImage(g.coverPhoto, g.coverImage, g.photos, g.images, g.media, g.imageUrl, g.image, g.photo, g.img) || DEFAULT_GYM_IMAGE;
+          const ratingInfo = gymRatingInfo(g);
           const gid = g.id || g._id || `nearby-gym-${idx}`;
           const city = [g.area, g.city].filter(Boolean).join(', ');
           const hasAccess = hasMultiGymSub || subscribedGymIds.has(String(gid));
@@ -521,17 +609,19 @@ function GymListingSection({
                 params: {
                   fallbackName: g.name || '',
                   fallbackAddress: city || g.city || '',
-                  fallbackRating: String(g.rating || 0),
+                  fallbackRating: ratingInfo.rating !== null ? String(ratingInfo.rating) : '',
+                  fallbackReviewCount: ratingInfo.count > 0 ? String(ratingInfo.count) : '',
                   fallbackTier: g.tier || 'premium',
+                  fallbackImg: img,
                 },
               })}
             >
               <ImageBackground source={{ uri: img }} style={s.gymListImg} imageStyle={{ borderRadius: radius.lg }}>
                 <View style={s.gymListImgDark} />
-                {g.rating ? (
+                {ratingInfo.rating !== null ? (
                   <View style={s.gymListRating}>
                     <IconStar size={10} color="#FBBF24" />
-                    <Text style={s.gymListRatingText}>{Number(g.rating).toFixed(1)}</Text>
+                    <Text style={s.gymListRatingText}>{ratingInfo.rating.toFixed(1)}</Text>
                   </View>
                 ) : null}
               </ImageBackground>
@@ -543,6 +633,9 @@ function GymListingSection({
                     <IconPin size={11} color={colors.t2} />
                     <Text style={s.gymListCity} numberOfLines={1}>{city || 'Nearby'}</Text>
                   </View>
+                  {ratingInfo.rating !== null && (
+                    <Text style={s.gymListReviews} numberOfLines={1}>{reviewCountLabel(ratingInfo.count)}</Text>
+                  )}
                   {hasAccess && (
                     <View style={s.gymListSubscribedBadge}>
                       <Text style={s.gymListSubscribedText} numberOfLines={1}>{accessLabel}</Text>
@@ -595,7 +688,8 @@ function FeaturedGymsSection({
       <SectionRow title={section.title || 'Featured Gyms'} onViewAll={() => router.push('/gyms' as any)} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
         {gyms.map((g: any, idx: number) => {
-          const img = firstImage(g.images, g.photos, g.coverImage, g.coverPhoto, g.img) || DEFAULT_GYM_IMAGE;
+          const img = firstImage(g.coverPhoto, g.coverImage, g.photos, g.images, g.media, g.imageUrl, g.image, g.photo, g.img) || DEFAULT_GYM_IMAGE;
+          const ratingInfo = gymRatingInfo(g);
           const name = (g.name || 'Gym').split(' ').slice(0, 2).join(' ');
           const gid = g.id || g._id;
           const hasAccess = hasMultiGymSub || subscribedGymIds.has(String(gid));
@@ -608,8 +702,10 @@ function FeaturedGymsSection({
               params: {
                 fallbackName: g.name || '',
                 fallbackAddress: g.city || '',
-                fallbackRating: String(g.rating || 0),
+                fallbackRating: ratingInfo.rating !== null ? String(ratingInfo.rating) : '',
+                fallbackReviewCount: ratingInfo.count > 0 ? String(ratingInfo.count) : '',
                 fallbackTier: 'premium',
+                fallbackImg: img,
               },
             })} activeOpacity={0.85}>
               <RankNumber value={idx + 1} />
@@ -617,14 +713,17 @@ function FeaturedGymsSection({
                 <ImageBackground source={{ uri: img }} style={s.gymFeatImg} imageStyle={{ borderRadius: radius.xl }}>
                   <View style={s.gymFeatDark} />
                   <View style={s.gymFeatBottom}>
-                  {g.rating ? (
+                  {ratingInfo.rating !== null ? (
                     <View style={s.gymFeatRating}>
                       <IconStar size={10} color="#FBBF24" />
-                      <Text style={s.gymFeatRatingText}>{Number(g.rating).toFixed(1)}</Text>
+                      <Text style={s.gymFeatRatingText}>{ratingInfo.rating.toFixed(1)}</Text>
                     </View>
                   ) : null}
                   <Text style={s.gymFeatName} numberOfLines={1}>{name}</Text>
                   <Text style={s.gymFeatCity} numberOfLines={1}>{g.city || ''}</Text>
+                  {ratingInfo.rating !== null ? (
+                    <Text style={s.gymFeatReviews} numberOfLines={1}>{reviewCountLabel(ratingInfo.count)}</Text>
+                  ) : null}
                   {hasAccess ? (
                     <Text style={s.gymFeatSubscribed}>{accessLabel}</Text>
                   ) : displayDayPassPrice ? (
@@ -815,6 +914,7 @@ const s = StyleSheet.create({
   gymFeatBottom: { padding: 12, paddingLeft: 28, gap: 2 },
   gymFeatRating: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
   gymFeatRatingText: { fontFamily: fonts.sansBold, fontSize: 10, color: '#FBBF24' },
+  gymFeatReviews: { fontFamily: fonts.sans, fontSize: 9, color: 'rgba(255,255,255,0.58)' },
   gymFeatName:   { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
   gymFeatCity:   { fontFamily: fonts.sans, fontSize: 10, color: 'rgba(255,255,255,0.6)' },
   gymFeatPrice:  { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent, marginTop: 2 },
@@ -852,6 +952,7 @@ const s = StyleSheet.create({
   gymListName: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', lineHeight: 18 },
   gymListCityRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5 },
   gymListCity: { flex: 1, minWidth: 0, fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
+  gymListReviews: { marginTop: 3, fontFamily: fonts.sans, fontSize: 10, color: colors.t2 },
   gymListBottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   gymListPrice: { flex: 1, minWidth: 0, fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent },
   gymListCta: {

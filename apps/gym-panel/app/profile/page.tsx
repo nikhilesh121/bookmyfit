@@ -2,8 +2,8 @@
 
 import Shell from '../../components/Shell';
 import { api } from '../../lib/api';
-import { useEffect, useState, useRef } from 'react';
-import { Building2, MapPin, Phone, Mail, Globe, Star, Upload, Check, AlertTriangle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Building2, MapPin, Phone, Mail, Globe, Star, Check, AlertTriangle, Image as ImageIcon, Video, Trash2, Plus, Upload, ArrowUp, ArrowDown } from 'lucide-react';
 
 interface FormState {
   displayName: string;
@@ -21,7 +21,27 @@ interface FormState {
 
 interface CategoryOption {
   id: string;
+  _id?: string;
   name: string;
+}
+
+const MAX_PROFILE_PHOTOS = 12;
+const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
+const SUPPORTED_PROFILE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error(`Could not read ${file.name}`));
+      }
+    };
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
 }
 
 function parseGymCoordinates(latValue: string, lngValue: string) {
@@ -45,8 +65,6 @@ function parseGymCoordinates(latValue: string, lngValue: string) {
 }
 
 export default function ProfilePage() {
-  const fileRef = useRef<HTMLInputElement>(null);
-
   const [form, setForm] = useState<FormState>({
     displayName: '',
     description: '',
@@ -70,6 +88,12 @@ export default function ProfilePage() {
   const [rating, setRating] = useState<number | null>(null);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [videos, setVideos] = useState<string[]>([]);
+  const [newPhotoUrl, setNewPhotoUrl] = useState('');
+  const [newVideoUrl, setNewVideoUrl] = useState('');
+  const [processingPhotos, setProcessingPhotos] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -80,8 +104,25 @@ export default function ProfilePage() {
           api.get('/master/categories'),
         ]);
         const categoryList = Array.isArray(catData) ? catData : catData?.data || [];
-        setCategories(categoryList);
+        setCategories(categoryList.map((category: CategoryOption) => ({
+          ...category,
+          id: category.id || category._id || category.name,
+        })));
         setSelectedCategories(Array.isArray(data.categories) ? data.categories : []);
+        const coverPhoto = typeof data.coverPhoto === 'string' && data.coverPhoto.trim()
+          ? data.coverPhoto
+          : (typeof data.coverImage === 'string' && data.coverImage.trim() ? data.coverImage : null);
+        const photoList = [
+          ...(coverPhoto ? [coverPhoto] : []),
+          ...(Array.isArray(data.photos)
+            ? data.photos
+            : (Array.isArray(data.images) ? data.images : [])),
+        ];
+        const cleanPhotos = photoList
+          .filter((url: any): url is string => typeof url === 'string' && url.trim().length > 0)
+          .map((url: string) => url.trim());
+        setPhotos([...new Set<string>(cleanPhotos)]);
+        setVideos(Array.isArray(data.videos) ? data.videos.filter((url: any) => typeof url === 'string' && url.trim()).map((url: string) => url.trim()) : []);
         setGymId(data._id || data.id || '');
         setPartnerTier(data.partnerTier || data.tier || '');
         setRating(data.rating || data.avgRating || null);
@@ -124,6 +165,9 @@ export default function ProfilePage() {
         contactEmail: form.email,
         website: form.website,
         categories: selectedCategories,
+        coverPhoto: photos[0] || null,
+        photos,
+        videos,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -142,6 +186,99 @@ export default function ProfilePage() {
     setSelectedCategories((prev) => (
       prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name]
     ));
+  };
+
+  const addMediaUrl = (kind: 'photo' | 'video') => {
+    const value = (kind === 'photo' ? newPhotoUrl : newVideoUrl).trim();
+    if (!value) return;
+    if (!/^https?:\/\//i.test(value)) {
+      setError('Use a valid http or https media URL');
+      return;
+    }
+    if (kind === 'photo') {
+      if (!photos.includes(value) && photos.length >= MAX_PROFILE_PHOTOS) {
+        setError(`You can add up to ${MAX_PROFILE_PHOTOS} profile photos.`);
+        return;
+      }
+      setError(null);
+      setPhotos((prev) => [...new Set([...prev, value])].slice(0, MAX_PROFILE_PHOTOS));
+      setNewPhotoUrl('');
+    } else {
+      setError(null);
+      setVideos((prev) => [...new Set([...prev, value])]);
+      setNewVideoUrl('');
+    }
+  };
+
+  const handlePhotoFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+
+    setError(null);
+    setProcessingPhotos(true);
+
+    try {
+      const selectedFiles = Array.from(files);
+      const remainingSlots = Math.max(MAX_PROFILE_PHOTOS - photos.length, 0);
+      const acceptedFiles = selectedFiles.slice(0, remainingSlots);
+      const skipped: string[] = [];
+
+      if (remainingSlots === 0) {
+        setError(`You can add up to ${MAX_PROFILE_PHOTOS} profile photos.`);
+        return;
+      }
+
+      if (selectedFiles.length > remainingSlots) {
+        const skippedCount = selectedFiles.length - remainingSlots;
+        skipped.push(`${skippedCount} image${skippedCount === 1 ? '' : 's'} skipped because the profile can hold ${MAX_PROFILE_PHOTOS} photos`);
+      }
+
+      const dataUrls: string[] = [];
+      for (const file of acceptedFiles) {
+        if (!SUPPORTED_PROFILE_IMAGE_TYPES.has(file.type)) {
+          skipped.push(`${file.name}: JPG, PNG or WebP only`);
+          continue;
+        }
+        if (file.size > MAX_PROFILE_IMAGE_BYTES) {
+          skipped.push(`${file.name}: over 2 MB`);
+          continue;
+        }
+        dataUrls.push(await readFileAsDataUrl(file));
+      }
+
+      if (dataUrls.length > 0) {
+        setPhotos((prev) => [...new Set([...prev, ...dataUrls])].slice(0, MAX_PROFILE_PHOTOS));
+      }
+
+      if (skipped.length > 0) {
+        setError(`Some images were skipped. ${skipped.slice(0, 3).join('; ')}${skipped.length > 3 ? '; ...' : ''}`);
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Could not read selected images.');
+    } finally {
+      setProcessingPhotos(false);
+      if (photoInputRef.current) {
+        photoInputRef.current.value = '';
+      }
+    }
+  };
+
+  const removePhoto = (url: string) => {
+    setPhotos((prev) => prev.filter((item) => item !== url));
+  };
+
+  const movePhoto = (index: number, direction: -1 | 1) => {
+    setPhotos((prev) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      const [photo] = next.splice(index, 1);
+      next.splice(targetIndex, 0, photo);
+      return next;
+    });
+  };
+
+  const makeCoverPhoto = (url: string) => {
+    setPhotos((prev) => [url, ...prev.filter((item) => item !== url)]);
   };
 
   const hasValidLocation = (() => {
@@ -171,26 +308,28 @@ export default function ProfilePage() {
             </>
           ) : (
             <>
-              <div
-                className="w-20 h-20 rounded-full flex items-center justify-center"
-                style={{ background: 'var(--surface)', border: '2px solid var(--accent)' }}
-              >
-                <Building2 size={32} style={{ color: 'var(--accent)' }} />
-              </div>
+              {photos[0] ? (
+                <div
+                  className="w-24 h-24 rounded-2xl"
+                  style={{
+                    backgroundImage: `url(${photos[0]})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    border: '2px solid var(--accent)',
+                  }}
+                />
+              ) : (
+                <div
+                  className="w-20 h-20 rounded-full flex items-center justify-center"
+                  style={{ background: 'var(--surface)', border: '2px solid var(--accent)' }}
+                >
+                  <Building2 size={32} style={{ color: 'var(--accent)' }} />
+                </div>
+              )}
 
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-              />
-              <button
-                className="btn btn-ghost flex items-center gap-2 text-xs"
-                onClick={() => fileRef.current?.click()}
-              >
-                <Upload size={14} />
-                Upload Photo
-              </button>
+              <div className="text-xs text-center" style={{ color: 'var(--t3)' }}>
+                {photos.length} image{photos.length === 1 ? '' : 's'} and {videos.length} video{videos.length === 1 ? '' : 's'} on profile
+              </div>
 
               <div className="text-center">
                 <p className="serif text-lg font-bold" style={{ color: 'var(--t)' }}>
@@ -239,16 +378,6 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--t2)' }}>
                   <Globe size={14} />
                   <span>{form.website || '--'}</span>
-                </div>
-                <div
-                  className="rounded-xl p-3 mt-3"
-                  style={{ background: 'rgba(61,255,84,0.07)', border: '1px solid rgba(61,255,84,0.16)' }}
-                >
-                  <div className="text-xs font-semibold mb-1" style={{ color: 'var(--accent)' }}>Operating hours</div>
-                  <div className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
-                    Opening, closing, and break time are managed from the Operating Hours page.
-                  </div>
-                  <a href="/schedule" className="btn btn-ghost inline-flex mt-3 text-xs">Manage Hours</a>
                 </div>
               </div>
             </>
@@ -321,6 +450,142 @@ export default function ProfilePage() {
                     <span className="text-xs" style={{ color: 'var(--t3)' }}>
                       Admin has not created workout categories yet.
                     </span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--t2)' }}>
+                  Profile Photos & Videos
+                </label>
+                <div
+                  className="rounded-xl p-4 space-y-4"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  <div className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
+                    Photos appear in the user app gym profile. Add up to {MAX_PROFILE_PHOTOS} JPG, PNG or WebP images, 1200x800 px recommended, under 2 MB each. First image is the cover.
+                    Videos should be MP4/WebM links, 16:9, up to 45 seconds.
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => handlePhotoFiles(e.target.files)}
+                    />
+                    <button
+                      className="btn btn-primary flex items-center justify-center gap-2"
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={processingPhotos || photos.length >= MAX_PROFILE_PHOTOS}
+                    >
+                      <Upload size={14} />
+                      {processingPhotos ? 'Adding...' : 'Upload Images'}
+                    </button>
+                    <span className="text-xs" style={{ color: 'var(--t3)' }}>
+                      {photos.length}/{MAX_PROFILE_PHOTOS} photos added
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      className="glass-input flex-1 min-w-0"
+                      placeholder="Or paste image URL..."
+                      value={newPhotoUrl}
+                      onChange={(e) => setNewPhotoUrl(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addMediaUrl('photo')}
+                    />
+                    <button className="btn btn-ghost flex items-center gap-1" type="button" onClick={() => addMediaUrl('photo')}>
+                      <Plus size={14} /> Image
+                    </button>
+                  </div>
+                  {photos.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {photos.map((url, index) => (
+                        <div key={`${url.slice(0, 80)}-${index}`} className="relative rounded-xl overflow-hidden" style={{ height: 116, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                          <img src={url} alt={`Gym profile photo ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          {index === 0 ? (
+                            <span className="absolute left-2 top-2 accent-pill text-[10px]">Cover</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => makeCoverPhoto(url)}
+                              className="absolute left-2 top-2 rounded-lg p-1"
+                              style={{ background: 'rgba(0,0,0,0.72)', color: 'var(--accent)' }}
+                              title="Make cover"
+                            >
+                              <Star size={13} />
+                            </button>
+                          )}
+                          <div className="absolute right-2 top-2 flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => movePhoto(index, -1)}
+                              disabled={index === 0}
+                              className="rounded-lg p-1"
+                              style={{ background: 'rgba(0,0,0,0.72)', color: index === 0 ? 'rgba(255,255,255,0.35)' : '#fff' }}
+                              title="Move image up"
+                            >
+                              <ArrowUp size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => movePhoto(index, 1)}
+                              disabled={index === photos.length - 1}
+                              className="rounded-lg p-1"
+                              style={{ background: 'rgba(0,0,0,0.72)', color: index === photos.length - 1 ? 'rgba(255,255,255,0.35)' : '#fff' }}
+                              title="Move image down"
+                            >
+                              <ArrowDown size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removePhoto(url)}
+                              className="rounded-lg p-1"
+                              style={{ background: 'rgba(0,0,0,0.72)', color: '#FF8080' }}
+                              title="Remove image"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      className="glass-input flex-1 min-w-0"
+                      placeholder="Paste video URL..."
+                      value={newVideoUrl}
+                      onChange={(e) => setNewVideoUrl(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addMediaUrl('video')}
+                    />
+                    <button className="btn btn-ghost flex items-center gap-1" type="button" onClick={() => addMediaUrl('video')}>
+                      <Plus size={14} /> Video
+                    </button>
+                  </div>
+                  {videos.length > 0 && (
+                    <div className="space-y-2">
+                      {videos.map((url) => (
+                        <div key={url} className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                          <Video size={15} style={{ color: 'var(--accent)' }} />
+                          <span className="text-xs flex-1 truncate" style={{ color: 'var(--t2)' }}>{url}</span>
+                          <button type="button" onClick={() => setVideos((prev) => prev.filter((item) => item !== url))} style={{ color: '#FF8080' }}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {photos.length === 0 && videos.length === 0 && (
+                    <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--t3)' }}>
+                      <ImageIcon size={14} /> No media added yet. User app will show the default gym image until photos are added.
+                    </div>
                   )}
                 </div>
               </div>

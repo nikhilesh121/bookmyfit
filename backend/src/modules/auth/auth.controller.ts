@@ -25,7 +25,7 @@ class GymRegisterDto {
   @IsString() @IsNotEmpty() area: string;
   @IsString() @IsNotEmpty() address: string;
   @IsString() @Length(10, 15) phone: string;
-  @IsArray() @ArrayMinSize(1) categories: string[];
+  @IsArray() @ArrayMinSize(1) @IsString({ each: true }) @IsNotEmpty({ each: true }) categories: string[];
 }
 class CorporateRegisterDto {
   @IsEmail() email: string;

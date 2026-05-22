@@ -1,11 +1,37 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import Shell from '../../components/Shell';
-import { Check, Plus, Clock, AlertTriangle } from 'lucide-react';
+import {
+  Check, Plus, Clock, AlertTriangle, Image as ImageIcon, Dumbbell, Activity,
+  Zap, Sparkles, Lock, Wifi, Flame, Music, Waves, ParkingCircle, Snowflake,
+  UserCheck, ShowerHead, Flower, Badge, Apple, Bike, HeartPulse, AirVent,
+} from 'lucide-react';
 import { api } from '../../lib/api';
 import { useToast } from '../../components/Toast';
 
-interface Amenity { id?: string; _id?: string; name: string; status?: string; }
+interface Amenity { id?: string; _id?: string; name: string; status?: string; iconUrl?: string | null; }
+
+const ICON_MAP = new Map<string, any>([
+  ['lucide:dumbbell', Dumbbell],
+  ['lucide:activity', Activity],
+  ['lucide:zap', Zap],
+  ['lucide:sparkles', Sparkles],
+  ['lucide:lock-keyhole', Lock],
+  ['lucide:wifi', Wifi],
+  ['lucide:flame', Flame],
+  ['lucide:music', Music],
+  ['lucide:waves', Waves],
+  ['lucide:parking-circle', ParkingCircle],
+  ['lucide:snowflake', Snowflake],
+  ['lucide:user-round-check', UserCheck],
+  ['lucide:shower-head', ShowerHead],
+  ['lucide:flower', Flower],
+  ['lucide:badge', Badge],
+  ['lucide:apple', Apple],
+  ['lucide:bike', Bike],
+  ['lucide:heart-pulse', HeartPulse],
+  ['lucide:air-vent', AirVent],
+]);
 
 function toAmenityArray(data: any): Amenity[] {
   if (Array.isArray(data)) return data;
@@ -14,6 +40,32 @@ function toAmenityArray(data: any): Amenity[] {
 
 function SkeletonPill() {
   return <div style={{ height: 36, width: 90, borderRadius: 20, background: 'rgba(255,255,255,0.07)', animation: 'pulse 1.5s ease-in-out infinite' }} />;
+}
+
+function firstImage(value?: string | null) {
+  const text = String(value || '').trim();
+  return text && !text.startsWith('lucide:') ? text : '';
+}
+
+function IconPreview({ iconUrl, active = false }: { iconUrl?: string | null; active?: boolean }) {
+  const value = String(iconUrl || '').trim();
+  const Icon = ICON_MAP.get(value) || (value.startsWith('lucide:') ? Sparkles : null);
+  const style: React.CSSProperties = {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: active ? 'rgba(204,255,0,0.16)' : 'rgba(255,255,255,0.06)',
+    border: active ? '1px solid rgba(204,255,0,0.24)' : '1px solid rgba(255,255,255,0.10)',
+    overflow: 'hidden',
+    flexShrink: 0,
+  };
+  if (Icon) return <span style={style}><Icon size={14} color={active ? 'var(--accent)' : 'var(--t2)'} /></span>;
+  const image = firstImage(value);
+  if (image) return <span style={style}><img src={image} alt="" style={{ width: 17, height: 17, objectFit: 'contain' }} /></span>;
+  return <span style={style}><ImageIcon size={14} color={active ? 'var(--accent)' : 'var(--t2)'} /></span>;
 }
 
 export default function AmenitiesPage() {
@@ -90,6 +142,7 @@ export default function AmenitiesPage() {
     }
   };
 
+  const amenityByName = new Map(allAmenities.map((amenity) => [amenity.name, amenity]));
   const allNames = allAmenities.map(a => a.name);
 
   return (
@@ -120,6 +173,7 @@ export default function AmenitiesPage() {
                   className="card px-4 py-2.5 flex items-center gap-2 cursor-pointer"
                   style={{ borderColor: 'var(--accent-border)', background: 'var(--accent-soft)', opacity: toggling === name ? 0.6 : 1, border: 'none' }}
                 >
+                  <IconPreview iconUrl={amenityByName.get(name)?.iconUrl} active />
                   <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--accent)' }}>{name}</span>
                   <Check size={11} color="var(--accent)" />
                 </button>
@@ -149,6 +203,7 @@ export default function AmenitiesPage() {
                       opacity: toggling === name ? 0.6 : 1,
                     }}
                   >
+                    <IconPreview iconUrl={amenityByName.get(name)?.iconUrl} active={active} />
                     <span style={{ fontSize: 13, fontWeight: 500, color: active ? 'var(--accent)' : 'var(--t)' }}>{name}</span>
                     {active && <Check size={11} color="var(--accent)" />}
                   </button>
@@ -165,7 +220,9 @@ export default function AmenitiesPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {pendingRequests.map(name => (
-              <span key={name} className="badge-pending" style={{ padding: '4px 12px', fontSize: 12 }}>{name}</span>
+              <span key={name} className="badge-pending inline-flex items-center gap-2" style={{ padding: '4px 12px', fontSize: 12 }}>
+                <IconPreview iconUrl={amenityByName.get(name)?.iconUrl} /> {name}
+              </span>
             ))}
           </div>
           <p style={{ fontSize: 11, color: 'var(--t3)', marginTop: 8 }}>These will appear in the app once approved by admin.</p>

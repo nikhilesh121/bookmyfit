@@ -55,8 +55,10 @@ class PaymentsService {
       if (paid && (sub.planType === 'same_gym' || sub.planType === 'day_pass') && sub.gymIds?.[0]) {
         const duplicate = await this.activeGymPass(sub.userId, sub.gymIds[0], sub.id);
         if (duplicate) {
+          sub.status = 'cancelled';
           sub.razorpayPaymentId = paymentId || sub.razorpayPaymentId;
           await this.subs.save(sub);
+          if (sub.razorpayOrderId) await this.ptBookings.update({ cashfreeOrderId: sub.razorpayOrderId }, { status: 'cancelled' });
           processed.push({ kind: 'subscription', paid, activated: false, reason: 'duplicate_active_gym_pass' });
         } else {
           sub.status = 'active';
@@ -65,7 +67,8 @@ class PaymentsService {
           processed.push({ kind: 'subscription', paid, activated: true });
         }
       } else {
-        sub.status = paid ? 'active' : sub.status;
+        if (paid) sub.status = 'active';
+        else if (failed && sub.status !== 'active') sub.status = 'cancelled';
         sub.razorpayPaymentId = paymentId || sub.razorpayPaymentId;
         await this.subs.save(sub);
         processed.push({ kind: 'subscription', paid, activated: paid });

@@ -96,16 +96,10 @@ function subTime(value: any) {
   return Number.isFinite(ms) ? ms : 0;
 }
 
-function mostRelevantSubscription(list: any[]) {
-  const active = list
+function currentSubscriptions(list: any[]) {
+  return list
     .filter(isActiveSubscription)
     .sort((a, b) => subTime(b.endDate || b.createdAt) - subTime(a.endDate || a.createdAt));
-  if (active[0]) return [active[0]];
-
-  const expired = list
-    .filter((sub) => !isActiveSubscription(sub) && String(sub.status || '').toLowerCase() !== 'pending')
-    .sort((a, b) => subTime(b.endDate || b.createdAt) - subTime(a.endDate || a.createdAt));
-  return expired[0] ? [expired[0]] : [];
 }
 
 function SkeletonCard() {
@@ -117,11 +111,11 @@ export default function Subscriptions() {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
   const [showHistory, setShowHistory] = useState(false);
-  const displaySubs = useMemo(() => mostRelevantSubscription(subs), [subs]);
+  const activeSubs = useMemo(() => currentSubscriptions(subs), [subs]);
   const pastSubs = useMemo(() => subs
     .filter((sub) => !isActiveSubscription(sub) && String(sub.status || '').toLowerCase() !== 'pending')
     .sort((a, b) => subTime(b.endDate || b.createdAt) - subTime(a.endDate || a.createdAt)), [subs]);
-  const visibleSubs = showHistory ? pastSubs : displaySubs;
+  const visibleSubs = showHistory ? pastSubs : activeSubs;
 
   const loadSubscriptions = useCallback(() => {
     setLoading(true);
@@ -150,10 +144,10 @@ export default function Subscriptions() {
           <View style={s.pageHeader}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={s.pageTitle}>My Memberships</Text>
-              <Text style={s.pageSub}>{showHistory ? 'Past memberships and expired passes' : 'Your current pass and renewal status'}</Text>
+              <Text style={s.pageSub}>{showHistory ? 'Expired and past memberships' : 'Your current active passes'}</Text>
             </View>
             <TouchableOpacity style={s.historyToggle} onPress={() => setShowHistory((value) => !value)}>
-              <Text style={s.historyToggleText}>{showHistory ? 'Current' : 'Past'}</Text>
+              <Text style={s.historyToggleText}>{showHistory ? 'Current' : 'Expired'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -173,7 +167,7 @@ export default function Subscriptions() {
               <View style={s.emptyIconWrap}>
                 <IconDumbbell size={48} color={colors.t3} />
               </View>
-              <Text style={s.emptyTitle}>{apiError ? 'Could Not Load Memberships' : showHistory ? 'No Past Memberships' : 'No Active Memberships'}</Text>
+              <Text style={s.emptyTitle}>{apiError ? 'Could Not Load Memberships' : showHistory ? 'No Expired Memberships' : 'No Active Memberships'}</Text>
               <Text style={s.emptyBody}>
                 {apiError
                   ? 'Please retry after checking your connection or login session.'

@@ -15,6 +15,91 @@ When fixes start, every change should be logged here first with:
 - Verification command or browser test
 - Final status
 
+## Master Issue Tracker - User Requested Items
+
+This section is the single checklist for all requested work. Status meanings:
+- `LOCAL FIXED`: changed in local code and local build/check passed.
+- `PENDING`: not fully solved yet.
+- `NEEDS VERIFY`: code exists but needs end-to-end browser/device confirmation with real data.
+- `NEEDS LIVE DEPLOY`: local change is not visible on live until pushed/deployed/restarted.
+- `NEEDS APK`: mobile change is not visible on phone until a new live-API APK is built/installed.
+
+| ID | Area | Requested issue | Status |
+| --- | --- | --- | --- |
+| BMF-001 | Process | Work locally first, then push to live only after local verification | ACTIVE RULE |
+| BMF-002 | Docs | Keep every requested issue and fix status in the Nikhilesh report | LOCAL FIXED |
+| BMF-003 | Login | OTP is default/dev OTP for now; do not spend time on production OTP | ACTIVE RULE |
+| BMF-004 | User app | Mobile/web login continue button and broken/white pages | LOCAL FIXED / SERVING ON 8081 |
+| BMF-005 | User app | Home page sections/order: gym list at end, remove unwanted testimonial/feature sections | LOCAL FIXED / NEEDS APK |
+| BMF-006 | User app | Fix mobile extra vertical spacing and bottom navbar spacing | LOCAL FIXED / NEEDS APK |
+| BMF-007 | User app | Homepage top slider design/loading issues | PENDING |
+| BMF-008 | User app | Default image for gyms with missing images | LOCAL FIXED / NEEDS APK |
+| BMF-009 | User app | Default image for wellness partners/services/products with missing images | LOCAL FIXED / NEEDS APK |
+| BMF-010 | User app | Category filters should be re-selectable and show matching gyms/services | LOCAL FIXED / NEEDS API VERIFY |
+| BMF-011 | User app | Show all database gyms, not only fixed/demo gyms | LOCAL FIXED / NEEDS API VERIFY |
+| BMF-012 | User app | Nearby gyms must use GPS/location and gym lat/lng | LOCAL FIXED / NEEDS APK |
+| BMF-013 | User app | Gym cards/detail should show subscribed state and prevent duplicate same-gym subscription before expiry | LOCAL FIXED / NEEDS API VERIFY |
+| BMF-014 | User app | Gym detail must show amenities, images, videos, operating hours, break time, ratings from gym/admin data | LOCAL FIXED / NEEDS APK |
+| BMF-015 | User app | Real rating flow from user reviews, no fake rating | LOCAL FIXED / NEEDS APK |
+| BMF-016 | User app | Gym profile gallery: show all gym-uploaded images | LOCAL FIXED / NEEDS APK |
+| BMF-017 | User app | Pass page should show current subscription or expired/renew state, not all mixed together | LOCAL FIXED / NEEDS APK |
+| BMF-018 | User app | Membership page should show past memberships separately | PARTIAL / NEEDS VERIFY |
+| BMF-019 | User app | QR page must show manual verification code under/near QR | LOCAL FIXED / NEEDS APK DEVICE VERIFY |
+| BMF-020 | User app | After QR scan/check-in, QR should stop showing or show checked-in state | LOCAL FIXED / NEEDS APK DEVICE VERIFY |
+| BMF-021 | User app | Booking rule: user can book again only if previous booking is cancelled/not attempted; not if already attended same day | PARTIAL / NEEDS CONCURRENCY VERIFY |
+| BMF-022 | Payment | Cashfree payment success returns/loading issue after payment | LOCAL FIXED / NEEDS CASHFREE E2E |
+| BMF-023 | Payment | Checkout should not show extra GST because displayed amount is GST-inclusive | PARTIAL / NEEDS VERIFY |
+| BMF-024 | Payment | Trainer add-on amount should match gym trainer price and include admin commission in checkout | PENDING VERIFY |
+| BMF-025 | Payment | Use test Cashfree credentials until live credentials are added | NEEDS ENV VERIFY |
+| BMF-026 | Subscription | Same-gym pass amount should include admin commission globally or per-service override | PARTIAL / NEEDS VERIFY |
+| BMF-027 | Subscription | Day pass commission should be managed from same place as plan/commission management | PARTIAL / NEEDS VERIFY |
+| BMF-028 | Subscription | Multi-gym pass is admin-managed; no extra commission should stack on it | NEEDS VERIFY |
+| BMF-029 | Subscription | Delete previous subscriptions/start fresh when requested | PENDING - DATA ACTION REQUIRES CONFIRMATION |
+| BMF-030 | Gym portal | Gym registration not working | LOCAL FIXED / RUNTIME SMOKE PASSED |
+| BMF-031 | Gym portal | Gym profile save 500 error from screenshot | PARTIAL / NEEDS VERIFY |
+| BMF-032 | Gym portal | Time display should show AM/PM, not 14:00 format, where user-facing | PARTIAL / NEEDS VERIFY |
+| BMF-033 | Gym portal | Operating hours should include break time and prevent bookings during break | PARTIAL / NEEDS VERIFY |
+| BMF-034 | Gym portal | Operating hours global setup for all days plus per-day manual override | LOCAL FIXED |
+| BMF-035 | Gym portal | Opening/closing/break time should be managed in one place, not duplicated in profile/settings | PENDING |
+| BMF-036 | Gym portal | Trainers should use monthly price, not session price, everywhere | PARTIAL / NEEDS VERIFY |
+| BMF-037 | Gym portal | Trainer add notification but trainer not visible in list | LOCAL FIXED / NEEDS RUNTIME SMOKE |
+| BMF-038 | Gym portal | Trainer edit must work | LOCAL FIXED / NEEDS RUNTIME SMOKE |
+| BMF-039 | Gym portal | Gym can upload multiple profile images and videos for user detail page | PARTIAL / LOCAL FIXED FOR IMAGES |
+| BMF-040 | Gym portal | Gym location lat/lng set manually or auto once; gym cannot edit after submit, admin can edit | PARTIAL / NEEDS VERIFY |
+| BMF-041 | Gym portal | Amenities from admin should show to gym; gym can add/remove/request | LOCAL FIXED / NEEDS E2E VERIFY |
+| BMF-042 | Gym portal | Member page should show users subscribed to that gym with correct gym amount only | PARTIAL / LOCAL FIXED HISTORY DATA |
+| BMF-043 | Gym portal | Remove inline member history and use a detailed Member History page | LOCAL FIXED |
+| BMF-044 | Gym portal | Member History should show subscription, selected trainer, amounts, visits, references | LOCAL FIXED |
+| BMF-045 | Gym portal | Reports and settlement should show real subscription/check-in/trainer data | PARTIAL / REPORT ERROR STATE LOCAL FIXED |
+| BMF-046 | Gym portal | Reports graph design is ugly/stretched | LOCAL FIXED |
+| BMF-047 | Gym portal | QR scanner should show success/error and manual ID verification should work | LOCAL FIXED / NEEDS CAMERA DEVICE VERIFY |
+| BMF-048 | Gym portal | QR scanner error "gym profile is not loaded yet" | LOCAL FIXED / NEEDS CAMERA DEVICE VERIFY |
+| BMF-049 | Gym portal | Sidebar left spacing and menu scroll reset issue | LOCAL FIXED |
+| BMF-050 | Gym portal | KYC dynamic fields by document type | LOCAL FIXED |
+| BMF-051 | Gym portal | KYC one-time submission: approved/in-review locked, rejected can resubmit | LOCAL FIXED |
+| BMF-052 | Gym portal | KYC pending until all six forms are approved, then verified | LOCAL FIXED / NEEDS VERIFY |
+| BMF-053 | Admin | Admin should see KYC submissions after gym submits them | LOCAL FIXED / NEEDS E2E VERIFY |
+| BMF-054 | Admin | Admin should approve/reject each KYC form one by one and also support approve all | LOCAL FIXED / NEEDS UX IMPROVEMENT |
+| BMF-055 | Admin | Admin categories should be used by gym session dropdown and user category filters | LOCAL FIXED / NEEDS E2E VERIFY |
+| BMF-056 | Admin | Admin can add/change category icons and amenity icons; default icons plus upload option | LOCAL FIXED / NEEDS REAL STORAGE |
+| BMF-057 | Admin | Admin can add amenities; gym can select them | LOCAL FIXED / NEEDS E2E VERIFY |
+| BMF-058 | Admin | Admin settings page should show only real data and not conflict with plan management | LOCAL FIXED / PARTIAL SETTINGS UX |
+| BMF-059 | Admin | Plan/commission management should support global commission plus per-service override and fixed/percentage modes | LOCAL FIXED / NEEDS E2E VERIFY |
+| BMF-060 | Admin | Trainer commission should be included in commission management | LOCAL FIXED / NEEDS E2E VERIFY |
+| BMF-061 | Admin | Gym management should allow view/edit/deactivate/suspend/reactivate; dropdown must not hide under table | LOCAL FIXED / NEEDS E2E VERIFY |
+| BMF-062 | Admin | Admin can disable gyms, wellness services, and other available listings | LOCAL FIXED / NEEDS E2E VERIFY |
+| BMF-063 | Admin | Admin can manage banners and banner text | PARTIAL / NEEDS REAL STORAGE |
+| BMF-064 | Admin | Admin users/subscriptions dashboards should show which user took which gym/multi-gym subscription | LOCAL FIXED / NEEDS E2E VERIFY |
+| BMF-065 | Wellness | Admin/gym wellness service create/approve/reject/commission flow should not conflict with manual commission on service | LOCAL FIXED / NEEDS E2E VERIFY |
+| BMF-066 | Wellness | Wellness pages list/card/button design should not stretch or clip | PARTIAL / NEEDS APK VERIFY |
+| BMF-067 | Live deploy | Push local fixes to live server and restart correct PM2 services | NEEDS LIVE DEPLOY WHEN LOCAL PASS COMPLETE |
+| BMF-068 | APK | Generate latest live-API APK after mobile fixes | NEEDS APK |
+| BMF-069 | Gym portal | Members table should not repeat Plan/Gym Access details and should show unique member rows clearly | LOCAL FIXED |
+| BMF-070 | Gym portal | Gym needs a page to see all user reviews and rating stats | LOCAL FIXED |
+| BMF-071 | Admin/Gym/User | Amenity/category icons from admin should display in gym portal and user app too | LOCAL FIXED / NEEDS APK FOR USER APP |
+| BMF-072 | User app | Homepage featured gyms must use the same active/KYC-approved/location-ready visibility rule as gym listing | LOCAL FIXED / NEEDS APK |
+| BMF-073 | Landing | Landing/onboard gym registration must send required phone and workout categories | LOCAL FIXED |
+
 ## Current Status Summary
 
 High priority issues found:
@@ -2552,3 +2637,704 @@ Live verification:
 - `nginx -t` passed.
 - Backend PM2 logs showed a clean NestJS boot.
 - Old gym/admin Next.js error-log entries were timestamped before this deploy and were not fresh post-restart errors.
+
+## Change 034 - User/gym flow audit, catalog icons, member history, trainer edit, and gym profile media
+
+Date: 2026-05-21
+
+Scope requested:
+- Audit user and gym flows from register/login through logout, all major pages and actions.
+- Add the findings to this report.
+- Fix found issues where practical in this pass.
+- Let admin manage amenity and category icons with default icons and uploaded icons.
+- Improve member history with a dedicated page and filtering.
+- Fix gym-side trainer edit.
+- Let gyms add multiple profile images and videos for the user app profile, with media size guidance.
+
+Documentation alignment:
+- The work follows the application plan: admin owns master categories/amenities, gyms select approved amenities and manage their own profile/trainers/media, and user app gym detail must reflect the gym portal profile.
+- Member history is not a separate named feature in the older docs, but it fits the gym portal member/check-in reporting requirement better as a separate operational page than as a cramped expandable table row.
+
+Flow audit findings:
+- Mobile user flow issues found:
+  - Mobile API cleared tokens on the first 401 even though refresh tokens exist.
+  - Payment WebView still depends on environment alignment between mobile Cashfree mode and backend Cashfree mode.
+  - OTP dev behavior is still intentionally visible for current testing.
+  - Multi-gym network, wellness availability, store checkout address, product ratings, and some demo/static content still need a later deeper cleanup.
+- Gym portal flow issues found:
+  - QR validation and check-in APIs trusted client-provided `gymId` too much.
+  - Trainer rows could fail edit/deactivate if the API returned `_id` without normalized `id`.
+  - Profile image upload button was non-functional.
+  - Member subscription history was hard to read inside the members table.
+  - Staff-to-gym binding is still not fully modeled; current safer behavior is to require a gym linked to the authenticated account.
+- Admin flow issues found:
+  - Category and amenity entities already had `iconUrl`, but the real admin panel did not expose icon management.
+  - No dedicated file upload API exists yet, so uploaded admin icons are stored as small data URLs after frontend size/type validation.
+
+Changes made locally:
+- Backend:
+  - Added migration `1778500000000-AddGymVideosAndCatalogIconText.ts`.
+  - Added `gyms.videos`.
+  - Changed category and amenity `iconUrl` columns to `text` for default icon keys, URLs, and small uploaded data URLs.
+  - Added default icon assignment for categories and amenities.
+  - Gym detail API now returns `videos`, `amenityDetails`, and `categoryDetails` with icon metadata.
+  - QR validate/manual validate now derives the gym from the logged-in gym account; only super admin can pass arbitrary `gymId`.
+  - Check-in list/recent/today/stats APIs are scoped to the logged-in gym for gym owners/staff.
+  - Inactive users are blocked during OTP verification, password login, refresh, and JWT validation.
+- Admin panel:
+  - Categories & Amenities page now supports default icon presets, icon URL entry, and small icon file uploads.
+  - Existing category and amenity icons can be changed from the same page.
+  - Pending amenity approval/reject flow remains in place with icon preview.
+- Gym panel:
+  - Added new `Member History` page with member search, status filters, per-member timeline, gym amount, trainer amount, check-ins, and active/current plan summary.
+  - Members table now links to the full member history page.
+  - Trainer list normalizes `id/_id` so edit/deactivate actions target the correct trainer.
+  - Gym Profile page now manages multiple photo URLs and video URLs, saves them to the gym profile, and shows media requirements: images 1200x800 px under 2 MB, videos MP4/WebM, 16:9, up to 45 seconds.
+- Mobile user app:
+  - Gym detail page now shows gym profile photos/videos from the gym portal.
+  - Gym detail amenities/categories now prefer admin-managed icon metadata and fall back to local inferred icons.
+  - Home category chips load admin-managed categories/icons instead of only the hard-coded list.
+  - API client now retries once with refresh token on 401 before logging the user out.
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter gym-panel build` passed.
+- `pnpm.cmd --filter admin-panel build` passed with one existing style warning about using `<img>` instead of Next `<Image>` on the icon preview.
+- `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
+
+Remaining items not fully solved in this pass:
+- True binary media storage/upload service is still needed for production-grade gym images, gym videos, KYC files, and admin icons. Current implementation supports image/video URLs and small admin icon uploads as data URLs.
+- Cashfree mode/production credential alignment still needs a dedicated payment verification pass.
+- OTP dev hint is still present by current instruction and should be hidden before production user release.
+- `gym_staff` still needs a real staff-to-gym relation before staff accounts can be safely generalized.
+- Settlement disputes, settings password-change endpoint, session schedule validation, wellness availability, store checkout address persistence, and product ratings remain open follow-up items from the flow audit.
+
+Status: Completed locally for this pass. Not deployed live in this change.
+
+## Change 035 - Agent-assisted post-login flow fixes, QR scanner binding, sessions, settlements, and mobile booking history
+
+Date: 2026-05-21
+
+Scope requested:
+- Use agents for faster analysis and implementation.
+- Continue checking post-login user, gym, and admin flows.
+- Fix QR scanner/manual verification problems.
+- Keep KYC pending until all required KYC details are approved.
+- Make session booking rules and gym-side reports closer to the actual plan.
+- Improve mobile booking/auth behavior and settlement dispute persistence.
+
+Agents used:
+- Mobile worker: audited and fixed mobile boot auth validation, real gym booking history, and Cashfree base-mode defaults.
+- Settlement worker: implemented real persisted settlement disputes.
+- Session worker: implemented recurring session validation and same-gym `sessionsPerDay` booking limits.
+- QR explorer: diagnosed scanner failures from missing staff-to-gym binding and stale scanner callback state.
+
+Changes made locally:
+- Backend:
+  - Added migration `1778600000000-AddUserGymId.ts`.
+  - Added `users.gymId` for gym staff binding.
+  - Seed flow now links the seeded staff account to the seeded gym.
+  - Gym staff can now resolve the linked gym through `users.gymId` for gym profile, members, reports, scanner, sessions, settlement, trainer, and amenity-request paths that were updated in this pass.
+  - QR validation/manual validation rejects mismatched scanner gym IDs for non-admin users.
+  - Legacy check-in/scanner helper now resolves staff gym safely instead of trusting a requested gym ID.
+  - Trainer writes no longer allow unbound staff to manage an arbitrary requested gym.
+  - KYC document review now keeps overall KYC in review/pending when one required section is rejected; the rejected section remains visible for resubmission instead of incorrectly treating the whole gym as finally rejected.
+  - Settlement dispute API persists `disputed` status and `disputeReason` for the gym's own settlement.
+  - Session schedules now validate day values, time format, start/end ordering, operating hours, and break-time overlap.
+  - Same-gym booking limits now use the subscribed gym plan's `sessionsPerDay`; multi-gym remains one session per day across gyms and day pass remains uncapped by this session rule.
+- Gym panel:
+  - Scanner camera loop now calls the latest validation function instead of a stale first-render callback, reducing the `gym profile is not loaded yet` scanner failure.
+  - Settlement UI now keeps real settlement rows after a dispute and shows the persisted dispute state after reload.
+- Mobile user app:
+  - App boot now validates stored tokens with `/users/me` before routing, refreshes cached user data, and clears stale cached user state on failure.
+  - My Bookings now loads real gym booking history from `/sessions/my-bookings`; the active QR endpoint is used only to surface the active QR action.
+  - Cashfree mobile base URL now defaults to live when the mobile API target is live and sandbox otherwise.
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter gym-panel build` passed.
+- `pnpm.cmd --filter admin-panel build` passed with the existing `<img>` preview warning on admin categories.
+- `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
+- `git diff --check` passed, with only CRLF normalization warnings.
+
+Remaining items after this pass:
+- Admin still needs a proper staff-management UI/API to assign existing or new `gym_staff` users to a gym; the database support and seeded account link are now in place.
+- A fresh APK still needs to be built if these mobile changes should be tested on a phone.
+- Live deployment was not done in this change.
+
+## Change 036 - Gym partner registration API URL fix
+
+Date: 2026-05-21
+
+Issue found:
+- Gym partner registration and signup category loading used raw `NEXT_PUBLIC_API_URL` values and then appended `/api/v1` again.
+- If the environment value already ended with `/api/v1`, the signup page called `/api/v1/api/v1/master/categories` and `/api/v1/api/v1/auth/gym/register`, causing gym registration to fail.
+- The gym login page and shared gym shell had the same raw API pattern, which could break sign-in or the first dashboard status load in the same environment.
+
+Changes made locally:
+- Normalized the API base in `apps/gym-panel/app/signup/page.tsx`.
+- Added explicit signup states for category loading, category API failure, and empty admin category setup so registration failures show the real blocker.
+- Normalized the API base in `apps/gym-panel/app/login/page.tsx`.
+- Normalized the API base in `apps/gym-panel/components/Shell.tsx`.
+
+Verification:
+- `pnpm.cmd --filter gym-panel build` passed.
+- `git diff --check -- apps/gym-panel/app/signup/page.tsx apps/gym-panel/app/login/page.tsx apps/gym-panel/components/Shell.tsx` passed, with only CRLF normalization warnings.
+
+Status: Fixed locally. Not deployed live in this change.
+
+## Change 037 - Local gym registration smoke test and backend hardening
+
+Date: 2026-05-21
+
+Issue found:
+- Local Postgres/Redis were not running, so the gym signup page could not be tested end to end.
+- Gym registration depended on active workout categories, but categories were only created by optional local/demo seeding.
+- `backend/package.json` `seed:run` pointed to a missing script path.
+- Gym registration saved the user before the gym outside a transaction, so a gym insert failure could leave an orphan gym owner account.
+- Duplicate phone numbers could hit the database unique constraint and return a raw server error.
+- Gym panel auth guard accepted any unexpired token stored under `bmf_gym_token`, even if it was not a gym role.
+- Local CORS allowed `localhost` but not common `127.0.0.1` dev URLs.
+
+Changes made locally:
+- Started local Docker services for Postgres and Redis.
+- Ran backend migrations locally.
+- Added migration `1778700000000-SeedDefaultCategories.ts` to upsert default active workout categories as real master data.
+- Added `backend/src/database/seeds/run-seeds.ts` so `pnpm.cmd --filter backend seed:run` works again.
+- Wrapped gym owner + gym creation in a transaction.
+- Added duplicate phone validation and a clean unique-constraint fallback message.
+- Tightened gym registration DTO category validation.
+- Added `127.0.0.1` local origins to backend CORS.
+- Updated gym panel auth guard to require `gym_owner` or `gym_staff` roles and clear stale user storage on invalid tokens.
+
+Local smoke test:
+- Started the built backend inside a local smoke-test command.
+- `GET /api/v1/health` returned `ok`.
+- `GET /api/v1/master/categories` returned 13 categories.
+- `POST /api/v1/auth/gym/register` created a pending gym.
+- Duplicate phone registration returned `400`.
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter backend migration:run` passed and applied the category master-data migration.
+- `pnpm.cmd --filter backend seed:run` passed.
+- `pnpm.cmd --filter gym-panel build` passed.
+- `git diff --check` passed, with only CRLF normalization warnings.
+
+Status: Fixed and tested locally. Not deployed live in this change.
+
+## Change 038 - Broad local closure pass for subscriptions, QR, admin controls, gym portal, mobile UI, and payment fallback
+
+Date: 2026-05-21
+
+Scope requested:
+- Solve the remaining user, gym, and admin flow issues that were repeatedly reported.
+- Use agents for faster work.
+- Keep changes local first and verify before any live deploy.
+
+Agents used:
+- Backend subscription/reporting worker.
+- QR/check-in worker.
+- Admin settings/category/commission worker.
+- Mobile list/detail/pass UI worker.
+- Gym portal workflow worker.
+- Main integration pass for Cashfree WebView fallback, builds, smoke tests, and local server restart.
+
+Changes made locally:
+- Backend subscription, reports, and settlement:
+  - Admin subscription gym filtering now includes `multi_gym` subscriptions once the user has a successful check-in at that gym.
+  - Gym member/report amount helpers now fall back to real checkout amounts when older subscriptions lack a `gymPlanId` or gym price, while backing out configured commission.
+  - Same-gym/day-pass settlement payout calculations use the same fallback logic so older paid records do not settle as `0`.
+  - Trainer booking commission storage now reconciles as charged amount minus base trainer amount, reducing payout drift.
+- QR/check-in:
+  - Mobile QR page now uses session active booking as source of truth.
+  - After check-in, the active QR is no longer returned as reusable and the mobile page shows checked-in/closed state.
+  - Manual verification now prefers the current valid booking window and handles stale/duplicate refs more safely.
+  - Manual validation atomically marks bookings attended to avoid double check-ins.
+  - Multi-gym check-ins are capped to one per IST day.
+  - Same-gym/day-pass check-ins return gym earning `0`; multi-gym check-ins return the configured per-visit earning.
+  - Check-in list/today endpoints now include payout metadata.
+- Payment/Cashfree:
+  - Cashfree WebView now detects the Cashfree "Taking too long / Go to the next step" state, attempts to continue it, and then verifies payment through the backend.
+  - Added a native "I have completed payment" fallback button after a delay so the user is not trapped on Cashfree's loading screen.
+- Admin panel:
+  - Categories and amenities can now be edited by ID, including name and icon.
+  - Category/amenity create/update preserves icons, applies sensible default lucide icons, and rejects case-insensitive duplicates.
+  - Admin Settings now reads live Plan Management/subscription data plus real settlement/feature flag settings.
+  - Legacy `/commission/rates` now reports canonical Plan Management values and rejects direct edits, so commission truth is not split across multiple screens.
+- Gym panel:
+  - Trainer edit now normalizes `_id/id`, active status, and monthly price fields, then sends both `monthlyPrice` and `monthlyPriceInr`.
+  - Members page now has a clearer Member History entry point and stable member/user-id links.
+  - Member History route is production-build safe and no longer reload-loops on selection.
+  - Gym profile media/category handling is more robust, including profile photos/videos as URL inputs.
+  - Gym location settings only lock after successful backend save.
+  - Operating-hours duplication was reduced by moving break-time controls to the dedicated Operating Hours page and hiding them unless enabled.
+  - Special session category dropdown and edit flow now normalize category IDs and submit cleaner update payloads.
+- Mobile user app:
+  - Gym detail now handles portal-provided amenities/categories with icon fields plus gym photos/videos/media arrays.
+  - Default image handling is more robust for gyms, wellness partners/services, and products.
+  - Gym category filtering handles object-shaped category/amenity values and resets cleanly to All.
+  - Home category chips route category labels cleanly.
+  - Passes page now separates current/active passes from expired/past passes.
+  - Wellness partner cards have more stable height/button sizing to avoid clipping/stretching.
+  - Bottom tab bar Android padding was reduced to remove extra navbar spacing.
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter admin-panel build` passed with the existing `<img>` icon-preview warning.
+- `pnpm.cmd --filter gym-panel build` passed.
+- `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
+- `pnpm.cmd --filter backend migration:run` passed with no pending migrations.
+- `git diff --check` passed, with only CRLF normalization warnings.
+- Fresh built backend smoke test on a temporary port passed:
+  - health returned `ok`.
+  - categories returned 13 rows.
+  - gym registration created a pending gym.
+- Local running services were refreshed:
+  - Backend `http://localhost:3003/api/v1/health` returned 200.
+  - Gym panel `http://localhost:3001/signup` returned 200.
+  - Gym panel `http://localhost:3001/login` returned 200.
+  - Admin panel `http://localhost:3004/login` returned 200.
+
+Remaining production/setup notes:
+- This pass is local only; it has not been pushed or deployed live.
+- Cashfree real-money success still depends on correct live/sandbox credentials and Cashfree webhook/return URL configuration in the environment.
+- True binary upload/storage is still needed for production-grade gym videos/images, KYC files, and uploaded admin icons; current support remains URL/data-URL based.
+- A new live-API APK still needs to be generated after these local mobile changes if phone testing is required.
+
+## Change 039 - Real gym ratings and multi-image gym profile media
+
+Date: 2026-05-21
+
+Scope requested:
+- Show real gym ratings based on user-submitted ratings.
+- Make sure the rating flow works properly.
+- Allow gyms to upload multiple profile images.
+- Show all gym profile images to users in the gym detail page.
+
+Agents used:
+- Gym portal media worker implemented multi-image profile uploads.
+- Rating/media explorer mapped the end-to-end rating and gym media flow.
+- Main integration pass completed backend rating aggregation, mobile review access, mobile gallery display, verification, and local service refresh.
+
+Changes made locally:
+- Backend ratings:
+  - Rating approval/rejection now recalculates the target gym/trainer/wellness aggregate rating immediately.
+  - `GET /api/v1/gyms`, `GET /api/v1/gyms/:id`, and recommendations overlay approved ratings directly from the `ratings` table, so user-facing gym ratings do not depend on stale seeded values.
+  - `GET /api/v1/ratings/gym/:gymId` now returns approved gym reviews with `targetType`, `targetId`, and user display name when available.
+  - User rating submission now uses the authenticated user token instead of trusting only the body `userId`.
+- Gym portal:
+  - Gym profile now supports selecting multiple image files from the browser.
+  - Supported profile images are JPG, PNG, and WebP, up to 2 MB each, with a 12-image limit.
+  - Existing image URL entry remains available.
+  - Gyms can remove photos, move them up/down, and set any photo as the cover image.
+  - Profile save continues to send `coverPhoto`, `photos`, and `videos`.
+- Mobile user app:
+  - Gym detail now shows all profile photos, including the cover, in the Photos & Videos section.
+  - Gym detail displays real rating count aliases correctly (`ratingCount`, `ratingsCount`, `reviewCount`, `reviewsCount`).
+  - Gym list/home cards no longer show fake `0.0` ratings when no approved ratings exist.
+  - Gym profile Reviews tab now has a `Rate This Gym` action.
+  - Returning from the review screen refreshes the gym rating/review list.
+  - Review submission now handles either `id` or `_id` from the stored user object.
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
+- `pnpm.cmd --filter gym-panel build` passed.
+- Local running services were refreshed:
+  - Backend `http://localhost:3003/api/v1/health` returned 200.
+  - Gym panel `http://localhost:3001/profile` returned 200.
+  - Admin panel `http://localhost:3004/login` returned 200.
+
+Status:
+- Fixed and tested locally.
+- Not pushed live in this change.
+- APK was not regenerated in this change.
+
+## Change 043 - Gym Member History viewport overflow fix
+
+Date: 2026-05-21
+
+Issue reported:
+- Gym portal Member History page was getting cut on the right side.
+- Summary cards and the subscription timeline table were forcing the full page wider than the viewport.
+
+Changes made locally:
+- Constrained the Member History page grid with `minmax(0, 1fr)` so the detail area cannot push outside the portal shell.
+- Changed the summary cards to an auto-fit grid so cards wrap naturally instead of requiring six columns.
+- Made long values wrap inside cards instead of widening the page.
+- Kept the subscription timeline wide enough for details, but moved horizontal overflow inside the table container only.
+- Reduced and fixed timeline column widths so reference/subscription data stays readable without breaking the full page.
+
+Verification:
+- `pnpm.cmd --filter gym-panel build` passed.
+
+Status:
+- Fixed locally.
+
+## Change 045 - Gym plan duration slots and duplicate-duration blocking
+
+Date: 2026-05-21
+
+Issue reported:
+- Gym could create multiple individual plans with the same duration, for example multiple 1-month packages.
+- Gym plan page should be structured around standard durations such as 1 month, 3 months, 6 months, and 12 months.
+
+Changes made locally:
+- Gym plan page now shows fixed plan slots for 1 Month, 3 Months, 6 Months, and 12 Months.
+- Add Plan now chooses the next empty duration slot; if all four exist, the button is disabled.
+- Empty duration slots show a direct `Create 1 Month`, `Create 3 Months`, etc. action.
+- The create/edit duration dropdown disables durations that already have a plan.
+- Members see only one plan card per duration on the gym page, even if old duplicate test rows exist in the database.
+- Backend `/gym-plans` create now rejects any second plan for the same gym and duration, active or inactive.
+- Backend `/gym-plans/by-gym/:gymId` now compacts duplicate historical rows to one visible plan per duration for the user app.
+- Backend `/gym-plans/my-gym` returns all saved plan rows so the gym portal can expose and delete older duplicate rows during cleanup.
+- Info text changed from “one active package” to “one package per duration.”
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter gym-panel build` passed.
+- Local backend restarted on `http://localhost:3003`.
+- Local gym panel restarted on `http://localhost:3001`.
+- `http://localhost:3001/plans` returned 200.
+- Authenticated duplicate 1-month plan create returned 409 with: `A 1-month plan already exists. Edit that plan instead.`
+
+Status:
+- Fixed locally.
+- Local gym panel refreshed on `http://localhost:3001/member-history`.
+
+## Change 046 - Gym plan delete, deactivate, sale price, and discount pricing
+
+Date: 2026-05-21
+
+Issue reported:
+- Gym could not reliably delete previously created individual plans.
+- Gym needs clear delete, deactivate/activate, and create actions for duration-based plans.
+- Gym needs both regular price and sale price so the user app can show discounts.
+- BMF/admin margin must be added to both regular price and sale price so the discount percentage remains correct after checkout pricing.
+
+Changes made locally:
+- Added `salePrice` to gym plans with migration `1778800000000-AddGymPlanSalePrice`.
+- Gym plan create/edit now captures `Regular Price` and `Sale Price`.
+- Backend validates sale price is greater than 0 and not higher than regular price.
+- Backend returns `checkoutRegularPrice`, `checkoutSalePrice`, and `discountPercent` after applying the same-gym commission/margin to both prices.
+- Mobile Same Gym plan and duration screens now use checkout sale price as the payable amount and checkout regular price for strikethrough discount display.
+- Gym plan cards now show sale price, regular-price strikethrough, discount percent, and the final user-facing checkout price.
+- Delete now removes the plan definition so that duration slot becomes available again.
+- Plan cards now have visible `Activate` / `Deactivate` actions beside `Edit` and `Delete`, not only the small toggle icon.
+- Older duplicate saved plans are shown inside the matching duration card with a direct delete action so old test/duplicate rows can be cleaned up.
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter gym-panel build` passed.
+- `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
+- `git diff --check` passed, with only CRLF normalization warnings.
+- Authenticated local API verification passed:
+  - duplicate plan create for the same duration returned `409`;
+  - deactivated plan was hidden from `/gym-plans/by-gym/:gymId`;
+  - sale price, checkout sale price, and discount percent were returned correctly;
+  - deleting a plan freed the duration slot and allowed creating that duration again.
+
+Status:
+- Fixed and tested locally.
+- Not pushed live in this change.
+- APK was not regenerated in this change.
+
+## Change 047 - Member table cleanup, amenity icons, and gym reviews
+
+Date: 2026-05-21
+
+Issue reported:
+- Gym Members and Member History still looked like details were repeating more than once.
+- The Members table had both `Plan` and `Gym Access`, but both were showing similar information.
+- Admin side showed amenity/category icons, but gym portal and user app did not consistently show those icons.
+- Gym partner needed to know where all reviews can be viewed.
+
+Changes made locally:
+- Gym Members:
+  - Kept the main members table focused on one row per member/account for that gym.
+  - Reused the old `Gym Access` column as `Visits`, showing check-in count and last visit instead of repeating plan/access labels.
+  - Kept member privacy rules: gym sees name and BookMyFit member ID, not phone/email.
+- Gym Member History:
+  - Reduced repeated text in the timeline.
+  - Plan column now shows the pass type plus the selected package/duration instead of repeating the same access label.
+  - Gym amount column now shows the gym-facing amount and trainer split only when relevant, without repeating full user-paid checkout amount.
+  - Reference column now shows subscription/order references more compactly.
+- Reviews:
+  - Added `GET /api/v1/gyms/my-reviews` for gym owners/staff.
+  - Added a new Gym Partner `Reviews` page with average rating, review counts, approval status, member ID, date, and review text.
+  - Added `Reviews` to the gym portal sidebar.
+- Amenity and category icons:
+  - Expanded default gym amenity icons for AC, parking, shower, locker, changing room, WiFi, pool, steam/sauna, trainer, water, 24/7 access, cycling, recovery, and air ventilation.
+  - Added default amenity seeding so a fresh/local database has common gym amenities ready.
+  - Gym portal Amenities page now displays admin-provided icons for selected amenities, available amenities, and requested amenities.
+  - Mobile user gym details now maps the same admin icon keys, and still supports uploaded icon URLs/data URLs.
+  - Backend `my-gym` now returns enriched amenity/category details so gym portal screens can show icon metadata.
+
+Clarification:
+- Same display names can still appear when they are different user accounts. The safe `BMF-...` member ID is the identifier gyms should use.
+- True repeated subscription history for the same member belongs in the dedicated `Member History` page, not as repeated personal/contact data in the Members table.
+- Gyms can now see reviews at `http://localhost:3001/reviews` locally, under the new `Reviews` menu item.
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter gym-panel build` passed.
+- `pnpm.cmd --filter admin-panel build` passed, with the existing Next image warning on the categories page.
+- `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
+- `git diff --check` passed, with only CRLF normalization warnings.
+- Local backend health passed at `http://localhost:3003/api/v1/health`.
+- Local gym portal routes returned 200:
+  - `http://localhost:3001/members`
+  - `http://localhost:3001/member-history`
+  - `http://localhost:3001/amenities`
+  - `http://localhost:3001/reviews`
+- Authenticated local `/api/v1/gyms/my-reviews` returned review stats and rows shape.
+- Local `/api/v1/master/amenities` returned the seeded default amenities plus existing local test amenities.
+
+Status:
+- Fixed and tested locally.
+- Not pushed live in this change.
+- APK was not regenerated in this change.
+
+## Change 048 - Member History timeline duplicate text cleanup
+
+Date: 2026-05-21
+
+Issue reported:
+- Gym Member History subscription timeline repeated date/status information in the same row.
+- Example: `11 May 2026`, `to 11 Jun 2026`, and `Created 11 May 2026` made the Period column look duplicated.
+
+Changes made locally:
+- Removed the extra `Created` line from the timeline period column.
+- Period now shows only `Start` and `End`.
+- Removed the duplicate lower-case status text under the status badge.
+- Shortened `Subscription` reference label to `Sub` so the reference column is less cramped.
+
+Verification:
+- `pnpm.cmd --filter gym-panel build` passed.
+- `http://localhost:3001/member-history` returned 200 locally.
+- `git diff --check` passed, with only CRLF normalization warnings.
+
+Status:
+- Fixed locally.
+- Not pushed live in this change.
+
+## Change 049 - Gym registration and user-front visibility smoke
+
+Date: 2026-05-21
+
+Issue requested:
+- Check gym registration end to end.
+- Confirm that after the required gym-side/admin steps, the gym details show on the user front.
+- Make sure the user-facing gym APIs show real gym setup data and do not expose internal registration/KYC data.
+
+Flow verified locally:
+- Registered a new gym through the backend registration path.
+- Logged in as the new gym owner.
+- Loaded `/gyms/my-gym`.
+- Updated profile details: address, description, contact, operating hours, break time, photos, videos, and category.
+- Selected admin-created amenities.
+- Created a 1-month same-gym plan with regular price and sale price.
+- Submitted valid latitude/longitude.
+- Submitted all six required KYC groups.
+- Approved the gym as admin.
+- Confirmed the gym appears on the public user-facing gym list and detail APIs.
+- Confirmed public plan API returns the gym-specific plan and discount pricing.
+
+Smoke gym created locally:
+- Gym: `Local Registration Smoke 20260521204213`
+- Gym ID: `4749e6f4-1c2c-4164-a798-58428de47f96`
+- Gym login: `local-gym-smoke-20260521204213@bookmyfit.test`
+- Password: `Test1234`
+
+Changes made locally:
+- Backend homepage:
+  - `GET /homepage/config` featured gyms now uses the same public visibility rule as `GET /gyms`: `active` status, `approved` KYC, and valid non-zero latitude/longitude.
+  - Homepage featured gym payload no longer exposes owner id, commission, payout rate, KYC status, KYC documents, or KYC review notes.
+- Backend public gym APIs:
+  - Public `GET /gyms` and `GET /gyms/:id` now remove internal owner/commission/KYC fields while keeping user-facing gym profile details.
+- Landing/onboard registration:
+  - Gym onboarding now loads admin-created workout categories.
+  - Gym onboarding now requires and submits phone number and selected categories, matching the backend gym registration DTO.
+  - Removed the misleading registration-time GPS submission from the landing onboarding flow; gym location is still submitted once from Gym Partner settings.
+- Mobile gym detail:
+  - Direct/deep links to hidden or missing gyms no longer create a fake fallback gym unless actual fallback route data was passed from a real list card.
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
+- `pnpm.cmd --filter landing exec tsc --noEmit --incremental false` passed.
+- `GET http://localhost:3003/api/v1/health` returned 200.
+- `GET http://localhost:3001/login` returned 200.
+- `GET http://localhost:8081/gyms` returned 200.
+- `GET /api/v1/gyms?search=Local Registration Smoke 20260521204213` returned the approved smoke gym with profile photos, videos, amenities, category, location, hours, and no owner/commission/KYC internals.
+- `GET /api/v1/gyms/4749e6f4-1c2c-4164-a798-58428de47f96` returned amenity and category details.
+- `GET /api/v1/gym-plans/by-gym/4749e6f4-1c2c-4164-a798-58428de47f96` returned the 1-month gym plan with checkout sale price and discount percent.
+- `GET /api/v1/homepage/config` returned only public-ready gyms in the Featured Gyms section and did not include KYC documents or owner id.
+
+Note:
+- `pnpm.cmd --filter landing build` hung in this local environment before producing an error, but `tsc --noEmit --incremental false` passed for the landing changes.
+
+Status:
+- Fixed and smoke-tested locally.
+- Not pushed live in this change.
+- User-app changes need APK/web rebuild for phone testing.
+
+## Change 044 - Gym member privacy and duplicate-name clarity
+
+Date: 2026-05-21
+
+Issue reported:
+- Gym Members and Member History showed several rows with the same member name, making it look like the same person was duplicated.
+- Gym-side screens were exposing member phone/contact values under member names.
+- Requirement: gym should only see member name and a platform/user ID, not personal phone/email details.
+
+Changes made locally:
+- Added safe BookMyFit member codes to gym member/check-in API responses, for example `BMF-80B60D3B68`.
+- Sanitized `/gyms/my-members` so gym responses return `phone: null` and use `memberCode` for identification.
+- Sanitized `/gyms/my-checkins` so check-in rows return `userPhone: null` and include `memberCode`.
+- Sanitized QR scan/manual validation responses so gym scanner results return member name and member code, not phone/email.
+- Updated Gym Members page to show `ID BMF-...` under member names instead of phone numbers.
+- Updated Member History page to search by member name/ID and show the safe member ID in the member list and summary cards.
+- Updated Check-in Records page to show safe member ID instead of phone/contact details.
+- Updated Members CSV export header/data from `Phone` to `Member ID`.
+
+Clarification:
+- Rows with the same name can still appear when they are different user accounts. The new member code makes that clear without exposing phone numbers.
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter gym-panel build` passed.
+- Local backend restarted on `http://localhost:3003`.
+- Local gym panel restarted on `http://localhost:3001`.
+- Authenticated `/api/v1/gyms/my-members?limit=5` returned member codes and `phone: null`.
+- Authenticated `/api/v1/gyms/my-checkins?limit=3` returned member codes and `userPhone: null`.
+
+Status:
+- Fixed locally.
+
+## Change 041 - Master issue tracker and first pending-flow fixes
+
+Date: 2026-05-21
+
+Scope requested:
+- Note down all requested issues clearly.
+- Start solving them one by one instead of leaving the status unclear.
+
+Agents used:
+- Mobile audit explorer reviewed user-app login/home/gym/subscription/QR/payment/location/rating/image/navbar items.
+- Gym portal audit explorer reviewed gym registration, members/history, scanner, hours, profile media/location, trainers, amenities, KYC, sessions, reports, settlement, and sidebar.
+- Admin audit explorer reviewed settings, plan management, categories/icons, amenities, banners, gym management, KYC review, users, subscriptions, and wellness management.
+- Backend/payment audit explorer reviewed Cashfree, payment status, duplicate subscriptions, multi-gym payouts, QR/manual validation, booking rules, settlements, and trackers.
+
+Changes made locally:
+- Added the `Master Issue Tracker - User Requested Items` table near the top of this document.
+- Updated the tracker statuses based on code audits so local-fixed, pending, live-deploy, APK, storage, and E2E verification items are separated.
+- Backend payment/subscription cleanup:
+  - Failed/cancelled/user-dropped/expired Cashfree subscription orders now mark the matching subscription as `cancelled` instead of leaving it pending.
+  - Duplicate paid same-gym/day-pass activations now cancel the duplicate pending subscription instead of leaving it in the tracker.
+  - Starting a new same-gym/day-pass checkout cancels older pending checkouts for that same user and gym.
+  - Matching pending trainer add-ons are cancelled when their subscription checkout is cancelled.
+- Gym reports:
+  - Reports page now shows an API error banner instead of silently showing empty data when `/gyms/my-report` fails.
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter gym-panel build` passed.
+- `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
+- `git diff --check` passed, with only CRLF normalization warnings.
+
+Status:
+- Tracker created and updated locally.
+- First pending backend payment/subscription cleanup fixed locally.
+- Not pushed live in this change.
+- APK was not regenerated in this change.
+
+## Change 042 - Local user app white-screen / localhost 8081 startup fix
+
+Date: 2026-05-21
+
+Issue found:
+- `localhost:8081` was not reliably serving the mobile/user web app.
+- Expo web startup failed in this environment because it tried to fetch dependency metadata while network access is blocked.
+- Expo web export also failed because Metro generated workspace-relative entry paths in the pnpm monorepo.
+
+Files changed locally:
+- `apps/mobile/package.json`
+  - Changed Expo entry to `expo-router/entry`.
+  - Added `serve:web` script for serving the exported web bundle locally.
+- `apps/mobile/metro.config.js`
+  - Added resolver fallbacks for workspace-relative Expo entry requests.
+- `scripts/serve-static.js`
+  - Added a small local static server with SPA fallback for Expo web export routes.
+
+Verification:
+- `pnpm.cmd exec expo export --platform web --output-dir dist-web` passed from `apps/mobile`.
+- `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
+- `git diff --check` passed, with only CRLF normalization warnings.
+- Detached local mobile web server started on `http://localhost:8081`.
+- `http://localhost:8081/login` returned 200.
+- `http://localhost:8081/wellness` returned 200.
+
+Status:
+- Local white-screen/startup issue fixed for the exported user web app.
+- User app is currently served locally at `http://localhost:8081`.
+- Keep the generated `apps/mobile/dist-web` output available while using this static local server.
+
+## Change 040 - Gym member history, KYC locking, operating-hour bulk setup, sidebar, and reports graph
+
+Date: 2026-05-21
+
+Scope requested:
+- Remove the inline history section from the gym Members table and make Member History the detailed place for subscription history.
+- Show selected trainer, subscription, amount, visit, and order/reference details in Member History.
+- Add a global operating-hour setup that can apply to all days or selected day groups while still allowing per-day edits.
+- Lock KYC forms after submission/approval; allow resubmission only after rejection; show verified once all 6 are approved.
+- Fix gym-sidebar scroll reset/left spacing and improve the Reports graph design.
+
+Agents used:
+- KYC explorer checked frontend/backend KYC rules.
+- Member-history explorer checked `/gyms/my-members` data and inline history usage.
+- Layout/reports explorer checked Shell/sidebar behavior and chart sizing.
+
+Changes made locally:
+- Gym portal Members:
+  - Removed the visible inline history action from the Members table.
+  - Kept a single `View History` action that opens the dedicated Member History page for that member.
+- Gym portal Member History:
+  - Reworked the page into a denser, smaller-text history view.
+  - Added subscription period, status, trainer add-ons, trainer duration, gym-facing subscription/trainer amounts, visits, last visit, invoice/order/subscription/plan references.
+  - Member list now shows earned amount and visit count to make filtering members easier.
+- Backend member data:
+  - `/gyms/my-members` now includes subscription duration, gym plan id, gym ids, user paid amount, Cashfree order/payment ids, invoice number, plan base amount, and richer trainer add-on details.
+  - Gym-facing amounts still use the gym amount, not the full user-paid amount.
+- Operating Hours:
+  - Added a Global Setup panel with open/close/break controls.
+  - Gym can apply the global schedule to all days, Monday-Friday, or currently open days.
+  - Existing individual day editing remains available.
+- KYC:
+  - Backend blocks resubmitting approved or in-review KYC forms.
+  - Rejected KYC forms can be resubmitted.
+  - Frontend disables approved/in-review document types and shows a verified state after all 6 forms are approved.
+- Layout and reports:
+  - Sidebar is viewport-bound and remembers its own scroll position while moving between pages.
+  - Main content is offset from the fixed sidebar to reduce left-spacing/layout drift.
+  - Reports chart now uses compact proportional bars, horizontal overflow for longer ranges, and an empty state.
+
+Verification:
+- `pnpm.cmd --filter backend build` passed.
+- `pnpm.cmd --filter gym-panel build` passed.
+- `git diff --check` passed, with only CRLF normalization warnings.
+- Local running services were refreshed:
+  - Backend `http://localhost:3003/api/v1/health` returned 200.
+  - Gym panel `http://localhost:3001/members` returned 200.
+  - Gym panel `http://localhost:3001/member-history` returned 200.
+  - Gym panel `http://localhost:3001/schedule` returned 200.
+  - Gym panel `http://localhost:3001/kyc` returned 200.
+  - Gym panel `http://localhost:3001/reports` returned 200.
+  - Admin panel `http://localhost:3004/login` returned 200.
+
+Status:
+- Fixed and tested locally.
+- Not pushed live in this change.
+- APK was not regenerated in this change.

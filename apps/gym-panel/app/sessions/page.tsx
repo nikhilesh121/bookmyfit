@@ -35,7 +35,7 @@ type BookingRow = {
   user?: { name: string; phone: string };
 };
 
-type Category = { id: string; name: string };
+type Category = { id: string; _id?: string; name: string };
 
 const pill = (color: string) => ({
   background: `${color}22`, border: `1px solid ${color}44`,
@@ -66,6 +66,10 @@ export default function SessionsPage() {
     startTime: '07:00', endTime: '08:00',
   });
 
+  const categoryOptions = categories.some((category) => category.name === form.name) || !form.name
+    ? categories
+    : [{ id: `current-${form.name}`, name: form.name }, ...categories];
+
   const load = async () => {
     setLoading(true);
     setError('');
@@ -82,7 +86,11 @@ export default function SessionsPage() {
       const cats = catsResult.status === 'fulfilled' ? catsResult.value : [];
       setSessionTypes(types || []);
       setSchedules(scheds || []);
-      setCategories(Array.isArray(cats) ? cats : cats?.data || []);
+      const categoryRows: Category[] = Array.isArray(cats) ? cats : cats?.data || [];
+      setCategories(categoryRows.map((category) => ({
+        ...category,
+        id: category.id || category._id || category.name,
+      })));
       if (catsResult.status === 'rejected') {
         setError(catsResult.reason?.message || 'Failed to load session categories');
       }
@@ -113,6 +121,14 @@ export default function SessionsPage() {
     setShowAddForm(false);
   };
 
+  const startCreateType = () => {
+    setEditingType(null);
+    setForm({ name: '', description: '', durationMinutes: 60, maxCapacity: 20, color: COLORS[1], instructor: '' });
+    setScheduleForm({ daysOfWeek: [], startTime: '07:00', endTime: '08:00' });
+    setExpandedType(null);
+    setShowAddForm(true);
+  };
+
   const startEditType = (type: SessionType) => {
     const sched = getScheduleForType(type.id);
     setEditingType(type);
@@ -136,9 +152,17 @@ export default function SessionsPage() {
   const saveType = async () => {
     setError('');
     if (!form.name.trim()) { setError('Select a session category'); return; }
+    const payload = {
+      name: form.name.trim(),
+      description: form.description.trim(),
+      durationMinutes: Number(form.durationMinutes) || 60,
+      maxCapacity: Number(form.maxCapacity) || 20,
+      color: form.color,
+      instructor: form.instructor.trim(),
+    };
     try {
       if (editingType) {
-        await api.put(`/sessions/session-types/${editingType.id}`, form);
+        await api.put(`/sessions/session-types/${editingType.id}`, payload);
         if (scheduleForm.daysOfWeek.length > 0) {
           await api.put('/sessions/session-schedules', {
             sessionTypeId: editingType.id,
@@ -146,7 +170,7 @@ export default function SessionsPage() {
           });
         }
       } else {
-        const created: SessionType = await api.post('/sessions/session-types', form);
+        const created: SessionType = await api.post('/sessions/session-types', payload);
         // Also save schedule if days were selected
         if (scheduleForm.daysOfWeek.length > 0) {
           await api.put('/sessions/session-schedules', {
@@ -354,11 +378,11 @@ export default function SessionsPage() {
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Session Name</label>
-                  <select value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} disabled={categories.length === 0}
+                  <label style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Session Category</label>
+                  <select value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} disabled={categoryOptions.length === 0}
                     style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 14, boxSizing: 'border-box' }}>
-                    <option value="" style={{ background: '#111' }}>{categories.length ? 'Select category' : 'No categories created by admin'}</option>
-                    {categories.map((category) => (
+                    <option value="" style={{ background: '#111' }}>{categoryOptions.length ? 'Select category' : 'No categories created by admin'}</option>
+                    {categoryOptions.map((category) => (
                       <option key={category.id} value={category.name} style={{ background: '#111' }}>{category.name}</option>
                     ))}
                   </select>
@@ -425,7 +449,7 @@ export default function SessionsPage() {
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowAddForm(true)} style={{
+            <button onClick={startCreateType} style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '14px 22px',
               background: 'rgba(108,99,255,0.1)', border: '1px dashed rgba(108,99,255,0.4)',
               borderRadius: 16, cursor: 'pointer', color: '#6C63FF',

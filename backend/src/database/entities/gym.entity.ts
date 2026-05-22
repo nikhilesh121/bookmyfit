@@ -77,6 +77,9 @@ export class GymEntity {
   photos: string[];
 
   @Column({ type: 'text', array: true, default: [] })
+  videos: string[];
+
+  @Column({ type: 'text', array: true, default: [] })
   amenities: string[];
 
   @Column({ type: 'text', array: true, default: [] })
@@ -144,6 +147,7 @@ export class GymPlanEntity {
   @Col({ length: 150 }) name: string;
   @Col({ type: 'text', nullable: true }) description: string;
   @Col({ type: 'numeric', precision: 10, scale: 2 }) price: number;
+  @Col({ type: 'numeric', precision: 10, scale: 2, nullable: true }) salePrice: number | null;
   @Col({ default: 30 }) durationDays: number;
   @Col({ default: 1 }) sessionsPerDay: number; // how many sessions per day (usually 1)
   @Col({ type: 'text', array: true, default: [] }) features: string[];

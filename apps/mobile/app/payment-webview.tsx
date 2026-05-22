@@ -63,6 +63,7 @@ export default function PaymentWebview() {
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [mockConfirming, setMockConfirming] = useState(false);
+  const [showManualConfirm, setShowManualConfirm] = useState(false);
   const webviewRef = useRef<any>(null);
   const successHandledRef = useRef(false);
 
@@ -179,6 +180,7 @@ export default function PaymentWebview() {
     if (successHandledRef.current) return;
     successHandledRef.current = true;
     setLoading(false);
+    setShowManualConfirm(false);
     setVerifying(true);
     try {
       const orderVerification = await verifyOrderWithRetry();
@@ -328,6 +330,17 @@ export default function PaymentWebview() {
           var looksPaid = text.indexOf('payment successful') !== -1 || text.indexOf('payment completed') !== -1 || text.indexOf('paid successfully') !== -1 || text.indexOf('transaction successful') !== -1;
           if (isNextStepPage || looksPaid) {
             window.__bmfCashfreeReturnPosted = true;
+            if (isNextStepPage) {
+              try {
+                var buttons = document.querySelectorAll('a,button,[role="button"]');
+                for (var i = 0; i < buttons.length; i++) {
+                  if (textOf(buttons[i]).indexOf('go to the next step') !== -1) {
+                    buttons[i].click();
+                    break;
+                  }
+                }
+              } catch (e) {}
+            }
             post('CASHFREE_RETURN_FALLBACK', { orderId: orderId, url: location.href, matched: isNextStepPage ? 'next_step' : 'paid_text' });
           }
         }
@@ -388,6 +401,12 @@ export default function PaymentWebview() {
 
     return () => subscription.remove();
   }, []);
+
+  useEffect(() => {
+    if (isMock) return;
+    const timer = setTimeout(() => setShowManualConfirm(true), 14000);
+    return () => clearTimeout(timer);
+  }, [isMock, orderId]);
 
   // ── Mock Payment Screen (dev / sandbox without Cashfree keys) ────────────
   if (isMock && !allowMockPayment) {
@@ -498,6 +517,16 @@ export default function PaymentWebview() {
         </View>
       )}
 
+      {showManualConfirm && !loading && !verifying && (
+        <View style={s.manualConfirm}>
+          <Text style={s.manualConfirmTitle}>Taking too long?</Text>
+          <Text style={s.manualConfirmText}>If Cashfree shows the payment is done, continue and we will verify it securely.</Text>
+          <TouchableOpacity style={s.manualConfirmBtn} onPress={handleSuccess}>
+            <Text style={s.manualConfirmBtnText}>I have completed payment</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <WebView
         ref={webviewRef}
         source={{ html: checkoutHtml, baseUrl: CASHFREE_BASE_URL }}
@@ -551,6 +580,33 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', gap: 16,
   },
   loadingText: { fontFamily: fonts.sans, fontSize: 14, color: colors.t2 },
+  manualConfirm: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 20,
+    zIndex: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.xl,
+    padding: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  manualConfirmTitle: { fontFamily: fonts.sansBold, color: '#fff', fontSize: 14, marginBottom: 4 },
+  manualConfirmText: { fontFamily: fonts.sans, color: colors.t2, fontSize: 12, lineHeight: 17, marginBottom: 10 },
+  manualConfirmBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manualConfirmBtnText: { fontFamily: fonts.sansBold, color: '#060606', fontSize: 13 },
 
   // Mock styles
   mockContent: { padding: spacing.lg, paddingTop: 32 },

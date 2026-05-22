@@ -17,6 +17,7 @@ type DurationOption = {
   label: string;
   sublabel: string;
   price: number;
+  originalPrice?: number | null;
   save: string | null;
   isDayPass: boolean;
   hot: boolean;
@@ -27,6 +28,8 @@ type GymPlanOption = {
   id?: string;
   name?: string;
   price?: number | string;
+  originalPrice?: number | string | null;
+  discountPercent?: number | string | null;
   durationDays?: number | string;
 };
 
@@ -69,9 +72,11 @@ export default function Duration() {
           const price = Number(plan.price);
           const days = Number(plan.durationDays || 30);
           if (!plan.id || !Number.isFinite(price) || price <= 0 || !Number.isFinite(days) || days <= 0) return null;
-          return { id: plan.id, name: plan.name, price, days };
+          const originalPrice = Number(plan.originalPrice || price);
+          const discountPercent = Number(plan.discountPercent || 0);
+          return { id: plan.id, name: plan.name, price, originalPrice, discountPercent, days };
         })
-        .filter(Boolean) as { id: string; name?: string; price: number; days: number }[];
+        .filter(Boolean) as { id: string; name?: string; price: number; originalPrice: number; discountPercent: number; days: number }[];
     } catch {
       return [];
     }
@@ -89,14 +94,16 @@ export default function Duration() {
         .sort((a, b) => a.days - b.days)
         .map((plan) => {
           const months = Math.max(1, Math.round(plan.days / 30));
-          const rackTotal = (monthlyBase || (plan.price / months)) * months;
-          const savePct = rackTotal > plan.price ? Math.round((1 - plan.price / rackTotal) * 100) : 0;
+          const savePct = plan.discountPercent > 0
+            ? plan.discountPercent
+            : (plan.originalPrice > plan.price ? Math.round((1 - plan.price / plan.originalPrice) * 100) : 0);
           return {
             months,
             label: `${months} ${months === 1 ? 'Month' : 'Months'}`,
             sublabel: plan.name || 'Gym managed plan',
             price: Math.round(plan.price),
-            save: savePct > 0 ? `Save ${savePct}%` : null,
+            originalPrice: plan.originalPrice > plan.price ? Math.round(plan.originalPrice) : null,
+            save: savePct > 0 ? `${savePct}% OFF` : null,
             isDayPass: false,
             hot: false,
             gymPlanId: plan.id,
@@ -273,6 +280,9 @@ export default function Duration() {
                     <Text style={[s.optionLabel, active && { color: '#fff' }]} numberOfLines={1}>{d.label}</Text>
                     {d.sublabel && !d.hot && <Text style={s.optionSublabel} numberOfLines={1}>{d.sublabel}</Text>}
                   </View>
+                  {!!d.originalPrice && d.originalPrice > d.price && (
+                    <Text style={s.originalPrice} numberOfLines={1}>{money(d.originalPrice)}</Text>
+                  )}
                   <Text style={[s.optionPrice, active && { color: d.hot ? '#ff6b35' : colors.accent }]} numberOfLines={1}>
                     {money(d.price)}
                     <Text style={s.optionPricePer}>{d.isDayPass ? '/day' : ' total'}</Text>
@@ -452,6 +462,7 @@ const s = StyleSheet.create({
   optionLabel: { flexShrink: 1, fontFamily: fonts.sansMedium, fontSize: 15, color: colors.t },
   optionSublabel: { flexShrink: 1, fontFamily: fonts.sans, fontSize: 10, color: colors.t3 },
   optionPrice: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
+  originalPrice: { marginTop: 2, fontFamily: fonts.sans, fontSize: 11, color: colors.t3, textDecorationLine: 'line-through' },
   optionPricePer: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
   billingHint: { marginTop: 2, fontFamily: fonts.sans, fontSize: 10, color: colors.t3 },
   savePill: {

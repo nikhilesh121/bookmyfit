@@ -43,6 +43,7 @@ export default function ScannerPage() {
   const scanLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pausedRef = useRef(false);
+  const validateTokenRef = useRef<(token?: string) => void>(() => {});
 
   useEffect(() => {
     api.get<any>('/gyms/my-gym').then(data => {
@@ -86,14 +87,13 @@ export default function ScannerPage() {
       detector.detect(canvas).then((codes: any[]) => {
         if (codes.length > 0 && !pausedRef.current) {
           pausedRef.current = true;
-          validateToken(codes[0].rawValue as string);
+          validateTokenRef.current(codes[0].rawValue as string);
         }
       }).catch(() => {
         setCameraError('Could not read camera frames. Use the manual code below.');
         setMode('manual');
       });
     }, 400);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -226,6 +226,10 @@ export default function ScannerPage() {
       setQrToken('');
     }
   }, [qrToken, ratePerDay, resolveGymId, showResultAndResume]);
+
+  useEffect(() => {
+    validateTokenRef.current = validateToken;
+  }, [validateToken]);
 
   const todaySuccess = attendance.filter(a => a.ok).length;
   const todayGymEarnings = attendance.filter(a => a.ok && a.gymEarns).reduce((s, a) => s + (a.gymEarns ?? 0), 0);

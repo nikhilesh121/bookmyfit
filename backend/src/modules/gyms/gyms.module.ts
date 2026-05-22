@@ -7,15 +7,45 @@ import { GymEntity, GymPlanEntity, GymStatus } from '../../database/entities/gym
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { CheckinEntity } from '../../database/entities/checkin.entity';
-import { AmenityEntity, CategoryEntity } from '../../database/entities/misc.entity';
+import { AmenityEntity, CategoryEntity, RatingEntity } from '../../database/entities/misc.entity';
+import { AppConfigEntity } from '../../database/entities/app-config.entity';
 import { GymScheduleEntity } from '../../database/entities/gym-schedule.entity';
 import { TrainerBookingEntity, TrainerEntity } from '../../database/entities/trainer.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
+import { CommissionConfig, PLATFORM_PRICING_CONFIG_KEY, serviceCommission } from '../../common/commission-config';
 
 function normalizeCatalogName(value: any): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function defaultCatalogIcon(name: any, kind: 'category' | 'amenity' = 'category') {
+  const key = String(name || '').toLowerCase();
+  const matchers: Array<[string[], string]> = [
+    [['strength', 'weight', 'muscle', 'dumbbell'], 'lucide:dumbbell'],
+    [['cardio', 'run', 'running', 'treadmill'], 'lucide:activity'],
+    [['yoga', 'pilates', 'stretch'], 'lucide:flower'],
+    [['crossfit', 'hiit', 'functional'], 'lucide:zap'],
+    [['zumba', 'dance'], 'lucide:music'],
+    [['boxing', 'mma'], 'lucide:badge'],
+    [['pool', 'swim'], 'lucide:waves'],
+    [['parking'], 'lucide:parking-circle'],
+    [['shower', 'wash', 'bath'], 'lucide:shower-head'],
+    [['locker', 'changing', 'change room'], 'lucide:lock-keyhole'],
+    [['steam', 'sauna'], 'lucide:flame'],
+    [['wifi', 'internet'], 'lucide:wifi'],
+    [['ac', 'air', 'ventilation'], 'lucide:snowflake'],
+    [['trainer', 'coach'], 'lucide:user-round-check'],
+    [['nutrition', 'diet'], 'lucide:apple'],
+    [['cycle', 'spin', 'bike'], 'lucide:bike'],
+    [['recovery', 'physio'], 'lucide:heart-pulse'],
+    [['water', 'drinking'], 'lucide:waves'],
+    [['access', '24/7', '24x7'], 'lucide:badge'],
+  ];
+  const found = matchers.find(([tokens]) => tokens.some((token) => key.includes(token)));
+  if (found) return found[1];
+  return kind === 'amenity' ? 'lucide:sparkles' : 'lucide:dumbbell';
 }
 
 @Injectable()
@@ -31,7 +61,27 @@ class GymsService {
     @InjectRepository(GymPlanEntity) private readonly gymPlans: Repository<GymPlanEntity>,
     @InjectRepository(TrainerBookingEntity) private readonly trainerBookings: Repository<TrainerBookingEntity>,
     @InjectRepository(TrainerEntity) private readonly trainers: Repository<TrainerEntity>,
+    @InjectRepository(RatingEntity) private readonly ratings: Repository<RatingEntity>,
+    @InjectRepository(AppConfigEntity) private readonly configs: Repository<AppConfigEntity>,
   ) {}
+
+  private approvedRatingAverageSelect(alias = 'g') {
+    return `COALESCE((SELECT ROUND(AVG(r.stars)::numeric, 1)::double precision FROM ratings r WHERE r."gymId" = ${alias}.id AND r.status = 'approved'), 0)`;
+  }
+
+  private approvedRatingCountSelect(alias = 'g') {
+    return `COALESCE((SELECT COUNT(*)::int FROM ratings r WHERE r."gymId" = ${alias}.id AND r.status = 'approved'), 0)`;
+  }
+
+  private memberCode(userId?: string | null) {
+    const id = String(userId || '').replace(/-/g, '').toUpperCase();
+    return id ? `BMF-${id.slice(0, 10)}` : 'BMF-UNKNOWN';
+  }
+
+  private memberName(user?: UserEntity | null, userId?: string | null) {
+    const name = String(user?.name || '').trim();
+    return name || `Member ${this.memberCode(userId).replace('BMF-', '').slice(0, 6)}`;
+  }
 
   private safeGymQuery(alias = 'g', includeSensitive = false) {
     const qb = this.repo.createQueryBuilder(alias)
@@ -52,12 +102,13 @@ class GymsService {
       .addSelect(`${alias}.lat`, 'lat')
       .addSelect(`${alias}.lng`, 'lng')
       .addSelect(`${alias}.tier`, 'tier')
-      .addSelect(`${alias}.rating`, 'rating')
-      .addSelect(`${alias}.ratingCount`, 'ratingCount')
+      .addSelect(this.approvedRatingAverageSelect(alias), 'rating')
+      .addSelect(this.approvedRatingCountSelect(alias), 'ratingCount')
       .addSelect(`${alias}.status`, 'status')
       .addSelect(`${alias}.commissionRate`, 'commissionRate')
       .addSelect(`${alias}.coverPhoto`, 'coverPhoto')
       .addSelect(`${alias}.photos`, 'photos')
+      .addSelect(`${alias}.videos`, 'videos')
       .addSelect(`${alias}.amenities`, 'amenities')
       .addSelect(`${alias}.categories`, 'categories')
       .addSelect(`${alias}.ratePerDay`, 'ratePerDay')
@@ -75,20 +126,28 @@ class GymsService {
     return qb;
   }
 
-  private normalizeGym(row: any) {
+  private normalizeGym(row: any, options: { publicView?: boolean } = {}) {
     if (!row) return null;
     const openingTime = row.openingTime || '06:00';
     const closingTime = row.closingTime || '22:00';
     const photos = Array.isArray(row.photos) ? row.photos.filter(Boolean) : [];
+    const videos = Array.isArray(row.videos) ? row.videos.filter(Boolean) : [];
     const coverPhoto = row.coverPhoto || photos[0] || null;
-    return {
+    const ratingCount = Number(row.ratingCount || 0);
+    const rating = ratingCount > 0 ? Math.round(Number(row.rating || 0) * 10) / 10 : 0;
+    const normalized: any = {
       ...row,
+      rating,
+      ratingCount,
+      ratingsCount: ratingCount,
+      reviewCount: ratingCount,
       distanceKm: row.distanceKm !== undefined && row.distanceKm !== null ? Math.round(Number(row.distanceKm) * 10) / 10 : undefined,
       distance: row.distanceKm !== undefined && row.distanceKm !== null ? `${(Math.round(Number(row.distanceKm) * 10) / 10).toFixed(1)} km` : undefined,
       coverPhoto,
       coverImage: coverPhoto,
       photos,
       images: photos.length > 0 ? photos : (coverPhoto ? [coverPhoto] : []),
+      videos,
       phone: row.contactPhone ?? null,
       email: row.contactEmail ?? null,
       openingHours: `${openingTime} - ${closingTime}`,
@@ -96,10 +155,49 @@ class GymsService {
       dayPassPrice: row.dayPassPrice ?? null,
       sameGymMonthlyPrice: row.sameGymMonthlyPrice ?? null,
     };
+    if (options.publicView) {
+      delete normalized.ownerId;
+      delete normalized.commissionRate;
+      delete normalized.ratePerDay;
+      delete normalized.kycStatus;
+      delete normalized.kycDocuments;
+      delete normalized.kycReviewNote;
+    }
+    return normalized;
   }
 
-  private async attachSchedule(row: any) {
-    const normalized = this.normalizeGym(row);
+  private async withLiveRatings(rows: any[]) {
+    const ids = [...new Set((rows || []).map((row) => row?.id).filter(Boolean))];
+    if (!ids.length) return rows;
+
+    const aggregates = await this.ratings
+      .createQueryBuilder('r')
+      .select('r."gymId"', 'gymId')
+      .addSelect('AVG(r.stars)', 'avg')
+      .addSelect('COUNT(*)', 'count')
+      .where('r."gymId" IN (:...ids)', { ids })
+      .andWhere('r.status = :status', { status: 'approved' })
+      .groupBy('r."gymId"')
+      .getRawMany();
+    const byGym = new Map(aggregates.map((row: any) => [row.gymId, row]));
+
+    return rows.map((row) => {
+      const aggregate = byGym.get(row.id);
+      const ratingCount = Number(aggregate?.count || 0);
+      const rating = ratingCount > 0 ? Math.round(Number(aggregate?.avg || 0) * 10) / 10 : 0;
+      return {
+        ...row,
+        rating,
+        ratingCount,
+        ratingsCount: ratingCount,
+        reviewCount: ratingCount,
+        reviewsCount: ratingCount,
+      };
+    });
+  }
+
+  private async attachSchedule(row: any, options: { publicView?: boolean } = {}) {
+    const normalized = this.normalizeGym(row, options);
     if (!normalized?.id) return normalized;
     const schedule = await this.schedules.find({ where: { gymId: normalized.id }, order: { dayOfWeek: 'ASC' } });
     if (schedule.length > 0) {
@@ -117,12 +215,53 @@ class GymsService {
     return normalized;
   }
 
+  private async attachMasterDetails(row: any, options: { publicView?: boolean } = {}) {
+    const normalized = await this.attachSchedule(row, options);
+    if (!normalized) return normalized;
+    const amenityNames = Array.isArray(normalized.amenities) ? normalized.amenities.filter(Boolean) : [];
+    const categoryNames = Array.isArray(normalized.categories) ? normalized.categories.filter(Boolean) : [];
+    const [amenities, categories]: [AmenityEntity[], CategoryEntity[]] = await Promise.all([
+      amenityNames.length ? this.amenities.find({ where: { isActive: true, status: 'approved' } }) : [],
+      categoryNames.length ? this.categoriesRepo.find({ where: { isActive: true } }) : [],
+    ]);
+    const amenityByName = new Map<string, AmenityEntity>(amenities.map((item): [string, AmenityEntity] => [normalizeCatalogName(item.name), item]));
+    const categoryByName = new Map<string, CategoryEntity>(categories.map((item): [string, CategoryEntity] => [normalizeCatalogName(item.name), item]));
+    normalized.amenityDetails = amenityNames.map((name: string) => {
+      const item = amenityByName.get(normalizeCatalogName(name));
+      return { name, iconUrl: item?.iconUrl || defaultCatalogIcon(name, 'amenity') };
+    });
+    normalized.categoryDetails = categoryNames.map((name: string) => {
+      const item = categoryByName.get(normalizeCatalogName(name));
+      return { name, iconUrl: item?.iconUrl || defaultCatalogIcon(name, 'category') };
+    });
+    return normalized;
+  }
+
   private isTime(value: any) {
     return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
   }
 
   private compactPatch(data: Record<string, any>) {
     return Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+  }
+
+  private normalizeStringList(value: any): string[] | undefined {
+    if (value === undefined) return undefined;
+    const rawItems = Array.isArray(value) ? value : (typeof value === 'string' ? value.split(',') : []);
+    const cleaned = rawItems
+      .map((item) => {
+        if (typeof item === 'string') return item.trim();
+        return String(item?.url ?? item?.uri ?? item?.src ?? item?.path ?? '').trim();
+      })
+      .filter(Boolean);
+    return [...new Set(cleaned)];
+  }
+
+  private normalizeStringValue(value: any): string | null | undefined {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+    const clean = String(value).trim();
+    return clean || null;
   }
 
   private kycPhotoUrls(docs: any[] = []) {
@@ -132,6 +271,9 @@ class GymsService {
         doc?.fields?.exteriorPhotoUrl,
         doc?.fields?.interiorPhotoUrl,
         doc?.fields?.equipmentPhotoUrl,
+        ...(this.normalizeStringList(doc?.fields?.photoUrls) || []),
+        ...(this.normalizeStringList(doc?.fields?.photos) || []),
+        ...(this.normalizeStringList(doc?.fields?.images) || []),
         doc?.url,
       ])
       .filter((url) => typeof url === 'string' && url.trim().length > 0)
@@ -141,6 +283,11 @@ class GymsService {
 
   private sanitizeGymPatch(data: any, isAdmin = false): Partial<GymEntity> {
     const raw = data || {};
+    const photos = this.normalizeStringList(raw.photos ?? raw.images ?? raw.media ?? raw.galleryImages);
+    const videos = this.normalizeStringList(raw.videos ?? raw.profileVideos ?? raw.videoUrls);
+    const coverInput = raw.coverPhoto !== undefined ? raw.coverPhoto : raw.coverImage;
+    let coverPhoto = this.normalizeStringValue(coverInput);
+    if (photos !== undefined && coverPhoto === undefined) coverPhoto = photos[0] || null;
     const patch: any = {
       name: raw.name ?? raw.displayName,
       city: raw.city,
@@ -151,8 +298,9 @@ class GymsService {
       contactPhone: raw.contactPhone ?? raw.phone,
       contactEmail: raw.contactEmail ?? raw.email,
       website: raw.website,
-      coverPhoto: raw.coverPhoto ?? raw.coverImage,
-      photos: Array.isArray(raw.photos) ? raw.photos : (Array.isArray(raw.images) ? raw.images : undefined),
+      coverPhoto,
+      photos,
+      videos,
       amenities: Array.isArray(raw.amenities) ? raw.amenities : undefined,
       categories: Array.isArray(raw.categories) ? raw.categories : undefined,
       openingTime: raw.openingTime,
@@ -216,10 +364,28 @@ class GymsService {
   private async assertGymAccess(id: string, user: any) {
     const gym = await this.repo.findOne({ where: { id } });
     if (!gym) throw new NotFoundException('Gym not found');
-    if (user?.role !== 'super_admin' && gym.ownerId !== user?.userId) {
-      throw new ForbiddenException('Cannot update another gym');
+    if (user?.role === 'super_admin' || gym.ownerId === user?.userId) return gym;
+    if (user?.role === 'gym_staff') {
+      const staff = await this.users.findOne({ where: { id: user?.userId } });
+      if (staff?.gymId === gym.id) return gym;
     }
-    return gym;
+    throw new ForbiddenException('Cannot update another gym');
+  }
+
+  private async gymEntityForActor(actorId: string) {
+    const owned = await this.repo.findOne({ where: { ownerId: actorId } });
+    if (owned) return owned;
+    const user = await this.users.findOne({ where: { id: actorId } });
+    if (user?.role === 'gym_staff' && user.gymId) {
+      return this.repo.findOne({ where: { id: user.gymId } });
+    }
+    return null;
+  }
+
+  private async gymForActorQuery(actorId: string, alias = 'g') {
+    const gym = await this.gymEntityForActor(actorId);
+    if (!gym) return null;
+    return this.safeGymQuery(alias).where(`${alias}.id = :id`, { id: gym.id }).getRawOne();
   }
 
   private async canonicalCategories(names: any[] | undefined) {
@@ -291,8 +457,8 @@ class GymsService {
   private recomputeKycStatus(docs: any[] = []) {
     if (!docs.length) return 'not_started';
     if (this.areRequiredKycDocsApproved(docs)) return 'approved';
-    if (docs.some((doc) => doc.status === 'in_review')) return 'in_review';
-    if (docs.some((doc) => doc.status === 'rejected')) return 'rejected';
+    if (!this.areRequiredKycDocsSubmitted(docs)) return 'in_review';
+    if (docs.some((doc) => doc.status === 'in_review' || doc.status === 'rejected')) return 'in_review';
     return 'in_review';
   }
 
@@ -331,7 +497,7 @@ class GymsService {
   private statusForKyc(kycStatus: string, currentStatus?: string): GymStatus {
     if (kycStatus === 'approved') return 'active';
     if (kycStatus === 'rejected') return 'rejected';
-    if (currentStatus === 'active') return 'pending';
+    if (currentStatus === 'active' || currentStatus === 'rejected') return 'pending';
     return (currentStatus as GymStatus) || 'pending';
   }
 
@@ -348,11 +514,38 @@ class GymsService {
     return this.paidSubscriptionStatuses().includes(String(sub.status || '').toLowerCase());
   }
 
-  private gymPlanAmount(sub: SubscriptionEntity, gym: any, plan?: GymPlanEntity | null) {
+  private baseFromCheckoutAmount(checkoutAmount: any, commission?: CommissionConfig | null) {
+    const amount = Number(checkoutAmount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) return 0;
+    const value = Math.max(0, Number(commission?.value) || 0);
+    if (value <= 0) return this.money(amount);
+    if (commission?.mode === 'fixed') return this.money(Math.max(0, amount - value));
+    return this.money(amount / (1 + value / 100));
+  }
+
+  private gymPlanAmount(sub: SubscriptionEntity, gym: any, plan?: GymPlanEntity | null, commission?: CommissionConfig | null) {
     if (!this.isPaidSubscription(sub)) return 0;
-    if (sub.planType === 'same_gym') return this.money(plan?.price ?? gym.sameGymMonthlyPrice ?? 0);
-    if (sub.planType === 'day_pass') return this.money(gym.dayPassPrice ?? 149);
+    if (sub.planType === 'same_gym') {
+      const planPrice = Number((plan as any)?.salePrice || plan?.price || 0);
+      if (planPrice > 0) return this.money(planPrice);
+      const monthlyPrice = Number(gym.sameGymMonthlyPrice || 0);
+      if (monthlyPrice > 0) return this.money(monthlyPrice * Math.max(1, Number(sub.durationMonths) || 1));
+      return this.baseFromCheckoutAmount(sub.amountPaid, commission);
+    }
+    if (sub.planType === 'day_pass') {
+      const gymPrice = Number(gym.dayPassPrice || 0);
+      if (gymPrice > 0) return this.money(gymPrice);
+      return this.baseFromCheckoutAmount(sub.amountPaid, commission) || 149;
+    }
     return 0;
+  }
+
+  private async directSubscriptionCommissionConfig() {
+    const row = await this.configs.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } });
+    return {
+      same_gym: serviceCommission(row?.value, 'same_gym'),
+      day_pass: serviceCommission(row?.value, 'day_pass'),
+    };
   }
 
   private trainerGymAmount(booking: TrainerBookingEntity) {
@@ -399,10 +592,18 @@ class GymsService {
         id: booking.id,
         trainerId: booking.trainerId,
         trainerName: trainer?.name || 'Assigned trainer',
+        specialization: trainer?.specialization || null,
+        photoUrl: trainer?.photoUrl || null,
         status: booking.status,
+        sessionDate: booking.sessionDate,
         durationMonths: booking.durationMonths,
+        sessions: booking.sessions,
+        amount: this.money(booking.amount),
+        platformCommission: this.money(booking.platformCommission),
         monthlyPrice: booking.durationMonths ? Math.round(gymAmount / Math.max(1, booking.durationMonths)) : gymAmount,
         gymAmount,
+        cashfreeOrderId: booking.cashfreeOrderId,
+        createdAt: booking.createdAt,
       };
       const rows = byOrder.get(booking.cashfreeOrderId) || [];
       rows.push(item);
@@ -441,8 +642,51 @@ class GymsService {
   }
 
   async myGym(ownerId: string) {
-    const row = await this.safeGymQuery('g').where('g."ownerId" = :ownerId', { ownerId }).getRawOne();
-    return this.attachSchedule(row);
+    const row = await this.gymForActorQuery(ownerId, 'g');
+    return this.attachMasterDetails(row);
+  }
+
+  async myReviews(ownerId: string) {
+    const gym = await this.myGym(ownerId) as any;
+    if (!gym?.id) return { data: [], stats: { total: 0, approved: 0, pending: 0, rejected: 0, average: 0 } };
+    const rows = await this.ratings
+      .createQueryBuilder('r')
+      .leftJoin(UserEntity, 'u', 'u.id = r."userId"')
+      .where('r."gymId" = :gymId', { gymId: gym.id })
+      .orderBy('r.createdAt', 'DESC')
+      .select([
+        'r.id AS id',
+        'r."userId" AS "userId"',
+        'r.stars AS stars',
+        'r.review AS review',
+        'r.status AS status',
+        'r.createdAt AS "createdAt"',
+        'u.name AS "userName"',
+      ])
+      .getRawMany();
+    const approved = rows.filter((row: any) => row.status === 'approved');
+    const average = approved.length
+      ? Math.round((approved.reduce((sum: number, row: any) => sum + Number(row.stars || 0), 0) / approved.length) * 10) / 10
+      : 0;
+    return {
+      data: rows.map((row: any) => ({
+        id: row.id,
+        userId: row.userId,
+        memberCode: this.memberCode(row.userId),
+        userName: row.userName || this.memberName(null, row.userId),
+        stars: Number(row.stars || 0),
+        review: row.review || '',
+        status: row.status,
+        createdAt: row.createdAt,
+      })),
+      stats: {
+        total: rows.length,
+        approved: approved.length,
+        pending: rows.filter((row: any) => row.status === 'pending').length,
+        rejected: rows.filter((row: any) => row.status === 'rejected').length,
+        average,
+      },
+    };
   }
 
   async myMembers(ownerId: string, opts: { page?: number; limit?: number; search?: string; status?: string } = {}) {
@@ -461,9 +705,7 @@ class GymsService {
       return qb.andWhere(new Brackets((where) => {
         where
           .where('s."userId"::text ILIKE :q', { q: `%${search}%` })
-          .orWhere('u.name ILIKE :q', { q: `%${search}%` })
-          .orWhere('u.phone ILIKE :q', { q: `%${search}%` })
-          .orWhere('u.email ILIKE :q', { q: `%${search}%` });
+          .orWhere('u.name ILIKE :q', { q: `%${search}%` });
       }));
     };
 
@@ -499,6 +741,7 @@ class GymsService {
     const userMap = new Map(users.map((u) => [u.id, u]));
     const planRows = gymPlanIds.length ? await this.gymPlans.find({ where: { id: In(gymPlanIds as string[]) } }) : [];
     const planMap = new Map(planRows.map((p) => [p.id, p]));
+    const commissionConfig = await this.directSubscriptionCommissionConfig();
     const { byOrder: trainerAddonsByOrder, amountByOrder: trainerAmountByOrder } = await this.trainerAddonsByOrder(
       gym.id,
       subs.map((s) => s.razorpayOrderId).filter(Boolean),
@@ -527,17 +770,22 @@ class GymsService {
       const canDeactivate = s.planType !== 'multi_gym' && ((s.gymIds || []).includes(gym.id) || belongsByGymPlan);
       const subscriptionGymAmount = s.planType === 'multi_gym'
         ? this.money((multiGymVisitCount.get(s.id) || 0) * ratePerDay)
-        : this.gymPlanAmount(s, gym, gymPlan);
+        : this.gymPlanAmount(s, gym, gymPlan, commissionConfig[s.planType as 'same_gym' | 'day_pass']);
       const trainerAddons = s.razorpayOrderId ? (trainerAddonsByOrder.get(s.razorpayOrderId) || []) : [];
       const trainerGymAmount = s.razorpayOrderId ? (trainerAmountByOrder.get(s.razorpayOrderId) || 0) : 0;
-      (s as any).userPhone = user?.phone || user?.email || '-';
+      const memberCode = this.memberCode(s.userId);
       return {
         id: s.id,
+        subscriptionId: s.id,
         userId: s.userId,
-        name: user?.name || user?.email || `User-${s.userId.slice(0, 6)}`,
-        phone: (s as any).userPhone || '—',
+        memberCode,
+        name: this.memberName(user, s.userId),
+        phone: null,
         planType: s.planType,
         planName: gymPlan?.name || null,
+        gymPlanId: s.gymPlanId || null,
+        gymIds: s.gymIds || [],
+        durationMonths: s.durationMonths,
         gymType: s.planType === 'multi_gym' ? 'Multi Gym' : 'Single Gym',
         gymCount: s.planType === 'multi_gym' ? Math.max(gymCount, 1) : gymCount,
         status: s.status === 'cancelled' ? 'cancelled' : (isExpired ? 'expired' : s.status),
@@ -553,7 +801,11 @@ class GymsService {
         trainerSummary: trainerAddons.length
           ? trainerAddons.map((addon) => `${addon.trainerName} (${addon.status})`).join(', ')
           : null,
-        userPaidAmount: undefined,
+        userPaidAmount: this.money(s.amountPaid),
+        cashfreeOrderId: s.razorpayOrderId || null,
+        cashfreePaymentId: s.razorpayPaymentId || null,
+        invoiceNumber: s.invoiceNumber || null,
+        planBaseAmount: gymPlan ? this.money(gymPlan.price) : null,
         createdAt: s.createdAt,
         todayCheckins: todayCheckins.get(s.userId) || 0,
         canDeactivate,
@@ -584,9 +836,7 @@ class GymsService {
       return qb.andWhere(new Brackets((where) => {
         where
           .where('s."userId"::text ILIKE :q', { q: `%${search}%` })
-          .orWhere('u.name ILIKE :q', { q: `%${search}%` })
-          .orWhere('u.phone ILIKE :q', { q: `%${search}%` })
-          .orWhere('u.email ILIKE :q', { q: `%${search}%` });
+          .orWhere('u.name ILIKE :q', { q: `%${search}%` });
       }));
     };
 
@@ -600,6 +850,7 @@ class GymsService {
     ]);
     const userMap = new Map<string, UserEntity>(users.map((u): [string, UserEntity] => [u.id, u]));
     const planMap = new Map<string, GymPlanEntity>(planRows.map((p): [string, GymPlanEntity] => [p.id, p]));
+    const commissionConfig = await this.directSubscriptionCommissionConfig();
     const { byOrder: trainerAddonsByOrder, amountByOrder: trainerAmountByOrder } = await this.trainerAddonsByOrder(
       gym.id,
       subs.map((s) => s.razorpayOrderId).filter(Boolean),
@@ -656,18 +907,23 @@ class GymsService {
       const canDeactivate = s.planType !== 'multi_gym' && ((s.gymIds || []).includes(gym.id) || belongsByGymPlan);
       const subscriptionGymAmount = s.planType === 'multi_gym'
         ? this.money((multiGymVisitCount.get(s.id) || 0) * ratePerDay)
-        : this.gymPlanAmount(s, gym, gymPlan);
+        : this.gymPlanAmount(s, gym, gymPlan, commissionConfig[s.planType as 'same_gym' | 'day_pass']);
       const trainerAddons = s.razorpayOrderId ? (trainerAddonsByOrder.get(s.razorpayOrderId) || []) : [];
       const trainerGymAmount = s.razorpayOrderId ? (trainerAmountByOrder.get(s.razorpayOrderId) || 0) : 0;
       const checkinSummary = checkinsBySub.get(s.id) || { count: 0, lastVisit: null };
+      const memberCode = this.memberCode(s.userId);
       return {
         id: s.id,
         subscriptionId: s.id,
         userId: s.userId,
-        name: user?.name || user?.email || `User-${s.userId.slice(0, 6)}`,
-        phone: user?.phone || user?.email || '-',
+        memberCode,
+        name: this.memberName(user, s.userId),
+        phone: null,
         planType: s.planType,
         planName: gymPlan?.name || null,
+        gymPlanId: s.gymPlanId || null,
+        gymIds: s.gymIds || [],
+        durationMonths: s.durationMonths,
         gymType: s.planType === 'multi_gym' ? 'Multi Gym' : 'Single Gym',
         gymCount: s.planType === 'multi_gym' ? Math.max(gymCount, 1) : gymCount,
         status: s.status === 'cancelled' ? 'cancelled' : (isExpired ? 'expired' : s.status),
@@ -683,7 +939,11 @@ class GymsService {
         trainerSummary: trainerAddons.length
           ? trainerAddons.map((addon) => `${addon.trainerName} (${addon.status})`).join(', ')
           : null,
-        userPaidAmount: undefined,
+        userPaidAmount: this.money(s.amountPaid),
+        cashfreeOrderId: s.razorpayOrderId || null,
+        cashfreePaymentId: s.razorpayPaymentId || null,
+        invoiceNumber: s.invoiceNumber || null,
+        planBaseAmount: gymPlan ? this.money(gymPlan.price) : null,
         createdAt: s.createdAt,
         todayCheckins: todayCheckins.get(s.userId) || 0,
         checkinsAtGym: (checkinSummary as any).count || 0,
@@ -694,7 +954,7 @@ class GymsService {
 
     const grouped = new Map<string, any>();
     for (const row of historyRows) {
-      const group = grouped.get(row.userId) || { userId: row.userId, name: row.name, phone: row.phone, history: [] };
+      const group = grouped.get(row.userId) || { userId: row.userId, memberCode: row.memberCode, name: row.name, phone: null, history: [] };
       group.history.push(row);
       grouped.set(row.userId, group);
     }
@@ -708,6 +968,8 @@ class GymsService {
         ...current,
         id: current.id,
         memberId: group.userId,
+        memberCode: group.memberCode || this.memberCode(group.userId),
+        phone: null,
         currentSubscriptionId: current.id,
         subscriptionCount: history.length,
         history,
@@ -781,8 +1043,9 @@ class GymsService {
       return {
         ...c,
         planType: sub?.planType || null,
-        userName: user?.name || null,
-        userPhone: user?.phone || user?.email || null,
+        memberCode: this.memberCode(c.userId),
+        userName: this.memberName(user, c.userId),
+        userPhone: null,
         ratePerDay,
         gymEarns: c.status === 'success' ? gymShare : 0,
         adminEarns: c.status === 'success' ? adminShare : 0,
@@ -842,9 +1105,10 @@ class GymsService {
     const planMap = new Map(plans.map((plan) => [plan.id, plan]));
     const userMap = new Map<string, UserEntity>(users.map((u): [string, UserEntity] => [u.id, u]));
     const subMap = new Map<string, SubscriptionEntity>(subs.map((s): [string, SubscriptionEntity] => [s.id, s]));
+    const commissionConfig = await this.directSubscriptionCommissionConfig();
     const daily = new Map<string, number>();
     const hourly = new Map<number, number>();
-    const members = new Map<string, { id: string; name: string; visits: number; plan: string; lastVisit: string }>();
+    const members = new Map<string, { id: string; memberCode: string; name: string; visits: number; plan: string; lastVisit: string }>();
     for (const row of rows) {
       const date = new Date(row.checkinTime);
       const key = date.toISOString().slice(0, 10);
@@ -854,7 +1118,8 @@ class GymsService {
       const sub = subMap.get(row.subscriptionId);
       const member = members.get(row.userId) || {
         id: row.userId,
-        name: user?.name || user?.phone || user?.email || `Member ${String(row.userId).slice(0, 6)}`,
+        memberCode: this.memberCode(row.userId),
+        name: this.memberName(user, row.userId),
         visits: 0,
         plan: sub?.planType || 'Membership',
         lastVisit: '',
@@ -872,14 +1137,14 @@ class GymsService {
     const ratePerDay = Number((gym as any).ratePerDay ?? 50);
     const directPlans = (list: SubscriptionEntity[]) => list.filter((sub) => sub.planType === 'same_gym' || sub.planType === 'day_pass');
     const totalForPlans = (list: SubscriptionEntity[]) => directPlans(list).reduce((sum, sub) => (
-      sum + this.gymPlanAmount(sub, gym, sub.gymPlanId ? planMap.get(sub.gymPlanId) : null)
+      sum + this.gymPlanAmount(sub, gym, sub.gymPlanId ? planMap.get(sub.gymPlanId) : null, commissionConfig[sub.planType as 'same_gym' | 'day_pass'])
     ), 0);
     const sameGymRevenue = periodSubs
       .filter((sub) => sub.planType === 'same_gym')
-      .reduce((sum, sub) => sum + this.gymPlanAmount(sub, gym, sub.gymPlanId ? planMap.get(sub.gymPlanId) : null), 0);
+      .reduce((sum, sub) => sum + this.gymPlanAmount(sub, gym, sub.gymPlanId ? planMap.get(sub.gymPlanId) : null, commissionConfig.same_gym), 0);
     const dayPassRevenue = periodSubs
       .filter((sub) => sub.planType === 'day_pass')
-      .reduce((sum, sub) => sum + this.gymPlanAmount(sub, gym, sub.gymPlanId ? planMap.get(sub.gymPlanId) : null), 0);
+      .reduce((sum, sub) => sum + this.gymPlanAmount(sub, gym, sub.gymPlanId ? planMap.get(sub.gymPlanId) : null, commissionConfig.day_pass), 0);
     const periodMultiGymSubIds = [...new Set(rows
       .filter((row) => subMap.get(row.subscriptionId)?.planType === 'multi_gym')
       .map((row) => row.subscriptionId)
@@ -1014,12 +1279,13 @@ class GymsService {
       }
     }
     const { skip, take, page: p, limit: l } = paginate(page, limit);
-    const orderColumn = location && (filter.sort === 'nearest' || radiusKm !== null) ? '"distanceKm"' : (filter.kycStatus ? 'g.updatedAt' : 'g.rating');
+    const orderColumn = location && (filter.sort === 'nearest' || radiusKm !== null) ? '"distanceKm"' : (filter.kycStatus ? 'g.updatedAt' : '"rating"');
     const [data, total] = await Promise.all([
       qb.clone().orderBy(orderColumn, orderColumn === '"distanceKm"' ? 'ASC' : 'DESC').skip(skip).take(take).getRawMany(),
       qb.clone().getCount(),
     ]);
-    return paginatedResponse(data.map((row) => this.normalizeGym(row)), total, p, l);
+    const liveRows = await this.withLiveRatings(data);
+    return paginatedResponse(liveRows.map((row) => this.normalizeGym(row, { publicView: options.publicOnly !== false })), total, p, l);
   }
 
   async get(id: string, options: { publicOnly?: boolean } = {}) {
@@ -1028,7 +1294,8 @@ class GymsService {
     if (options.publicOnly && (row.status !== 'active' || row.kycStatus !== 'approved' || !this.hasValidGymLocation(row))) {
       throw new NotFoundException('Gym not found');
     }
-    return this.attachSchedule(row);
+    const [liveRow] = await this.withLiveRatings([row]);
+    return this.attachMasterDetails(liveRow, { publicView: !!options.publicOnly });
   }
 
   async adminList(filter: { city?: string; status?: string; kycStatus?: string; search?: string; tier?: string; category?: string } = {}, page: any = 1, limit: any = 20) {
@@ -1066,7 +1333,7 @@ class GymsService {
   }
 
   async submitMyLocation(ownerId: string, data: { lat?: number; lng?: number }) {
-    const gym = await this.repo.findOne({ where: { ownerId } });
+    const gym = await this.gymEntityForActor(ownerId);
     if (!gym) throw new NotFoundException('Gym not found');
     if (this.hasValidGymLocation(gym)) {
       throw new BadRequestException('Gym location is already submitted. Contact admin to change latitude or longitude.');
@@ -1102,7 +1369,7 @@ class GymsService {
   }
 
   async updateMyAmenities(ownerId: string, names: string[]) {
-    const gym = await this.repo.findOne({ where: { ownerId } });
+    const gym = await this.gymEntityForActor(ownerId);
     if (!gym) throw new NotFoundException('Gym not found');
     const active = await this.amenities.find({ where: { isActive: true, status: 'approved' } });
     const byName = new Map(active.map((a) => [a.name.trim().toLowerCase(), a.name.trim()]));
@@ -1175,11 +1442,12 @@ class GymsService {
     const photos = kycStatus === 'approved' ? [...new Set([...existingPhotos, ...kycPhotos])] : existingPhotos;
     const nextStatus = this.statusForKyc(kycStatus, gym.status);
     if (nextStatus === 'active') this.assertGymLocationReady(gym);
+    const rejectedDoc = docs.find((doc: any) => doc.status === 'rejected');
     await this.repo.update(id, {
       status: nextStatus,
       kycStatus,
       kycDocuments: docs,
-      kycReviewNote: kycStatus === 'rejected' ? (body.reason || 'One or more KYC documents were rejected') : null,
+      kycReviewNote: kycStatus === 'approved' ? null : (rejectedDoc?.reviewNote || null),
       coverPhoto: kycStatus === 'approved' ? (gym.coverPhoto || photos[0] || null) : gym.coverPhoto,
       photos,
     });
@@ -1224,6 +1492,10 @@ class GymsService {
     const name = doc.name || schema.label;
     const nextDoc = { type: doc.type, name, url, fields, status: 'in_review' as const, uploadedAt: new Date().toISOString() };
     const existingIndex = docs.findIndex((d: any) => d.type === doc.type);
+    const existingDoc = existingIndex >= 0 ? docs[existingIndex] : null;
+    if (existingDoc && existingDoc.status !== 'rejected') {
+      throw new BadRequestException('This KYC document is already submitted or approved');
+    }
     if (existingIndex >= 0) docs[existingIndex] = nextDoc;
     else docs.push(nextDoc);
     const kycStatus = this.recomputeKycStatus(docs);
@@ -1258,7 +1530,7 @@ class GymsService {
     const qb = this.safeGymQuery('gym')
       .where(this.publicVisibilityPredicate('gym'), { publicStatus: 'active' })
       .andWhere('gym.id NOT IN (:...usedIds)', { usedIds: excludeIds })
-      .orderBy('gym.rating', 'DESC')
+      .orderBy('"rating"', 'DESC')
       .take(10);
 
     if (preferredCities.length > 0) {
@@ -1279,7 +1551,7 @@ class GymsService {
     if (recommended.length < 5) {
       const topRated = await this.safeGymQuery('g')
         .where(this.publicVisibilityPredicate('g'), { publicStatus: 'active' })
-        .orderBy('g.rating', 'DESC')
+        .orderBy('"rating"', 'DESC')
         .take(10)
         .getRawMany();
       const existing = new Set(recommended.map(g => g.id));
@@ -1288,7 +1560,8 @@ class GymsService {
         if (recommended.length >= 10) break;
       }
     }
-    return recommended.slice(0, 10).map((row) => this.normalizeGym(row));
+    const liveRows = await this.withLiveRatings(recommended.slice(0, 10));
+    return liveRows.map((row) => this.normalizeGym(row));
   }
 }
 
@@ -1307,6 +1580,9 @@ class GymsController {
     @Query('search') search?: string,
     @Query('status') status?: string,
   ) { return this.svc.myMembersGrouped(req.user.userId, { page: +page, limit: +limit, search, status }); }
+
+  @Get('my-reviews') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
+  myReviews(@Req() req: any) { return this.svc.myReviews(req.user.userId); }
 
   @Patch('my-members/:subId/deactivate') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
   deactivateMember(@Req() req: any, @Param('subId') subId: string) {
@@ -1410,7 +1686,7 @@ class GymsController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([GymEntity, GymPlanEntity, SubscriptionEntity, UserEntity, CheckinEntity, AmenityEntity, CategoryEntity, GymScheduleEntity, TrainerBookingEntity, TrainerEntity])],
+  imports: [TypeOrmModule.forFeature([GymEntity, GymPlanEntity, SubscriptionEntity, UserEntity, CheckinEntity, AmenityEntity, CategoryEntity, RatingEntity, AppConfigEntity, GymScheduleEntity, TrainerBookingEntity, TrainerEntity])],
   controllers: [GymsController],
   providers: [GymsService],
   exports: [GymsService],

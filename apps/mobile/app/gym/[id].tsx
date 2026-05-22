@@ -1,4 +1,4 @@
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Dimensions, Share, Linking } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Dimensions, Share, Linking, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { useState, useEffect, useCallback } from 'react';
@@ -13,7 +13,7 @@ import {
 import { gymsApi, subscriptionsApi, api } from '../../lib/api';
 import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList, subscriptionPlanType } from '../../lib/subscriptionAccess';
 import AuroraBackground from '../../components/AuroraBackground';
-import { DEFAULT_GYM_IMAGE, firstImage } from '../../lib/imageFallbacks';
+import { DEFAULT_GYM_IMAGE, firstImage, imageList } from '../../lib/imageFallbacks';
 import { applyPassCommission } from '../../lib/passPricing';
 
 const { width } = Dimensions.get('window');
@@ -36,17 +36,24 @@ function tierLabel(value: any): 'Elite' | 'Premium' | 'Standard' {
   return 'Standard';
 }
 
-function AmenityIcon({ label }: { label: string }) {
-  const value = label.toLowerCase();
+function AmenityIcon({ label, iconUrl }: { label: string; iconUrl?: string | null }) {
+  const customIcon = String(iconUrl || '').trim();
+  if (customIcon && !customIcon.startsWith('lucide:')) {
+    const iconImage = firstImage(customIcon);
+    if (iconImage) return <Image source={{ uri: iconImage }} style={{ width: 16, height: 16 }} resizeMode="contain" />;
+  }
+
+  const value = `${label} ${customIcon}`.toLowerCase();
   let Icon = IconShield;
 
-  if (value.includes('locker') || value.includes('changing')) Icon = IconLock;
+  if (value.includes('locker') || value.includes('changing') || value.includes('lock-keyhole')) Icon = IconLock;
   else if (value.includes('wifi') || value.includes('internet')) Icon = IconGlobe;
-  else if (value.includes('parking') || value.includes('location')) Icon = IconPin;
-  else if (value.includes('shower') || value.includes('wash') || value.includes('water')) Icon = IconRefresh;
-  else if (value.includes('trainer') || value.includes('coach')) Icon = IconHeadphones;
-  else if (value.includes('ac') || value.includes('air') || value.includes('steam') || value.includes('sauna')) Icon = IconBolt;
-  else if (value.includes('equipment') || value.includes('weight') || value.includes('cardio') || value.includes('gym')) Icon = IconDumbbell;
+  else if (value.includes('parking') || value.includes('location') || value.includes('parking-circle')) Icon = IconPin;
+  else if (value.includes('shower') || value.includes('wash') || value.includes('water') || value.includes('waves')) Icon = IconRefresh;
+  else if (value.includes('trainer') || value.includes('coach') || value.includes('user-round-check')) Icon = IconHeadphones;
+  else if (value.includes('ac') || value.includes('air') || value.includes('steam') || value.includes('sauna') || value.includes('snowflake') || value.includes('flame') || value.includes('air-vent')) Icon = IconBolt;
+  else if (value.includes('equipment') || value.includes('weight') || value.includes('cardio') || value.includes('gym') || value.includes('dumbbell') || value.includes('activity') || value.includes('bike')) Icon = IconDumbbell;
+  else if (value.includes('sparkles') || value.includes('flower') || value.includes('badge') || value.includes('apple') || value.includes('nutrition') || value.includes('recovery') || value.includes('heart-pulse')) Icon = IconShield;
 
   return <Icon size={16} color={colors.accent} />;
 }
@@ -64,8 +71,8 @@ function minMonthlyPlanPrice(plans: any[], commission?: any) {
   const monthlyPrices = plans
     .filter((plan) => plan?.isActive !== false)
     .map((plan) => {
-      const price = positiveNumber(plan?.price || plan?.basePrice);
-      const checkoutPrice = applyPassCommission(price, commission);
+      const salePrice = positiveNumber(plan?.checkoutSalePrice) || applyPassCommission(positiveNumber(plan?.salePrice) || positiveNumber(plan?.price || plan?.basePrice), commission);
+      const checkoutPrice = salePrice;
       return checkoutPrice ? checkoutPrice / planMonths(plan) : null;
     })
     .filter((price): price is number => !!price);
@@ -110,7 +117,7 @@ function toTextArray(value: any): string[] {
     ? value
     : (typeof value === 'string' ? value.split(',') : []);
   return [...new Set(raw
-    .map((item: any) => (typeof item === 'string' ? item : (item?.name || item?.label || '')))
+    .map((item: any) => (typeof item === 'string' ? item : (item?.name || item?.label || item?.title || '')))
     .map((item: string) => item.trim())
     .filter(Boolean))];
 }
@@ -123,6 +130,73 @@ function coordinate(...values: any[]): number | null {
   return null;
 }
 
+function ratingNumber(value: any): number | null {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return Math.min(5, Math.max(0, num));
+}
+
+function firstRatingNumber(...values: any[]): number | null {
+  for (const value of values) {
+    const rating = ratingNumber(value);
+    if (rating !== null) return rating;
+  }
+  return null;
+}
+
+function countNumber(value: any): number | null {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) return null;
+  return Math.round(num);
+}
+
+function firstCountNumber(...values: any[]): number | null {
+  for (const value of values) {
+    const count = countNumber(value);
+    if (count !== null) return count;
+  }
+  return null;
+}
+
+function reviewCountLabel(count: number) {
+  return `${count} ${count === 1 ? 'review' : 'reviews'}`;
+}
+
+function normalizeRatingList(data: any): any[] {
+  const list = Array.isArray(data)
+    ? data
+    : data?.ratings || data?.reviews || data?.items || data?.results || data?.data?.ratings || data?.data?.reviews || data?.data || [];
+  return Array.isArray(list) ? list : [];
+}
+
+function ratingFromReview(item: any): number | null {
+  return firstRatingNumber(item?.stars, item?.rating, item?.score, item?.value);
+}
+
+function ratingSummaryFromResponse(data: any, list: any[]) {
+  const source = Array.isArray(data)
+    ? {}
+    : data?.summary || data?.stats || data?.meta || data?.data?.summary || data?.data || data || {};
+  const explicitRating = firstRatingNumber(
+    source?.averageRating,
+    source?.avgRating,
+    source?.rating,
+    source?.meanRating,
+  );
+  const explicitCount = firstCountNumber(
+    source?.ratingCount,
+    source?.ratingsCount,
+    source?.reviewCount,
+    source?.reviewsCount,
+    source?.count,
+    source?.total,
+  );
+  const scores = list.map(ratingFromReview).filter((value): value is number => value !== null);
+  const count = explicitCount ?? scores.length;
+  const rating = explicitRating ?? (scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : null);
+  return { rating, count };
+}
+
 function SkeletonRect({ h, style }: { h: number; style?: any }) {
   return <View style={[{ height: h, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.07)' }, style]} />;
 }
@@ -130,11 +204,12 @@ function SkeletonRect({ h, style }: { h: number; style?: any }) {
 export default function GymDetail() {
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 34);
-  const { id, fallbackName, fallbackAddress, fallbackRating, fallbackTier, fallbackImg } = useLocalSearchParams<{
+  const { id, fallbackName, fallbackAddress, fallbackRating, fallbackReviewCount, fallbackTier, fallbackImg } = useLocalSearchParams<{
     id: string;
     fallbackName?: string;
     fallbackAddress?: string;
     fallbackRating?: string;
+    fallbackReviewCount?: string;
     fallbackTier?: string;
     fallbackImg?: string;
   }>();
@@ -144,6 +219,7 @@ export default function GymDetail() {
   const [activeSub, setActiveSub] = useState<any>(null);
   const [trainers, setTrainers] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [ratingSummary, setRatingSummary] = useState<{ rating: number | null; count: number; loaded: boolean }>({ rating: null, count: 0, loaded: false });
   const [gymPlans, setGymPlans] = useState<any[]>([]);
   const [gymPlansLoading, setGymPlansLoading] = useState(false);
   const [passPricingConfig, setPassPricingConfig] = useState<any>(null);
@@ -155,17 +231,25 @@ export default function GymDetail() {
 
   const fallbackGym = useCallback(() => {
     if (!id) return null;
+    const hasFallbackData = [fallbackName, fallbackAddress, fallbackImg].some((value) => typeof value === 'string' && value.trim());
+    if (!hasFallbackData) return null;
     const image = typeof fallbackImg === 'string' && fallbackImg.trim() ? fallbackImg : null;
+    const reviewCount = firstCountNumber(fallbackReviewCount) || 0;
+    const rating = reviewCount > 0 ? firstRatingNumber(fallbackRating) : null;
     return {
       id: String(id),
       name: fallbackName || 'Gym',
       address: fallbackAddress || '',
-      rating: positiveNumber(fallbackRating) || 0,
+      rating,
+      avgRating: rating,
+      ratingCount: reviewCount,
+      ratingsCount: reviewCount,
+      reviewCount,
       tier: fallbackTier || 'Standard',
       coverPhoto: image,
       photos: image ? [image] : [],
     };
-  }, [id, fallbackName, fallbackAddress, fallbackRating, fallbackTier, fallbackImg]);
+  }, [id, fallbackName, fallbackAddress, fallbackRating, fallbackReviewCount, fallbackTier, fallbackImg]);
 
   const loadSubscriptionAccess = useCallback(() => {
     if (!id) return;
@@ -177,14 +261,41 @@ export default function GymDetail() {
       .catch(() => setActiveSub(null));
   }, [id]);
 
+  const loadRatings = useCallback(() => {
+    if (!id) return;
+    api.get(`/ratings/gym/${id}`)
+      .then((data: any) => {
+        const list = normalizeRatingList(data);
+        const summary = ratingSummaryFromResponse(data, list);
+        setReviews(list);
+        setRatingSummary({ ...summary, loaded: true });
+        setGym((current: any) => current ? {
+          ...current,
+          rating: summary.rating,
+          avgRating: summary.rating,
+          averageRating: summary.rating,
+          ratingCount: summary.count,
+          ratingsCount: summary.count,
+          reviewCount: summary.count,
+          reviewsCount: summary.count,
+        } : current);
+      })
+      .catch(() => {
+        setReviews([]);
+        setRatingSummary({ rating: null, count: 0, loaded: false });
+      });
+  }, [id]);
+
   useFocusEffect(useCallback(() => {
     loadSubscriptionAccess();
-  }, [loadSubscriptionAccess]));
+    loadRatings();
+  }, [loadSubscriptionAccess, loadRatings]));
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     setGymPlans([]);
+    setRatingSummary({ rating: null, count: 0, loaded: false });
     gymsApi.getById(id as string)
       .then((data: any) => {
         const g = data?.gym || data;
@@ -218,13 +329,6 @@ export default function GymDetail() {
       })
       .catch(() => setTrainers([]));
 
-    api.get(`/ratings/gym/${id}`)
-      .then((data: any) => {
-        const list = Array.isArray(data) ? data : data?.ratings || data?.reviews || data?.data || [];
-        setReviews(list);
-      })
-      .catch(() => setReviews([]));
-
     subscriptionsApi.plans()
       .then((data: any) => setPassPricingConfig(data || null))
       .catch(() => setPassPricingConfig(null));
@@ -232,8 +336,10 @@ export default function GymDetail() {
 
   const tier = tierLabel(gym?.tier || gym?.tierName || fallbackTier);
   const name = gym?.name || 'Gym';
-  const rating = gym?.rating || gym?.avgRating || '--';
-  const reviewCount = gym?.reviewCount || gym?.ratingsCount || '--';
+  const backendReviewCount = firstCountNumber(gym?.ratingCount, gym?.ratingsCount, gym?.reviewCount, gym?.reviewsCount) || 0;
+  const backendRating = backendReviewCount > 0 ? firstRatingNumber(gym?.rating, gym?.avgRating, gym?.averageRating) : null;
+  const displayRating = ratingSummary.loaded ? ratingSummary.rating : backendRating;
+  const displayReviewCount = ratingSummary.loaded ? ratingSummary.count : backendReviewCount;
   const address = gym?.address || gym?.location?.address || '';
   const contactPhone = gym?.contactPhone || gym?.phone || '';
   const contactEmail = gym?.contactEmail || gym?.email || '';
@@ -242,8 +348,16 @@ export default function GymDetail() {
   const breakHours = formatClockRange(gym?.breakStartTime, gym?.breakEndTime, gym?.breakHours || null);
   const description = gym?.description || '';
   const amenities = toTextArray(gym?.amenities || gym?.amenityNames || gym?.facilities);
+  const amenityItems = Array.isArray(gym?.amenityDetails) && gym.amenityDetails.length
+    ? gym.amenityDetails.map((item: any) => ({ name: String(item?.name || item?.label || '').trim(), iconUrl: item?.iconUrl || item?.icon })).filter((item: any) => item.name)
+    : amenities.map((name) => ({ name, iconUrl: null }));
   const categories = toTextArray(gym?.categories || gym?.tags);
-  const img = firstImage(gym?.images, gym?.photos, gym?.coverImage, gym?.coverPhoto) || DEFAULT_GYM_IMAGE;
+  const categoryItems = Array.isArray(gym?.categoryDetails) && gym.categoryDetails.length
+    ? gym.categoryDetails.map((item: any) => ({ name: String(item?.name || item?.label || '').trim(), iconUrl: item?.iconUrl || item?.icon })).filter((item: any) => item.name)
+    : categories.map((name) => ({ name, iconUrl: null }));
+  const galleryImages = imageList(gym?.coverPhoto, gym?.coverImage, gym?.photos, gym?.images, gym?.media, gym?.imageUrl, gym?.image, gym?.photo, gym?.img);
+  const img = galleryImages[0] || firstImage(fallbackImg) || DEFAULT_GYM_IMAGE;
+  const profileVideos = imageList(gym?.videos, gym?.profileVideos, gym?.videoUrls);
   const heroSource = { uri: img };
   const subscriptionId = activeSub?._id || activeSub?.id;
   const activePlanType = subscriptionPlanType(activeSub);
@@ -386,9 +500,15 @@ export default function GymDetail() {
               <Text style={s.gymName}>{name}</Text>
               <View style={s.metaRow}>
                 <View style={s.metaItem}>
-                  <IconStar size={12} />
-                  <Text style={[s.metaText, { color: colors.star }]}>{rating}</Text>
-                  {reviewCount !== '—' && <Text style={[s.metaText, { color: colors.t2 }]}>({reviewCount})</Text>}
+                  {displayRating !== null ? (
+                    <>
+                      <IconStar size={12} color={colors.star} />
+                      <Text style={[s.metaText, { color: colors.star }]}>{displayRating.toFixed(1)}</Text>
+                      <Text style={[s.metaText, { color: colors.t2 }]}>({reviewCountLabel(displayReviewCount)})</Text>
+                    </>
+                  ) : (
+                    <Text style={[s.metaText, { color: colors.t2 }]}>No reviews yet</Text>
+                  )}
                 </View>
                 <View style={s.metaItem}>
                   <IconPin size={12} color={colors.t} />
@@ -662,15 +782,47 @@ export default function GymDetail() {
                     </>
                   ) : null}
 
+                  {(galleryImages.length > 0 || profileVideos.length > 0) && (
+                    <>
+                      <Text style={s.sectionTitle}>Photos & Videos</Text>
+                      {galleryImages.length > 0 && (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} decelerationRate="fast" contentContainerStyle={{ gap: 10, paddingRight: 4 }}>
+                          {galleryImages.map((url, index) => (
+                            <ImageBackground key={`${url}-${index}`} source={{ uri: url || DEFAULT_GYM_IMAGE }} style={s.mediaImageCard} imageStyle={{ borderRadius: radius.lg }}>
+                              <View style={s.mediaCountBadge}>
+                                <Text style={s.mediaCountText}>{index + 1}/{galleryImages.length}</Text>
+                              </View>
+                            </ImageBackground>
+                          ))}
+                        </ScrollView>
+                      )}
+                      {profileVideos.length > 0 && (
+                        <View style={{ gap: 8, marginTop: galleryImages.length > 0 ? 12 : 0 }}>
+                          {profileVideos.map((url, index) => (
+                            <TouchableOpacity key={url} style={s.videoRow} onPress={() => Linking.openURL(url)} activeOpacity={0.85}>
+                              <View style={s.videoPlay}>
+                                <Text style={s.videoPlayText}>Play</Text>
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={s.videoTitle}>Gym video {index + 1}</Text>
+                                <Text style={s.videoUrl} numberOfLines={1}>{url}</Text>
+                              </View>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </>
+                  )}
+
                   <Text style={s.sectionTitle}>Amenities</Text>
-                  {amenities.length > 0 ? (
+                  {amenityItems.length > 0 ? (
                       <View style={s.amenityWrap}>
-                        {amenities.map((a: string) => (
-                          <View key={a} style={s.amenityPill}>
+                        {amenityItems.map((a: any) => (
+                          <View key={a.name} style={s.amenityPill}>
                             <View style={s.amenityIconBox}>
-                              <AmenityIcon label={a} />
+                              <AmenityIcon label={a.name} iconUrl={a.iconUrl} />
                             </View>
-                            <Text style={s.amenityText} numberOfLines={2}>{a}</Text>
+                            <Text style={s.amenityText} numberOfLines={2}>{a.name}</Text>
                           </View>
                         ))}
                       </View>
@@ -680,13 +832,14 @@ export default function GymDetail() {
                     </View>
                   )}
 
-                  {categories.length > 0 && (
+                  {categoryItems.length > 0 && (
                     <>
                       <Text style={s.sectionTitle}>Categories</Text>
                       <View style={s.amenityWrap}>
-                        {categories.map((c: string) => (
-                          <View key={c} style={s.categoryPill}>
-                            <Text style={s.categoryText}>{c}</Text>
+                        {categoryItems.map((c: any) => (
+                          <View key={c.name} style={s.categoryPill}>
+                            <AmenityIcon label={c.name} iconUrl={c.iconUrl} />
+                            <Text style={s.categoryText}>{c.name}</Text>
                           </View>
                         ))}
                       </View>
@@ -729,6 +882,14 @@ export default function GymDetail() {
               {activeTab === 'Reviews' && (
                 <>
                   <Text style={s.sectionTitle}>Reviews</Text>
+                  <TouchableOpacity
+                    style={s.reviewSubmitBtn}
+                    activeOpacity={0.88}
+                    onPress={() => router.push({ pathname: '/review', params: { gymId: id, gymName: name } } as any)}
+                  >
+                    <IconStar size={14} color="#060606" />
+                    <Text style={s.reviewSubmitText}>Rate This Gym</Text>
+                  </TouchableOpacity>
                   {reviews.length === 0 ? (
                     <View style={s.glassCard}>
                       <Text style={[s.body, { textAlign: 'center', color: colors.t2 }]}>No reviews yet. Be the first to review!</Text>
@@ -736,7 +897,7 @@ export default function GymDetail() {
                   ) : (
                     reviews.map((r: any, i: number) => {
                       const reviewName = r.user?.name || r.name || r.userName || 'Member';
-                      const reviewRating = r.rating || r.stars || 5;
+                      const reviewRating = firstRatingNumber(r.stars, r.rating) || 0;
                       const reviewText = r.comment || r.text || r.review || '';
                       const reviewDate = r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : (r.date || '');
                       return (
@@ -747,9 +908,11 @@ export default function GymDetail() {
                               <Text style={s.reviewName}>{reviewName}</Text>
                               <Text style={s.reviewDate}>{reviewDate}</Text>
                             </View>
-                            <View style={s.reviewStars}>
-                              {Array.from({ length: Math.min(reviewRating, 5) }).map((_, j) => <IconStar key={j} size={10} />)}
-                            </View>
+                            {reviewRating > 0 && (
+                              <View style={s.reviewStars}>
+                                {Array.from({ length: Math.min(Math.round(reviewRating), 5) }).map((_, j) => <IconStar key={j} size={10} />)}
+                              </View>
+                            )}
                           </View>
                           {!!reviewText && <Text style={s.reviewText}>{reviewText}</Text>}
                         </View>
@@ -903,6 +1066,50 @@ const s = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4,
   },
   mapDirOverlayText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
+  mediaImageCard: {
+    width: width - 68,
+    height: 168,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderGlass,
+    justifyContent: 'flex-start',
+  },
+  mediaCountBadge: {
+    alignSelf: 'flex-end',
+    margin: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.58)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  mediaCountText: { fontFamily: fonts.sansBold, fontSize: 10, color: '#fff' },
+  videoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colors.glass,
+    borderWidth: 1,
+    borderColor: colors.borderGlass,
+    borderRadius: radius.lg,
+    padding: 12,
+  },
+  videoPlay: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+  },
+  videoPlayText: { color: colors.accent, fontFamily: fonts.sansBold, fontSize: 9 },
+  videoTitle: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff' },
+  videoUrl: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2, marginTop: 2 },
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   infoValue: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, flex: 1, lineHeight: 20 },
   amenityWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -920,6 +1127,9 @@ const s = StyleSheet.create({
   },
   amenityText: { flex: 1, minWidth: 0, fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t, lineHeight: 15 },
   categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.accentBorder,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
   },
@@ -939,6 +1149,17 @@ const s = StyleSheet.create({
   trainerName: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff' },
   trainerSessions: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2, marginTop: 2 },
   trainerPrice: { maxWidth: 96, fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
+  reviewSubmitBtn: {
+    height: 44,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  reviewSubmitText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#060606' },
   reviewCard: {
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
     borderRadius: radius.xl, padding: 14, marginBottom: 10,

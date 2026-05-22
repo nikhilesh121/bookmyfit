@@ -5,6 +5,7 @@ import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import { TrainerEntity, TrainerBookingEntity } from '../../database/entities/trainer.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 import { AppConfigEntity } from '../../database/entities/app-config.entity';
 import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
@@ -12,7 +13,7 @@ import { v4 as uuid } from 'uuid';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
-import { PLATFORM_PRICING_CONFIG_KEY, applyCheckoutCommission, commissionAmount, serviceCommission } from '../../common/commission-config';
+import { PLATFORM_PRICING_CONFIG_KEY, applyCheckoutCommission, serviceCommission } from '../../common/commission-config';
 
 @Injectable()
 class TrainersService {
@@ -20,6 +21,7 @@ class TrainersService {
     @InjectRepository(TrainerEntity) private readonly repo: Repository<TrainerEntity>,
     @InjectRepository(TrainerBookingEntity) private readonly bookings: Repository<TrainerBookingEntity>,
     @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
+    @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
     @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
     private readonly cashfree: CashfreeService,
   ) {}
@@ -54,9 +56,12 @@ class TrainersService {
       return gym;
     }
     const gym = await this.gyms.findOne({ where: { ownerId: user?.userId } });
-    if (!gym && user?.role === 'gym_staff' && requestedGymId) {
-      const staffGym = await this.gyms.findOne({ where: { id: requestedGymId } });
+    if (!gym && user?.role === 'gym_staff') {
+      const staff = await this.users.findOne({ where: { id: user?.userId } });
+      if (!staff?.gymId) throw new ForbiddenException('This staff account is not linked to a gym');
+      const staffGym = await this.gyms.findOne({ where: { id: staff.gymId } });
       if (!staffGym) throw new NotFoundException('Gym not found');
+      if (requestedGymId && requestedGymId !== staffGym.id) throw new ForbiddenException('Cannot manage trainers for another gym');
       return staffGym;
     }
     if (!gym) throw new NotFoundException('Gym not found');
@@ -103,12 +108,12 @@ class TrainersService {
     const trainer = await this.repo.findOne({ where: { id: trainerId, isActive: true } });
     if (!trainer) throw new Error('Trainer not found');
     const months = Math.max(1, Math.min(12, Number(durationMonths) || 1));
-    const baseAmount = Number(trainer.monthlyPrice || trainer.pricePerSession || 0) * months;
+    const baseAmount = Math.round(Number(trainer.monthlyPrice || trainer.pricePerSession || 0) * months);
     if (baseAmount <= 0) throw new BadRequestException('Trainer monthly price is not configured');
     const configRow = await this.configRepo.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } });
     const commission = serviceCommission(configRow?.value, 'personal_training');
     const amount = applyCheckoutCommission(baseAmount, commission);
-    const platformCommission = commissionAmount(baseAmount, commission);
+    const platformCommission = Math.max(0, amount - baseAmount);
     const orderId = `PT_${uuid().slice(0, 18)}`;
 
     const booking = await this.bookings.save(this.bookings.create({
@@ -150,7 +155,7 @@ class TrainersController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TrainerEntity, TrainerBookingEntity, GymEntity, AppConfigEntity]), PaymentsModule],
+  imports: [TypeOrmModule.forFeature([TrainerEntity, TrainerBookingEntity, GymEntity, UserEntity, AppConfigEntity]), PaymentsModule],
   controllers: [TrainersController],
   providers: [TrainersService],
 })

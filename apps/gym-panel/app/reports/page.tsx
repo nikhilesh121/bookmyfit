@@ -69,9 +69,11 @@ export default function ReportsPage() {
   const [customTo, setCustomTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<ReportData | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     setLoading(true);
+    setError('');
     const now = new Date();
     const fromDate = new Date(now);
     const toDate = new Date(now);
@@ -86,7 +88,10 @@ export default function ReportsPage() {
     const query = from && to ? `?from=${from}&to=${to}` : '';
     api.get<ReportData>(`/gyms/my-report${query}`)
       .then((data) => setReport(data || EMPTY_REPORT))
-      .catch(() => setReport(EMPTY_REPORT))
+      .catch((err) => {
+        setReport(EMPTY_REPORT);
+        setError(err?.message || 'Failed to load reports. Please refresh and try again.');
+      })
       .finally(() => setLoading(false));
   }, [period, customFrom, customTo]);
 
@@ -112,7 +117,9 @@ export default function ReportsPage() {
     URL.revokeObjectURL(url);
   }
 
-  const maxVal = report?.dailyCheckins.length ? Math.max(...report.dailyCheckins.map((d) => d.count), 1) : 1;
+  const chartData = report?.dailyCheckins || [];
+  const maxVal = chartData.length ? Math.max(...chartData.map((d) => d.count), 1) : 1;
+  const chartMinWidth = Math.max(360, chartData.length * 46);
 
   return (
     <Shell title="Reports">
@@ -152,6 +159,13 @@ export default function ReportsPage() {
           </div>
         )}
       </div>
+
+      {error && (
+        <div className="card p-3 mb-4 text-xs" style={{ color: '#FFB400', background: 'rgba(255,180,0,0.06)', borderColor: 'rgba(255,180,0,0.28)' }}>
+          <AlertTriangle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
+          {error}
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 16, marginBottom: 24 }}>
@@ -219,26 +233,41 @@ export default function ReportsPage() {
           <h3 className="serif" style={{ fontSize: 17, fontWeight: 600 }}>Check-ins by Day</h3>
         </div>
         {loading ? (
-          <div style={{ height: 160, background: 'var(--surface)', borderRadius: 8, animation: 'pulse 1.5s ease-in-out infinite' }} />
+          <div style={{ height: 180, background: 'var(--surface)', borderRadius: 8, animation: 'pulse 1.5s ease-in-out infinite' }} />
+        ) : chartData.length === 0 ? (
+          <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--t3)', fontSize: 13 }}>
+            No check-ins in this period.
+          </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 160, paddingBottom: 24, position: 'relative' }}>
-            {report?.dailyCheckins.map((d) => (
-              <div key={d.day} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                <span style={{ fontSize: 11, color: 'var(--t2)', marginBottom: 4, fontWeight: 500 }}>{d.count}</span>
-                <div
-                  style={{
-                    background: 'var(--accent)',
-                    opacity: 0.85,
-                    minWidth: 32,
-                    width: '100%',
-                    height: `${(d.count / maxVal) * 140}px`,
-                    borderRadius: '4px 4px 0 0',
-                    transition: 'height 0.4s ease',
-                  }}
-                />
-                <span style={{ fontSize: 11, color: 'var(--t3)', marginTop: 6, fontWeight: 500 }}>{d.day}</span>
+          <div style={{ overflowX: 'auto', paddingBottom: 6 }}>
+            <div style={{ minWidth: chartMinWidth, height: 190, position: 'relative', padding: '8px 10px 24px' }}>
+              <div style={{ position: 'absolute', inset: '12px 10px 44px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'repeating-linear-gradient(to top, transparent 0, transparent 33px, rgba(255,255,255,0.045) 34px)' }} />
+              <div style={{ position: 'relative', height: 150, display: 'grid', gridTemplateColumns: `repeat(${chartData.length}, minmax(34px, 1fr))`, gap: 8, alignItems: 'end' }}>
+                {chartData.map((d, index) => {
+                  const height = d.count > 0 ? Math.max(10, Math.round((d.count / maxVal) * 112)) : 2;
+                  const showLabel = chartData.length <= 12 || index % 3 === 0 || index === chartData.length - 1;
+                  return (
+                    <div key={`${d.day}-${index}`} style={{ height: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                      <span style={{ fontSize: 10, color: 'var(--t2)', fontWeight: 700, minHeight: 12 }}>{d.count || ''}</span>
+                      <div
+                        title={`${d.day}: ${d.count} check-ins`}
+                        style={{
+                          width: 18,
+                          maxWidth: '80%',
+                          height,
+                          background: d.count > 0 ? 'linear-gradient(180deg, #CCFF00 0%, rgba(204,255,0,0.45) 100%)' : 'rgba(255,255,255,0.12)',
+                          border: '1px solid rgba(204,255,0,0.22)',
+                          borderRadius: '6px 6px 2px 2px',
+                          boxShadow: d.count > 0 ? '0 8px 18px rgba(204,255,0,0.12)' : 'none',
+                          transition: 'height 0.25s ease',
+                        }}
+                      />
+                      <span style={{ fontSize: 10, color: showLabel ? 'var(--t3)' : 'transparent', fontWeight: 600, whiteSpace: 'nowrap' }}>{d.day}</span>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            </div>
           </div>
         )}
       </div>

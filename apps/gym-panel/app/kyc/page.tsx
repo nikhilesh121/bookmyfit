@@ -130,9 +130,25 @@ export default function KycPage() {
     return 'uploaded';
   };
 
+  const canSubmitType = (type: string) => {
+    const status = getStepStatus(type);
+    return status === 'pending' || status === 'rejected';
+  };
+
+  useEffect(() => {
+    if (!kycData) return;
+    if (canSubmitType(form.type)) return;
+    const next = KYC_STEPS.find((step) => canSubmitType(step.type));
+    if (next) setForm({ type: next.type, fields: {} });
+  }, [kycData, form.type]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gymId) return;
+    if (!canSubmitType(form.type)) {
+      toast('This KYC form is already submitted or approved.', 'error');
+      return;
+    }
     const schema = KYC_FIELDS[form.type] || [];
     const missing = schema.find((f) => f.required && !String(form.fields[f.key] || '').trim());
     if (missing) {
@@ -148,7 +164,7 @@ export default function KycPage() {
       });
       await fetchKyc(gymId);
       toast('Document submitted successfully!', 'success');
-      setForm({ type: KYC_STEPS[0].type, fields: {} });
+      setForm((prev) => ({ type: prev.type, fields: {} }));
     } catch (err: any) {
       toast(err.message || 'Failed to submit document', 'error');
     } finally {
@@ -156,8 +172,13 @@ export default function KycPage() {
     }
   };
 
-  const uploadedCount = KYC_STEPS.filter((s) => getStepStatus(s.type) !== 'pending').length;
-  const progress = Math.round((uploadedCount / KYC_STEPS.length) * 100);
+  const submittedCount = KYC_STEPS.filter((s) => getStepStatus(s.type) !== 'pending').length;
+  const approvedCount = KYC_STEPS.filter((s) => getStepStatus(s.type) === 'approved').length;
+  const progress = Math.round((approvedCount / KYC_STEPS.length) * 100);
+  const isVerified = approvedCount === KYC_STEPS.length;
+  const editableSteps = KYC_STEPS.filter((s) => canSubmitType(s.type));
+  const selectedStepStatus = getStepStatus(form.type);
+  const selectedStepLocked = !canSubmitType(form.type);
 
   return (
     <Shell title="KYC Verification">
@@ -170,19 +191,24 @@ export default function KycPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>Overall KYC Status</div>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600, color: STATUS_COLORS[kycData?.kycStatus || 'not_started'], background: 'rgba(255,255,255,0.05)', border: `1px solid ${STATUS_COLORS[kycData?.kycStatus || 'not_started']}30`, borderRadius: 20, padding: '4px 14px' }}>
-                  {STATUS_LABELS[kycData?.kycStatus || 'not_started']}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600, color: isVerified ? '#3DFF54' : STATUS_COLORS[kycData?.kycStatus || 'not_started'], background: 'rgba(255,255,255,0.05)', border: `1px solid ${(isVerified ? '#3DFF54' : STATUS_COLORS[kycData?.kycStatus || 'not_started'])}30`, borderRadius: 20, padding: '4px 14px' }}>
+                  {isVerified ? 'Verified KYC' : STATUS_LABELS[kycData?.kycStatus || 'not_started']}
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 28, fontWeight: 800, color: '#3DFF54' }}>{uploadedCount}/{KYC_STEPS.length}</div>
-                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>documents submitted</div>
+                <div style={{ fontSize: 28, fontWeight: 800, color: '#3DFF54' }}>{approvedCount}/{KYC_STEPS.length}</div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{submittedCount} submitted</div>
               </div>
             </div>
             <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 8, height: 8, overflow: 'hidden' }}>
               <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg, #3DFF54, #00AFFF)', borderRadius: 8, transition: 'width 0.5s ease' }} />
             </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>{progress}% complete</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>{progress}% verified</div>
+            {isVerified && (
+              <div style={{ marginTop: 12, color: '#3DFF54', fontSize: 13, fontWeight: 600 }}>
+                All required KYC forms are approved. Your gym KYC is verified.
+              </div>
+            )}
           </div>
 
           {/* Steps Grid */}
@@ -219,6 +245,15 @@ export default function KycPage() {
               <Upload size={16} style={{ color: '#3DFF54' }} />
               <span style={{ fontSize: 15, fontWeight: 600 }}>Submit a Document</span>
             </div>
+            {isVerified ? (
+              <div style={{ color: '#3DFF54', background: 'rgba(61,255,84,0.08)', border: '1px solid rgba(61,255,84,0.24)', borderRadius: 12, padding: 16, fontSize: 13, fontWeight: 600 }}>
+                KYC completed and verified. Approved forms are locked and cannot be submitted again.
+              </div>
+            ) : editableSteps.length === 0 ? (
+              <div style={{ color: '#FFA500', background: 'rgba(255,165,0,0.08)', border: '1px solid rgba(255,165,0,0.24)', borderRadius: 12, padding: 16, fontSize: 13, fontWeight: 600 }}>
+                All KYC forms are submitted and waiting for admin review. You can resubmit only if admin rejects a form.
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Document Type</label>
@@ -227,10 +262,27 @@ export default function KycPage() {
                   onChange={(e) => setForm({ type: e.target.value, fields: {} })}
                   style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 14px', color: '#fff', fontSize: 13, outline: 'none' }}
                 >
-                  {KYC_STEPS.map((s) => (
-                    <option key={s.type} value={s.type} style={{ background: '#111' }}>{s.label}</option>
-                  ))}
+                  {KYC_STEPS.map((s) => {
+                    const status = getStepStatus(s.type);
+                    const locked = status === 'approved' || status === 'uploaded';
+                    const suffix = status === 'approved' ? ' - Approved' : status === 'uploaded' ? ' - In Review' : status === 'rejected' ? ' - Rejected, resubmit' : '';
+                    return (
+                      <option key={s.type} value={s.type} disabled={locked} style={{ background: '#111' }}>
+                        {s.label}{suffix}
+                      </option>
+                    );
+                  })}
                 </select>
+                {selectedStepStatus === 'rejected' && (
+                  <div style={{ color: '#FFB400', fontSize: 12, marginTop: 8 }}>
+                    This form was rejected. Submit the corrected details again.
+                  </div>
+                )}
+                {selectedStepLocked && (
+                  <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, marginTop: 8 }}>
+                    This form is locked because it is already submitted or approved.
+                  </div>
+                )}
               </div>
               {(KYC_FIELDS[form.type] || []).map((field) => (
                 <div key={field.key}>
@@ -248,13 +300,14 @@ export default function KycPage() {
               ))}
               <button
                 type="submit"
-                disabled={submitting}
-                style={{ background: submitting ? 'rgba(61,255,84,0.3)' : 'rgba(61,255,84,0.15)', border: '1px solid rgba(61,255,84,0.4)', borderRadius: 10, padding: '11px 20px', color: '#3DFF54', fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}
+                disabled={submitting || selectedStepLocked}
+                style={{ background: submitting || selectedStepLocked ? 'rgba(255,255,255,0.06)' : 'rgba(61,255,84,0.15)', border: `1px solid ${submitting || selectedStepLocked ? 'rgba(255,255,255,0.12)' : 'rgba(61,255,84,0.4)'}`, borderRadius: 10, padding: '11px 20px', color: submitting || selectedStepLocked ? 'rgba(255,255,255,0.35)' : '#3DFF54', fontSize: 13, fontWeight: 600, cursor: submitting || selectedStepLocked ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}
               >
                 <Upload size={14} />
                 {submitting ? 'Submitting…' : 'Submit Document'}
               </button>
             </form>
+            )}
           </div>
         </div>
       )}

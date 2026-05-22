@@ -5,15 +5,25 @@ import { AppModule } from './app.module';
 
 const localOrigins = [
   'http://localhost:3000',
+  'http://127.0.0.1:3000',
   'http://localhost:3001',
+  'http://127.0.0.1:3001',
   'http://localhost:3002',
+  'http://127.0.0.1:3002',
   'http://localhost:3004',
+  'http://127.0.0.1:3004',
   'http://localhost:3005',
+  'http://127.0.0.1:3005',
   'http://localhost:3100',
+  'http://127.0.0.1:3100',
   'http://localhost:5004',
+  'http://127.0.0.1:5004',
   'http://localhost:19006',
+  'http://127.0.0.1:19006',
   'http://localhost:8081',
+  'http://127.0.0.1:8081',
   'http://localhost:8082',
+  'http://127.0.0.1:8082',
 ];
 
 const productionOrigins = [

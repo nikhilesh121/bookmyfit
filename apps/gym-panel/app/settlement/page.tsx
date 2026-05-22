@@ -8,7 +8,7 @@ import { useToast } from '../../components/Toast';
 type Settlement = {
   id: string; period: string; grossRevenue: number;
   commission: number; netPayout: number; status: string;
-  commissionRate?: number;
+  commissionRate?: number; disputeReason?: string | null;
 };
 
 type CurrentMonth = {
@@ -61,9 +61,13 @@ export default function SettlementPage() {
   }, []);
 
   const raiseDispute = async (id: string) => {
-    if (!disputeText.trim()) return;
+    const reason = disputeText.trim();
+    if (!reason) return;
     try {
-      await api.post(`/settlements/${id}/dispute`, { reason: disputeText });
+      const response = await api.post<{ settlement?: Settlement }>(`/settlements/${id}/dispute`, { reason });
+      setPast((rows) => rows.map((row) => row.id === id
+        ? { ...row, ...(response.settlement ?? {}), status: response.settlement?.status ?? 'disputed', disputeReason: response.settlement?.disputeReason ?? reason }
+        : row));
       setDisputeSent(id); setDisputeId(null); setDisputeText('');
       toast('Dispute submitted');
     } catch (e: any) {
@@ -158,7 +162,7 @@ export default function SettlementPage() {
                   <td style={{ fontWeight: 600 }}>{fmt(p.netPayout)}</td>
                   <td><span className={p.status === 'paid' ? 'badge-active' : p.status === 'approved' ? 'badge-pending' : 'badge-danger'}>{p.status}</span></td>
                   <td>
-                    {disputeSent === p.id ? (
+                    {p.status === 'disputed' || p.disputeReason || disputeSent === p.id ? (
                       <span style={{ fontSize: 11, color: 'var(--accent)' }}>Dispute raised <CheckCircle size={12} style={{ display:"inline", verticalAlign:"middle", marginLeft:4 }} color="var(--accent)" /></span>
                     ) : disputeId === p.id ? (
                       <div className="flex items-center gap-2">

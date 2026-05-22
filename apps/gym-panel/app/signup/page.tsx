@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const API = RAW_API.replace(/\/api\/v1\/?$/i, '').replace(/\/$/, '');
 
 const CITIES = ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Pune', 'Kolkata', 'Ahmedabad', 'Jaipur', 'Surat', 'Other'];
 type CategoryOption = { id: string; name: string };
@@ -14,6 +15,8 @@ export default function GymSignup() {
     gymName: '', city: CITIES[0], area: '', address: '', categories: [] as string[],
   });
   const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -23,10 +26,19 @@ export default function GymSignup() {
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   useEffect(() => {
+    setCategoriesLoading(true);
+    setCategoriesError('');
     fetch(`${API}/api/v1/master/categories`)
-      .then((res) => res.ok ? res.json() : [])
+      .then((res) => {
+        if (!res.ok) throw new Error('Could not load workout categories');
+        return res.json();
+      })
       .then((data) => setCategories(Array.isArray(data) ? data : data?.data || []))
-      .catch(() => setCategories([]));
+      .catch(() => {
+        setCategories([]);
+        setCategoriesError('Could not load workout categories. Please check the API connection or add categories from admin.');
+      })
+      .finally(() => setCategoriesLoading(false));
   }, []);
 
   const toggleCategory = (name: string) => {
@@ -51,6 +63,8 @@ export default function GymSignup() {
     e.preventDefault();
     setLoading(true); setError('');
     try {
+      if (categoriesLoading) throw new Error('Workout categories are still loading. Please try again in a moment.');
+      if (categoriesError) throw new Error(categoriesError);
       if (form.categories.length === 0) throw new Error('Select at least one workout category');
       const res = await fetch(`${API}/api/v1/auth/gym/register`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -189,7 +203,11 @@ export default function GymSignup() {
                   );
                 })}
                 {categories.length === 0 && (
-                  <span style={{ color: 'var(--t3)', fontSize: 12 }}>Admin has not created workout categories yet.</span>
+                  <span style={{ color: categoriesError ? '#FF6B6B' : 'var(--t3)', fontSize: 12 }}>
+                    {categoriesLoading
+                      ? 'Loading workout categories...'
+                      : categoriesError || 'Admin has not created workout categories yet.'}
+                  </span>
                 )}
               </div>
             </div>

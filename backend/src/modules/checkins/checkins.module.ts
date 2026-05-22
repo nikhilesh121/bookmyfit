@@ -1,11 +1,12 @@
-import { Module, Controller, Get, Post, Body, Query, Req, Injectable, UseGuards, BadRequestException } from '@nestjs/common';
+import { Module, Controller, Get, Post, Body, Query, Req, Injectable, UseGuards, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, In } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import { CheckinEntity } from '../../database/entities/checkin.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -18,12 +19,44 @@ class CheckinsService {
     @InjectRepository(CheckinEntity) private readonly repo: Repository<CheckinEntity>,
     @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
     @InjectRepository(SubscriptionEntity) private readonly subs: Repository<SubscriptionEntity>,
+    @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
     private readonly capacityGateway: CapacityGateway,
   ) {}
+
+  private visitSplit(ratePerDay: number, planType?: string | null) {
+    const gymEarns = planType === 'multi_gym' ? Math.max(0, Number(ratePerDay) || 0) : 0;
+    return { gymEarns, adminEarns: 0 };
+  }
+
+  private async enrichWithAmounts(rows: CheckinEntity[], gymId?: string) {
+    if (rows.length === 0) return rows;
+    const subIds = [...new Set(rows.map((row) => row.subscriptionId).filter(Boolean))];
+    const gymIds = [...new Set(rows.map((row) => row.gymId).filter(Boolean))];
+    const [subs, gyms] = await Promise.all([
+      subIds.length ? this.subs.find({ where: { id: In(subIds) } }) : [],
+      gymIds.length ? this.gyms.find({ where: { id: In(gymIds) } }) : [],
+    ]);
+    const subMap = new Map<string, SubscriptionEntity>(subs.map((sub): [string, SubscriptionEntity] => [sub.id, sub]));
+    const gymMap = new Map<string, GymEntity>(gyms.map((gym): [string, GymEntity] => [gym.id, gym]));
+    return rows.map((row) => {
+      const sub = subMap.get(row.subscriptionId);
+      const gym = gymMap.get(gymId || row.gymId);
+      const ratePerDay = Number((gym as any)?.ratePerDay ?? 50);
+      const { gymEarns, adminEarns } = this.visitSplit(ratePerDay, sub?.planType);
+      return {
+        ...row,
+        planType: sub?.planType || null,
+        ratePerDay,
+        gymEarns: row.status === 'success' ? gymEarns : 0,
+        adminEarns: row.status === 'success' ? adminEarns : 0,
+      };
+    });
+  }
+
   async listByGym(gymId: string, page: any = 1, limit: any = 20) {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
     const [data, total] = await this.repo.findAndCount({ where: { gymId, status: 'success' }, order: { checkinTime: 'DESC' }, skip, take });
-    return paginatedResponse(data, total, p, l);
+    return paginatedResponse(await this.enrichWithAmounts(data, gymId), total, p, l);
   }
   async listAll(page: any = 1, limit: any = 20) {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
@@ -38,7 +71,7 @@ class CheckinsService {
   async todayStats(gymId?: string, userId?: string) {
     let resolvedGymId = gymId;
     if (!resolvedGymId && userId) {
-      const gym = await this.gyms.findOne({ where: { ownerId: userId } });
+      const gym = await this.gymForActor(userId);
       resolvedGymId = gym?.id;
     }
     if (!resolvedGymId) return { count: 0, checkins: [] };
@@ -52,7 +85,7 @@ class CheckinsService {
     });
     const gym = await this.gyms.findOne({ where: { id: resolvedGymId } });
     this.capacityGateway.broadcastCapacity(resolvedGymId, checkins.length, (gym as any)?.capacity || 100);
-    return { count: checkins.length, checkins };
+    return { count: checkins.length, checkins: await this.enrichWithAmounts(checkins, resolvedGymId) };
   }
   async statsForGym(gymId: string, month: string) {
     const [year, m] = month.split('-').map(Number);
@@ -62,6 +95,29 @@ class CheckinsService {
       where: { gymId, status: 'success', checkinTime: Between(from, to) },
     });
     return { gymId, month, checkinCount: count };
+  }
+
+  async gymIdForScanner(user: any, requestedGymId?: string) {
+    if (user?.role === 'super_admin') {
+      if (!requestedGymId) throw new BadRequestException('gymId is required');
+      return requestedGymId;
+    }
+    const gym = user?.role === 'gym_staff'
+      ? await this.gymForActor(user?.userId)
+      : await this.gyms.findOne({ where: { ownerId: user?.userId } });
+    if (!gym) throw new ForbiddenException('This account is not linked to a gym profile');
+    if (requestedGymId && requestedGymId !== gym.id) throw new ForbiddenException('This account is linked to another gym');
+    return gym.id;
+  }
+
+  private async gymForActor(actorId?: string) {
+    if (!actorId) return null;
+    const owned = await this.gyms.findOne({ where: { ownerId: actorId } });
+    if (owned) return owned;
+    const user = await this.users.findOne({ where: { id: actorId } });
+    return user?.role === 'gym_staff' && user.gymId
+      ? this.gyms.findOne({ where: { id: user.gymId } })
+      : null;
   }
 
   /**
@@ -145,14 +201,15 @@ class CheckinsController {
   constructor(private readonly svc: CheckinsService) {}
 
   @Post('scan') @Roles('gym_owner', 'gym_staff')
-  scan(@Body() body: any, @Req() req: any) {
+  async scan(@Body() body: any, @Req() req: any) {
     if (process.env.ALLOW_LEGACY_CHECKINS_SCAN !== 'true') {
       throw new BadRequestException('Legacy check-in scan is disabled. Use /qr/validate with a signed QR token.');
     }
     if (!body.qrToken) throw new BadRequestException('qrToken is required');
     // userId can come from JWT (mobile app) or body (gym staff scanning)
     const userId = body.userId || req.user?.userId;
-    return this.svc.scan(userId, body.gymId, body.qrToken);
+    const gymId = await this.svc.gymIdForScanner(req.user, body.gymId);
+    return this.svc.scan(userId, gymId, body.qrToken);
   }
 
   @Get('my-history') @Roles()
@@ -161,34 +218,43 @@ class CheckinsController {
   }
 
   @Get('today') @Roles('super_admin', 'gym_owner', 'gym_staff')
-  today(@Req() req: any, @Query('gymId') gymId?: string) {
-    return this.svc.todayStats(gymId, req.user.userId);
+  async today(@Req() req: any, @Query('gymId') gymId?: string) {
+    const resolvedGymId = req.user?.role === 'super_admin' && gymId ? gymId : await this.svc.gymIdForScanner(req.user, gymId);
+    return this.svc.todayStats(resolvedGymId, req.user.userId);
   }
 
   @Get('today-count') @Roles('super_admin', 'gym_owner', 'gym_staff')
   async todayCount(@Req() req: any) {
-    const stats = await this.svc.todayStats(undefined, req.user.userId);
+    const gymId = await this.svc.gymIdForScanner(req.user);
+    const stats = await this.svc.todayStats(gymId, req.user.userId);
     return { count: (stats as any)?.count ?? 0 };
   }
 
   @Get('recent') @Roles('super_admin', 'gym_owner', 'gym_staff')
-  recent() {
-    return this.svc.listAll(1, 10);
+  async recent(@Req() req: any) {
+    if (req.user?.role === 'super_admin') return this.svc.listAll(1, 10);
+    const gymId = await this.svc.gymIdForScanner(req.user);
+    return this.svc.listByGym(gymId, 1, 10);
   }
 
   @Get() @Roles('super_admin', 'gym_owner', 'gym_staff')
-  list(@Query('gymId') gymId?: string, @Query('page') page = 1, @Query('limit') limit = 20) {
-    return gymId ? this.svc.listByGym(gymId, +page, +limit) : this.svc.listAll(+page, +limit);
+  async list(@Req() req: any, @Query('gymId') gymId?: string, @Query('page') page = 1, @Query('limit') limit = 20) {
+    if (req.user?.role === 'super_admin') {
+      return gymId ? this.svc.listByGym(gymId, +page, +limit) : this.svc.listAll(+page, +limit);
+    }
+    const resolvedGymId = await this.svc.gymIdForScanner(req.user, gymId);
+    return this.svc.listByGym(resolvedGymId, +page, +limit);
   }
 
   @Get('stats') @Roles('super_admin', 'gym_owner', 'gym_staff')
-  stats(@Query('gymId') gymId: string, @Query('month') month: string) {
-    return this.svc.statsForGym(gymId, month);
+  async stats(@Req() req: any, @Query('gymId') gymId: string, @Query('month') month: string) {
+    const resolvedGymId = await this.svc.gymIdForScanner(req.user, gymId);
+    return this.svc.statsForGym(resolvedGymId, month);
   }
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CheckinEntity, GymEntity, SubscriptionEntity])],
+  imports: [TypeOrmModule.forFeature([CheckinEntity, GymEntity, SubscriptionEntity, UserEntity])],
   controllers: [CheckinsController],
   providers: [CheckinsService, CapacityGateway],
   exports: [CheckinsService, CapacityGateway],

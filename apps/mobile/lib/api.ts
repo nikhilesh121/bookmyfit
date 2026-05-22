@@ -71,7 +71,7 @@ export const logout = async () => {
 };
 
 // ── Core fetch ──────────────────────────────────────────────
-async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T = any>(path: string, init: RequestInit = {}, retryOnUnauthorized = true): Promise<T> {
   const token = path.startsWith('/auth/') ? null : await getToken();
   const res = await fetch(`${API_BASE}/api/v1${path}`, {
     ...init,
@@ -90,6 +90,19 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<T
       if (d?.message) errMsg = d.message;
     } catch {}
     const isQrValidation = path === '/qr/validate' || path === '/qr/validate-manual';
+    const refreshToken = await getRefreshToken();
+    if (!path.startsWith('/auth/') && !isQrValidation && retryOnUnauthorized && refreshToken) {
+      try {
+        const refreshed: any = await request('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }, false);
+        if (refreshed?.accessToken && refreshed?.refreshToken) {
+          await setTokens(refreshed.accessToken, refreshed.refreshToken);
+          if (refreshed.user) await setUser(refreshed.user);
+          return request<T>(path, init, false);
+        }
+      } catch {
+        // Fall through to the normal session-expired handling below.
+      }
+    }
     // Only force-logout on non-auth endpoints (OTP/login legitimately returns 401 for bad codes)
     // QR validation can return 401 for expired/wrong-gym/inactive booking; show that on the scanner.
     if (!path.startsWith('/auth/') && !isQrValidation) {
@@ -189,7 +202,7 @@ export const gymPlansApi = {
 };
 
 export const qrApi = {
-  getActiveBooking: () => api.get('/slots/active-booking'),
+  getActiveBooking: () => api.get('/sessions/active-booking'),
   /** Generate a 30-second membership check-in QR (subscription-based, no slot needed) */
   generate: (subscriptionId: string) =>
     api.post('/qr/generate', { subscriptionId }),

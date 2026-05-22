@@ -1,7 +1,8 @@
 'use client';
 import { Fragment, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import Shell from '../../components/Shell';
-import { Users, UserCheck, Clock, UserX, Download, Plus, Edit2, Trash2, RefreshCw, AlertTriangle, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, UserCheck, Clock, UserX, Download, RefreshCw, AlertTriangle, Search, History } from 'lucide-react';
 import { api } from '../../lib/api';
 import Pagination from '../../components/Pagination';
 
@@ -10,8 +11,9 @@ type Member = {
   memberId?: string;
   currentSubscriptionId?: string;
   userId: string;
+  memberCode?: string;
   name: string;
-  phone: string;
+  phone?: string | null;
   planType: string;
   planName?: string | null;
   gymType: 'Single Gym' | 'Multi Gym';
@@ -43,6 +45,14 @@ const STATUS_FILTERS = [
   { key: 'expired', label: 'Expired' },
   { key: 'cancelled', label: 'Deactivated' },
 ] as const;
+
+function memberHistoryKey(member: Pick<Member, 'memberId' | 'userId' | 'id'>) {
+  return member.memberId || member.userId || member.id;
+}
+
+function memberCode(member: Pick<Member, 'memberCode' | 'memberId' | 'userId' | 'id'>) {
+  return member.memberCode || `BMF-${String(member.memberId || member.userId || member.id || '').replace(/-/g, '').slice(0, 10).toUpperCase()}`;
+}
 
 function PlanBadge({ plan }: { plan: string }) {
   const colors: Record<string, React.CSSProperties> = {
@@ -138,7 +148,6 @@ export default function MembersPage() {
   const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [expandedMember, setExpandedMember] = useState<string | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -191,9 +200,9 @@ export default function MembersPage() {
 
   const exportCSV = () => {
     const csv = [
-      'Name,Phone,Plan,Gym Type,Status,Start Date,End Date,Trainer,Gym Amount',
+      'Name,Member ID,Plan,Visits,Last Visit,Status,Start Date,End Date,Trainer,Gym Amount',
       ...members.map(m => [
-        m.name, m.phone, m.planType, m.gymType, m.status,
+        m.name, memberCode(m), m.planType, m.totalCheckinsAtGym || 0, m.lastVisit || '', m.status,
         m.startDate ? new Date(m.startDate).toLocaleDateString('en-IN') : '',
         m.endDate ? new Date(m.endDate).toLocaleDateString('en-IN') : '',
         m.trainerSummary || '',
@@ -277,7 +286,7 @@ export default function MembersPage() {
             onChange={e => setQ(e.target.value)}
             className="glass-input w-full"
             style={{ paddingLeft: 32 }}
-            placeholder="Search members..."
+            placeholder="Search member name or ID..."
           />
         </div>
         <button onClick={load} className="btn btn-ghost flex items-center gap-2" style={{ fontSize: 13 }}>
@@ -286,6 +295,9 @@ export default function MembersPage() {
         <button onClick={exportCSV} className="btn btn-ghost flex items-center gap-2" style={{ fontSize: 13 }}>
           <Download size={14} /> Export CSV
         </button>
+        <Link href="/member-history" className="btn btn-ghost flex items-center gap-2" style={{ fontSize: 13 }}>
+          <History size={14} /> Member History
+        </Link>
       </div>
 
       {/* Status filters */}
@@ -311,7 +323,7 @@ export default function MembersPage() {
             <tr>
               <th>Member</th>
               <th>Plan</th>
-              <th>Gym Access</th>
+              <th>Visits</th>
               <th>Status</th>
               <th>Start Date</th>
               <th>Expiry</th>
@@ -328,14 +340,15 @@ export default function MembersPage() {
                 : members.map(m => {
                   const days = daysLeft(m.endDate);
                   const expiring = days !== null && days > 0 && days <= 7;
-                  const rowKey = m.memberId || m.userId || m.id;
-                  const isExpanded = expandedMember === rowKey;
+                  const rowKey = memberHistoryKey(m);
+                  const historyHref = `/member-history?memberId=${encodeURIComponent(rowKey)}`;
+                  const isExpanded = false;
                   return (
                     <Fragment key={rowKey}>
                     <tr key={rowKey}>
                       <td>
                         <div style={{ fontWeight: 600, color: '#fff', fontSize: 13 }}>{m.name}</div>
-                        <div style={{ color: 'var(--t2)', fontSize: 11, fontFamily: 'monospace' }}>{m.phone}</div>
+                        <div style={{ color: 'var(--t2)', fontSize: 11, fontFamily: 'monospace' }}>ID {memberCode(m)}</div>
                         {Number(m.subscriptionCount || 0) > 1 && (
                           <div style={{ color: 'var(--accent)', fontSize: 10, marginTop: 4, fontWeight: 700 }}>
                             {m.subscriptionCount} subscriptions in history
@@ -348,7 +361,12 @@ export default function MembersPage() {
                           <div style={{ color: 'var(--t2)', fontSize: 11, marginTop: 5 }}>{m.planName}</div>
                         )}
                       </td>
-                      <td><AccessBadge type={m.gymType} count={m.gymCount} /></td>
+                      <td>
+                        <div style={{ fontWeight: 700, color: '#fff', fontSize: 13 }}>{Number(m.totalCheckinsAtGym || 0)}</div>
+                        <div style={{ color: 'var(--t2)', fontSize: 11, marginTop: 3 }}>
+                          {m.lastVisit && m.lastVisit !== 'No visits' ? m.lastVisit : 'No visits yet'}
+                        </div>
+                      </td>
                       <td>
                         <div className="flex flex-col gap-1">
                           <StatusBadge status={m.status} />
@@ -392,15 +410,13 @@ export default function MembersPage() {
                       </td>
                       <td>
                         <div className="flex items-center gap-2">
-                          {Number(m.history?.length || 0) > 0 && (
-                            <button
-                              onClick={() => setExpandedMember(isExpanded ? null : rowKey)}
-                              title="View member history"
-                              style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--t)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '5px 9px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                            >
-                              {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />} History
-                            </button>
-                          )}
+                          <Link
+                            href={historyHref}
+                            title="Open full member history"
+                            style={{ background: 'rgba(204,255,0,0.12)', color: 'var(--accent)', border: '1px solid rgba(204,255,0,0.24)', borderRadius: 8, padding: '5px 9px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                          >
+                            View History
+                          </Link>
                           {m.status === 'active' && m.canDeactivate !== false && (
                             <button
                               onClick={() => setConfirm({ id: m.currentSubscriptionId || m.id, name: m.name })}

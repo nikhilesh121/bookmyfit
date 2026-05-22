@@ -12,11 +12,17 @@ import { CheckinEntity } from '../../database/entities/checkin.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
+import { TrainerEntity } from '../../database/entities/trainer.entity';
+import { WellnessPartnerEntity } from '../../database/entities/wellness.entity';
 import { AppConfigEntity } from '../../database/entities/app-config.entity';
 import { ProductEntity } from '../../database/entities/store.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
+import {
+  PLATFORM_PRICING_CONFIG_KEY,
+  platformPricingResponse,
+} from '../../common/commission-config';
 
 // ============ Ratings ============
 @Injectable()
@@ -24,29 +30,135 @@ class RatingsService {
   constructor(
     @InjectRepository(RatingEntity) private readonly repo: Repository<RatingEntity>,
     @InjectRepository(CheckinEntity) private readonly checkins: Repository<CheckinEntity>,
+    @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
+    @InjectRepository(TrainerEntity) private readonly trainers: Repository<TrainerEntity>,
+    @InjectRepository(WellnessPartnerEntity) private readonly wellnessPartners: Repository<WellnessPartnerEntity>,
   ) {}
-  async submit(userId: string, targetType: 'gym' | 'trainer' | 'wellness', targetId: string, stars: number, review?: string) {
-    if (stars < 1 || stars > 5) throw new BadRequestException('Stars must be 1-5');
+  private targetFromRating(rating: RatingEntity) {
+    if (rating.gymId) return { targetType: 'gym', targetId: rating.gymId };
+    if (rating.trainerId) return { targetType: 'trainer', targetId: rating.trainerId };
+    if (rating.wellnessPartnerId) return { targetType: 'wellness', targetId: rating.wellnessPartnerId };
+    return { targetType: null, targetId: null };
+  }
+
+  private ratingResponse(rating: RatingEntity) {
+    const target = this.targetFromRating(rating);
+    return { ...rating, ...target };
+  }
+
+  private async aggregateFor(column: 'gymId' | 'trainerId' | 'wellnessPartnerId', targetId: string) {
+    const row = await this.repo
+      .createQueryBuilder('r')
+      .select('AVG(r.stars)', 'avg')
+      .addSelect('COUNT(*)', 'count')
+      .where(`r."${column}" = :targetId`, { targetId })
+      .andWhere('r.status = :status', { status: 'approved' })
+      .getRawOne();
+    const count = Number(row?.count || 0);
+    const rating = count > 0 ? Math.round(Number(row?.avg || 0) * 10) / 10 : 0;
+    return { rating, count };
+  }
+
+  private async refreshAggregateForRating(rating: RatingEntity) {
+    if (rating.gymId) {
+      const aggregate = await this.aggregateFor('gymId', rating.gymId);
+      await this.gyms.update(rating.gymId, { rating: aggregate.rating, ratingCount: aggregate.count });
+    }
+    if (rating.trainerId) {
+      const aggregate = await this.aggregateFor('trainerId', rating.trainerId);
+      await this.trainers.update(rating.trainerId, { rating: aggregate.rating, ratingCount: aggregate.count });
+    }
+    if (rating.wellnessPartnerId) {
+      const aggregate = await this.aggregateFor('wellnessPartnerId', rating.wellnessPartnerId);
+      await this.wellnessPartners.update(rating.wellnessPartnerId, { rating: aggregate.rating, reviewCount: aggregate.count });
+    }
+  }
+
+  private async targetPatch(targetType: 'gym' | 'trainer' | 'wellness', targetId: string) {
+    if (!targetId) throw new BadRequestException('targetId is required');
+    if (targetType === 'gym') {
+      const gym = await this.gyms.findOne({ where: { id: targetId } });
+      if (!gym) throw new NotFoundException('Gym not found');
+      return { gymId: targetId };
+    }
+    if (targetType === 'trainer') {
+      const trainer = await this.trainers.findOne({ where: { id: targetId } });
+      if (!trainer) throw new NotFoundException('Trainer not found');
+      return { trainerId: targetId };
+    }
+    if (targetType === 'wellness') {
+      const partner = await this.wellnessPartners.findOne({ where: { id: targetId } });
+      if (!partner) throw new NotFoundException('Wellness partner not found');
+      return { wellnessPartnerId: targetId };
+    }
+    throw new BadRequestException('Invalid targetType');
+  }
+
+  async submit(userId: string, targetType: 'gym' | 'trainer' | 'wellness', targetId: string, stars: number, review?: string, status: 'pending' | 'approved' | 'rejected' = 'pending') {
+    const normalizedStars = Number(stars);
+    if (!userId) throw new BadRequestException('userId is required');
+    if (!Number.isInteger(normalizedStars) || normalizedStars < 1 || normalizedStars > 5) throw new BadRequestException('Stars must be 1-5');
+    if (!['gym', 'trainer', 'wellness'].includes(targetType)) throw new BadRequestException('Invalid targetType');
+    if (!['pending', 'approved', 'rejected'].includes(status)) throw new BadRequestException('Invalid status');
+    const target = await this.targetPatch(targetType, targetId);
     // Eligibility: must have at least 1 successful check-in (for gym)
     if (targetType === 'gym') {
       const hasCheckin = await this.checkins.count({ where: { userId, gymId: targetId, status: 'success' } });
       if (hasCheckin === 0) throw new BadRequestException('Must check in at least once to rate');
     }
-    const data: any = { userId, stars, review, status: 'pending' };
-    if (targetType === 'gym') data.gymId = targetId;
-    if (targetType === 'trainer') data.trainerId = targetId;
-    if (targetType === 'wellness') data.wellnessPartnerId = targetId;
-    return this.repo.save(this.repo.create(data));
+    const rating = await this.repo.save(this.repo.create({
+      userId,
+      stars: normalizedStars,
+      review: String(review || '').trim() || null,
+      status,
+      ...target,
+    }));
+    if (rating.status === 'approved') await this.refreshAggregateForRating(rating);
+    return this.ratingResponse(rating);
   }
-  moderate(id: string, approve: boolean) {
-    return this.repo.update(id, { status: approve ? 'approved' : 'rejected' });
+  async moderate(id: string, approve: boolean) {
+    const rating = await this.repo.findOne({ where: { id } });
+    if (!rating) throw new NotFoundException('Rating not found');
+    rating.status = approve ? 'approved' : 'rejected';
+    const saved = await this.repo.save(rating);
+    await this.refreshAggregateForRating(saved);
+    return this.ratingResponse(saved);
   }
-  listPending() { return this.repo.find({ where: { status: 'pending' }, order: { createdAt: 'DESC' } }); }
-  listByStatus(status?: string) {
+  async listPending() {
+    const rows = await this.repo.find({ where: { status: 'pending' }, order: { createdAt: 'DESC' } });
+    return rows.map((rating) => this.ratingResponse(rating));
+  }
+  async listByStatus(status?: string) {
     const where: any = status ? { status } : {};
-    return this.repo.find({ where, order: { createdAt: 'DESC' } });
+    const rows = await this.repo.find({ where, order: { createdAt: 'DESC' } });
+    return rows.map((rating) => this.ratingResponse(rating));
   }
-  listForGym(gymId: string) { return this.repo.find({ where: { gymId, status: 'approved' }, order: { createdAt: 'DESC' } }); }
+  async listForGym(gymId: string) {
+    const rows = await this.repo
+      .createQueryBuilder('r')
+      .leftJoin(UserEntity, 'u', 'u.id = r."userId"')
+      .where('r."gymId" = :gymId', { gymId })
+      .andWhere('r.status = :status', { status: 'approved' })
+      .orderBy('r.createdAt', 'DESC')
+      .select([
+        'r.id AS id',
+        'r."userId" AS "userId"',
+        'r."gymId" AS "gymId"',
+        'r.stars AS stars',
+        'r.review AS review',
+        'r.status AS status',
+        'r.createdAt AS "createdAt"',
+        'u.name AS "userName"',
+      ])
+      .getRawMany();
+    return rows.map((rating) => ({
+      ...rating,
+      stars: Number(rating.stars),
+      targetType: 'gym',
+      targetId: rating.gymId,
+      user: rating.userName ? { id: rating.userId, name: rating.userName } : undefined,
+    }));
+  }
 }
 
 // ============ Coupons ============
@@ -89,6 +201,39 @@ class NotificationsService {
 }
 
 // ============ Master Data (categories, amenities) ============
+function defaultCatalogIcon(name: any, kind: 'category' | 'amenity' = 'category') {
+  const key = String(name || '').toLowerCase();
+  const matchers: Array<[string[], string]> = [
+    [['strength', 'weight', 'muscle', 'dumbbell'], 'lucide:dumbbell'],
+    [['cardio', 'run', 'running', 'treadmill'], 'lucide:activity'],
+    [['yoga', 'pilates', 'stretch'], 'lucide:flower'],
+    [['crossfit', 'hiit', 'functional', 'bolt'], 'lucide:zap'],
+    [['zumba', 'dance'], 'lucide:music'],
+    [['boxing', 'mma'], 'lucide:badge'],
+    [['pool', 'swim'], 'lucide:waves'],
+    [['parking'], 'lucide:parking-circle'],
+    [['shower', 'wash', 'bath'], 'lucide:shower-head'],
+    [['locker', 'changing', 'change room'], 'lucide:lock-keyhole'],
+    [['steam', 'sauna'], 'lucide:flame'],
+    [['wifi', 'internet'], 'lucide:wifi'],
+    [['ac', 'air', 'ventilation'], 'lucide:snowflake'],
+    [['trainer', 'coach'], 'lucide:user-round-check'],
+    [['nutrition', 'diet'], 'lucide:apple'],
+    [['cycle', 'spin', 'bike'], 'lucide:bike'],
+    [['recovery', 'physio'], 'lucide:heart-pulse'],
+    [['water', 'drinking'], 'lucide:waves'],
+    [['access', '24/7', '24x7'], 'lucide:badge'],
+  ];
+  const found = matchers.find(([tokens]) => tokens.some((token) => key.includes(token)));
+  if (found) return found[1];
+  return kind === 'amenity' ? 'lucide:sparkles' : 'lucide:dumbbell';
+}
+
+function normalizeIconUrl(value: any) {
+  const icon = String(value || '').trim();
+  return icon || undefined;
+}
+
 class CreateCategoryDto {
   @IsString()
   @IsNotEmpty()
@@ -97,7 +242,19 @@ class CreateCategoryDto {
 
   @IsOptional()
   @IsString()
-  @Length(1, 255)
+  @Length(1, 50000)
+  iconUrl?: string;
+}
+
+class UpdateCatalogDto {
+  @IsOptional()
+  @IsString()
+  @Length(1, 100)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 50000)
   iconUrl?: string;
 }
 
@@ -107,35 +264,63 @@ class MasterDataService {
     @InjectRepository(CategoryEntity) private readonly categories: Repository<CategoryEntity>,
     @InjectRepository(AmenityEntity) private readonly amenities: Repository<AmenityEntity>,
     @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
+    @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
   ) {}
-  listCategories() { return this.categories.find({ where: { isActive: true }, order: { name: 'ASC' } }); }
+  async listCategories() {
+    const rows = await this.categories.find({ where: { isActive: true }, order: { name: 'ASC' } });
+    return rows.map((row) => ({ ...row, iconUrl: row.iconUrl || defaultCatalogIcon(row.name, 'category') }));
+  }
   async createCategory(d: Partial<CategoryEntity>) {
     const clean = String(d.name ?? '').trim();
     if (!clean) throw new BadRequestException('Category name is required');
+    const iconUrl = normalizeIconUrl(d.iconUrl) || defaultCatalogIcon(clean, 'category');
     const existing = await this.categories
       .createQueryBuilder('c')
       .where('LOWER(c.name) = LOWER(:name)', { name: clean })
       .getOne();
     if (existing) {
-      await this.categories.update(existing.id, { name: clean, iconUrl: d.iconUrl ?? existing.iconUrl, isActive: true });
+      await this.categories.update(existing.id, { name: clean, iconUrl: normalizeIconUrl(d.iconUrl) ?? existing.iconUrl ?? iconUrl, isActive: true });
       return this.categories.findOne({ where: { id: existing.id } });
     }
-    return this.categories.save(this.categories.create({ ...d, name: clean, isActive: true }));
+    return this.categories.save(this.categories.create({ ...d, name: clean, iconUrl, isActive: true }));
   }
-  listAmenities(includeAll = false) {
-    return this.amenities.find({
+  async updateCategory(id: string, d: Partial<CategoryEntity>) {
+    const existing = await this.categories.findOne({ where: { id } });
+    if (!existing) throw new NotFoundException('Category not found');
+    const clean = String(d.name ?? existing.name).trim();
+    if (!clean) throw new BadRequestException('Category name is required');
+    const duplicate = await this.categories
+      .createQueryBuilder('c')
+      .where('LOWER(c.name) = LOWER(:name)', { name: clean })
+      .andWhere('c.id != :id', { id })
+      .getOne();
+    if (duplicate) throw new BadRequestException('Category name already exists');
+    const oldDefault = defaultCatalogIcon(existing.name, 'category');
+    const shouldRefreshDefault = !existing.iconUrl || existing.iconUrl === oldDefault;
+    const iconUrl = normalizeIconUrl(d.iconUrl) || (shouldRefreshDefault ? defaultCatalogIcon(clean, 'category') : existing.iconUrl);
+    await this.categories.update(id, { name: clean, iconUrl, isActive: true });
+    return this.categories.findOne({ where: { id } });
+  }
+  async listAmenities(includeAll = false) {
+    const rows = await this.amenities.find({
       where: includeAll ? {} : { isActive: true, status: 'approved' },
       order: { name: 'ASC' },
     });
+    return rows.map((row) => ({ ...row, iconUrl: row.iconUrl || defaultCatalogIcon(row.name, 'amenity') }));
   }
   async createAmenity(d: Partial<AmenityEntity>) {
-    const clean = d.name?.trim();
+    const clean = String(d.name ?? '').trim();
     if (!clean) throw new BadRequestException('Amenity name is required');
-    const existing = await this.amenities.findOne({ where: { name: clean } });
+    const iconUrl = normalizeIconUrl(d.iconUrl) || defaultCatalogIcon(clean, 'amenity');
+    const existing = await this.amenities
+      .createQueryBuilder('a')
+      .where('LOWER(a.name) = LOWER(:name)', { name: clean })
+      .getOne();
     if (existing) {
       await this.amenities.update(existing.id, {
         ...d,
         name: clean,
+        iconUrl: normalizeIconUrl(d.iconUrl) ?? existing.iconUrl ?? iconUrl,
         status: 'approved',
         isActive: true,
         requestedByGym: false,
@@ -144,7 +329,24 @@ class MasterDataService {
       });
       return this.amenities.findOne({ where: { id: existing.id } });
     }
-    return this.amenities.save(this.amenities.create({ ...d, name: clean, status: 'approved', isActive: true }));
+    return this.amenities.save(this.amenities.create({ ...d, name: clean, iconUrl, status: 'approved', isActive: true }));
+  }
+  async updateAmenity(id: string, d: Partial<AmenityEntity>) {
+    const existing = await this.amenities.findOne({ where: { id } });
+    if (!existing) throw new NotFoundException('Amenity not found');
+    const clean = String(d.name ?? existing.name).trim();
+    if (!clean) throw new BadRequestException('Amenity name is required');
+    const duplicate = await this.amenities
+      .createQueryBuilder('a')
+      .where('LOWER(a.name) = LOWER(:name)', { name: clean })
+      .andWhere('a.id != :id', { id })
+      .getOne();
+    if (duplicate) throw new BadRequestException('Amenity name already exists');
+    const oldDefault = defaultCatalogIcon(existing.name, 'amenity');
+    const shouldRefreshDefault = !existing.iconUrl || existing.iconUrl === oldDefault;
+    const iconUrl = normalizeIconUrl(d.iconUrl) || (shouldRefreshDefault ? defaultCatalogIcon(clean, 'amenity') : existing.iconUrl);
+    await this.amenities.update(id, { name: clean, iconUrl, status: 'approved', isActive: true });
+    return this.amenities.findOne({ where: { id } });
   }
   async requestAmenity(name: string, gymId?: string, userId?: string) {
     const clean = name?.trim();
@@ -153,6 +355,7 @@ class MasterDataService {
     if (existing) return existing;
     return this.amenities.save(this.amenities.create({
       name: clean,
+      iconUrl: defaultCatalogIcon(clean, 'amenity'),
       requestedByGym: true,
       requestedByGymId: gymId || null,
       requestedByUserId: userId || null,
@@ -161,15 +364,23 @@ class MasterDataService {
     }));
   }
   async requestAmenityForUser(name: string, userId?: string) {
-    const gym = userId ? await this.gyms.findOne({ where: { ownerId: userId } }) : null;
+    const gym = userId ? await this.gymForActor(userId) : null;
     return this.requestAmenity(name, gym?.id, userId);
   }
   async listAmenityRequestsForUser(userId?: string) {
     if (!userId) return [];
-    const gym = await this.gyms.findOne({ where: { ownerId: userId } });
+    const gym = await this.gymForActor(userId);
     const where: any[] = [{ requestedByUserId: userId }];
     if (gym?.id) where.push({ requestedByGymId: gym.id });
     return this.amenities.find({ where, order: { name: 'ASC' } });
+  }
+  private async gymForActor(userId: string) {
+    const owned = await this.gyms.findOne({ where: { ownerId: userId } });
+    if (owned) return owned;
+    const user = await this.users.findOne({ where: { id: userId } });
+    return user?.role === 'gym_staff' && user.gymId
+      ? this.gyms.findOne({ where: { id: user.gymId } })
+      : null;
   }
   approveAmenity(id: string) { return this.amenities.update(id, { status: 'approved', isActive: true }); }
   deleteCategory(id: string) { return this.categories.update(id, { isActive: false } as any); }
@@ -252,13 +463,20 @@ class AnalyticsService {
 @Controller('ratings')
 class RatingsController {
   constructor(private readonly svc: RatingsService) {}
-  @Post() submit(@Body() b: any) { return this.svc.submit(b.userId, b.targetType, b.targetId, b.stars, b.review); }
-  @Post(':id/approve') approve(@Param('id') id: string) { return this.svc.moderate(id, true); }
-  @Post(':id/reject') reject(@Param('id') id: string) { return this.svc.moderate(id, false); }
-  @Get('pending') pending() { return this.svc.listPending(); }
+  @Post() @UseGuards(JwtAuthGuard)
+  submit(@Body() b: any, @Req() req: any) { return this.svc.submit(req.user?.userId || b.userId, b.targetType, b.targetId, b.stars, b.review); }
+  @Post('approved') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  submitApproved(@Body() b: any) { return this.svc.submit(b.userId, b.targetType, b.targetId, b.stars, b.review, 'approved'); }
+  @Post(':id/approve') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  approve(@Param('id') id: string) { return this.svc.moderate(id, true); }
+  @Post(':id/reject') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  reject(@Param('id') id: string) { return this.svc.moderate(id, false); }
+  @Get('pending') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
+  pending() { return this.svc.listPending(); }
   @Get('gym/:gymId') forGym(@Param('gymId') gymId: string) { return this.svc.listForGym(gymId); }
   /** Admin list with optional ?status=pending|approved|rejected filter */
-  @Get() list(@Query('status') status?: string) { return this.svc.listByStatus(status); }
+  @Get()
+  list(@Query('status') status?: string) { return this.svc.listByStatus(status); }
 }
 
 @ApiTags('Coupons')
@@ -294,6 +512,9 @@ class MasterController {
   @Post('categories') newCat(@Body() b: CreateCategoryDto) { return this.svc.createCategory(b); }
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
+  @Put('categories/:id') updateCat(@Param('id') id: string, @Body() b: UpdateCatalogDto) { return this.svc.updateCategory(id, b); }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
   @Delete('categories/:id') delCat(@Param('id') id: string) { return this.svc.deleteCategory(id); }
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
@@ -305,6 +526,9 @@ class MasterController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   @Post('amenities') newAm(@Body() b: any) { return this.svc.createAmenity(b); }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Put('amenities/:id') updateAm(@Param('id') id: string, @Body() b: UpdateCatalogDto) { return this.svc.updateAmenity(id, b); }
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('gym_owner', 'gym_staff')
   @Post('amenities/request') req(@Body() b: { name: string }, @Req() req: any) { return this.svc.requestAmenityForUser(b.name, req.user?.userId); }
@@ -438,6 +662,7 @@ class HomepageController {
   constructor(
     @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
     @InjectRepository(GymEntity) private readonly gymRepo: Repository<GymEntity>,
+    @InjectRepository(RatingEntity) private readonly ratingsRepo: Repository<RatingEntity>,
     @InjectRepository(ProductEntity) private readonly productRepo: Repository<ProductEntity>,
   ) {}
 
@@ -448,6 +673,72 @@ class HomepageController {
       return DEFAULT_HOMEPAGE_CONFIG;
     }
     return value;
+  }
+
+  private async withLiveGymRatings(gyms: GymEntity[]) {
+    if (!gyms.length) return gyms;
+    const ids = gyms.map((gym) => gym.id).filter(Boolean);
+    const rows = ids.length ? await this.ratingsRepo
+      .createQueryBuilder('r')
+      .select('r."gymId"', 'gymId')
+      .addSelect('AVG(r.stars)', 'avg')
+      .addSelect('COUNT(*)', 'count')
+      .where('r."gymId" IN (:...ids)', { ids })
+      .andWhere('r.status = :status', { status: 'approved' })
+      .groupBy('r."gymId"')
+      .getRawMany() : [];
+    const byGym = new Map(rows.map((row: any) => [row.gymId, row]));
+    return gyms.map((gym) => {
+      const {
+        ownerId: _ownerId,
+        commissionRate: _commissionRate,
+        ratePerDay: _ratePerDay,
+        kycDocuments: _kycDocuments,
+        kycReviewNote: _kycReviewNote,
+        kycStatus: _kycStatus,
+        ...publicGym
+      } = gym as any;
+      const aggregate = byGym.get(gym.id);
+      const ratingCount = Number(aggregate?.count || 0);
+      const rating = ratingCount > 0 ? Math.round(Number(aggregate?.avg || 0) * 10) / 10 : 0;
+      const photos = Array.isArray(gym.photos) ? gym.photos.filter(Boolean) : [];
+      const coverPhoto = gym.coverPhoto || photos[0] || null;
+      return {
+        ...publicGym,
+        rating,
+        ratingCount,
+        ratingsCount: ratingCount,
+        reviewCount: ratingCount,
+        coverPhoto,
+        coverImage: coverPhoto,
+        photos,
+        images: photos.length > 0 ? photos : (coverPhoto ? [coverPhoto] : []),
+      };
+    });
+  }
+
+  private publicGymQuery() {
+    return this.gymRepo.createQueryBuilder('g')
+      .where('g.status = :status', { status: 'active' })
+      .andWhere('g."kycStatus" = :kycStatus', { kycStatus: 'approved' })
+      .andWhere('g.lat IS NOT NULL AND g.lng IS NOT NULL')
+      .andWhere('NOT (g.lat = 0 AND g.lng = 0)');
+  }
+
+  private async loadPublicGyms(limit: number, featuredGymIds?: string[]) {
+    const ids = (featuredGymIds || []).filter(Boolean);
+    if (featuredGymIds && ids.length === 0) return [];
+    const qb = this.publicGymQuery();
+    if (ids.length > 0) {
+      qb.andWhere('g.id IN (:...ids)', { ids });
+    } else {
+      qb.orderBy('g.updatedAt', 'DESC').take(limit);
+    }
+    const gyms = await qb.getMany();
+    const ordered = ids.length > 0
+      ? [...gyms].sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id))
+      : gyms;
+    return this.withLiveGymRatings(ordered);
   }
 
   @Get('config')
@@ -462,9 +753,9 @@ class HomepageController {
 
       if (section.type === 'featured_gyms') {
         if (section.featuredGymIds?.length > 0) {
-          section.gyms = await this.gymRepo.find({ where: { id: In(section.featuredGymIds) } });
+          section.gyms = await this.loadPublicGyms(section.gymLimit || 6, section.featuredGymIds);
         } else {
-          section.gyms = await this.gymRepo.find({ take: section.gymLimit || 6 });
+          section.gyms = await this.loadPublicGyms(section.gymLimit || 6);
         }
       }
 
@@ -502,7 +793,6 @@ class HomepageController {
 const ADMIN_SETTINGS_KEY = 'admin_settings';
 
 const DEFAULT_ADMIN_SETTINGS = {
-  commission: { standard: 15, premium: 12, corporate: 10 },
   settlements: { cycle: 'Monthly', minPayout: 5000, processingWindow: 7 },
   flags: { storeModule: true, wellnessBooking: true, aiRecommendations: false, corporatePortal: true, mapView: false },
 };
@@ -512,11 +802,26 @@ const DEFAULT_ADMIN_SETTINGS = {
 class AdminSettingsController {
   constructor(@InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>) {}
 
-  private mergeSettings(value: any) {
+  private async loadPlanManagement() {
+    const row = await this.configRepo.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } });
+    return platformPricingResponse(row?.value);
+  }
+
+  private mergeSettings(value: any, planManagement: any) {
     return {
-      commission: { ...DEFAULT_ADMIN_SETTINGS.commission, ...(value?.commission || {}) },
       settlements: { ...DEFAULT_ADMIN_SETTINGS.settlements, ...(value?.settlements || {}) },
       flags: { ...DEFAULT_ADMIN_SETTINGS.flags, ...(value?.flags || {}) },
+      revenueControls: {
+        source: 'plan_management',
+        globalCommission: planManagement.globalCommission,
+        services: {
+          day_pass: planManagement.day_pass?.commission,
+          same_gym: planManagement.same_gym?.commission,
+          wellness: planManagement.wellness?.commission,
+          personal_training: planManagement.personal_training?.commission,
+        },
+      },
+      planManagement,
     };
   }
 
@@ -524,59 +829,61 @@ class AdminSettingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   async getSettings() {
-    const row = await this.configRepo.findOne({ where: { key: ADMIN_SETTINGS_KEY } });
-    return this.mergeSettings(row?.value);
+    const [row, planManagement] = await Promise.all([
+      this.configRepo.findOne({ where: { key: ADMIN_SETTINGS_KEY } }),
+      this.loadPlanManagement(),
+    ]);
+    return this.mergeSettings(row?.value, planManagement);
   }
 
   @Put()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   async saveSettings(@Body() body: any) {
-    const value = this.mergeSettings(body);
-    await this.configRepo.save({ key: ADMIN_SETTINGS_KEY, value });
+    const planManagement = await this.loadPlanManagement();
+    const value = this.mergeSettings(body, planManagement);
+    const persisted = {
+      settlements: value.settlements,
+      flags: value.flags,
+    };
+    await this.configRepo.save({ key: ADMIN_SETTINGS_KEY, value: persisted });
     return value;
   }
 }
-
-// In-memory commission rate config (no DB migration needed, admin-only)
-const DEFAULT_COMMISSION_RATES = [
-  { id: '1', planType: 'Individual', commission: 15, minGyms: 1, maxGyms: 1 },
-  { id: '2', planType: 'Pro', commission: 13, minGyms: 1, maxGyms: 5 },
-  { id: '3', planType: 'Max', commission: 12, minGyms: 1, maxGyms: 999 },
-  { id: '4', planType: 'Elite', commission: 10, minGyms: 1, maxGyms: 999 },
-  { id: '5', planType: 'Corporate', commission: 8, minGyms: 10, maxGyms: 999 },
-];
-
-const COMMISSION_RATES_KEY = 'commission_rates';
 
 @ApiTags('Commission')
 @Controller('commission')
 class CommissionController {
   constructor(@InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>) {}
 
-  private async loadRates() {
-    const row = await this.configRepo.findOne({ where: { key: COMMISSION_RATES_KEY } });
-    return Array.isArray(row?.value) ? row.value : DEFAULT_COMMISSION_RATES;
+  private async loadPlanManagement() {
+    const row = await this.configRepo.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } });
+    return platformPricingResponse(row?.value);
   }
 
   @Get('rates') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
-  getRates() { return this.loadRates(); }
+  async getRates() {
+    const pricing = await this.loadPlanManagement();
+    return [
+      { id: 'global', planType: 'Global Checkout Add-on', source: 'plan_management', commission: pricing.globalCommission },
+      { id: 'day_pass', planType: '1-Day Pass Checkout', source: 'plan_management', basePrice: pricing.day_pass?.basePrice, commission: pricing.day_pass?.commission, commissionSetting: pricing.day_pass?.commissionSetting },
+      { id: 'same_gym', planType: 'Same Gym Checkout', source: 'plan_management', commission: pricing.same_gym?.commission, commissionSetting: pricing.same_gym?.commissionSetting },
+      { id: 'wellness', planType: 'Wellness Checkout', source: 'plan_management', commission: pricing.wellness?.commission, commissionSetting: pricing.wellness?.commissionSetting },
+      { id: 'personal_training', planType: 'Personal Training Checkout', source: 'plan_management', commission: pricing.personal_training?.commission, commissionSetting: pricing.personal_training?.commissionSetting },
+      { id: 'multi_gym', planType: 'Multi Gym Pass', source: 'plan_management', basePrice: pricing.multi_gym?.basePrice, commission: null, commissionSetting: null },
+    ];
+  }
 
   @Put('rates/:id') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
-  async updateRate(@Param('id') id: string, @Body() body: { commission?: number; minGyms?: number; maxGyms?: number }) {
-    const rates = await this.loadRates();
-    const idx = rates.findIndex((r: any) => r.id === id);
-    if (idx === -1) return { error: 'Not found' };
-    rates[idx] = { ...rates[idx], ...body };
-    await this.configRepo.save({ key: COMMISSION_RATES_KEY, value: rates });
-    return rates[idx];
+  updateRate(@Param('id') id: string) {
+    throw new BadRequestException(`Commission rate ${id} is managed from Plan Management. Use /subscriptions/multigym-config.`);
   }
 }
 
 @Module({
   imports: [TypeOrmModule.forFeature([
     RatingEntity, CouponEntity, NotificationEntity, CategoryEntity, AmenityEntity, WorkoutVideoEntity,
-    CheckinEntity, UserEntity, SubscriptionEntity, GymEntity, FraudAlertEntity,
+    CheckinEntity, UserEntity, SubscriptionEntity, GymEntity, TrainerEntity, WellnessPartnerEntity, FraudAlertEntity,
     AppConfigEntity, ProductEntity,
   ])],
   controllers: [RatingsController, CouponsController, NotificationsController, MasterController, VideosController, AnalyticsController, FraudController, CommissionController, HomepageController, AdminSettingsController],

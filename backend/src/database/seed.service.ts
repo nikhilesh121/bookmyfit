@@ -6,7 +6,7 @@ import { UserEntity } from './entities/user.entity';
 import { GymEntity } from './entities/gym.entity';
 import { ProductEntity } from './entities/store.entity';
 import { CorporateAccountEntity } from './entities/corporate.entity';
-import { CategoryEntity, WorkoutVideoEntity } from './entities/misc.entity';
+import { AmenityEntity, CategoryEntity, WorkoutVideoEntity } from './entities/misc.entity';
 import { WellnessPartnerEntity, WellnessServiceEntity } from './entities/wellness.entity';
 
 @Injectable()
@@ -19,6 +19,7 @@ export class SeedService implements OnApplicationBootstrap {
     @InjectRepository(CorporateAccountEntity) private corps: Repository<CorporateAccountEntity>,
     @InjectRepository(WorkoutVideoEntity) private videos: Repository<WorkoutVideoEntity>,
     @InjectRepository(CategoryEntity) private categories: Repository<CategoryEntity>,
+    @InjectRepository(AmenityEntity) private amenities: Repository<AmenityEntity>,
     @InjectRepository(WellnessPartnerEntity) private wellnessPartners: Repository<WellnessPartnerEntity>,
     @InjectRepository(WellnessServiceEntity) private wellnessServices: Repository<WellnessServiceEntity>,
   ) {}
@@ -35,6 +36,7 @@ export class SeedService implements OnApplicationBootstrap {
     }
     await this.seedUsers();
     await this.seedCategories();
+    await this.seedAmenities();
     await this.seedGyms();
     await this.seedBBSRGyms();
     await this.seedWellness();
@@ -106,6 +108,42 @@ export class SeedService implements OnApplicationBootstrap {
       await this.categories.save(this.categories.create({ name, isActive: true }));
     }
     this.log.log(`Seeded/verified ${names.length} workout categories`);
+  }
+
+  private async seedAmenities() {
+    const items = [
+      ['AC', 'lucide:snowflake'],
+      ['Parking', 'lucide:parking-circle'],
+      ['Shower', 'lucide:shower-head'],
+      ['Locker', 'lucide:lock-keyhole'],
+      ['Changing Room', 'lucide:lock-keyhole'],
+      ['WiFi', 'lucide:wifi'],
+      ['Pool', 'lucide:waves'],
+      ['Steam Room', 'lucide:flame'],
+      ['Sauna', 'lucide:flame'],
+      ['Personal Trainer', 'lucide:user-round-check'],
+      ['Drinking Water', 'lucide:waves'],
+      ['24/7 Access', 'lucide:badge'],
+      ['Cycling Studio', 'lucide:bike'],
+      ['Recovery Zone', 'lucide:heart-pulse'],
+      ['Air Ventilation', 'lucide:air-vent'],
+    ];
+    for (const [name, iconUrl] of items) {
+      const existing = await this.amenities
+        .createQueryBuilder('a')
+        .where('LOWER(a.name) = LOWER(:name)', { name })
+        .getOne();
+      if (existing) {
+        existing.iconUrl = existing.iconUrl || iconUrl;
+        existing.isActive = true;
+        existing.status = 'approved';
+        existing.requestedByGym = false;
+        await this.amenities.save(existing);
+        continue;
+      }
+      await this.amenities.save(this.amenities.create({ name, iconUrl, isActive: true, status: 'approved', requestedByGym: false }));
+    }
+    this.log.log(`Seeded/verified ${items.length} gym amenities`);
   }
 
   private async seedGyms() {
@@ -194,12 +232,18 @@ export class SeedService implements OnApplicationBootstrap {
   /** Link the seeded gym_owner user to PowerZone Fitness */
   private async linkGymOwner() {
     const owner = await this.users.findOne({ where: { email: 'gym@bookmyfit.in' } });
-    if (!owner) return;
+    const staff = await this.users.findOne({ where: { email: 'staff@bookmyfit.in' } });
+    if (!owner && !staff) return;
     const gym = await this.gyms.findOne({ where: { name: 'PowerZone Fitness' } });
     if (!gym) return;
-    if (gym.ownerId === owner.id) return; // already linked
-    await this.gyms.update(gym.id, { ownerId: owner.id });
-    this.log.log(`Linked gym owner ${owner.email} to ${gym.name}`);
+    if (owner && gym.ownerId !== owner.id) {
+      await this.gyms.update(gym.id, { ownerId: owner.id });
+      this.log.log(`Linked gym owner ${owner.email} to ${gym.name}`);
+    }
+    if (staff && staff.gymId !== gym.id) {
+      await this.users.update(staff.id, { gymId: gym.id });
+      this.log.log(`Linked gym staff ${staff.email} to ${gym.name}`);
+    }
   }
 
   private async seedWellness() {

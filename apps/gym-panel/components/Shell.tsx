@@ -1,8 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { LayoutDashboard, QrCode, Calendar, Users, Building2, CreditCard, UserSquare2, Sparkles, DollarSign, FileBarChart, Settings, LogOut, ShieldCheck, AlertTriangle, Clock, Activity } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { LayoutDashboard, QrCode, Calendar, Users, Building2, CreditCard, UserSquare2, Sparkles, DollarSign, FileBarChart, Settings, LogOut, ShieldCheck, AlertTriangle, Clock, Activity, History, Star } from 'lucide-react';
+
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const API = RAW_API.replace(/\/api\/v1\/?$/i, '').replace(/\/$/, '');
 
 const NAV = [
   { group: 'Main', items: [
@@ -11,6 +14,8 @@ const NAV = [
     { href: '/checkins', label: 'Check-in Records', icon: Activity },
     { href: '/sessions', label: 'Sessions', icon: Calendar },
     { href: '/members', label: 'Members', icon: Users },
+    { href: '/member-history', label: 'Member History', icon: History },
+    { href: '/reviews', label: 'Reviews', icon: Star },
   ]},
   { group: 'Gym Setup', items: [
     { href: '/schedule', label: 'Operating Hours', icon: Clock },
@@ -52,12 +57,13 @@ const STATUS_BANNERS: Record<string, { bg: string; border: string; text: string;
 
 export default function Shell({ children, title }: { children: React.ReactNode; title: string }) {
   const pathname = usePathname();
+  const navRef = useRef<HTMLElement | null>(null);
   const [gymStatus, setGymStatus] = useState<GymStatus | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('bmf_gym_token');
     if (!token) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003'}/api/v1/gyms/my-gym`, {
+    fetch(`${API}/api/v1/gyms/my-gym`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
@@ -68,6 +74,17 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
   const banner = gymStatus && gymStatus !== 'active' ? STATUS_BANNERS[gymStatus] : null;
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const key = 'bmf_gym_sidebar_scroll';
+    const saved = sessionStorage.getItem(key);
+    if (saved) nav.scrollTop = Number(saved) || 0;
+    const saveScroll = () => sessionStorage.setItem(key, String(nav.scrollTop));
+    nav.addEventListener('scroll', saveScroll, { passive: true });
+    return () => nav.removeEventListener('scroll', saveScroll);
+  }, []);
+
   return (
     <div className="flex min-h-screen text-white">
       {/* Mobile overlay */}
@@ -75,7 +92,7 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
         <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      <aside className={`fixed lg:static z-50 top-0 left-0 h-full lg:h-auto w-64 border-r flex flex-col transition-transform duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+      <aside className={`fixed z-50 inset-y-0 left-0 h-screen w-64 border-r flex flex-col min-h-0 transition-transform duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
         style={{ borderColor: 'rgba(255,255,255,0.06)', background: '#080808' }}>
         <div className="p-5 border-b flex items-center justify-between" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
           <div>
@@ -86,7 +103,7 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
           </div>
           <button className="lg:hidden p-1" onClick={() => setSidebarOpen(false)} style={{ color: 'rgba(255,255,255,0.5)' }}>✕</button>
         </div>
-        <nav className="flex-1 overflow-y-auto py-3">
+        <nav ref={navRef} className="flex-1 min-h-0 overflow-y-auto py-3">
           {NAV.map((g) => (
             <div key={g.group} className="mb-5">
               <div className="px-5 mb-2 kicker" style={{ color: 'rgba(255,255,255,0.3)' }}>{g.group}</div>
@@ -123,7 +140,7 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 w-full lg:pl-64">
         <header className="h-16 border-b px-4 lg:px-8 flex items-center justify-between sticky top-0 z-30" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)' }}>
           <div className="flex items-center gap-3">
             <button className="lg:hidden p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)' }} onClick={() => setSidebarOpen(true)}>

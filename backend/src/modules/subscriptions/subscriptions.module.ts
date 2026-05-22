@@ -2,7 +2,7 @@ import { Module, Controller, Get, Post, Put, Delete, Body, UseGuards, Req, Injec
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Brackets, In, Repository } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { v4 as uuid } from 'uuid';
@@ -19,7 +19,6 @@ import {
   DEFAULT_PLATFORM_PRICING_CONFIG,
   PLATFORM_PRICING_CONFIG_KEY,
   applyCheckoutCommission,
-  commissionAmount,
   normalizePlatformPricingConfig,
   platformPricingResponse,
   serviceCommission,
@@ -151,6 +150,23 @@ class SubscriptionsService {
     if (existing) throw new BadRequestException(this.duplicateGymPassMessage(existing));
   }
 
+  private async cancelPendingGymPasses(userId: string, gymId?: string) {
+    if (!gymId) return;
+    const pending = await this.repo.createQueryBuilder('s')
+      .select('s.id', 'id')
+      .addSelect('s."razorpayOrderId"', 'cashfreeOrderId')
+      .where('s."userId" = :userId', { userId })
+      .andWhere('s.status = :status', { status: 'pending' })
+      .andWhere('s."planType" IN (:...planTypes)', { planTypes: ['same_gym', 'day_pass'] })
+      .andWhere('CAST(:gymId AS uuid) = ANY(s."gymIds")', { gymId })
+      .getRawMany();
+    if (!pending.length) return;
+    const ids = pending.map((row: any) => row.id).filter(Boolean);
+    const orderIds = pending.map((row: any) => row.cashfreeOrderId).filter(Boolean);
+    if (ids.length) await this.repo.update(ids, { status: 'cancelled' as any });
+    if (orderIds.length) await this.trainerBookings.update({ cashfreeOrderId: In(orderIds) }, { status: 'cancelled' });
+  }
+
   private async discountForCoupon(code: string | undefined, amount: number) {
     const couponCode = code?.trim();
     if (!couponCode) return 0;
@@ -224,7 +240,7 @@ class SubscriptionsService {
         gymId: primaryGymId,
         gymName,
         gym: primaryGymId ? { id: primaryGymId, name: gymName, coverPhoto: gym?.coverPhoto || null, coverImage: gym?.coverImage || null, photos: gym?.photos || [], images: gym?.images || [] } : null,
-        plan: gymPlan ? { id: gymPlan.id, name: gymPlan.name, price: gymPlan.price, durationDays: gymPlan.durationDays } : null,
+        plan: gymPlan ? { id: gymPlan.id, name: gymPlan.name, price: Number(gymPlan.price || 0), salePrice: Number((gymPlan as any).salePrice || gymPlan.price || 0), durationDays: gymPlan.durationDays } : null,
         planLabel: gymPlan?.name || PLAN_LABELS[sub.planType] || sub.planType,
       };
     });
@@ -269,6 +285,7 @@ class SubscriptionsService {
         .where('g.id = :id', { id: dto.gymId })
         .getRawOne();
       if (!this.hasPublicGymLocation(gym)) throw new BadRequestException('Gym is not available for booking');
+      await this.cancelPendingGymPasses(userId, dto.gymId);
       await this.assertNoActiveGymPass(userId, dto.gymId);
 
       if (!gymPlanId) {
@@ -278,7 +295,7 @@ class SubscriptionsService {
       const gymPlan = await this.gymPlanRepo.findOne({ where: { id: gymPlanId, gymId: dto.gymId, isActive: true } });
       if (!gymPlan) throw new BadRequestException('Gym plan not found');
 
-      amount = this.amountWithCheckoutCommission(Number(gymPlan.price), 'same_gym', config);
+      amount = this.amountWithCheckoutCommission(Number((gymPlan as any).salePrice || gymPlan.price), 'same_gym', config);
       durationMonths = Math.max(1, Math.round((gymPlan.durationDays || 30) / 30));
     } else if (dto.planType === 'multi_gym') {
       const price = config.multi_gym?.basePrice || 1499;
@@ -296,6 +313,7 @@ class SubscriptionsService {
         .where('g.id = :id', { id: dto.gymId })
         .getRawOne();
       if (!this.hasPublicGymLocation(gym)) throw new BadRequestException('Gym is not available for booking');
+      await this.cancelPendingGymPasses(userId, dto.gymId);
       await this.assertNoActiveGymPass(userId, dto.gymId);
       amount = this.amountWithCheckoutCommission(Number(gym.dayPassPrice || config.day_pass?.basePrice || 149), 'day_pass', config);
     } else {
@@ -316,7 +334,7 @@ class SubscriptionsService {
       const ptBaseAmount = Math.round(ptMonthlyPrice * ptMonths);
       const ptAmount = applyCheckoutCommission(ptBaseAmount, serviceCommission(config, 'personal_training'));
       amount += ptAmount;
-      const ptCommission = commissionAmount(ptBaseAmount, serviceCommission(config, 'personal_training'));
+      const ptCommission = Math.max(0, ptAmount - ptBaseAmount);
       ptBooking = this.trainerBookings.create({
         userId,
         trainerId: trainer.id,
@@ -423,6 +441,10 @@ class SubscriptionsService {
       await this.trainerBookings.update({ cashfreeOrderId: sub.razorpayOrderId }, { status: 'confirmed' });
       sub.status = 'active';
       sub.razorpayPaymentId = payment.paymentId || sub.razorpayPaymentId;
+    } else if (['FAILED', 'CANCELLED', 'USER_DROPPED', 'EXPIRED'].includes(String(payment.orderStatus || '').toUpperCase())) {
+      await this.repo.update(subId, { status: 'cancelled' as any });
+      await this.trainerBookings.update({ cashfreeOrderId: sub.razorpayOrderId }, { status: 'cancelled' });
+      sub.status = 'cancelled' as any;
     }
     return { success: sub.status === 'active', subscription: sub, paymentStatus: payment.paid ? 'PAID' : payment.orderStatus || 'unknown' };
   }
@@ -451,7 +473,22 @@ class SubscriptionsService {
     } else if (status) {
       qb.andWhere('s.status = :status', { status });
     }
-    if (gymId) qb.andWhere('CAST(:gymId AS uuid) = ANY(s."gymIds")', { gymId });
+    if (gymId) {
+      qb.andWhere(new Brackets((where) => {
+        where
+          .where('CAST(:gymId AS uuid) = ANY(COALESCE(s."gymIds", ARRAY[]::uuid[]))', { gymId })
+          .orWhere(`(
+            s."planType" = :multiGym
+            AND EXISTS (
+              SELECT 1
+              FROM checkins c
+              WHERE c."subscriptionId" = s.id
+                AND c."gymId" = :gymId
+                AND c.status = :checkinSuccess
+            )
+          )`, { multiGym: 'multi_gym', checkinSuccess: 'success' });
+      }));
+    }
     const [rows, total] = await Promise.all([
       qb.clone().skip(skip).take(take).getRawMany(),
       qb.clone().getCount(),
@@ -494,7 +531,7 @@ class SubscriptionsService {
         gymName: sub.planType === 'multi_gym'
           ? 'All Partner Gyms'
           : (subGyms[0]?.name || null),
-        plan: plan ? { id: plan.id, name: plan.name, price: Number(plan.price || 0), durationDays: plan.durationDays } : null,
+        plan: plan ? { id: plan.id, name: plan.name, price: Number(plan.price || 0), salePrice: Number((plan as any).salePrice || plan.price || 0), durationDays: plan.durationDays } : null,
         planName: plan?.name || planLabels[sub.planType] || sub.planType,
         accessType: sub.planType === 'multi_gym' ? 'Multi Gym' : 'Single Gym',
         paymentStatus: effectiveStatus === 'active' ? 'paid' : effectiveStatus,

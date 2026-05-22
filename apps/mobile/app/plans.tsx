@@ -97,6 +97,24 @@ function planMonths(plan: any) {
   return Math.max(1, Math.round(Number(plan?.durationDays || plan?.days || 30) / 30));
 }
 
+function planSaleBase(plan: any) {
+  return positiveNumber(plan?.salePrice) || positiveNumber(plan?.price || plan?.basePrice);
+}
+
+function planRegularBase(plan: any) {
+  const regular = positiveNumber(plan?.price || plan?.basePrice);
+  const sale = planSaleBase(plan);
+  return regular && sale ? Math.max(regular, sale) : regular || sale;
+}
+
+function planCheckoutSale(plan: any, commission: any) {
+  return positiveNumber(plan?.checkoutSalePrice) || applyPassCommission(planSaleBase(plan), commission);
+}
+
+function planCheckoutRegular(plan: any, commission: any) {
+  return positiveNumber(plan?.checkoutRegularPrice) || applyPassCommission(planRegularBase(plan), commission);
+}
+
 export default function PlansScreen() {
   const { gymId, gymName } = useLocalSearchParams<{ gymId?: string; gymName?: string }>();
   const [serverPlans, setServerPlans] = useState<any>(null);
@@ -170,11 +188,10 @@ export default function PlansScreen() {
       ? (positiveNumber(selectedGym?.dayPassPrice) || positiveNumber(serverPlans?.day_pass?.basePrice))
       : positiveNumber(serverPlans?.day_pass?.basePrice);
     const dayPrice = applyPassCommission(dayBasePrice, serverPlans?.day_pass?.commission);
-    const activeGymPlans = gymPlans.filter((plan) => plan?.isActive !== false && positiveNumber(plan?.price || plan?.basePrice));
+    const activeGymPlans = gymPlans.filter((plan) => plan?.isActive !== false && planSaleBase(plan));
     const sameMonthlyPrices = activeGymPlans
       .map((plan) => {
-        const base = positiveNumber(plan?.price || plan?.basePrice);
-        const total = applyPassCommission(base, serverPlans?.same_gym?.commission);
+        const total = planCheckoutSale(plan, serverPlans?.same_gym?.commission);
         return total ? total / planMonths(plan) : null;
       })
       .filter((price): price is number => !!price);
@@ -242,14 +259,16 @@ export default function PlansScreen() {
     const selectedGymName = gymName || selectedGym?.name || '';
     const sameGymPlanPayload = plan.id === 'same_gym'
       ? gymPlans
-        .filter((gymPlan) => gymPlan?.isActive !== false && positiveNumber(gymPlan?.price || gymPlan?.basePrice))
+        .filter((gymPlan) => gymPlan?.isActive !== false && planSaleBase(gymPlan))
         .map((gymPlan) => {
-          const base = positiveNumber(gymPlan.price || gymPlan.basePrice);
-          const displayPrice = applyPassCommission(base, serverPlans?.same_gym?.commission) || base || 0;
+          const displayPrice = planCheckoutSale(gymPlan, serverPlans?.same_gym?.commission) || 0;
+          const originalPrice = planCheckoutRegular(gymPlan, serverPlans?.same_gym?.commission) || displayPrice;
           return {
             id: gymPlan.id,
             name: gymPlan.name,
             price: displayPrice,
+            originalPrice,
+            discountPercent: originalPrice > displayPrice ? Math.round((1 - displayPrice / originalPrice) * 100) : 0,
             durationDays: gymPlan.durationDays || gymPlan.days || 30,
             features: gymPlan.features || [],
           };

@@ -2,7 +2,7 @@
 
 import Shell from '../../components/Shell';
 import { api } from '../../lib/api';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CreditCard, Plus, Edit2, Trash2, ToggleLeft, ToggleRight, IndianRupee, Clock, AlertTriangle, X, Check } from 'lucide-react';
 import { useToast } from '../../components/Toast';
 
@@ -12,6 +12,10 @@ type GymPlan = {
   name: string;
   description?: string;
   price: number;
+  salePrice?: number | null;
+  checkoutRegularPrice?: number;
+  checkoutSalePrice?: number;
+  discountPercent?: number;
   durationDays: number;
   sessionsPerDay: number;
   features: string[];
@@ -19,13 +23,17 @@ type GymPlan = {
   createdAt: string;
 };
 
-const EMPTY_FORM = { name: '', description: '', price: '', durationDays: '30', sessionsPerDay: '1', features: '' };
+const EMPTY_FORM = { name: '', description: '', price: '', salePrice: '', durationDays: '30', sessionsPerDay: '1', features: '' };
 const DURATION_OPTIONS = [
   { value: '30', label: '1 Month' },
   { value: '90', label: '3 Months' },
   { value: '180', label: '6 Months' },
   { value: '365', label: '12 Months' },
 ];
+
+function durationLabel(days: string | number) {
+  return DURATION_OPTIONS.find((d) => d.value === String(days))?.label || `${days} days`;
+}
 
 function SkeletonCard() {
   return (
@@ -73,20 +81,88 @@ export default function PlansPage() {
 
   useEffect(() => { load(); }, []);
 
-  const openCreate = () => { setEditPlan(null); setForm({ ...EMPTY_FORM }); setShowForm(true); };
+  const displayPlans = useMemo(() => {
+    const sorted = [...plans].sort((a, b) => {
+      const durationDiff = DURATION_OPTIONS.findIndex((d) => d.value === String(a.durationDays)) - DURATION_OPTIONS.findIndex((d) => d.value === String(b.durationDays));
+      if (durationDiff !== 0) return durationDiff;
+      if (Number(b.isActive) !== Number(a.isActive)) return Number(b.isActive) - Number(a.isActive);
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
+    const byDuration = new Map<string, GymPlan>();
+    for (const plan of sorted) {
+      const key = String(plan.durationDays);
+      if (!byDuration.has(key)) byDuration.set(key, plan);
+    }
+    return Array.from(byDuration.values());
+  }, [plans]);
+  const usedDurations = useMemo(() => new Set(plans.map((p) => String(p.durationDays))), [plans]);
+  const duplicatePlansByDuration = useMemo(() => {
+    const primaryIds = new Set(displayPlans.map((plan) => plan.id));
+    const grouped = new Map<string, GymPlan[]>();
+    for (const plan of plans) {
+      if (primaryIds.has(plan.id)) continue;
+      const key = String(plan.durationDays);
+      grouped.set(key, [...(grouped.get(key) || []), plan]);
+    }
+    return grouped;
+  }, [plans, displayPlans]);
+  const nextAvailableDuration = DURATION_OPTIONS.find((duration) => !usedDurations.has(duration.value));
+  const planSlots = useMemo(() => DURATION_OPTIONS.map((duration) => ({
+    duration,
+    plan: displayPlans.find((plan) => String(plan.durationDays) === duration.value) || null,
+  })), [displayPlans]);
+
+  const openCreateForDuration = (durationDays?: string) => {
+    const target = durationDays ? DURATION_OPTIONS.find((duration) => duration.value === durationDays) : nextAvailableDuration;
+    if (!target) {
+      toast('All duration plans already exist. Edit an existing plan instead.', 'error');
+      return;
+    }
+    setEditPlan(null);
+    setForm({ ...EMPTY_FORM, durationDays: target.value, name: `${target.label} Pass` });
+    setShowForm(true);
+  };
+  const openCreate = () => openCreateForDuration();
   const openEdit = (p: GymPlan) => {
     setEditPlan(p);
-    setForm({ name: p.name, description: p.description ?? '', price: String(p.price), durationDays: String(p.durationDays), sessionsPerDay: String(p.sessionsPerDay), features: (p.features ?? []).join(', ') });
+    setForm({
+      name: p.name,
+      description: p.description ?? '',
+      price: String(p.price),
+      salePrice: String(p.salePrice ?? p.price),
+      durationDays: String(p.durationDays),
+      sessionsPerDay: String(p.sessionsPerDay),
+      features: (p.features ?? []).join(', '),
+    });
     setShowForm(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    const duplicate = plans.find((plan) => String(plan.durationDays) === String(form.durationDays) && (!editPlan || plan.id !== editPlan.id));
+    if (duplicate) {
+      toast(`${durationLabel(form.durationDays)} plan already exists. Edit that plan instead.`, 'error');
+      setSaving(false);
+      return;
+    }
+    const regularPrice = Number(form.price);
+    const salePrice = form.salePrice.trim() ? Number(form.salePrice) : regularPrice;
+    if (!Number.isFinite(regularPrice) || regularPrice <= 0 || !Number.isFinite(salePrice) || salePrice <= 0) {
+      toast('Enter valid regular and sale prices', 'error');
+      setSaving(false);
+      return;
+    }
+    if (salePrice > regularPrice) {
+      toast('Sale price cannot be greater than regular price', 'error');
+      setSaving(false);
+      return;
+    }
     const payload = {
       name: form.name,
       description: form.description,
-      price: Number(form.price),
+      price: regularPrice,
+      salePrice,
       durationDays: Number(form.durationDays),
       sessionsPerDay: Number(form.sessionsPerDay),
       features: form.features ? form.features.split(',').map(s => s.trim()).filter(Boolean) : [],
@@ -169,7 +245,7 @@ export default function PlansPage() {
       {confirmDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="glass p-6 rounded-2xl" style={{ maxWidth: 380, width: '90%' }}>
-            <p className="mb-5 text-sm" style={{ color: 'var(--t)' }}>Delete plan <strong>{confirmDelete.name}</strong>? Existing subscribers will not be affected.</p>
+            <p className="mb-5 text-sm" style={{ color: 'var(--t)' }}>Delete plan <strong>{confirmDelete.name}</strong>? Existing subscription records stay saved, and this duration slot becomes available again.</p>
             <div className="flex gap-3 justify-end">
               <button className="btn btn-ghost text-sm" onClick={() => setConfirmDelete(null)}>Cancel</button>
               <button className="btn text-sm" style={{ background: '#ef4444', color: '#fff' }} onClick={handleDelete}>Delete</button>
@@ -195,17 +271,28 @@ export default function PlansPage() {
                 <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Description</label>
                 <textarea className="glass-input" style={{ width: '100%', resize: 'vertical', minHeight: 60 }} placeholder="What's included in this plan..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Price (₹) *</label>
-                  <input className="glass-input" style={{ width: '100%' }} type="number" min="0" placeholder="1499" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} required />
+                  <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Regular Price (Rs.) *</label>
+                  <input className="glass-input" style={{ width: '100%' }} type="number" min="1" placeholder="1999" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} required />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Duration (days) *</label>
+                  <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Sale Price (Rs.) *</label>
+                  <input className="glass-input" style={{ width: '100%' }} type="number" min="1" placeholder="1499" value={form.salePrice} onChange={e => setForm(f => ({ ...f, salePrice: e.target.value }))} required />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--t3)', display: 'block', marginBottom: 5 }}>Duration *</label>
                   <select className="glass-input" style={{ width: '100%' }} value={form.durationDays} onChange={e => setForm(f => ({ ...f, durationDays: e.target.value }))} required>
-                    {DURATION_OPTIONS.map((d) => (
-                      <option key={d.value} value={d.value} style={{ background: '#111' }}>{d.label}</option>
-                    ))}
+                    {DURATION_OPTIONS.map((d) => {
+                      const disabled = usedDurations.has(d.value) && (!editPlan || String(editPlan.durationDays) !== d.value);
+                      return (
+                        <option key={d.value} value={d.value} disabled={disabled} style={{ background: '#111' }}>
+                          {d.label}{disabled ? ' - already created' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div>
@@ -235,7 +322,13 @@ export default function PlansPage() {
             Manage your gym's day pass and individual subscription plans. These appear in the BMF mobile app for members to purchase directly for your gym.
           </p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+        <button
+          className="btn btn-primary"
+          onClick={openCreate}
+          disabled={!nextAvailableDuration}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', opacity: nextAvailableDuration ? 1 : 0.55 }}
+          title={nextAvailableDuration ? 'Create the next available duration plan' : 'All duration plans already exist'}
+        >
           <Plus size={15} /> Add Plan
         </button>
       </div>
@@ -290,9 +383,9 @@ export default function PlansPage() {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
         {[
-          { label: 'Total Plans', value: plans.length, icon: <CreditCard size={18} /> },
+          { label: 'Plan Slots Used', value: `${usedDurations.size}/4`, icon: <CreditCard size={18} /> },
           { label: 'Active Plans', value: activePlans, icon: <ToggleRight size={18} /> },
-          { label: 'Inactive Plans', value: plans.length - activePlans, icon: <ToggleLeft size={18} /> },
+          { label: 'Open Slots', value: 4 - usedDurations.size, icon: <ToggleLeft size={18} /> },
         ].map(s => (
           <div key={s.label} className="card" style={{ padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ background: 'rgba(204,255,0,0.1)', borderRadius: 10, padding: 10, color: 'var(--accent)' }}>{s.icon}</div>
@@ -307,22 +400,15 @@ export default function PlansPage() {
       {/* Plans Grid */}
       {loading ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
-      ) : plans.length === 0 ? (
-        <div className="glass rounded-2xl p-12 text-center">
-          <CreditCard size={40} style={{ color: 'var(--t3)', margin: '0 auto 16px' }} />
-          <p style={{ color: 'var(--t2)', marginBottom: 16 }}>No individual plans yet. Create your first plan to offer gym-specific subscriptions to members.</p>
-          <button className="btn btn-primary" onClick={openCreate} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Plus size={14} /> Create First Plan
-          </button>
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-          {plans.map(p => (
-            <div key={p.id} className="glass card" style={{ padding: '20px 22px', opacity: p.isActive ? 1 : 0.65 }}>
+          {planSlots.map(({ duration, plan: p }) => p ? (
+            <div key={duration.value} className="glass card" style={{ padding: '20px 22px', opacity: p.isActive ? 1 : 0.65 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
+                  <div className="kicker mb-2" style={{ color: 'var(--accent)' }}>{duration.label}</div>
                   <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--t)', marginBottom: 4 }}>{p.name}</div>
                   {p.description && <div style={{ fontSize: 12, color: 'var(--t2)', lineHeight: 1.5 }}>{p.description}</div>}
                 </div>
@@ -333,16 +419,34 @@ export default function PlansPage() {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', gap: 16, marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--accent)', fontWeight: 700, fontSize: 22 }}>
-                  <IndianRupee size={16} />
-                  {Number(p.price).toLocaleString('en-IN')}
+              <div style={{ display: 'flex', gap: 16, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div>
+                  {Number(p.salePrice ?? p.price) < Number(p.price) && (
+                    <div style={{ color: 'var(--t3)', fontSize: 12, textDecoration: 'line-through', marginBottom: 2 }}>
+                      Rs {Number(p.price).toLocaleString('en-IN')}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--accent)', fontWeight: 700, fontSize: 22 }}>
+                    <IndianRupee size={16} />
+                    {Number(p.salePrice ?? p.price).toLocaleString('en-IN')}
+                  </div>
                 </div>
+                {Number(p.discountPercent || 0) > 0 && (
+                  <span className="accent-pill text-xs">{p.discountPercent}% OFF</span>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--t2)', fontSize: 13 }}>
                   <Clock size={13} />
-                  {DURATION_OPTIONS.find((d) => d.value === String(p.durationDays))?.label || `${p.durationDays} days`}
+                  {duration.label}
                 </div>
               </div>
+              {Number(p.checkoutSalePrice || 0) > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 12 }}>
+                  User sees Rs {Number(p.checkoutSalePrice).toLocaleString('en-IN')}
+                  {Number(p.checkoutRegularPrice || 0) > Number(p.checkoutSalePrice || 0)
+                    ? ` after BMF margin, MRP Rs ${Number(p.checkoutRegularPrice).toLocaleString('en-IN')}`
+                    : ' after BMF margin'}
+                </div>
+              )}
 
               {p.features?.length > 0 && (
                 <ul style={{ margin: '0 0 14px', padding: 0, listStyle: 'none' }}>
@@ -355,14 +459,44 @@ export default function PlansPage() {
                 </ul>
               )}
 
-              <div style={{ display: 'flex', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
+              <div style={{ display: 'flex', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4, flexWrap: 'wrap' }}>
                 <button className="btn btn-ghost text-xs" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }} onClick={() => openEdit(p)}>
                   <Edit2 size={12} /> Edit
+                </button>
+                <button className="btn btn-ghost text-xs" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }} onClick={() => toggleActive(p)}>
+                  {p.isActive ? <ToggleLeft size={12} /> : <ToggleRight size={12} />}
+                  {p.isActive ? 'Deactivate' : 'Activate'}
                 </button>
                 <button className="btn btn-ghost text-xs" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, color: 'var(--error)' }} onClick={() => setConfirmDelete(p)}>
                   <Trash2 size={12} /> Delete
                 </button>
               </div>
+              {(duplicatePlansByDuration.get(duration.value) || []).length > 0 && (
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'grid', gap: 8 }}>
+                  <div style={{ color: 'var(--t3)', fontSize: 11, fontWeight: 700 }}>Older saved {duration.label} plans</div>
+                  {(duplicatePlansByDuration.get(duration.value) || []).map((oldPlan) => (
+                    <div key={oldPlan.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 11, color: 'var(--t2)' }}>
+                      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {oldPlan.name} · {oldPlan.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                      <button className="btn btn-ghost text-xs" style={{ padding: '4px 8px', color: 'var(--error)' }} onClick={() => setConfirmDelete(oldPlan)}>
+                        Delete
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div key={duration.value} className="glass card" style={{ padding: '20px 22px', borderStyle: 'dashed', borderColor: 'rgba(204,255,0,0.18)', background: 'rgba(255,255,255,0.025)' }}>
+              <div className="kicker mb-3" style={{ color: 'var(--accent)' }}>{duration.label}</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--t)', marginBottom: 6 }}>{duration.label} Plan</div>
+              <p style={{ color: 'var(--t2)', fontSize: 12, lineHeight: 1.55, marginBottom: 18 }}>
+                No {duration.label.toLowerCase()} package is created yet. Add one price for this duration only.
+              </p>
+              <button className="btn btn-primary text-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => openCreateForDuration(duration.value)}>
+                <Plus size={13} /> Create {duration.label}
+              </button>
             </div>
           ))}
         </div>
@@ -372,7 +506,7 @@ export default function PlansPage() {
       <div className="glass card p-4 flex items-start gap-3 mt-6" style={{ borderColor: 'rgba(204,255,0,0.12)' }}>
         <AlertTriangle size={16} color="var(--accent)" style={{ marginTop: 2, flexShrink: 0 }} />
         <div style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.7 }}>
-          <strong style={{ color: 'var(--t)' }}>Individual Plans Revenue Model:</strong> Create only one active package per duration. BMF collects subscription payments and pays your gym{' '}
+          <strong style={{ color: 'var(--t)' }}>Individual Plans Revenue Model:</strong> Create only one package per duration: 1 month, 3 months, 6 months, and 12 months. BMF collects subscription payments and pays your gym{' '}
           <strong style={{ color: 'var(--accent)' }}>(100% − commission rate)</strong> of the subscription fee each month.
           For multi-gym plan members visiting your gym, you get paid <strong style={{ color: 'var(--accent)' }}>per visit-day</strong> at your configured rate.
         </div>

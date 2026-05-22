@@ -11,7 +11,7 @@ import {
 import { Linking, Platform, StyleSheet, View } from 'react-native';
 import { useEffect, useState } from 'react';
 import { colors } from '../theme/brand';
-import { appStorage, getToken, getUser } from '../lib/api';
+import { appStorage, authApi, getToken, setUser } from '../lib/api';
 import AppLoadingScreen from '../components/AppLoadingScreen';
 
 const ONBOARDED_KEY = 'bmf_onboarded';
@@ -34,13 +34,17 @@ async function resolveInitialRoute() {
       router.replace('/login');
       return;
     }
-    const user = await getUser();
+    const me: any = await authApi.me();
+    const user = me?.user || me;
+    if (!user) throw new Error('User session could not be validated');
+    await setUser(user);
     if (user?.role === 'gym_owner' || user?.role === 'gym_staff') {
       router.replace('/(gym-portal)');
     } else {
       router.replace('/(tabs)');
     }
   } catch {
+    await appStorage.deleteItem('bmf_user').catch(() => {});
     router.replace('/login');
   }
 }

@@ -1,6 +1,10 @@
-import { Body, Controller, Get, Post, Query, UseGuards, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards, Req, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { IsString, IsUUID } from 'class-validator';
+import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { GymEntity } from '../../database/entities/gym.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
@@ -11,11 +15,11 @@ class GenerateQrDto {
 }
 class ValidateQrDto {
   @IsString() qrToken: string;
-  @IsUUID() gymId: string;
+  @IsOptional() @IsUUID() gymId?: string;
 }
 class ValidateManualDto {
   @IsString() code: string;
-  @IsUUID() gymId: string;
+  @IsOptional() @IsUUID() gymId?: string;
 }
 
 @ApiTags('QR Check-in')
@@ -23,7 +27,26 @@ class ValidateManualDto {
 @UseGuards(JwtAuthGuard)
 @Controller('qr')
 export class QrController {
-  constructor(private readonly qr: QrService) {}
+  constructor(
+    private readonly qr: QrService,
+    @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
+    @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
+  ) {}
+
+  private async scannerGymId(req: any, requestedGymId?: string) {
+    if (req.user?.role === 'super_admin') {
+      if (!requestedGymId) throw new BadRequestException('gymId is required for admin scanner validation');
+      return requestedGymId;
+    }
+    const gym = req.user?.role === 'gym_staff'
+      ? await this.users.findOne({ where: { id: req.user?.userId } }).then((staff) => (
+        staff?.gymId ? this.gyms.findOne({ where: { id: staff.gymId } }) : null
+      ))
+      : await this.gyms.findOne({ where: { ownerId: req.user?.userId } });
+    if (!gym) throw new ForbiddenException('Scanner is not linked to a gym profile');
+    if (requestedGymId && requestedGymId !== gym.id) throw new ForbiddenException('Scanner is linked to another gym');
+    return gym.id;
+  }
 
   @Post('generate')
   @ApiOperation({ summary: 'Generate a 30-second QR token (mobile app)' })
@@ -35,16 +58,18 @@ export class QrController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('gym_owner', 'gym_staff', 'super_admin')
   @ApiOperation({ summary: 'Validate a QR token (gym panel scanner)' })
-  validate(@Body() dto: ValidateQrDto) {
-    return this.qr.validateQr(dto.qrToken, dto.gymId);
+  async validate(@Req() req: any, @Body() dto: ValidateQrDto) {
+    const gymId = await this.scannerGymId(req, dto.gymId);
+    return this.qr.validateQr(dto.qrToken, gymId);
   }
 
   @Post('validate-manual')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('gym_owner', 'gym_staff', 'super_admin')
   @ApiOperation({ summary: 'Validate a booking reference manually when QR scan fails' })
-  validateManual(@Body() dto: ValidateManualDto) {
-    return this.qr.validateManualCode(dto.code, dto.gymId);
+  async validateManual(@Req() req: any, @Body() dto: ValidateManualDto) {
+    const gymId = await this.scannerGymId(req, dto.gymId);
+    return this.qr.validateManualCode(dto.code, gymId);
   }
 
   @Get('history')

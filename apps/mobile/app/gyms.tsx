@@ -29,7 +29,57 @@ const FALLBACK_CATS = [
 ];
 
 function categoryKey(value: any) {
-  return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const raw = typeof value === 'string'
+    ? value
+    : (value?.name || value?.label || value?.title || value?.id || value?.value || '');
+  return String(raw).trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function ratingNumber(value: any): number | null {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return Math.min(5, Math.max(0, num));
+}
+
+function firstRatingNumber(...values: any[]): number | null {
+  for (const value of values) {
+    const rating = ratingNumber(value);
+    if (rating !== null) return rating;
+  }
+  return null;
+}
+
+function countNumber(value: any): number | null {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) return null;
+  return Math.round(num);
+}
+
+function firstCountNumber(...values: any[]): number | null {
+  for (const value of values) {
+    const count = countNumber(value);
+    if (count !== null) return count;
+  }
+  return null;
+}
+
+function reviewCountLabel(count: number) {
+  return `${count} ${count === 1 ? 'review' : 'reviews'}`;
+}
+
+function gymRatingInfo(gym: any) {
+  const count = firstCountNumber(
+    gym?.ratingCount,
+    gym?.ratingsCount,
+    gym?.reviewCount,
+    gym?.reviewsCount,
+    gym?.rating_count,
+    gym?.ratings_count,
+    gym?.review_count,
+    gym?.reviews_count,
+  ) || 0;
+  const rating = count > 0 ? firstRatingNumber(gym?.rating, gym?.avgRating, gym?.averageRating, gym?.avg_rating, gym?.average_rating) : null;
+  return { rating, count };
 }
 
 const SORTS = [
@@ -116,7 +166,7 @@ export default function GymListingPage() {
     if (cat === 'all') return list;
     return list.filter((g: any) => {
       const cats = [...(g.categories || []), ...(g.amenities || [])];
-      return cats.some((c: string) => categoryKey(c) === categoryKey(cat));
+      return cats.some((c: any) => categoryKey(c) === categoryKey(cat));
     });
   };
 
@@ -159,7 +209,8 @@ export default function GymListingPage() {
   }, [activeCategory, userLocation, activeSort, load]);
 
   useEffect(() => {
-    if (paramCat) setActiveCategory(categoryKey(paramCat));
+    const nextCategory = paramCat ? categoryKey(paramCat) : 'all';
+    setActiveCategory((current) => current === nextCategory ? current : nextCategory);
   }, [paramCat]);
 
   useEffect(() => {
@@ -199,7 +250,7 @@ export default function GymListingPage() {
 
   // Sort locally (server doesn't always support all sort params)
   const sorted = [...gyms].sort((a, b) => {
-    if (activeSort === 'rating')     return (Number(b.rating || b.avgRating || 0)) - (Number(a.rating || a.avgRating || 0));
+    if (activeSort === 'rating')     return (gymRatingInfo(b).rating || 0) - (gymRatingInfo(a).rating || 0);
     if (activeSort === 'distance') {
       const da = parseFloat(a.distance || a.distanceKm || '999');
       const db = parseFloat(b.distance || b.distanceKm || '999');
@@ -398,14 +449,17 @@ function GymCard({
   passPricingConfig?: any;
 }) {
   const name     = gym.name || gym.gymName || 'Gym';
-  const rating   = Number(gym.rating || gym.avgRating || 0).toFixed(1);
+  const ratingInfo = gymRatingInfo(gym);
   const distance = gym.distance || (gym.distanceKm ? `${gym.distanceKm} km` : '');
   const city     = gym.city || gym.location?.city || '';
-  const img      = firstImage(gym.images, gym.photos, gym.coverImage, gym.coverPhoto, gym.img) || DEFAULT_GYM_IMAGE;
+  const img      = firstImage(gym.coverPhoto, gym.coverImage, gym.photos, gym.images, gym.media, gym.imageUrl, gym.image, gym.photo, gym.img) || DEFAULT_GYM_IMAGE;
   const dayPassBasePrice = positiveNumber(gym.dayPassPrice || gym.day_pass_price) || positiveNumber(passPricingConfig?.day_pass?.basePrice);
   const dayPassPrice = applyPassCommission(dayPassBasePrice, passPricingConfig?.day_pass?.commission);
   const discount = gym.discount || null;
-  const tags: string[] = (gym.amenities || gym.tags || []).slice(0, 3);
+  const tags: string[] = (gym.amenities || gym.tags || [])
+    .map((item: any) => typeof item === 'string' ? item : (item?.name || item?.label || ''))
+    .filter(Boolean)
+    .slice(0, 3);
   const gid = gym.id || gym._id;
   const hasAccess = !!isSubscribed || !!hasMultiGymSub;
   const accessLabel = accessLabelForSubscription(activeSubscription || multiGymSub, !!hasMultiGymSub);
@@ -418,7 +472,8 @@ function GymCard({
         params: {
           id: gid,
           fallbackName: name,
-          fallbackRating: rating,
+          fallbackRating: ratingInfo.rating !== null ? String(ratingInfo.rating) : '',
+          fallbackReviewCount: ratingInfo.count > 0 ? String(ratingInfo.count) : '',
           fallbackAddress: gym.address || gym.location?.address || city,
           fallbackTier: gym.tier || gym.tierName || 'Elite',
           fallbackImg: img,
@@ -446,8 +501,15 @@ function GymCard({
             )}
           </View>
           <View style={s.metaRow}>
-            <IconStar size={11} color="#FBBF24" />
-            <Text style={s.ratingText}>{rating}</Text>
+            {ratingInfo.rating !== null ? (
+              <>
+                <IconStar size={11} color="#FBBF24" />
+                <Text style={s.ratingText}>{ratingInfo.rating.toFixed(1)}</Text>
+                <Text style={s.metaText}>({reviewCountLabel(ratingInfo.count)})</Text>
+              </>
+            ) : (
+              <Text style={s.metaText}>No reviews yet</Text>
+            )}
             {distance ? <><Text style={s.divider}>·</Text><IconPin size={10} color={colors.t2} /><Text style={s.metaText}>{distance}</Text></> : null}
             {city      ? <><Text style={s.divider}>·</Text><Text style={s.metaText}>{city}</Text></> : null}
           </View>

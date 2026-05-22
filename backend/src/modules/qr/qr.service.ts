@@ -33,9 +33,23 @@ function nowISTParts() {
   };
 }
 
+function todayIST() {
+  return nowISTParts().date;
+}
+
 function minutesOf(time: string) {
   const [h, m] = String(time || '00:00').split(':').map(Number);
   return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+}
+
+function memberCode(userId?: string | null) {
+  const id = String(userId || '').replace(/-/g, '').toUpperCase();
+  return id ? `BMF-${id.slice(0, 10)}` : 'BMF-UNKNOWN';
+}
+
+function memberName(user?: UserEntity | null, userId?: string | null) {
+  const name = String(user?.name || '').trim();
+  return name || `Member ${memberCode(userId).replace('BMF-', '').slice(0, 6)}`;
 }
 
 @Injectable()
@@ -154,7 +168,7 @@ export class QrService {
     }
 
     // 3. Daily lock: has user already checked in today?
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIST();
     const dailyKey = `checkin:daily:${userId}:${today}`;
     const existingCheckinGymId = await this.redis.get(dailyKey);
     if (existingCheckinGymId && existingCheckinGymId !== gymId) {
@@ -167,6 +181,10 @@ export class QrService {
     if (!sub || sub.userId !== userId || sub.status !== 'active' || isPastDateOnly(sub.endDate)) {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'No active subscription');
       throw new UnauthorizedException('Subscription not active');
+    }
+    if (sub.planType === 'multi_gym' && existingCheckinGymId) {
+      await this.logFailure(qrToken, gymId, 'failed_daily_limit', `Already checked in at ${existingCheckinGymId}`);
+      throw new ConflictException('Your Multi Gym Pass allows 1 check-in per day');
     }
 
     const coveredGyms = sub.gymIds || [];
@@ -225,7 +243,7 @@ export class QrService {
     return {
       success: true,
       checkinId: checkin.id,
-      user: { id: userId, name: user?.name, phone: user?.phone || user?.email },
+      user: { id: userId, memberCode: memberCode(userId), name: memberName(user, userId) },
       gym: { id: gym.id, name: gym.name },
       planType: sub.planType,
       bookingRef: booking?.bookingRef,
@@ -240,17 +258,42 @@ export class QrService {
     const clean = String(code || '').trim();
     if (!clean) throw new BadRequestException('Booking ID is required');
 
-    const booking = await this.sessionBookings.createQueryBuilder('b')
+    const candidates = await this.sessionBookings.createQueryBuilder('b')
       .where('b."gymId" = :gymId', { gymId })
       .andWhere('(LOWER(b.id::text) = LOWER(:code) OR UPPER(b."bookingRef") = UPPER(:code))', { code: clean })
-      .getOne();
-    if (!booking) throw new NotFoundException('Booking not found for this gym');
-    if (booking.status === 'attended') throw new ConflictException('This booking is already checked in');
-    if (booking.status === 'cancelled') throw new ConflictException('This booking was cancelled');
-    if (booking.status === 'not_attended') throw new ConflictException('This booking has already expired');
+      .orderBy('b."bookedAt"', 'DESC')
+      .take(10)
+      .getMany();
+    if (candidates.length === 0) throw new NotFoundException('Booking not found for this gym');
+
+    const now = nowISTParts();
+    let booking: SessionBookingEntity | null = null;
+    let lastStatus: string | null = null;
+    let hadWindowMiss = false;
+    for (const candidate of candidates) {
+      lastStatus = candidate.status;
+      if (candidate.status !== 'confirmed') continue;
+      const candidateSlot = await this.sessionSlots.findOne({ where: { id: candidate.slotId } });
+      if (!candidateSlot) continue;
+      const start = minutesOf(candidateSlot.startTime) - CHECKIN_GRACE_BEFORE_MINUTES;
+      const end = minutesOf(candidateSlot.endTime) + CHECKIN_GRACE_AFTER_MINUTES;
+      if (candidateSlot.date === now.date && now.minutes >= start && now.minutes <= end) {
+        booking = candidate;
+        break;
+      }
+      hadWindowMiss = true;
+    }
+
+    if (!booking) {
+      if (hadWindowMiss) throw new BadRequestException('This booking can be checked in only around the booked slot time');
+      if (lastStatus === 'attended') throw new ConflictException('This booking is already checked in');
+      if (lastStatus === 'cancelled') throw new ConflictException('This booking was cancelled');
+      if (lastStatus === 'not_attended') throw new ConflictException('This booking has already expired');
+      throw new BadRequestException('No active booking found for this code');
+    }
+
     const slot = await this.sessionSlots.findOne({ where: { id: booking.slotId } });
     if (!slot) throw new UnauthorizedException('Booking slot is invalid');
-    const now = nowISTParts();
     const start = minutesOf(slot.startTime) - CHECKIN_GRACE_BEFORE_MINUTES;
     const end = minutesOf(slot.endTime) + CHECKIN_GRACE_AFTER_MINUTES;
     if (slot.date !== now.date || now.minutes < start || now.minutes > end) {
@@ -275,16 +318,23 @@ export class QrService {
     const gym = await this.gyms.findOne({ where: { id: gymId } });
     if (!gym || gym.status !== 'active') throw new BadRequestException('Gym not available');
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIST();
     const dailyKey = `checkin:daily:${booking.userId}:${today}`;
     const existingCheckinGymId = await this.redis.get(dailyKey);
-    if (existingCheckinGymId && existingCheckinGymId !== gymId) {
-      throw new ConflictException('Already checked in at another gym today');
+    if (existingCheckinGymId && (sub.planType === 'multi_gym' || existingCheckinGymId !== gymId)) {
+      throw new ConflictException(sub.planType === 'multi_gym'
+        ? 'Your Multi Gym Pass allows 1 check-in per day'
+        : 'Already checked in at another gym today');
     }
 
-    booking.status = 'attended';
-    (booking as any).checkinAt = new Date();
-    await this.sessionBookings.save(booking);
+    const update = await this.sessionBookings
+      .createQueryBuilder()
+      .update(SessionBookingEntity)
+      .set({ status: 'attended' as any, checkinAt: new Date() })
+      .where('id = :id', { id: booking.id })
+      .andWhere('status = :status', { status: 'confirmed' })
+      .execute();
+    if (!update.affected) throw new ConflictException('This booking is already checked in');
     await this.bookingQrs
       .createQueryBuilder()
       .update(BookingQrEntity)
@@ -309,6 +359,7 @@ export class QrService {
     const user = await this.users.findOne({ where: { id: booking.userId } });
     const ratePerDay = Number((gym as any).ratePerDay ?? 50);
     const { gymEarns, adminEarns } = this.visitSplit(ratePerDay, sub.planType);
+    this.checkVelocityFraud(booking.userId, gymId, gym.name);
 
     return {
       success: true,
@@ -316,7 +367,7 @@ export class QrService {
       checkinId: checkin.id,
       bookingId: booking.id,
       bookingRef: booking.bookingRef,
-      user: { id: booking.userId, name: user?.name, phone: user?.phone || user?.email },
+      user: { id: booking.userId, memberCode: memberCode(booking.userId), name: memberName(user, booking.userId) },
       gym: { id: gym.id, name: gym.name },
       planType: sub.planType,
       gymEarns,

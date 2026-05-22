@@ -17,6 +17,15 @@ type DaySchedule = {
   breakEndTime?: string | null;
 };
 
+type GlobalSchedule = {
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+  breakEnabled: boolean;
+  breakStartTime: string;
+  breakEndTime: string;
+};
+
 const defaultDay = (i: number): DaySchedule => ({
   dayOfWeek: i,
   label: DAYS[i],
@@ -70,6 +79,14 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
 
 export default function SchedulePage() {
   const [schedule, setSchedule] = useState<DaySchedule[]>(DAYS.map((_, i) => defaultDay(i)));
+  const [globalSchedule, setGlobalSchedule] = useState<GlobalSchedule>({
+    isOpen: true,
+    openTime: '06:00',
+    closeTime: '22:00',
+    breakEnabled: false,
+    breakStartTime: '13:00',
+    breakEndTime: '14:00',
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -83,6 +100,26 @@ export default function SchedulePage() {
 
   const update = (i: number, patch: Partial<DaySchedule>) => {
     setSchedule((prev) => prev.map((d, idx) => idx === i ? { ...d, ...patch } : d));
+  };
+
+  const updateGlobal = (patch: Partial<GlobalSchedule>) => {
+    setGlobalSchedule((prev) => ({ ...prev, ...patch }));
+  };
+
+  const globalPatch = (): Partial<DaySchedule> => ({
+    isOpen: globalSchedule.isOpen,
+    openTime: globalSchedule.openTime,
+    closeTime: globalSchedule.closeTime,
+    breakStartTime: globalSchedule.breakEnabled ? globalSchedule.breakStartTime : null,
+    breakEndTime: globalSchedule.breakEnabled ? globalSchedule.breakEndTime : null,
+  });
+
+  const applyGlobal = (target: 'all' | 'weekdays' | 'open') => {
+    const patch = globalPatch();
+    setSchedule((prev) => prev.map((day) => {
+      const shouldApply = target === 'all' || (target === 'weekdays' && day.dayOfWeek < 5) || (target === 'open' && day.isOpen);
+      return shouldApply ? { ...day, ...patch } : day;
+    }));
   };
 
   const save = async () => {
@@ -138,6 +175,52 @@ export default function SchedulePage() {
           </div>
         </div>
 
+        <div className="glass" style={{ borderRadius: 18, padding: 20, marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+            <div>
+              <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, color: '#fff', margin: 0 }}>Global Setup</h3>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', margin: '4px 0 0' }}>Set one schedule once, then apply it to all days or keep editing individual days below.</p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: 700 }}>{globalSchedule.isOpen ? 'Open' : 'Closed'}</span>
+              <Toggle on={globalSchedule.isOpen} onChange={(v) => updateGlobal({ isOpen: v })} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Opens</span>
+            <TimeInput value={globalSchedule.openTime} onChange={(v) => updateGlobal({ openTime: v })} />
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>to</span>
+            <TimeInput value={globalSchedule.closeTime} onChange={(v) => updateGlobal({ closeTime: v })} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: 700, marginLeft: 8 }}>
+              <input
+                type="checkbox"
+                checked={globalSchedule.breakEnabled}
+                onChange={(e) => updateGlobal({ breakEnabled: e.target.checked })}
+                style={{ accentColor: '#CCFF00' }}
+              />
+              Break
+            </label>
+            {globalSchedule.breakEnabled && (
+              <>
+                <TimeInput value={globalSchedule.breakStartTime} onChange={(v) => updateGlobal({ breakStartTime: v })} />
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>to</span>
+                <TimeInput value={globalSchedule.breakEndTime} onChange={(v) => updateGlobal({ breakEndTime: v })} />
+              </>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
+            {[
+              { label: 'Apply to all days', action: () => applyGlobal('all') },
+              { label: 'Apply to Mon-Fri', action: () => applyGlobal('weekdays') },
+              { label: 'Apply to open days', action: () => applyGlobal('open') },
+            ].map((item) => (
+              <button key={item.label} type="button" onClick={item.action} className="btn btn-ghost text-xs" style={{ padding: '7px 12px' }}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Schedule rows */}
         {loading ? (
           <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: 40 }}>Loading schedule…</div>
@@ -167,10 +250,31 @@ export default function SchedulePage() {
                       <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>→</span>
                       <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', minWidth: 44 }}>Closes</span>
                       <TimeInput value={day.closeTime} onChange={(v) => update(i, { closeTime: v })} />
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>Break</span>
-                      <TimeInput value={day.breakStartTime || ''} onChange={(v) => update(i, { breakStartTime: v || null })} />
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>to</span>
-                      <TimeInput value={day.breakEndTime || ''} onChange={(v) => update(i, { breakEndTime: v || null })} />
+                      {day.breakStartTime || day.breakEndTime ? (
+                        <>
+                          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>Break</span>
+                          <TimeInput value={day.breakStartTime || ''} onChange={(v) => update(i, { breakStartTime: v || null })} />
+                          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>to</span>
+                          <TimeInput value={day.breakEndTime || ''} onChange={(v) => update(i, { breakEndTime: v || null })} />
+                          <button
+                            type="button"
+                            onClick={() => update(i, { breakStartTime: null, breakEndTime: null })}
+                            className="btn btn-ghost text-xs"
+                            style={{ padding: '7px 10px' }}
+                          >
+                            Clear Break
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => update(i, { breakStartTime: '13:00', breakEndTime: '14:00' })}
+                          className="btn btn-ghost text-xs"
+                          style={{ padding: '7px 10px' }}
+                        >
+                          Add Break
+                        </button>
+                      )}
 
                       {/* Hours indicator */}
                       <span style={{ fontSize: 12, color: 'var(--accent)', marginLeft: 8, fontWeight: 600 }}>

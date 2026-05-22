@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Body, Param, Query, Injectable, UseGuards, Req } from '@nestjs/common';
+import { BadRequestException, Module, Controller, Get, Post, Body, Param, Query, Injectable, UseGuards, Req, NotFoundException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Brackets, In, Repository } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
@@ -10,10 +10,11 @@ import { CheckinEntity } from '../../database/entities/checkin.entity';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { AppConfigEntity } from '../../database/entities/app-config.entity';
 import { TrainerBookingEntity } from '../../database/entities/trainer.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
-import { PLATFORM_PRICING_CONFIG_KEY, commissionAmount, serviceCommission } from '../../common/commission-config';
+import { CommissionConfig, PLATFORM_PRICING_CONFIG_KEY, commissionAmount, serviceCommission } from '../../common/commission-config';
 
 /**
  * SettlementEngine - implements the revenue-bucket logic from the LLR:
@@ -31,6 +32,7 @@ class SettlementService {
     @InjectRepository(AppConfigEntity) private readonly configs: Repository<AppConfigEntity>,
     @InjectRepository(GymPlanEntity) private readonly gymPlans: Repository<GymPlanEntity>,
     @InjectRepository(TrainerBookingEntity) private readonly trainerBookings: Repository<TrainerBookingEntity>,
+    @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
   ) {}
 
   private paidSubscriptionStatuses() {
@@ -40,6 +42,31 @@ class SettlementService {
   private money(value: any) {
     const amount = Number(value || 0);
     return Number.isFinite(amount) ? Math.round(amount) : 0;
+  }
+
+  private baseFromCheckoutAmount(checkoutAmount: any, commission?: CommissionConfig | null) {
+    const amount = Number(checkoutAmount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) return 0;
+    const value = Math.max(0, Number(commission?.value) || 0);
+    if (value <= 0) return this.money(amount);
+    if (commission?.mode === 'fixed') return this.money(Math.max(0, amount - value));
+    return this.money(amount / (1 + value / 100));
+  }
+
+  private directSubscriptionBaseAmount(sub: SubscriptionEntity, gym: GymEntity, plan: GymPlanEntity | null, commission: CommissionConfig) {
+    if (sub.planType === 'same_gym') {
+      const planPrice = Number((plan as any)?.salePrice || plan?.price || 0);
+      if (planPrice > 0) return this.money(planPrice);
+      const monthlyPrice = Number((gym as any).sameGymMonthlyPrice || 0);
+      if (monthlyPrice > 0) return this.money(monthlyPrice * Math.max(1, Number(sub.durationMonths) || 1));
+      return this.baseFromCheckoutAmount(sub.amountPaid, commission);
+    }
+    if (sub.planType === 'day_pass') {
+      const gymPrice = Number((gym as any).dayPassPrice || 0);
+      if (gymPrice > 0) return this.money(gymPrice);
+      return this.baseFromCheckoutAmount(sub.amountPaid, commission) || 149;
+    }
+    return 0;
   }
 
   private directGymSubscriptionsQuery(gymId: string) {
@@ -104,9 +131,9 @@ class SettlementService {
     for (const sub of subs) {
       if (sub.planType === 'same_gym') {
         const plan = sub.gymPlanId ? planMap.get(sub.gymPlanId) : null;
-        sameGymBase += this.money(plan?.price ?? (gym as any).sameGymMonthlyPrice ?? 0);
+        sameGymBase += this.directSubscriptionBaseAmount(sub, gym, plan || null, sameGymCommissionConfig);
       } else if (sub.planType === 'day_pass') {
-        dayPassBase += this.money((gym as any).dayPassPrice ?? 149);
+        dayPassBase += this.directSubscriptionBaseAmount(sub, gym, null, dayPassCommissionConfig);
       }
     }
     const sameGymCommission = this.money(commissionAmount(sameGymBase, sameGymCommissionConfig));
@@ -153,7 +180,7 @@ class SettlementService {
   }
 
   async myGymSettlements(ownerId: string) {
-    const gym = await this.gyms.findOne({ where: { ownerId } });
+    const gym = await this.gymForActor(ownerId);
     if (!gym) return { current: this.emptyCurrent(), history: [] };
     const rows = await this.settlements.find({ where: { gymId: gym.id }, order: { month: 'DESC' } });
     const mapped = rows.map((s) => this.mapGymSettlement(s, gym));
@@ -171,6 +198,15 @@ class SettlementService {
       },
       history: mapped.filter((s) => s.period !== currentMonth),
     };
+  }
+
+  private async gymForActor(actorId: string) {
+    const owned = await this.gyms.findOne({ where: { ownerId: actorId } });
+    if (owned) return owned;
+    const user = await this.users.findOne({ where: { id: actorId } });
+    return user?.role === 'gym_staff' && user.gymId
+      ? this.gyms.findOne({ where: { id: user.gymId } })
+      : null;
   }
 
   private async currentProjection(gym: GymEntity) {
@@ -304,6 +340,26 @@ class SettlementService {
     await this.settlements.update(id, { status: 'paid', paidDate: new Date() });
     return this.settlements.findOne({ where: { id } });
   }
+
+  async dispute(id: string, ownerId: string, reason: any) {
+    const disputeReason = String(reason || '').trim();
+    if (!disputeReason) throw new BadRequestException('Dispute reason is required');
+
+    const gym = await this.gyms.findOne({ where: { ownerId } });
+    if (!gym) throw new NotFoundException('Gym not found');
+
+    const settlement = await this.settlements.findOne({ where: { id, gymId: gym.id } });
+    if (!settlement) throw new NotFoundException('Settlement not found');
+
+    settlement.status = 'disputed';
+    settlement.disputeReason = disputeReason;
+
+    const saved = await this.settlements.save(settlement);
+    return {
+      message: 'Dispute raised. Our team will review within 2 business days.',
+      settlement: this.mapGymSettlement(saved, gym),
+    };
+  }
 }
 
 @ApiTags('Settlements')
@@ -333,18 +389,12 @@ class SettlementController {
   /** Gym partner raises a dispute on a settlement */
   @Post(':id/dispute') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner')
   dispute(@Param('id') id: string, @Body() body: any, @Req() req: any) {
-    // Store dispute reason as a note; admin reviews via list endpoint
-    return this.svc.myGymSettlements(req.user.userId).then(async (settlements: any) => {
-      const rows = [...(settlements.history || []), settlements.current].filter(Boolean);
-      const s = rows.find((row: any) => row.id === id);
-      if (!s) return { message: 'Settlement not found' };
-      return { message: 'Dispute raised. Our team will review within 2 business days.', settlementId: id, reason: body.reason };
-    });
+    return this.svc.dispute(id, req.user.userId, body?.reason);
   }
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SettlementEntity, GymEntity, CheckinEntity, SubscriptionEntity, AppConfigEntity, GymPlanEntity, TrainerBookingEntity])],
+  imports: [TypeOrmModule.forFeature([SettlementEntity, GymEntity, CheckinEntity, SubscriptionEntity, AppConfigEntity, GymPlanEntity, TrainerBookingEntity, UserEntity])],
   controllers: [SettlementController],
   providers: [SettlementService],
   exports: [SettlementService],

@@ -30,6 +30,10 @@ export class UserEntity {
   @Column({ length: 30, default: 'end_user' })
   role: UserRole;
 
+  @Index()
+  @Column({ type: 'uuid', nullable: true })
+  gymId: string | null;
+
   @Column({ length: 255, nullable: true })
   deviceId: string;
 

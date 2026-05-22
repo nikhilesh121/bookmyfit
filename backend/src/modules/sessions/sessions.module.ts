@@ -106,6 +106,10 @@ function minutesOf(time: string): number {
   return h * 60 + m;
 }
 
+function isHHMMTime(time: any): time is string {
+  return typeof time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+}
+
 function overlapsWindow(start: string, end: string, windowStart?: string | null, windowEnd?: string | null): boolean {
   if (!windowStart || !windowEnd) return false;
   return minutesOf(start) < minutesOf(windowEnd) && minutesOf(end) > minutesOf(windowStart);
@@ -134,6 +138,8 @@ function dayOfWeekFromDate(dateStr: string): number {
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
+
+const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 function normalizeCatalogName(value: any): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -172,6 +178,91 @@ export class SessionsService {
     private readonly email: EmailService,
     private readonly jwt: JwtService,
   ) {}
+
+  private normalizeDaysOfWeek(daysOfWeek: any): number[] {
+    if (!Array.isArray(daysOfWeek) || daysOfWeek.length === 0) {
+      throw new BadRequestException('Select at least one day for the recurring schedule.');
+    }
+    const invalid = daysOfWeek.filter((day) => {
+      const n = Number(day);
+      return !Number.isInteger(n) || n < 0 || n > 6;
+    });
+    if (invalid.length > 0) {
+      throw new BadRequestException(`Days must be numbers from 0 to 6 (Monday-Sunday). Invalid day: ${invalid.join(', ')}`);
+    }
+    return [...new Set(daysOfWeek.map((day) => Number(day)))].sort((a, b) => a - b);
+  }
+
+  private recurringScheduleConflict(dayOfWeek: number, startTime: string, endTime: string, schedule?: GymScheduleEntity | null): string | null {
+    if (!schedule) return null;
+    const label = DAY_LABELS[dayOfWeek] ?? `Day ${dayOfWeek}`;
+    if (!schedule.isOpen) return `${label} is marked closed in gym operating hours. Choose an open day.`;
+    if (startTime < schedule.openTime || endTime > schedule.closeTime) {
+      return `${label} session time must be within gym operating hours (${schedule.openTime}-${schedule.closeTime}).`;
+    }
+    if (overlapsWindow(startTime, endTime, schedule.breakStartTime, schedule.breakEndTime)) {
+      return `${label} session time overlaps the gym break (${schedule.breakStartTime}-${schedule.breakEndTime}).`;
+    }
+    return null;
+  }
+
+  private async validateSessionScheduleRule(gymId: string, dto: UpsertSessionScheduleDto): Promise<number[]> {
+    const daysOfWeek = this.normalizeDaysOfWeek(dto.daysOfWeek);
+    if (!isHHMMTime(dto.startTime) || !isHHMMTime(dto.endTime)) {
+      throw new BadRequestException('Session schedule times must use HH:MM format.');
+    }
+    if (minutesOf(dto.startTime) >= minutesOf(dto.endTime)) {
+      throw new BadRequestException('Session schedule start time must be before end time.');
+    }
+    if (dto.validFrom && dto.validUntil && dto.validFrom > dto.validUntil) {
+      throw new BadRequestException('Schedule valid-from date must be before valid-until date.');
+    }
+
+    const schedules = await this.scheduleRepo.find({ where: { gymId } });
+    for (const dayOfWeek of daysOfWeek) {
+      const schedule = schedules.find((row) => Number(row.dayOfWeek) === dayOfWeek);
+      const conflict = this.recurringScheduleConflict(dayOfWeek, dto.startTime, dto.endTime, schedule);
+      if (conflict) throw new BadRequestException(conflict);
+    }
+    return daysOfWeek;
+  }
+
+  private parseStoredDaysOfWeek(daysOfWeek: any): number[] {
+    const raw = Array.isArray(daysOfWeek) ? daysOfWeek : String(daysOfWeek ?? '').split(',');
+    return raw
+      .map((day) => Number(day))
+      .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+  }
+
+  private async findActiveSubscriptionForGym(userId: string, gymId: string): Promise<SubscriptionEntity | null> {
+    return this.subRepo.createQueryBuilder('sub')
+      .where('sub."userId" = :userId', { userId })
+      .andWhere('sub.status = :status', { status: 'active' })
+      .andWhere('sub."endDate" >= CURRENT_DATE')
+      .andWhere('(sub."planType" = :multiGym OR CAST(:gymId AS uuid) = ANY(sub."gymIds"))', { multiGym: 'multi_gym', gymId })
+      .orderBy(`CASE WHEN CAST(:gymId AS uuid) = ANY(sub."gymIds") THEN 0 ELSE 1 END`, 'ASC')
+      .addOrderBy('sub."createdAt"', 'DESC')
+      .getOne();
+  }
+
+  private async dailyBookingLimitForSubscription(sub: SubscriptionEntity | null, gymId: string): Promise<number | null> {
+    if (!sub) return 1;
+    if (sub.planType === 'day_pass') return null;
+    if (sub.planType === 'multi_gym') return 1;
+    if (sub.planType === 'same_gym') {
+      const plan = sub.gymPlanId
+        ? await this.gymPlanRepo.findOne({ where: { id: sub.gymPlanId, gymId } })
+        : null;
+      return Math.max(1, Math.floor(Number(plan?.sessionsPerDay) || 1));
+    }
+    return 1;
+  }
+
+  private async dailyBookingCountForSubscription(userId: string, gymId: string, date: string, sub: SubscriptionEntity | null): Promise<number> {
+    const where: any = { userId, slotDate: date, status: In(this.dailyBlockingStatuses as any) };
+    if (sub?.planType !== 'multi_gym') where.gymId = gymId;
+    return this.bookingRepo.count({ where });
+  }
 
   // ── Operating Hours ──────────────────────────────────────────────────────
 
@@ -343,10 +434,14 @@ export class SessionsService {
   async upsertSessionSchedule(gymId: string, dto: UpsertSessionScheduleDto) {
     const type = await this.typeRepo.findOne({ where: { id: dto.sessionTypeId, gymId } });
     if (!type) throw new NotFoundException('Session type not found');
+    if (type.kind === 'standard') {
+      throw new BadRequestException('Standard Gym Workout slots are generated from operating hours. Create schedules only for special sessions.');
+    }
+    const daysOfWeek = await this.validateSessionScheduleRule(gymId, dto);
     let rule = await this.ruleRepo.findOne({ where: { sessionTypeId: dto.sessionTypeId, gymId } });
     if (rule) {
       Object.assign(rule, {
-        daysOfWeek: dto.daysOfWeek,
+        daysOfWeek,
         startTime: dto.startTime,
         endTime: dto.endTime,
         isActive: dto.isActive ?? rule.isActive,
@@ -354,7 +449,7 @@ export class SessionsService {
         validUntil: dto.validUntil ?? rule.validUntil,
       });
     } else {
-      rule = this.ruleRepo.create({ ...dto, gymId }) as any;
+      rule = this.ruleRepo.create({ ...dto, daysOfWeek, gymId }) as any;
     }
     const saved = await this.ruleRepo.save(rule as any);
     await this.clearFutureUnbookedSlotsForType(gymId, dto.sessionTypeId);
@@ -423,10 +518,10 @@ export class SessionsService {
         } else {
           const rule = rules.find((r) => r.sessionTypeId === type.id);
           if (!rule) continue;
-          const ruleDays = Array.isArray(rule.daysOfWeek)
-            ? rule.daysOfWeek.map(Number)
-            : String(rule.daysOfWeek).split(',').map(Number);
+          if (!isHHMMTime(rule.startTime) || !isHHMMTime(rule.endTime) || minutesOf(rule.startTime) >= minutesOf(rule.endTime)) continue;
+          const ruleDays = this.parseStoredDaysOfWeek(rule.daysOfWeek);
           if (!ruleDays.includes(dow)) continue;
+          if (this.recurringScheduleConflict(dow, rule.startTime, rule.endTime, dayRow)) continue;
           if (rule.validFrom && dateStr < rule.validFrom) continue;
           if (rule.validUntil && dateStr > rule.validUntil) continue;
           const exists = await this.slotRepo.findOne({
@@ -462,12 +557,23 @@ export class SessionsService {
       this.scheduleRepo.findOne({ where: { gymId, dayOfWeek: dayOfWeekFromDate(date) } }),
     ]);
 
-    let userBookedSlotId: string | null = null;
+    let userBookedSlotIds = new Set<string>();
+    let userDailyBookingCount = 0;
+    let userDailyBookingLimit: number | null = 1;
+    let userDailyLimitReached = false;
     if (userId) {
-      const ex = await this.bookingRepo.findOne({
+      const userBookings = await this.bookingRepo.find({
         where: { userId, gymId, slotDate: date, status: In(this.dailyBlockingStatuses as any) } as any,
       });
-      if (ex) userBookedSlotId = ex.slotId;
+      userBookedSlotIds = new Set(userBookings.map((booking) => booking.slotId));
+      const sub = await this.findActiveSubscriptionForGym(userId, gymId);
+      userDailyBookingLimit = await this.dailyBookingLimitForSubscription(sub, gymId);
+      if (userDailyBookingLimit === null) {
+        userDailyBookingCount = userBookings.length;
+      } else {
+        userDailyBookingCount = await this.dailyBookingCountForSubscription(userId, gymId, date, sub);
+        userDailyLimitReached = userDailyBookingCount >= userDailyBookingLimit;
+      }
     }
 
     const now = nowTimeIST();
@@ -481,8 +587,11 @@ export class SessionsService {
         ...s,
         sessionType: types.find((t) => t.id === s.sessionTypeId),
         isFull: s.bookedCount >= s.maxCapacity,
-        userBooked: userBookedSlotId === s.id,
-        userHasBookingToday: !!userBookedSlotId,
+        userBooked: userBookedSlotIds.has(s.id),
+        userHasBookingToday: userDailyLimitReached,
+        userDailyBookingCount,
+        userDailyBookingLimit,
+        userCanBookMoreToday: !userDailyLimitReached,
       }));
   }
 
@@ -543,16 +652,9 @@ export class SessionsService {
     // Find subscription first (needed for planType-aware lock rules)
     const sub = dto.subscriptionId
       ? await this.subRepo.findOne({ where: { id: dto.subscriptionId, userId } })
-      : await this.subRepo.createQueryBuilder('sub')
-        .where('sub."userId" = :userId', { userId })
-        .andWhere('sub.status = :status', { status: 'active' })
-        .andWhere('sub."endDate" >= CURRENT_DATE')
-        .andWhere('(sub."planType" = :multiGym OR CAST(:gymId AS uuid) = ANY(sub."gymIds"))', { multiGym: 'multi_gym', gymId: slot.gymId })
-        .orderBy(`CASE WHEN CAST(:gymId AS uuid) = ANY(sub."gymIds") THEN 0 ELSE 1 END`, 'ASC')
-        .addOrderBy('sub."createdAt"', 'DESC')
-        .getOne();
+      : await this.findActiveSubscriptionForGym(userId, slot.gymId);
     if (!sub) throw new BadRequestException('No active subscription found. Please subscribe first.');
-    if (sub.status !== 'active' || String(sub.endDate) < new Date().toISOString().slice(0, 10)) {
+    if (sub.status !== 'active' || String(sub.endDate) < today) {
       throw new BadRequestException('No active subscription found. Please subscribe first.');
     }
 
@@ -570,32 +672,28 @@ export class SessionsService {
     // multi_gym: valid at any gym — no gym check needed
 
     // Daily session lock — day_pass is exempt (can book multiple passes per day)
-    if (sub.planType !== 'day_pass') {
-      if (sub.planType === 'multi_gym') {
-        // Cross-gym lock for multi_gym: only 1 session per day across ALL gyms
-        const multiDayExisting = await this.bookingRepo.findOne({
-          where: { userId, slotDate: slot.date, status: In(this.dailyBlockingStatuses as any) } as any,
-        });
-        if (multiDayExisting) {
-          throw new ConflictException('Your Multi Gym Pass allows 1 session per day across all gyms. You already have a session booked today.');
+    let booking = await this.bookingRepo.findOne({ where: { slotId: slot.id, userId } as any });
+    if (booking && this.dailyBlockingStatuses.includes(booking.status)) {
+      throw new ConflictException('You already have this slot booked.');
+    }
+
+    const dailyBookingLimit = await this.dailyBookingLimitForSubscription(sub, slot.gymId);
+    if (dailyBookingLimit !== null) {
+      const dailyBookingCount = await this.dailyBookingCountForSubscription(userId, slot.gymId, slot.date, sub);
+      if (dailyBookingCount >= dailyBookingLimit) {
+        const limitLabel = dailyBookingLimit === 1 ? '1 session' : `${dailyBookingLimit} sessions`;
+        if (sub.planType === 'multi_gym') {
+          throw new ConflictException(`Your Multi Gym Pass allows ${limitLabel} per day across all gyms. You have already reached the limit for this day.`);
         }
-      } else {
-        // same_gym: 1 session per day at this gym
-        const dayExisting = await this.bookingRepo.findOne({
-          where: { userId, gymId: slot.gymId, slotDate: slot.date, status: In(this.dailyBlockingStatuses as any) } as any,
-        });
-        if (dayExisting) {
-          throw new ConflictException('You already have a session booked at this gym for this day. Only 1 session per day is allowed.');
+        if (sub.planType === 'same_gym') {
+          throw new ConflictException(`Your Same Gym Pass allows ${limitLabel} per day at this gym. You have already reached the limit for this day.`);
         }
+        throw new ConflictException(`Your subscription allows ${limitLabel} per day. You have already reached the limit for this day.`);
       }
     }
 
     let shouldIncrementSlotCount = true;
-    let booking = await this.bookingRepo.findOne({ where: { slotId: slot.id, userId } as any });
     if (booking) {
-      if (this.dailyBlockingStatuses.includes(booking.status)) {
-        throw new ConflictException('You already have this slot booked.');
-      }
       shouldIncrementSlotCount = booking.status === 'cancelled';
       booking.subscriptionId = sub.id;
       booking.gymId = slot.gymId;
@@ -757,6 +855,77 @@ export class SessionsService {
   }
 
   // ── QR Check-in ──────────────────────────────────────────────────────────
+
+  async getActiveBooking(userId: string) {
+    const now = new Date();
+    const today = todayIST();
+    const bookings = await this.bookingRepo.find({
+      where: { userId, status: In(['confirmed', 'attended'] as any) } as any,
+      order: { bookedAt: 'DESC' },
+      take: 20,
+    });
+    if (bookings.length === 0) return { active: false };
+
+    const bookingIds = bookings.map((b) => b.id);
+    const slotIds = [...new Set(bookings.map((b) => b.slotId))];
+    const [slots, qrs] = await Promise.all([
+      slotIds.length ? this.slotRepo.createQueryBuilder('s').whereInIds(slotIds).getMany() : [],
+      this.qrRepo.createQueryBuilder('q')
+        .where('q."slotBookingId" IN (:...bookingIds)', { bookingIds })
+        .orderBy('q."createdAt"', 'DESC')
+        .getMany(),
+    ]);
+    const gymIds = [...new Set(bookings.map((b) => b.gymId))];
+    const gyms = gymIds.length ? await this.gymRepo.createQueryBuilder('g').whereInIds(gymIds).getMany() : [];
+
+    const rows = bookings.map((booking) => ({
+      booking,
+      slot: slots.find((s) => s.id === booking.slotId),
+      gym: gyms.find((g) => g.id === booking.gymId),
+      qr: qrs.find((q) => q.slotBookingId === booking.id),
+    }));
+
+    const active = rows.find(({ booking, qr }) => (
+      booking.status === 'confirmed' &&
+      !!qr &&
+      !qr.usedAt &&
+      new Date(qr.expiresAt) > now
+    ));
+    if (active) return this.activeBookingResponse(active, true);
+
+    const checkedIn = rows.find(({ booking }) => (
+      booking.status === 'attended' &&
+      (booking.slotDate >= today || (booking.checkinAt && booking.checkinAt.getTime() > Date.now() - 2 * 60 * 60 * 1000))
+    ));
+    if (checkedIn) return this.activeBookingResponse(checkedIn, false, true);
+
+    return { active: false };
+  }
+
+  private activeBookingResponse(
+    row: { booking: SessionBookingEntity; slot?: SessionSlotEntity | null; gym?: GymEntity | null; qr?: BookingQrEntity | null },
+    active: boolean,
+    checkedIn = false,
+  ) {
+    const { booking, qr, gym } = row;
+    return {
+      active,
+      checkedIn,
+      checkedInAt: checkedIn && booking.checkinAt ? booking.checkinAt.toISOString() : null,
+      bookingQr: {
+        id: qr?.id || null,
+        token: active ? (qr?.qrToken || '') : '',
+        expiresAt: qr?.expiresAt ? qr.expiresAt.toISOString() : null,
+        bookedAt: (qr?.bookedAt || booking.bookedAt || booking.checkinAt || new Date()).toISOString(),
+        gymId: booking.gymId,
+        gymName: gym?.name ?? '',
+        bookingId: booking.id,
+        bookingRef: booking.bookingRef,
+        manualCode: booking.bookingRef || booking.id,
+        status: booking.status,
+      },
+    };
+  }
 
   async processCheckin(userId: string, gymId: string) {
     const today = todayIST();
@@ -941,8 +1110,10 @@ export class SessionsService {
 
   async getGymIdForOwner(ownerId: string): Promise<string> {
     const gym = await this.gymRepo.findOne({ where: { ownerId } });
-    if (!gym) throw new NotFoundException('Gym not found for this account');
-    return gym.id;
+    if (gym) return gym.id;
+    const user = await this.userRepo.findOne({ where: { id: ownerId } });
+    if (user?.role === 'gym_staff' && user.gymId) return user.gymId;
+    throw new NotFoundException('Gym not found for this account');
   }
 
   private async enrichBookings(bookings: SessionBookingEntity[]) {
@@ -1076,6 +1247,10 @@ export class SessionsController {
   @Get('my-bookings')
   @ApiBearerAuth() @UseGuards(JwtAuthGuard)
   myBookings(@Req() req: any) { return this.svc.myBookings(req.user.userId); }
+
+  @Get('active-booking')
+  @ApiBearerAuth() @UseGuards(JwtAuthGuard)
+  activeBooking(@Req() req: any) { return this.svc.getActiveBooking(req.user.userId); }
 
   @Post('book')
   @ApiBearerAuth() @UseGuards(JwtAuthGuard)

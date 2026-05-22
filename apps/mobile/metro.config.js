@@ -31,6 +31,15 @@ for (const mod of FORCE_LOCAL) {
 }
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // Expo CLI can generate workspace-relative entry requests in this pnpm monorepo.
+  // Route them back to the real app/router entry so web dev/export does not blank.
+  if (moduleName === './apps/mobile/index.js' || moduleName.endsWith('/apps/mobile/index.js')) {
+    return { filePath: path.resolve(projectRoot, 'index.js'), type: 'sourceFile' };
+  }
+  if (moduleName === './node_modules/expo-router/entry.js') {
+    return { filePath: path.resolve(workspaceModules, 'expo-router', 'entry.js'), type: 'sourceFile' };
+  }
+
   // Force single React instance — redirect all react imports to local copy
   if (forcedPaths[moduleName]) {
     return { filePath: forcedPaths[moduleName], type: 'sourceFile' };
