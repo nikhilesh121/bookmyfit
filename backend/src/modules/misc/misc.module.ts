@@ -1,7 +1,10 @@
-import { Module, Controller, Get, Post, Put, Delete, Param, Body, Query, Injectable, BadRequestException, UseGuards, Req, NotFoundException } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Delete, Param, Body, Query, Injectable, BadRequestException, UseGuards, Req, Res, NotFoundException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { IsNotEmpty, IsOptional, IsString, Length } from 'class-validator';
+import type { Response } from 'express';
+import { existsSync } from 'fs';
+import { resolve } from 'path';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import {
@@ -859,15 +862,43 @@ class AdminSettingsController {
 class BrandingController {
   constructor(@InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>) {}
 
+  private requestOrigin(req: any) {
+    const forwardedProto = String(req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim();
+    const proto = forwardedProto || req?.protocol || 'http';
+    const forwardedHost = String(req?.headers?.['x-forwarded-host'] || '').split(',')[0].trim();
+    const host = forwardedHost || req?.headers?.host || '';
+    return host ? `${proto}://${host}` : '';
+  }
+
+  private resolveLogoUrl(logoUrl: string, req: any) {
+    const origin = this.requestOrigin(req);
+    const clean = String(logoUrl || '').trim();
+    if (!clean) return origin ? `${origin}/api/v1/branding/logo` : '/api/v1/branding/logo';
+    if (/^https?:\/\//i.test(clean)) return clean;
+    if (clean.startsWith('/')) return origin ? `${origin}${clean}` : clean;
+    return clean;
+  }
+
   @Get()
-  async getBranding() {
+  async getBranding(@Req() req: any) {
     const row = await this.configRepo.findOne({ where: { key: ADMIN_SETTINGS_KEY } });
     const branding = { ...DEFAULT_ADMIN_SETTINGS.branding, ...(row?.value?.branding || {}) };
     return {
-      logoUrl: String(branding.logoUrl || '').trim(),
+      logoUrl: this.resolveLogoUrl(branding.logoUrl, req),
       logoText: String(branding.logoText || 'BookMyFit.in').trim(),
       shortText: String(branding.shortText || branding.logoText || 'BookMyFit').trim(),
     };
+  }
+
+  @Get('logo')
+  logo(@Res() res: Response) {
+    const logoPath = [
+      resolve(process.cwd(), '../logo-full.png'),
+      resolve(process.cwd(), 'logo-full.png'),
+    ].find((candidate) => existsSync(candidate));
+    if (!logoPath) throw new NotFoundException('Default logo not found');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.sendFile(logoPath);
   }
 }
 
