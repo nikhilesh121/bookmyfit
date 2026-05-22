@@ -14,7 +14,7 @@ import { UserEntity } from '../../database/entities/user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
-import { CommissionConfig, PLATFORM_PRICING_CONFIG_KEY, commissionAmount, serviceCommission } from '../../common/commission-config';
+import { CommissionConfig, PLATFORM_PRICING_CONFIG_KEY, commissionAmount, normalizePlatformPricingConfig, serviceCommission } from '../../common/commission-config';
 
 /**
  * SettlementEngine - implements the revenue-bucket logic from the LLR:
@@ -92,7 +92,10 @@ class SettlementService {
     if (from && to) qb.andWhere('c."checkinTime" >= :from AND c."checkinTime" < :to', { from, to });
     const row = await qb.getRawOne();
     const billableDays = Number(row?.count || 0);
-    const ratePerDay = Number((gym as any).ratePerDay || 0);
+    const configRow = await this.configs.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } });
+    const globalVisitPayout = Number(normalizePlatformPricingConfig(configRow?.value).multi_gym?.visitPayout || 0);
+    const override = Number((gym as any).ratePerDay);
+    const ratePerDay = Number.isFinite(override) && override > 0 ? override : globalVisitPayout;
     return {
       billableDays,
       ratePerDay,

@@ -6,9 +6,9 @@ import { IconQR, IconUser, IconDumbbell, IconDollar, IconCheck } from '../../com
 
 export default function GymPortalLayout() {
   const insets = useSafeAreaInsets();
-  const minBottomPad = Platform.OS === 'android' ? 8 : 10;
+  const minBottomPad = Platform.OS === 'android' ? 24 : 10;
   const tabBarBottomPad = Math.max(insets.bottom, minBottomPad);
-  const tabBarHeight = 58 + tabBarBottomPad;
+  const tabBarHeight = 62 + tabBarBottomPad;
 
   return (
     <Tabs

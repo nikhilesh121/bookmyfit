@@ -299,7 +299,7 @@ export default function GymsPage() {
                 ['Email', selectedGym.contactEmail || selectedGym.email || '-'],
                 ['Website', selectedGym.website || '-'],
                 ['Coordinates', selectedGym.lat && selectedGym.lng ? `${selectedGym.lat}, ${selectedGym.lng}` : 'Not set'],
-                ['Multi-gym visit payout', selectedGym.ratePerDay ? `Rs ${selectedGym.ratePerDay}` : '-'],
+                ['Multi-gym visit payout override', selectedGym.ratePerDay ? `Rs ${selectedGym.ratePerDay}` : 'Uses global default'],
               ].map(([label, value]) => (
                 <div key={label} className="card p-3">
                   <div className="kicker mb-1" style={{ color: 'var(--t3)' }}>{label}</div>
@@ -323,7 +323,7 @@ export default function GymsPage() {
               {[
                 ['name', 'Name'], ['city', 'City'], ['area', 'Area'], ['pinCode', 'Pin Code'],
                 ['contactPhone', 'Phone'], ['contactEmail', 'Email'], ['website', 'Website'],
-                ['lat', 'Latitude'], ['lng', 'Longitude'], ['ratePerDay', 'Multi-gym Visit Payout'], ['dayPassPrice', 'Day Pass Price'], ['capacity', 'Capacity'],
+                ['lat', 'Latitude'], ['lng', 'Longitude'], ['ratePerDay', 'Multi-gym Visit Payout Override'], ['dayPassPrice', 'Day Pass Price'], ['capacity', 'Capacity'],
               ].map(([key, label]) => (
                 <div key={key}>
                   <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>{label}</label>

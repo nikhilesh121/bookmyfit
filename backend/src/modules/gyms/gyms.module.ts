@@ -14,7 +14,7 @@ import { TrainerBookingEntity, TrainerEntity } from '../../database/entities/tra
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
-import { CommissionConfig, PLATFORM_PRICING_CONFIG_KEY, serviceCommission } from '../../common/commission-config';
+import { CommissionConfig, PLATFORM_PRICING_CONFIG_KEY, normalizePlatformPricingConfig, serviceCommission } from '../../common/commission-config';
 
 function normalizeCatalogName(value: any): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -353,10 +353,14 @@ class GymsService {
         tier: raw.tier,
         status: raw.status,
         commissionRate: raw.commissionRate,
-        ratePerDay: raw.ratePerDay,
+        ratePerDay: raw.ratePerDay === '' ? null : raw.ratePerDay,
         ownerId: raw.ownerId,
         kycStatus: raw.kycStatus,
       }));
+    }
+    if (clean.ratePerDay !== null && clean.ratePerDay !== undefined) clean.ratePerDay = Number(clean.ratePerDay);
+    if (clean.ratePerDay !== null && clean.ratePerDay !== undefined && (!Number.isFinite(clean.ratePerDay) || clean.ratePerDay < 0)) {
+      throw new BadRequestException('Multi-gym visit payout override must be 0 or higher');
     }
     return clean;
   }
@@ -546,6 +550,14 @@ class GymsService {
       same_gym: serviceCommission(row?.value, 'same_gym'),
       day_pass: serviceCommission(row?.value, 'day_pass'),
     };
+  }
+
+  private async multiGymVisitPayout(gym: any) {
+    const override = Number(gym?.ratePerDay);
+    if (Number.isFinite(override) && override > 0) return override;
+    const row = await this.configs.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } });
+    const config = normalizePlatformPricingConfig(row?.value);
+    return Math.max(0, Number(config.multi_gym?.visitPayout) || 0);
   }
 
   private trainerGymAmount(booking: TrainerBookingEntity) {
@@ -747,7 +759,7 @@ class GymsService {
       subs.map((s) => s.razorpayOrderId).filter(Boolean),
     );
     const multiGymVisitCount = await this.multiGymVisitCounts(gym.id, subs.filter((s) => s.planType === 'multi_gym').map((s) => s.id));
-    const ratePerDay = Number(gym.ratePerDay || 0);
+    const ratePerDay = await this.multiGymVisitPayout(gym);
     const todayRows = userIds.length ? await this.checkins
       .createQueryBuilder('c')
       .select('c."userId"', 'userId')
@@ -856,7 +868,7 @@ class GymsService {
       subs.map((s) => s.razorpayOrderId).filter(Boolean),
     );
     const multiGymVisitCount = await this.multiGymVisitCounts(gym.id, subs.filter((s) => s.planType === 'multi_gym').map((s) => s.id));
-    const ratePerDay = Number(gym.ratePerDay || 0);
+    const ratePerDay = await this.multiGymVisitPayout(gym);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
     const [todayRows, checkinRows] = await Promise.all([
@@ -1034,7 +1046,7 @@ class GymsService {
     ]);
     const subMap = new Map<string, SubscriptionEntity>(subs.map((s): [string, SubscriptionEntity] => [s.id, s]));
     const userMap = new Map<string, UserEntity>(users.map((u): [string, UserEntity] => [u.id, u]));
-    const ratePerDay = Number((gym as any).ratePerDay ?? 50);
+    const ratePerDay = await this.multiGymVisitPayout(gym);
     const adminShare = 0;
     const enriched = data.map(c => {
       const sub = subMap.get(c.subscriptionId);
@@ -1134,7 +1146,7 @@ class GymsService {
     }));
     const peak = Array.from(hourly.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
     const peakHour = peak === undefined ? '--' : `${String(peak).padStart(2, '0')}:00`;
-    const ratePerDay = Number((gym as any).ratePerDay ?? 50);
+    const ratePerDay = await this.multiGymVisitPayout(gym);
     const directPlans = (list: SubscriptionEntity[]) => list.filter((sub) => sub.planType === 'same_gym' || sub.planType === 'day_pass');
     const totalForPlans = (list: SubscriptionEntity[]) => directPlans(list).reduce((sum, sub) => (
       sum + this.gymPlanAmount(sub, gym, sub.gymPlanId ? planMap.get(sub.gymPlanId) : null, commissionConfig[sub.planType as 'same_gym' | 'day_pass'])

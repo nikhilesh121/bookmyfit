@@ -35,6 +35,7 @@ const NAV = [
 ];
 
 type GymStatus = 'pending' | 'active' | 'suspended' | 'rejected' | 'inactive';
+type Branding = { logoUrl?: string; logoText?: string; shortText?: string };
 
 const STATUS_BANNERS: Record<string, { bg: string; border: string; text: string; msg: string }> = {
   pending: {
@@ -59,8 +60,14 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
   const pathname = usePathname();
   const navRef = useRef<HTMLElement | null>(null);
   const [gymStatus, setGymStatus] = useState<GymStatus | null>(null);
+  const [branding, setBranding] = useState<Branding>({ logoText: 'BookMyFit.in', shortText: 'BookMyFit' });
 
   useEffect(() => {
+    fetch(`${API}/api/v1/branding`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setBranding(data); })
+      .catch(() => {});
+
     const token = localStorage.getItem('bmf_gym_token');
     if (!token) return;
     fetch(`${API}/api/v1/gyms/my-gym`, {
@@ -73,6 +80,8 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
 
   const banner = gymStatus && gymStatus !== 'active' ? STATUS_BANNERS[gymStatus] : null;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const logoUrl = String(branding.logoUrl || '').trim();
+  const logoText = String(branding.logoText || branding.shortText || 'BookMyFit.in');
 
   useEffect(() => {
     const nav = navRef.current;
@@ -96,9 +105,11 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
         style={{ borderColor: 'rgba(255,255,255,0.06)', background: '#080808' }}>
         <div className="p-5 border-b flex items-center justify-between" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
           <div>
-            <div className="serif" style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-1px' }}>
-              Book<em style={{ fontStyle: 'italic', fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>My</em>Fit
-            </div>
+            {logoUrl ? (
+              <img src={logoUrl} alt={logoText} style={{ maxWidth: 184, maxHeight: 42, objectFit: 'contain', display: 'block' }} />
+            ) : (
+              <div className="serif" style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-1px' }}>{logoText}</div>
+            )}
             <div className="kicker mt-1" style={{ color: 'var(--accent)', opacity: 0.7 }}>Gym Partner</div>
           </div>
           <button className="lg:hidden p-1" onClick={() => setSidebarOpen(false)} style={{ color: 'rgba(255,255,255,0.5)' }}>✕</button>

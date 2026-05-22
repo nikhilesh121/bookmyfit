@@ -1,16 +1,16 @@
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Dimensions, Share, Linking, Image } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Dimensions, Share, Linking, Image, FlatList } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { colors, fonts, radius } from '../../theme/brand';
 import {
   IconArrowLeft, IconStar, IconPin, IconArrowRight, IconCheck, IconClock,
   IconDumbbell, IconShare, IconLock, IconRefresh, IconGlobe,
-  IconShield, IconHeadphones, IconBolt,
+  IconShield, IconHeadphones, IconBolt, IconPlay,
 } from '../../components/Icons';
-import { gymsApi, subscriptionsApi, api } from '../../lib/api';
+import { gymsApi, subscriptionsApi, api, API_BASE } from '../../lib/api';
 import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList, subscriptionPlanType } from '../../lib/subscriptionAccess';
 import AuroraBackground from '../../components/AuroraBackground';
 import { DEFAULT_GYM_IMAGE, firstImage, imageList } from '../../lib/imageFallbacks';
@@ -122,6 +122,36 @@ function toTextArray(value: any): string[] {
     .filter(Boolean))];
 }
 
+function videoUrlList(...values: any[]): string[] {
+  const videos: string[] = [];
+  const clean = (value: any): string => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        const url = clean(item);
+        if (url && !videos.includes(url)) videos.push(url);
+      });
+      return '';
+    }
+    if (value && typeof value === 'object') {
+      return clean(value.url || value.uri || value.videoUrl || value.video_url || value.mediaUrl || value.media_url || value.path);
+    }
+    if (typeof value !== 'string') return '';
+    const url = value.trim();
+    if (!url) return '';
+    if (/^(https?:)?\/\//i.test(url) || /^data:video\//i.test(url)) return url;
+    if (url.startsWith('/')) return `${API_BASE}${url}`;
+    if (/^(uploads|media|files|storage|assets)\//i.test(url) || /\.(mp4|mov|m4v|webm|m3u8)(\?.*)?$/i.test(url)) {
+      return `${API_BASE}/${url.replace(/^\/+/, '')}`;
+    }
+    return '';
+  };
+  values.forEach((value) => {
+    const url = clean(value);
+    if (url && !videos.includes(url)) videos.push(url);
+  });
+  return videos;
+}
+
 function coordinate(...values: any[]): number | null {
   for (const value of values) {
     const num = Number(value);
@@ -228,6 +258,8 @@ export default function GymDetail() {
   const [activeTypeFilter, setActiveTypeFilter] = useState<string>('all');
   const [slotDate, setSlotDate] = useState<string>(new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().split('T')[0]);
   const [bookingLoading, setBookingLoading] = useState<string | null>(null);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const heroListRef = useRef<FlatList<any>>(null);
 
   const fallbackGym = useCallback(() => {
     if (!id) return null;
@@ -356,9 +388,13 @@ export default function GymDetail() {
     ? gym.categoryDetails.map((item: any) => ({ name: String(item?.name || item?.label || '').trim(), iconUrl: item?.iconUrl || item?.icon })).filter((item: any) => item.name)
     : categories.map((name) => ({ name, iconUrl: null }));
   const galleryImages = imageList(gym?.coverPhoto, gym?.coverImage, gym?.photos, gym?.images, gym?.media, gym?.imageUrl, gym?.image, gym?.photo, gym?.img);
-  const img = galleryImages[0] || firstImage(fallbackImg) || DEFAULT_GYM_IMAGE;
-  const profileVideos = imageList(gym?.videos, gym?.profileVideos, gym?.videoUrls);
-  const heroSource = { uri: img };
+  const profileVideos = videoUrlList(gym?.videos, gym?.profileVideos, gym?.videoUrls);
+  const fallbackHeroImage = galleryImages[0] || firstImage(fallbackImg) || DEFAULT_GYM_IMAGE;
+  const heroImages = galleryImages.length ? galleryImages : [fallbackHeroImage];
+  const heroItems = [
+    ...heroImages.map((url) => ({ type: 'image', url })),
+    ...profileVideos.map((url) => ({ type: 'video', url })),
+  ];
   const subscriptionId = activeSub?._id || activeSub?.id;
   const activePlanType = subscriptionPlanType(activeSub);
   const activeSubLabel = activeSub ? accessLabelForSubscription(activeSub, activePlanType === 'multi_gym') : '';
@@ -366,6 +402,25 @@ export default function GymDetail() {
   const startingMonthlyPrice = minMonthlyPlanPrice(gymPlans, passPricingConfig?.same_gym?.commission);
   const dayPassBasePrice = positiveNumber(gym?.dayPassPrice) || positiveNumber(gym?.day_pass_price) || positiveNumber(passPricingConfig?.day_pass?.basePrice) || null;
   const dayPassPrice = applyPassCommission(dayPassBasePrice, passPricingConfig?.day_pass?.commission);
+
+  useEffect(() => {
+    setHeroIndex(0);
+    heroListRef.current?.scrollToOffset?.({ offset: 0, animated: false });
+  }, [gym?.id]);
+
+  useEffect(() => {
+    if (heroItems.length <= 1) return undefined;
+    const timer = setInterval(() => {
+      setHeroIndex((current) => {
+        const next = (current + 1) % heroItems.length;
+        try {
+          heroListRef.current?.scrollToIndex?.({ index: next, animated: true });
+        } catch {}
+        return next;
+      });
+    }, 4200);
+    return () => clearInterval(timer);
+  }, [heroItems.length]);
 
   const gymLat = coordinate(gym?.lat, gym?.latitude, gym?.location?.lat);
   const gymLng = coordinate(gym?.lng, gym?.longitude, gym?.location?.lng);
@@ -470,9 +525,41 @@ export default function GymDetail() {
     <AuroraBackground variant="gym">
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Hero */}
-        <ImageBackground source={heroSource} style={s.hero}>
-          <View style={[s.heroAurora, { backgroundColor: TIER_AURORA[tier] || TIER_AURORA.Elite }]} />
-          <View style={s.heroDark} />
+        <View style={s.hero}>
+          <FlatList
+            ref={heroListRef}
+            data={heroItems}
+            horizontal
+            pagingEnabled
+            scrollEnabled={heroItems.length > 1}
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item, index) => `${item.type}-${item.url}-${index}`}
+            getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
+            onMomentumScrollEnd={(event) => {
+              const nextIndex = Math.round(event.nativeEvent.contentOffset.x / width);
+              setHeroIndex(Math.max(0, Math.min(nextIndex, heroItems.length - 1)));
+            }}
+            renderItem={({ item, index }) => item.type === 'video' ? (
+              <TouchableOpacity
+                activeOpacity={0.88}
+                style={s.heroVideoSlide}
+                onPress={() => router.push({
+                  pathname: '/video-player',
+                  params: { url: item.url, title: `${name} video ${index - heroImages.length + 1}`, instructor: name },
+                } as any)}
+              >
+                <ImageBackground source={{ uri: fallbackHeroImage }} style={s.heroVideoBackdrop} blurRadius={6} />
+                <View style={s.heroVideoContent}>
+                  <View style={s.heroPlayButton}><IconPlay size={26} color="#060606" /></View>
+                  <Text style={s.heroPlayLabel}>Play gym video</Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <ImageBackground source={{ uri: item.url || DEFAULT_GYM_IMAGE }} style={s.heroSlide} />
+            )}
+          />
+          <View pointerEvents="none" style={[s.heroAurora, { backgroundColor: TIER_AURORA[tier] || TIER_AURORA.Elite }]} />
+          <View pointerEvents="none" style={s.heroDark} />
           <SafeAreaView style={s.heroInner}>
             <TouchableOpacity style={s.back} onPress={() => router.back()}>
               <IconArrowLeft size={18} color="#fff" />
@@ -481,7 +568,14 @@ export default function GymDetail() {
               <IconShare size={18} color="#fff" />
             </TouchableOpacity>
           </SafeAreaView>
-        </ImageBackground>
+          {heroItems.length > 1 && (
+            <View style={s.heroDots}>
+              {heroItems.map((item, index) => (
+                <View key={`${item.type}-dot-${index}`} style={[s.heroDot, heroIndex === index && s.heroDotActive]} />
+              ))}
+            </View>
+          )}
+        </View>
 
         <View style={[s.content, { paddingBottom: 96 + bottomInset }]}>
           {loading ? (
@@ -997,10 +1091,19 @@ export default function GymDetail() {
 }
 
 const s = StyleSheet.create({
-  hero: { width, height: 260 },
-  heroAurora: { ...StyleSheet.absoluteFillObject },
+  hero: { width, height: 260, position: 'relative', overflow: 'hidden', backgroundColor: colors.surface },
+  heroSlide: { width, height: 260, backgroundColor: colors.surface },
+  heroVideoSlide: { width, height: 260, alignItems: 'center', justifyContent: 'center', backgroundColor: '#050505', overflow: 'hidden' },
+  heroVideoBackdrop: { ...StyleSheet.absoluteFillObject, opacity: 0.36 },
+  heroVideoContent: { alignItems: 'center', justifyContent: 'center', gap: 10, zIndex: 1 },
+  heroPlayButton: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  heroPlayLabel: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  heroAurora: { ...StyleSheet.absoluteFillObject, opacity: 0.85 },
   heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
-  heroInner: { paddingHorizontal: 22, paddingTop: 4, flexDirection: 'row', justifyContent: 'space-between' },
+  heroInner: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 22, paddingTop: 4, flexDirection: 'row', justifyContent: 'space-between', zIndex: 4 },
+  heroDots: { position: 'absolute', left: 0, right: 0, bottom: 14, flexDirection: 'row', justifyContent: 'center', gap: 6, zIndex: 4 },
+  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.38)' },
+  heroDotActive: { width: 18, backgroundColor: colors.accent },
   back: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.4)', borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: 22, paddingTop: 16 },
   tierBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, borderWidth: 1, marginBottom: 8 },

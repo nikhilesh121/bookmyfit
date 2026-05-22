@@ -172,8 +172,7 @@ export default function QrScreen() {
           setMode('checked_in');
           return;
         }
-        const expired = expiresAt ? new Date(expiresAt).getTime() <= Date.now() : false;
-        setMode(expired ? 'empty' : 'checked_in');
+        setMode('empty');
       } catch {
         // Keep the current QR visible during temporary network failures.
       }

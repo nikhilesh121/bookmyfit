@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, BarChart3, Building2, Users, CreditCard, Briefcase, UserCheck, Calendar,
   DollarSign, Percent, Home as HomeIcon, Package, Tags, Bell, Settings, ShieldAlert, LogOut,
@@ -45,16 +46,36 @@ const NAV = [
   ]},
 ];
 
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const API = RAW_API.replace(/\/api\/v1\/?$/i, '').replace(/\/$/, '');
+
+type Branding = { logoUrl?: string; logoText?: string; shortText?: string };
+
 export default function Shell({ children, title }: { children: React.ReactNode; title: string }) {
   const pathname = usePathname();
+  const [branding, setBranding] = useState<Branding>({ logoText: 'BookMyFit.in', shortText: 'BookMyFit' });
+
+  useEffect(() => {
+    fetch(`${API}/api/v1/branding`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => { if (data) setBranding(data); })
+      .catch(() => {});
+  }, []);
+
+  const logoUrl = String(branding.logoUrl || '').trim();
+  const logoText = String(branding.logoText || branding.shortText || 'BookMyFit.in');
   return (
     <div className="flex min-h-screen text-white">
       <aside className="w-[280px] border-r flex flex-col" style={{ borderColor: 'rgba(255,255,255,0.07)', background: 'linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015))' }}>
         <div className="px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-          <div className="serif flex items-center gap-2" style={{ fontSize: 21, fontWeight: 900, letterSpacing: '-0.7px' }}>
-            <span style={{ width: 8, height: 8, borderRadius: 999, background: 'var(--accent)', boxShadow: '0 0 18px rgba(61,255,84,0.75)' }} />
-            Book<em style={{ fontStyle: 'italic', fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>My</em>Fit
-          </div>
+          {logoUrl ? (
+            <img src={logoUrl} alt={logoText} style={{ maxWidth: 190, maxHeight: 44, objectFit: 'contain', display: 'block' }} />
+          ) : (
+            <div className="serif flex items-center gap-2" style={{ fontSize: 21, fontWeight: 900, letterSpacing: '-0.7px' }}>
+              <span style={{ width: 8, height: 8, borderRadius: 999, background: 'var(--accent)', boxShadow: '0 0 18px rgba(61,255,84,0.75)' }} />
+              {logoText}
+            </div>
+          )}
           <div className="kicker mt-1" style={{ color: 'var(--accent)', opacity: 0.7 }}>Admin Console</div>
         </div>
         <nav className="flex-1 overflow-y-auto py-3">

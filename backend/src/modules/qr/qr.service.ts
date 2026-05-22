@@ -12,6 +12,8 @@ import { FraudAlertEntity } from '../../database/entities/misc.entity';
 import { BookingQrEntity } from '../../database/entities/booking-qr.entity';
 import { SessionBookingEntity } from '../../database/entities/session-booking.entity';
 import { SessionSlotEntity } from '../../database/entities/session-slot.entity';
+import { AppConfigEntity } from '../../database/entities/app-config.entity';
+import { PLATFORM_PRICING_CONFIG_KEY, normalizePlatformPricingConfig } from '../../common/commission-config';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 
 const QR_EXPIRY_SECONDS = 30;
@@ -64,12 +66,21 @@ export class QrService {
     @InjectRepository(BookingQrEntity) private readonly bookingQrs: Repository<BookingQrEntity>,
     @InjectRepository(SessionBookingEntity) private readonly sessionBookings: Repository<SessionBookingEntity>,
     @InjectRepository(SessionSlotEntity) private readonly sessionSlots: Repository<SessionSlotEntity>,
+    @InjectRepository(AppConfigEntity) private readonly configs: Repository<AppConfigEntity>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   private visitSplit(ratePerDay: number, planType?: string | null) {
     const payout = planType === 'multi_gym' ? Math.max(0, Number(ratePerDay) || 0) : 0;
     return { adminEarns: 0, gymEarns: payout };
+  }
+
+  private async multiGymVisitPayout(gym: GymEntity | any) {
+    const override = Number(gym?.ratePerDay);
+    if (Number.isFinite(override) && override > 0) return override;
+    const row = await this.configs.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } });
+    const config = normalizePlatformPricingConfig(row?.value);
+    return Math.max(0, Number(config.multi_gym?.visitPayout) || 0);
   }
 
   /** Mobile app calls this to generate a short-lived QR token */
@@ -234,7 +245,7 @@ export class QrService {
       }),
     );
     const user = await this.users.findOne({ where: { id: userId } });
-    const ratePerDay = Number((gym as any).ratePerDay ?? 50);
+    const ratePerDay = await this.multiGymVisitPayout(gym);
     const { gymEarns, adminEarns } = this.visitSplit(ratePerDay, sub.planType);
 
     // 7. Async velocity fraud check (non-blocking)
@@ -357,7 +368,7 @@ export class QrService {
       }),
     );
     const user = await this.users.findOne({ where: { id: booking.userId } });
-    const ratePerDay = Number((gym as any).ratePerDay ?? 50);
+    const ratePerDay = await this.multiGymVisitPayout(gym);
     const { gymEarns, adminEarns } = this.visitSplit(ratePerDay, sub.planType);
     this.checkVelocityFraud(booking.userId, gymId, gym.name);
 

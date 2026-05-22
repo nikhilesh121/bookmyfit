@@ -793,6 +793,7 @@ class HomepageController {
 const ADMIN_SETTINGS_KEY = 'admin_settings';
 
 const DEFAULT_ADMIN_SETTINGS = {
+  branding: { logoUrl: '', logoText: 'BookMyFit.in', shortText: 'BookMyFit' },
   settlements: { cycle: 'Monthly', minPayout: 5000, processingWindow: 7 },
   flags: { storeModule: true, wellnessBooking: true, aiRecommendations: false, corporatePortal: true, mapView: false },
 };
@@ -809,6 +810,7 @@ class AdminSettingsController {
 
   private mergeSettings(value: any, planManagement: any) {
     return {
+      branding: { ...DEFAULT_ADMIN_SETTINGS.branding, ...(value?.branding || {}) },
       settlements: { ...DEFAULT_ADMIN_SETTINGS.settlements, ...(value?.settlements || {}) },
       flags: { ...DEFAULT_ADMIN_SETTINGS.flags, ...(value?.flags || {}) },
       revenueControls: {
@@ -843,11 +845,29 @@ class AdminSettingsController {
     const planManagement = await this.loadPlanManagement();
     const value = this.mergeSettings(body, planManagement);
     const persisted = {
+      branding: value.branding,
       settlements: value.settlements,
       flags: value.flags,
     };
     await this.configRepo.save({ key: ADMIN_SETTINGS_KEY, value: persisted });
     return value;
+  }
+}
+
+@ApiTags('Branding')
+@Controller('branding')
+class BrandingController {
+  constructor(@InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>) {}
+
+  @Get()
+  async getBranding() {
+    const row = await this.configRepo.findOne({ where: { key: ADMIN_SETTINGS_KEY } });
+    const branding = { ...DEFAULT_ADMIN_SETTINGS.branding, ...(row?.value?.branding || {}) };
+    return {
+      logoUrl: String(branding.logoUrl || '').trim(),
+      logoText: String(branding.logoText || 'BookMyFit.in').trim(),
+      shortText: String(branding.shortText || branding.logoText || 'BookMyFit').trim(),
+    };
   }
 }
 
@@ -886,7 +906,7 @@ class CommissionController {
     CheckinEntity, UserEntity, SubscriptionEntity, GymEntity, TrainerEntity, WellnessPartnerEntity, FraudAlertEntity,
     AppConfigEntity, ProductEntity,
   ])],
-  controllers: [RatingsController, CouponsController, NotificationsController, MasterController, VideosController, AnalyticsController, FraudController, CommissionController, HomepageController, AdminSettingsController],
+  controllers: [RatingsController, CouponsController, NotificationsController, MasterController, VideosController, AnalyticsController, FraudController, CommissionController, HomepageController, AdminSettingsController, BrandingController],
   providers: [RatingsService, CouponsService, NotificationsService, MasterDataService, VideosService, AnalyticsService, FraudService],
   exports: [RatingsService, CouponsService, NotificationsService, MasterDataService, VideosService, FraudService],
 })

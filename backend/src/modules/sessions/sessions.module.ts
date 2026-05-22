@@ -820,6 +820,11 @@ export class SessionsService {
     const booking = await this.bookingRepo.findOne({ where: { id: bookingId, userId } });
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.status !== 'confirmed') throw new BadRequestException('Cannot cancel this booking');
+    const slot = await this.slotRepo.findOne({ where: { id: booking.slotId } });
+    if (!slot) throw new NotFoundException('Booking slot not found');
+    if (dateTimeInIST(slot.date, slot.startTime).getTime() <= Date.now()) {
+      throw new BadRequestException('Cannot cancel after the session has started');
+    }
     booking.status = 'cancelled';
     await this.bookingRepo.save(booking);
     await this.qrRepo.createQueryBuilder()
@@ -828,7 +833,6 @@ export class SessionsService {
       .where('"slotBookingId" = :bookingId', { bookingId: booking.id })
       .andWhere('"usedAt" IS NULL')
       .execute();
-    const slot = await this.slotRepo.findOne({ where: { id: booking.slotId } });
     if (slot && slot.bookedCount > 0) {
       slot.bookedCount -= 1;
       if (slot.status === 'full') slot.status = 'scheduled';
@@ -1043,9 +1047,8 @@ export class SessionsService {
     const expired = await this.bookingRepo
       .createQueryBuilder('b')
       .innerJoin(SessionSlotEntity, 's', 'b."slotId" = s.id')
-      .where('b."slotDate" = :today', { today })
-      .andWhere("b.status = 'confirmed'")
-      .andWhere('s."endTime" < :nowTime', { nowTime })
+      .where("b.status = 'confirmed'")
+      .andWhere('(b."slotDate" < :today OR (b."slotDate" = :today AND s."endTime" < :nowTime))', { today, nowTime })
       .select('b')
       .getMany();
 

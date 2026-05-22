@@ -68,7 +68,7 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadedFromApi, setLoadedFromApi] = useState(false);
-  const [prices, setPrices] = useState({ day_pass: 149, same_gym: 599, multi_gym: 1499 });
+  const [prices, setPrices] = useState({ day_pass: 149, same_gym: 599, multi_gym: 1499, multi_gym_visit_payout: 50 });
   const [globalCommission, setGlobalCommission] = useState<GlobalCommission>({ mode: 'percent', value: 0 });
   const [commissions, setCommissions] = useState<Record<ServiceKey, CommissionSetting>>(DEFAULT_SERVICE_COMMISSIONS);
 
@@ -80,6 +80,7 @@ export default function PlansPage() {
           day_pass: data?.day_pass?.basePrice || 149,
           same_gym: data?.same_gym?.basePrice || 599,
           multi_gym: data?.multi_gym?.basePrice || 1499,
+          multi_gym_visit_payout: data?.multi_gym?.visitPayout ?? 50,
         });
         setGlobalCommission(normalizeGlobal(data?.globalCommission));
         setCommissions({
@@ -114,7 +115,7 @@ export default function PlansPage() {
         globalCommission,
         day_pass: { basePrice: prices.day_pass, commission: commissions.day_pass },
         same_gym: { commission: commissions.same_gym },
-        multi_gym: { basePrice: prices.multi_gym },
+        multi_gym: { basePrice: prices.multi_gym, visitPayout: prices.multi_gym_visit_payout },
         wellness: { commission: commissions.wellness },
         personal_training: { commission: commissions.personal_training },
       });
@@ -189,7 +190,8 @@ export default function PlansPage() {
                     ))}
                   </div>
                 </div>
-                <div style={{ minWidth: 230 }}>
+                <div style={{ minWidth: 260, display: 'grid', gap: 14 }}>
+                  <div>
                   <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 4 }}>Monthly base price</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ color: 'var(--t2)', fontSize: 13 }}>Rs</span>
@@ -203,6 +205,24 @@ export default function PlansPage() {
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 8 }}>
                     User pays <strong style={{ color: '#fff' }}>{money(prices.multi_gym)}</strong> per month.
+                  </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--t3)', marginBottom: 4 }}>Default gym payout per visit</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: 'var(--t2)', fontSize: 13 }}>Rs</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={prices.multi_gym_visit_payout}
+                        onChange={(e) => setPrices((currentPrices) => ({ ...currentPrices, multi_gym_visit_payout: Math.max(0, Number(e.target.value) || 0) }))}
+                        className="glass-input"
+                        style={{ width: 130, textAlign: 'right', fontSize: 18, fontWeight: 700 }}
+                      />
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--t2)', marginTop: 8 }}>
+                      Used when a gym has no custom override.
+                    </div>
                   </div>
                 </div>
               </div>

@@ -85,8 +85,8 @@ export class GymEntity {
   @Column({ type: 'text', array: true, default: [] })
   categories: string[];
 
-  @Column({ type: 'numeric', precision: 10, scale: 2, default: 50 })
-  ratePerDay: number; // How much BMF pays this gym per customer-visit-day (multi-gym plans)
+  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
+  ratePerDay: number | null; // Optional per-gym override for multi-gym customer-visit-day payout.
 
   @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
   dayPassPrice: number | null; // null = use platform default (149)

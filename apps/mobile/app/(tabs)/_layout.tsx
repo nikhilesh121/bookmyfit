@@ -8,8 +8,9 @@ import { IconHome, IconSearch, IconCalendar, IconTicket, IconUser } from '../../
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
-  const tabBarBottomPad = Platform.OS === 'ios' ? Math.max(insets.bottom, 10) : 6;
-  const tabBarHeight = 58 + tabBarBottomPad;
+  const minBottomPad = Platform.OS === 'android' ? 24 : 10;
+  const tabBarBottomPad = Math.max(insets.bottom, minBottomPad);
+  const tabBarHeight = 62 + tabBarBottomPad;
 
   useFocusEffect(
     useCallback(() => {

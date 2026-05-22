@@ -48,6 +48,21 @@ function formatClockRange(start?: any, end?: any) {
   return `${formatClockTime(start)} - ${formatClockTime(end)}`;
 }
 
+function normalizeBookingStatus(value: any): 'confirmed' | 'attended' | 'not_attended' | 'cancelled' {
+  const status = String(value || 'confirmed').toLowerCase();
+  if (status === 'attended') return 'attended';
+  if (status === 'not_attended' || status === 'missed') return 'not_attended';
+  if (status === 'cancelled' || status === 'canceled') return 'cancelled';
+  return 'confirmed';
+}
+
+function bookingStatusLabel(status: ReturnType<typeof normalizeBookingStatus>) {
+  if (status === 'attended') return 'Attended';
+  if (status === 'not_attended') return 'Not Attended';
+  if (status === 'cancelled') return 'Cancelled';
+  return 'Confirmed';
+}
+
 export default function SlotsScreen() {
   const { gymId } = useLocalSearchParams<{ gymId?: string }>();
   const days = getNext7Days();
@@ -326,19 +341,30 @@ export default function SlotsScreen() {
               const date = bk.slot?.date || bk.date || '';
               const start = bk.slot?.startTime || bk.startTime || '';
               const end = bk.slot?.endTime || bk.endTime || '';
-              const status = (bk.status || 'confirmed').toLowerCase();
+              const status = normalizeBookingStatus(bk.status);
+              const canCancel = status === 'confirmed';
               return (
                 <View key={bk.id || bk._id} style={s.bookingCard}>
                   <View style={{ flex: 1 }}>
                     <Text style={s.bookingGym}>{gymName}</Text>
                     <Text style={s.bookingTime} numberOfLines={1}>{date} | {formatClockRange(start, end)}</Text>
                   </View>
-                  <View style={[s.statusBadge, status === 'cancelled' && s.statusBadgeCancelled]}>
-                    <Text style={[s.statusText, status === 'cancelled' && s.statusTextCancelled]}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                  <View style={[
+                    s.statusBadge,
+                    status === 'cancelled' && s.statusBadgeCancelled,
+                    status === 'attended' && s.statusBadgeAttended,
+                    status === 'not_attended' && s.statusBadgeMissed,
+                  ]}>
+                    <Text style={[
+                      s.statusText,
+                      status === 'cancelled' && s.statusTextCancelled,
+                      status === 'attended' && s.statusTextAttended,
+                      status === 'not_attended' && s.statusTextMissed,
+                    ]}>
+                      {bookingStatusLabel(status)}
                     </Text>
                   </View>
-                  {status !== 'cancelled' && (
+                  {canCancel && (
                     <TouchableOpacity style={s.cancelBtn} onPress={() => handleCancel(bk.id || bk._id)}>
                       <Text style={s.cancelBtnText}>Cancel</Text>
                     </TouchableOpacity>
@@ -418,8 +444,12 @@ const s = StyleSheet.create({
     backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
   },
   statusBadgeCancelled: { backgroundColor: 'rgba(255,60,60,0.1)', borderColor: 'rgba(255,60,60,0.2)' },
+  statusBadgeAttended: { backgroundColor: 'rgba(0,212,255,0.1)', borderColor: 'rgba(0,212,255,0.25)' },
+  statusBadgeMissed: { backgroundColor: 'rgba(255,180,0,0.1)', borderColor: 'rgba(255,180,0,0.25)' },
   statusText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent },
   statusTextCancelled: { color: 'rgba(255,100,100,0.9)' },
+  statusTextAttended: { color: '#00D4FF' },
+  statusTextMissed: { color: '#FFB400' },
   cancelBtn: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10,
     backgroundColor: 'rgba(255,60,60,0.1)', borderWidth: 1, borderColor: 'rgba(255,60,60,0.2)',

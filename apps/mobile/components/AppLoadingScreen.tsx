@@ -1,8 +1,25 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radius } from '../theme/brand';
+import { API_BASE } from '../lib/api';
 
 export default function AppLoadingScreen() {
+  const [branding, setBranding] = useState<{ logoUrl?: string; logoText?: string; shortText?: string }>({
+    logoText: 'BookMyFit',
+    shortText: 'BMF',
+  });
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/v1/branding`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => { if (data) setBranding(data); })
+      .catch(() => {});
+  }, []);
+
+  const logoUrl = String(branding.logoUrl || '').trim();
+  const logoText = String(branding.shortText || branding.logoText || 'BMF');
+
   return (
     <View style={s.root}>
       <LinearGradient
@@ -11,10 +28,14 @@ export default function AppLoadingScreen() {
         end={{ x: 1, y: 1 }}
         style={s.glow}
       />
-      <View style={s.logoBox}>
-        <Text style={s.logoText}>BMF</Text>
-      </View>
-      <Text style={s.title}>BookMyFit</Text>
+      {logoUrl ? (
+        <Image source={{ uri: logoUrl }} style={s.logoImage} resizeMode="contain" />
+      ) : (
+        <View style={s.logoBox}>
+          <Text style={s.logoText}>{logoText.slice(0, 4).toUpperCase()}</Text>
+        </View>
+      )}
+      <Text style={s.title}>{branding.logoText || 'BookMyFit'}</Text>
       <Text style={s.subtitle}>Getting your fitness pass ready</Text>
       <ActivityIndicator color={colors.accent} style={s.loader} />
     </View>
@@ -42,6 +63,11 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.accentBorder,
     marginBottom: 18,
+  },
+  logoImage: {
+    width: 190,
+    height: 82,
+    marginBottom: 16,
   },
   logoText: {
     color: colors.accent,

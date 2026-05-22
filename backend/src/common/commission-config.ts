@@ -22,6 +22,7 @@ export const DEFAULT_PLATFORM_PRICING_CONFIG: any = {
     name: 'Multi Gym Pass',
     subtitle: 'Unlimited access to every partner gym',
     basePrice: 1499,
+    visitPayout: 50,
     gymLimit: null,
     features: ['Unlimited gyms, unlimited visits', 'QR Check-in', 'Priority support', 'All gym tiers', 'PT session add-on eligible'],
   },
@@ -90,6 +91,10 @@ export function normalizePlatformPricingConfig(value: any) {
 
   normalized.day_pass.basePrice = Math.max(1, Math.round(Number(normalized.day_pass.basePrice) || defaults.day_pass.basePrice));
   normalized.multi_gym.basePrice = Math.max(1, Math.round(Number(normalized.multi_gym.basePrice) || defaults.multi_gym.basePrice));
+  const visitPayout = Number(normalized.multi_gym.visitPayout);
+  normalized.multi_gym.visitPayout = Number.isFinite(visitPayout) && visitPayout >= 0
+    ? Math.round(visitPayout)
+    : defaults.multi_gym.visitPayout;
   return normalized;
 }
 

@@ -7,11 +7,13 @@ import { CheckinEntity } from '../../database/entities/checkin.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { UserEntity } from '../../database/entities/user.entity';
+import { AppConfigEntity } from '../../database/entities/app-config.entity';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 import { CapacityGateway } from './capacity.gateway';
+import { PLATFORM_PRICING_CONFIG_KEY, normalizePlatformPricingConfig } from '../../common/commission-config';
 
 @Injectable()
 class CheckinsService {
@@ -20,6 +22,7 @@ class CheckinsService {
     @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
     @InjectRepository(SubscriptionEntity) private readonly subs: Repository<SubscriptionEntity>,
     @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
+    @InjectRepository(AppConfigEntity) private readonly configs: Repository<AppConfigEntity>,
     private readonly capacityGateway: CapacityGateway,
   ) {}
 
@@ -32,16 +35,19 @@ class CheckinsService {
     if (rows.length === 0) return rows;
     const subIds = [...new Set(rows.map((row) => row.subscriptionId).filter(Boolean))];
     const gymIds = [...new Set(rows.map((row) => row.gymId).filter(Boolean))];
-    const [subs, gyms] = await Promise.all([
+    const [subs, gyms, configRow] = await Promise.all([
       subIds.length ? this.subs.find({ where: { id: In(subIds) } }) : [],
       gymIds.length ? this.gyms.find({ where: { id: In(gymIds) } }) : [],
+      this.configs.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } }),
     ]);
+    const globalVisitPayout = Number(normalizePlatformPricingConfig(configRow?.value).multi_gym?.visitPayout || 0);
     const subMap = new Map<string, SubscriptionEntity>(subs.map((sub): [string, SubscriptionEntity] => [sub.id, sub]));
     const gymMap = new Map<string, GymEntity>(gyms.map((gym): [string, GymEntity] => [gym.id, gym]));
     return rows.map((row) => {
       const sub = subMap.get(row.subscriptionId);
       const gym = gymMap.get(gymId || row.gymId);
-      const ratePerDay = Number((gym as any)?.ratePerDay ?? 50);
+      const override = Number((gym as any)?.ratePerDay);
+      const ratePerDay = Number.isFinite(override) && override > 0 ? override : globalVisitPayout;
       const { gymEarns, adminEarns } = this.visitSplit(ratePerDay, sub?.planType);
       return {
         ...row,
@@ -254,7 +260,7 @@ class CheckinsController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CheckinEntity, GymEntity, SubscriptionEntity, UserEntity])],
+  imports: [TypeOrmModule.forFeature([CheckinEntity, GymEntity, SubscriptionEntity, UserEntity, AppConfigEntity])],
   controllers: [CheckinsController],
   providers: [CheckinsService, CapacityGateway],
   exports: [CheckinsService, CapacityGateway],

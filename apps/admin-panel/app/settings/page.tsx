@@ -9,6 +9,7 @@ import { ListChecks, Plus, Sparkles, Users, X } from 'lucide-react';
 type PassCommission = { mode?: 'percent' | 'fixed'; value?: number };
 interface AdminUser { id: string; name: string; email: string; role: string; lastLogin?: string; isActive?: boolean; }
 interface AdminSettings {
+  branding?: { logoUrl?: string; logoText?: string; shortText?: string };
   settlements?: { cycle?: string; minPayout?: number; processingWindow?: number };
   flags?: Record<string, boolean>;
   planManagement?: any;
@@ -49,6 +50,8 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [plans, setPlans] = useState<any>(null);
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
+  const [branding, setBranding] = useState({ logoUrl: '', logoText: 'BookMyFit.in', shortText: 'BookMyFit' });
+  const [savingBranding, setSavingBranding] = useState(false);
   const [availability, setAvailability] = useState({ plans: false });
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +76,11 @@ export default function SettingsPage() {
         const livePlans = settingsRes?.planManagement || planRes || null;
         setPlans(livePlans);
         setAdminSettings(settingsRes || null);
+        setBranding({
+          logoUrl: settingsRes?.branding?.logoUrl || '',
+          logoText: settingsRes?.branding?.logoText || 'BookMyFit.in',
+          shortText: settingsRes?.branding?.shortText || 'BookMyFit',
+        });
         setAvailability({ plans: Boolean(livePlans) });
 
         const adminArr = asArray(adminRes);
@@ -114,6 +122,22 @@ export default function SettingsPage() {
     }
   };
 
+  const saveBranding = async () => {
+    setSavingBranding(true);
+    try {
+      const saved = await api.put('/admin/settings', {
+        ...(adminSettings || {}),
+        branding,
+      });
+      setAdminSettings(saved);
+      toast('Global branding updated');
+    } catch (err: any) {
+      toast(err?.message || 'Failed to update branding', 'error');
+    } finally {
+      setSavingBranding(false);
+    }
+  };
+
   const revenueCards = [
     {
       label: 'Global Checkout Add-on',
@@ -139,6 +163,7 @@ export default function SettingsPage() {
     {
       label: 'Multi Gym Pass',
       value: loading ? '...' : !availability.plans ? 'Unavailable' : `${formatMoney(plans?.multi_gym?.basePrice)} / mo`,
+      detail: loading || !availability.plans ? '' : `${formatMoney(plans?.multi_gym?.visitPayout)} per visit`,
       sub: 'Plan Management',
       href: '/plans',
       icon: ListChecks,
@@ -168,9 +193,38 @@ export default function SettingsPage() {
               </div>
               <div className="text-2xl font-bold mb-1">{card.value}</div>
               <div className="text-xs" style={{ color: 'var(--t2)' }}>{card.label}</div>
+              {'detail' in card && card.detail ? <div className="text-[11px] mt-1" style={{ color: 'var(--accent)' }}>{card.detail}</div> : null}
             </Link>
           );
         })}
+      </div>
+
+      <div className="glass p-6 mb-6">
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div>
+            <h3 className="serif text-lg mb-2">Global Branding</h3>
+            <p className="text-sm max-w-3xl" style={{ color: 'var(--t2)' }}>
+              Change the platform logo URL and display text from one place. Admin and gym portals read this global setting automatically.
+            </p>
+          </div>
+          <button onClick={saveBranding} disabled={savingBranding} className="btn btn-primary text-sm">
+            {savingBranding ? 'Saving...' : 'Save Branding'}
+          </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="kicker block mb-1">Logo Image URL</label>
+            <input className="glass-input w-full" value={branding.logoUrl} onChange={(e) => setBranding((b) => ({ ...b, logoUrl: e.target.value }))} placeholder="https://.../logo.png" />
+          </div>
+          <div>
+            <label className="kicker block mb-1">Logo Text</label>
+            <input className="glass-input w-full" value={branding.logoText} onChange={(e) => setBranding((b) => ({ ...b, logoText: e.target.value }))} placeholder="BookMyFit.in" />
+          </div>
+          <div>
+            <label className="kicker block mb-1">Short Text</label>
+            <input className="glass-input w-full" value={branding.shortText} onChange={(e) => setBranding((b) => ({ ...b, shortText: e.target.value }))} placeholder="BookMyFit" />
+          </div>
+        </div>
       </div>
 
       <div className="glass p-6 mb-6">
