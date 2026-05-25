@@ -5,11 +5,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, useCallback, useRef } from 'react';
-import * as Location from 'expo-location';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconStar, IconPin, IconFilter, IconCheck, IconSearch } from '../components/Icons';
 import { gymsApi, subscriptionsApi } from '../lib/api';
-import { getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../lib/location';
+import { getLocationPermissionState, getNearbyCoords, nearbyBestSort, nearbyQueryParams, openLocationSettings, requestNearbyCoords } from '../lib/location';
 import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList } from '../lib/subscriptionAccess';
 import { DEFAULT_GYM_IMAGE, firstImage } from '../lib/imageFallbacks';
 import { applyPassCommission } from '../lib/passPricing';
@@ -120,14 +119,15 @@ export default function GymListingPage() {
   const requestUserLocation = useCallback(async () => {
     setDetectingLocation(true);
     try {
-      const existing = await Location.getForegroundPermissionsAsync();
-      if (existing.status !== 'granted' && existing.canAskAgain === false) {
+      const existing = await getLocationPermissionState();
+      if (!existing.granted && existing.needsSettings) {
         setLocationState('denied');
         return null;
       }
       const next = await getNearbyCoords();
+      const latest = await getLocationPermissionState();
       if (!next) {
-        setLocationState(existing.status === 'denied' ? 'denied' : 'unavailable');
+        setLocationState(latest.status === 'denied' || latest.needsSettings ? 'denied' : 'unavailable');
         return null;
       }
       setUserLocation(next);
@@ -140,6 +140,28 @@ export default function GymListingPage() {
       setDetectingLocation(false);
     }
   }, []);
+
+  const handleLocationPress = useCallback(async () => {
+    const permission = await getLocationPermissionState();
+    if (permission.needsSettings) {
+      await openLocationSettings();
+      setLocationState('checking');
+      return;
+    }
+    setDetectingLocation(true);
+    try {
+      const next = await requestNearbyCoords();
+      if (next) {
+        setUserLocation(next);
+        setLocationState('ready');
+      } else {
+        const latest = await getLocationPermissionState();
+        setLocationState(latest.needsSettings || latest.status === 'denied' ? 'denied' : 'unavailable');
+      }
+    } finally {
+      setDetectingLocation(false);
+    }
+  }, [requestUserLocation]);
 
   useEffect(() => { requestUserLocation(); }, [requestUserLocation]);
 
@@ -279,12 +301,12 @@ export default function GymListingPage() {
 
   const activeSortLabel = SORTS.find((s) => s.id === activeSort)?.label || 'Sort';
   const gpsText = userLocation
-    ? 'GPS active - showing best nearby gyms first'
+    ? 'Closest gyms are shown first'
     : detectingLocation || locationState === 'checking'
       ? 'Finding your GPS location...'
       : locationState === 'denied'
-        ? 'Enable GPS permission to rank gyms near you'
-        : 'Tap to use GPS for best nearby gyms';
+        ? 'Location is off - tap to allow or open settings'
+        : 'Allow location to show closest gyms first';
 
   return (
     <SafeAreaView style={s.root} edges={['top', 'left', 'right', 'bottom']}>
@@ -321,7 +343,7 @@ export default function GymListingPage() {
 
       <TouchableOpacity
         style={[s.gpsBanner, userLocation && s.gpsBannerActive]}
-        onPress={requestUserLocation}
+        onPress={handleLocationPress}
         disabled={detectingLocation}
         activeOpacity={0.82}
       >

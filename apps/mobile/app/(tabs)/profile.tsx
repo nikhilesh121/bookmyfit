@@ -10,6 +10,7 @@ import AuroraBackground from '../../components/AuroraBackground';
 export default function Profile() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     usersApi.me()
@@ -30,6 +31,44 @@ export default function Profile() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
     ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will close your BookMyFit member account, remove your personal profile details, and sign you out. Payment, booking, and safety records may be retained where required by law.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirm Deletion',
+              'Are you sure you want to delete this account? You will lose access to this member profile immediately.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete Now',
+                  style: 'destructive',
+                  onPress: async () => {
+                    setDeleting(true);
+                    try {
+                      await usersApi.deleteMe();
+                      await logout();
+                    } catch (err: any) {
+                      Alert.alert('Delete Failed', err?.message || 'Please try again or contact support@bookmyfit.in');
+                    } finally {
+                      setDeleting(false);
+                    }
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
   };
 
   const MENU_ITEMS = [
@@ -112,6 +151,26 @@ export default function Profile() {
           ))}
         </View>
 
+        <TouchableOpacity
+          style={[s.deleteAccount, deleting && { opacity: 0.65 }]}
+          onPress={handleDeleteAccount}
+          disabled={deleting}
+          activeOpacity={0.82}
+        >
+          {deleting ? (
+            <ActivityIndicator color="rgba(255,100,100,0.95)" size="small" />
+          ) : (
+            <>
+              <View style={s.deleteIconWrap}><IconShield size={16} color="rgba(255,100,100,0.95)" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.deleteTitle}>Delete Account</Text>
+                <Text style={s.deleteText}>Permanently close this member profile and remove personal details.</Text>
+              </View>
+              <IconChevronRight size={14} color="rgba(255,100,100,0.75)" />
+            </>
+          )}
+        </TouchableOpacity>
+
         {/* Sign out */}
         <TouchableOpacity style={s.logout} onPress={handleLogout}>
           <Text style={s.logoutText}>Sign Out</Text>
@@ -169,6 +228,29 @@ const s = StyleSheet.create({
     backgroundColor: colors.surfaceStrong, alignItems: 'center', justifyContent: 'center', marginRight: 12,
   },
   menuText: { flex: 1, fontFamily: fonts.sans, fontSize: 14, color: '#fff' },
+  deleteAccount: {
+    minHeight: 72,
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(255,60,60,0.09)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,60,60,0.22)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
+  },
+  deleteIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,60,60,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteTitle: { fontFamily: fonts.sansBold, fontSize: 14, color: 'rgba(255,120,120,0.96)', marginBottom: 2 },
+  deleteText: { fontFamily: fonts.sans, fontSize: 11, color: 'rgba(255,180,180,0.68)', lineHeight: 16 },
   logout: {
     marginTop: 10, height: 50, borderRadius: radius.lg,
     backgroundColor: 'rgba(255,60,60,0.1)', borderWidth: 1, borderColor: 'rgba(255,60,60,0.2)',

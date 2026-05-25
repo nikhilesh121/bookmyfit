@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Put, Body, UseGuards, Req, Query, Param, BadRequestException } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Delete, Body, UseGuards, Req, Query, Param, BadRequestException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
@@ -116,6 +116,27 @@ class UsersService {
     return this.me(id);
   }
 
+  async deleteMe(id: string) {
+    const user = await this.repo.findOne({ where: { id } });
+    if (!user) throw new BadRequestException('User not found');
+    if (user.role !== 'end_user') {
+      throw new BadRequestException('Partner and admin accounts must contact support to close their account.');
+    }
+    await this.repo.update(id, {
+      name: 'Deleted User',
+      phone: null,
+      email: null,
+      passwordHash: null,
+      deviceId: null,
+      dob: null,
+      gender: null,
+      referralCode: null,
+      referredBy: null,
+      isActive: false,
+    } as any);
+    return { success: true, message: 'Account deleted' };
+  }
+
   async suspend(id: string) {
     await this.repo.update(id, { isActive: false } as any);
     return { success: true, userId: id, status: 'suspended' };
@@ -183,6 +204,10 @@ class UsersController {
 
   @Put('me') update(@Req() req: any, @Body() body: UpdateUserDto) {
     return this.svc.update(req.user.userId, body);
+  }
+
+  @Delete('me') deleteMe(@Req() req: any) {
+    return this.svc.deleteMe(req.user.userId);
   }
 
   @Get('me/referral') referralCode(@Req() req: any) { return this.svc.getReferralCode(req.user.userId); }

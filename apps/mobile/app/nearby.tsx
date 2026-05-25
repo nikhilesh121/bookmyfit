@@ -17,7 +17,16 @@ import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconPin, IconRefresh, IconSearch, IconStar } from '../components/Icons';
 import { gymsApi } from '../lib/api';
 import { DEFAULT_GYM_IMAGE, firstImage } from '../lib/imageFallbacks';
-import { distanceLabel, getNearbyCoords, nearbyBestSort, nearbyQueryParams, UserCoords } from '../lib/location';
+import {
+  distanceLabel,
+  getLocationPermissionState,
+  getNearbyCoords,
+  nearbyBestSort,
+  nearbyQueryParams,
+  openLocationSettings,
+  requestNearbyCoords,
+  UserCoords,
+} from '../lib/location';
 
 interface NearbyGym {
   id: string;
@@ -61,18 +70,23 @@ export default function NearbyScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [notice, setNotice] = useState('');
+  const [needsSettings, setNeedsSettings] = useState(false);
 
   const load = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
     if (mode === 'refresh') setRefreshing(true);
     else setLoading(true);
     try {
       const nextCoords = await getNearbyCoords();
+      const permission = await getLocationPermissionState();
+      setNeedsSettings(permission.needsSettings);
       setCoords(nextCoords);
       const params: any = { page: 1, limit: 100, ...nearbyQueryParams(nextCoords) };
       const data: any = await gymsApi.list(params);
       const list: NearbyGym[] = Array.isArray(data) ? data : data?.data || data?.gyms || data?.items || [];
       setGyms(list);
-      setNotice(nextCoords ? '' : 'GPS permission is needed for exact nearby sorting. Showing available partner gyms for now.');
+      setNotice(nextCoords ? '' : permission.needsSettings
+        ? 'Location permission is blocked. Open settings to show gyms closest to you first.'
+        : 'Allow location to show gyms closest to you first. Until then, you can still browse partner gyms.');
     } catch (e: any) {
       setGyms([]);
       setNotice(e?.message || 'Could not load gyms near you.');
@@ -81,6 +95,38 @@ export default function NearbyScreen() {
       setRefreshing(false);
     }
   }, []);
+
+  const handleLocationPress = useCallback(async () => {
+    if (needsSettings) {
+      await openLocationSettings();
+      setNotice('After enabling location in settings, return here and tap refresh.');
+      return;
+    }
+    setRefreshing(true);
+    setNotice('Asking for location access...');
+    try {
+      const nextCoords = await requestNearbyCoords();
+      const permission = await getLocationPermissionState();
+      setNeedsSettings(permission.needsSettings);
+      if (!nextCoords) {
+        setNotice(permission.needsSettings
+          ? 'Location permission is blocked. We opened settings so you can enable it for BookMyFit.'
+          : 'Location was not enabled. Tap Allow Location and choose Allow when your phone asks.');
+      } else {
+        setCoords(nextCoords);
+        setNotice('');
+      }
+      const params: any = { page: 1, limit: 100, ...nearbyQueryParams(nextCoords) };
+      const data: any = await gymsApi.list(params);
+      const list: NearbyGym[] = Array.isArray(data) ? data : data?.data || data?.gyms || data?.items || [];
+      setGyms(list);
+    } catch (e: any) {
+      setNotice(e?.message || 'Could not enable location. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [needsSettings]);
 
   useFocusEffect(useCallback(() => {
     load('initial');
@@ -149,17 +195,26 @@ export default function NearbyScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={colors.accent} />}
           contentContainerStyle={[s.listContent, { paddingBottom: insets.bottom + 28 }]}
           ListHeaderComponent={(
-            <View style={[s.statusCard, coords && s.statusCardActive]}>
+            <TouchableOpacity
+              style={[s.statusCard, coords && s.statusCardActive]}
+              onPress={handleLocationPress}
+              activeOpacity={0.84}
+            >
               <View style={s.statusIcon}>
                 <IconPin size={17} color={coords ? colors.accent : colors.t2} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.statusTitle}>{coords ? 'Best nearby ranking is active' : 'Turn on GPS for nearby gyms'}</Text>
+                <Text style={s.statusTitle}>{coords ? 'Closest gyms are shown first' : 'Use location for nearby gyms'}</Text>
                 <Text style={s.statusText}>
                   {notice || 'Nearby results use distance first, then rating, reviews, and popularity.'}
                 </Text>
               </View>
-            </View>
+              {!coords && (
+                <View style={s.statusAction}>
+                  <Text style={s.statusActionText}>{needsSettings ? 'Settings' : 'Allow Location'}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           )}
           ListEmptyComponent={(
             <View style={s.empty}>
@@ -297,6 +352,16 @@ const s = StyleSheet.create({
   },
   statusTitle: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', marginBottom: 3 },
   statusText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, lineHeight: 17 },
+  statusAction: {
+    minWidth: 104,
+    minHeight: 34,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  statusActionText: { fontFamily: fonts.sansBold, fontSize: 11, color: '#050505' },
   card: {
     borderRadius: radius.xl,
     backgroundColor: 'rgba(255,255,255,0.045)',

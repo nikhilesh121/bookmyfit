@@ -620,7 +620,7 @@ export default function LandingPage() {
             </div>
             <div>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--t3)', marginBottom: 14 }}>Legal</p>
-              {[['mailto:hello@bookmyfit.in','Contact us'],['/privacy','Privacy Policy'],['/terms','Terms of Service'],['/refund','Refund Policy']].map(([href, label]) => (
+              {[['mailto:hello@bookmyfit.in','Contact us'],['/privacy','Privacy Policy'],['/terms','Terms of Service'],['/refund','Refund Policy'],['/delete-account','Delete Account']].map(([href, label]) => (
                 <a key={href} href={href} className="nav-link" style={{ display: 'block', marginBottom: 9, fontSize: 13 }}>{label}</a>
               ))}
             </div>

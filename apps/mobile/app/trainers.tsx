@@ -29,7 +29,7 @@ interface Trainer {
 }
 
 export default function TrainersScreen() {
-  const { gymId } = useLocalSearchParams<{ gymId: string }>();
+  const { gymId, gymName } = useLocalSearchParams<{ gymId: string; gymName?: string }>();
   const insets = useSafeAreaInsets();
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +40,7 @@ export default function TrainersScreen() {
   const [user, setUser] = useState<any>(null);
   const [serverPlans, setServerPlans] = useState<any>(null);
   const [gpsActive, setGpsActive] = useState(false);
+  const [contextGymName, setContextGymName] = useState(String(gymName || ''));
 
   const trainerMonthlyPrice = (trainer?: Trainer | null) =>
     Number(trainer?.monthlyPriceInr || trainer?.monthlyPrice || trainer?.pricePerSession || 0);
@@ -59,10 +60,21 @@ export default function TrainersScreen() {
     (async () => {
       try {
         if (gymId) {
-          const d: any = await trainersApi.listByGym(gymId as string);
+          const [d, gymData]: any[] = await Promise.all([
+            trainersApi.listByGym(gymId as string),
+            gymsApi.getById(gymId as string).catch(() => null),
+          ]);
           if (!alive) return;
+          const resolvedGymName = String(gymData?.name || gymData?.gymName || gymName || 'This gym');
+          setContextGymName(resolvedGymName);
           const rows = Array.isArray(d) ? d : d?.data ?? [];
-          setTrainers(rows.filter((t: any) => t.status !== 'inactive' && t.isActive !== false));
+          setTrainers(rows
+            .filter((t: any) => t.status !== 'inactive' && t.isActive !== false)
+            .map((trainer: any) => ({
+              ...trainer,
+              gymId: trainer.gymId || gymId,
+              gymName: trainer.gymName || resolvedGymName,
+            })));
           return;
         }
 
@@ -167,7 +179,7 @@ export default function TrainersScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
-          <Text style={s.sectionTitle}>{gymId ? 'Available at this Gym' : gpsActive ? 'Monthly Trainers Near You' : 'Monthly Trainers from Partner Gyms'}</Text>
+          <Text style={s.sectionTitle}>{gymId ? `Available at ${contextGymName || 'this gym'}` : gpsActive ? 'Monthly Trainers Near You' : 'Monthly Trainers from Partner Gyms'}</Text>
           {trainers.map((t) => (
             <View key={t.id} style={s.card}>
               <View style={s.cardRow}>
@@ -177,7 +189,7 @@ export default function TrainersScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={s.trainerName}>{t.name}</Text>
                   <Text style={s.spec}>{t.specialization || 'General Fitness'}</Text>
-                  {!gymId && t.gymName ? <Text style={s.gymLine} numberOfLines={1}>{[t.gymName, t.gymDistance].filter(Boolean).join(' | ')}</Text> : null}
+                  {t.gymName ? <Text style={s.gymLine} numberOfLines={1}>{[t.gymName, t.gymDistance].filter(Boolean).join(' | ')}</Text> : null}
                   {t.bio ? <Text style={s.bio} numberOfLines={2}>{t.bio}</Text> : null}
                 </View>
               </View>
@@ -220,6 +232,7 @@ export default function TrainersScreen() {
               <>
                 <Text style={s.modalTrainer}>{selected.name}</Text>
                 <Text style={s.modalSpec}>{selected.specialization || 'General Fitness'}</Text>
+                {!!selected.gymName && <Text style={s.modalGym}>Trainer at {selected.gymName}</Text>}
 
                 <Text style={s.label}>Duration in Months</Text>
                 <TextInput
@@ -331,16 +344,17 @@ const s = StyleSheet.create({
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalCard: {
-    backgroundColor: colors.glass, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    borderWidth: 1, borderColor: colors.borderGlass, padding: 24,
+    backgroundColor: '#111412', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    borderWidth: 1, borderColor: colors.borderStrong, padding: 24,
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontFamily: fonts.serif, fontSize: 18, color: colors.t },
   modalTrainer: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.t, marginBottom: 2 },
-  modalSpec: { fontFamily: fonts.sans, fontSize: 12, color: colors.accent, marginBottom: 20 },
+  modalSpec: { fontFamily: fonts.sans, fontSize: 12, color: colors.accent, marginBottom: 4 },
+  modalGym: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t2, marginBottom: 20 },
   label: { fontFamily: fonts.sansMedium, fontSize: 11, color: colors.t3, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: colors.border,
+    backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: colors.borderStrong,
     borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12,
     fontFamily: fonts.sans, fontSize: 14, color: colors.t, marginBottom: 16,
   },

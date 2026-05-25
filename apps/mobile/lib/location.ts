@@ -1,6 +1,13 @@
 import * as Location from 'expo-location';
+import { Linking, Platform } from 'react-native';
 
 export type UserCoords = { lat: number; lng: number };
+export type LocationPermissionState = {
+  status: Location.PermissionStatus | 'unknown';
+  granted: boolean;
+  canAskAgain: boolean;
+  needsSettings: boolean;
+};
 
 let cachedCoords: UserCoords | null = null;
 let pendingCoords: Promise<UserCoords | null> | null = null;
@@ -18,15 +25,73 @@ async function waitForPosition(ms: number) {
   return Promise.race([current, timed]);
 }
 
-export async function getNearbyCoords(): Promise<UserCoords | null> {
+export async function getLocationPermissionState(): Promise<LocationPermissionState> {
+  try {
+    const permission = await Location.getForegroundPermissionsAsync();
+    const granted = permission.status === 'granted';
+    return {
+      status: permission.status,
+      granted,
+      canAskAgain: permission.canAskAgain !== false,
+      needsSettings: !granted && permission.canAskAgain === false,
+    };
+  } catch {
+    return { status: 'unknown', granted: false, canAskAgain: false, needsSettings: true };
+  }
+}
+
+export async function openLocationSettings() {
+  try {
+    await Linking.openSettings();
+  } catch {
+    // The caller already presents the recovery action; ignore platform failures.
+  }
+}
+
+async function promptForDeviceLocationServices() {
+  const enabled = await Location.hasServicesEnabledAsync().catch(() => true);
+  if (enabled) return true;
+  if (Platform.OS === 'android') {
+    await Location.enableNetworkProviderAsync().catch(() => null);
+    return Location.hasServicesEnabledAsync().catch(() => false);
+  }
+  return false;
+}
+
+export async function requestNearbyCoords(): Promise<UserCoords | null> {
+  try {
+    const existing = await Location.getForegroundPermissionsAsync();
+    if (existing.status !== 'granted') {
+      if (existing.canAskAgain === false) {
+        await openLocationSettings();
+        return null;
+      }
+      const requested = await Location.requestForegroundPermissionsAsync();
+      if (requested.status !== 'granted') return null;
+    }
+
+    const servicesEnabled = await promptForDeviceLocationServices();
+    if (!servicesEnabled) {
+      await openLocationSettings();
+      return null;
+    }
+
+    return getNearbyCoords({ requestPermission: false, timeoutMs: 3500 });
+  } catch {
+    return null;
+  }
+}
+
+export async function getNearbyCoords(options: { requestPermission?: boolean; timeoutMs?: number } = {}): Promise<UserCoords | null> {
   if (cachedCoords) return cachedCoords;
   if (pendingCoords) return pendingCoords;
 
   pendingCoords = (async () => {
     try {
+      const requestPermission = options.requestPermission !== false;
       const existing = await Location.getForegroundPermissionsAsync();
       let granted = existing.status === 'granted';
-      if (!granted && existing.canAskAgain !== false) {
+      if (!granted && requestPermission && existing.canAskAgain !== false) {
         const requested = await Location.requestForegroundPermissionsAsync();
         granted = requested.status === 'granted';
       }
@@ -41,7 +106,7 @@ export async function getNearbyCoords(): Promise<UserCoords | null> {
         return lastKnown;
       }
 
-      const current = toCoords(await waitForPosition(2500));
+      const current = toCoords(await waitForPosition(options.timeoutMs || 2500));
       if (current) cachedCoords = current;
       return current;
     } catch {

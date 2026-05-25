@@ -245,6 +245,7 @@ export const miscApi = {
 export const usersApi = {
   me: () => api.get('/users/me'),
   update: (body: { name?: string; email?: string }) => api.put('/users/me', body),
+  deleteMe: () => api.del('/users/me'),
 };
 
 export const couponsApi = {

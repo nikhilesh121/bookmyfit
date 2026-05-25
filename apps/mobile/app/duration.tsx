@@ -310,10 +310,10 @@ export default function Duration() {
                   <Text style={s.ptTitle}>Personal Trainer Add-on</Text>
                   <Text style={s.ptSub} numberOfLines={2}>
                     {trainersLoading
-                      ? 'Loading trainers from this gym'
+                      ? `Loading trainers from ${gymName || 'this gym'}`
                       : selectedTrainer
-                        ? `${selectedTrainer.name} | ${monthsLabel(ptDurationMonths)} PT`
-                        : 'Choose a gym trainer for monthly PT pricing'}
+                        ? `${selectedTrainer.name} at ${gymName || 'this gym'} | ${monthsLabel(ptDurationMonths)} PT`
+                        : `Choose a trainer from ${gymName || 'this gym'} for monthly PT pricing`}
                   </Text>
                 </View>
                 <View style={s.ptRight}>
@@ -354,7 +354,7 @@ export default function Duration() {
                             {trainer.name || 'Trainer'}
                           </Text>
                           <Text style={[s.trainerOptionPrice, active && { color: colors.accent }]} numberOfLines={1}>
-                            {money(checkoutPrice)}/mo
+                            {money(checkoutPrice)}/mo - {gymName || 'This gym'}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -472,8 +472,8 @@ const s = StyleSheet.create({
   },
   savePillText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent },
   ptCard: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)',
+    backgroundColor: 'rgba(17,20,18,0.96)',
+    borderWidth: 1, borderColor: colors.borderStrong,
     borderRadius: radius.xl, padding: 16, marginTop: 8,
   },
   ptHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -490,7 +490,7 @@ const s = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.borderGlass,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: 'rgba(255,255,255,0.09)',
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
