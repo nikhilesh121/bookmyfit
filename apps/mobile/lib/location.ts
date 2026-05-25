@@ -82,6 +82,22 @@ export async function requestNearbyCoords(): Promise<UserCoords | null> {
   }
 }
 
+export async function requestLocationOnAppOpen(): Promise<UserCoords | null> {
+  try {
+    const existing = await Location.getForegroundPermissionsAsync();
+    if (existing.status !== 'granted') {
+      if (existing.canAskAgain === false) return null;
+      const requested = await Location.requestForegroundPermissionsAsync();
+      if (requested.status !== 'granted') return null;
+    }
+
+    await promptForDeviceLocationServices().catch(() => false);
+    return getNearbyCoords({ requestPermission: false, timeoutMs: 2500 });
+  } catch {
+    return null;
+  }
+}
+
 export async function getNearbyCoords(options: { requestPermission?: boolean; timeoutMs?: number } = {}): Promise<UserCoords | null> {
   if (cachedCoords) return cachedCoords;
   if (pendingCoords) return pendingCoords;

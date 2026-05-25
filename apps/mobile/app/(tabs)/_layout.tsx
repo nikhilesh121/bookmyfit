@@ -1,16 +1,24 @@
 import { Tabs, router, useFocusEffect, usePathname } from 'expo-router';
 import { Alert, BackHandler, Platform } from 'react-native';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../theme/brand';
 import { IconHome, IconSearch, IconCalendar, IconTicket, IconUser } from '../../components/Icons';
+import { requestLocationOnAppOpen } from '../../lib/location';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
+  const askedLocationRef = useRef(false);
   const minBottomPad = Platform.OS === 'android' ? 24 : 10;
   const tabBarBottomPad = Math.max(insets.bottom, minBottomPad);
   const tabBarHeight = 62 + tabBarBottomPad;
+
+  useEffect(() => {
+    if (askedLocationRef.current) return;
+    askedLocationRef.current = true;
+    requestLocationOnAppOpen().catch(() => null);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
