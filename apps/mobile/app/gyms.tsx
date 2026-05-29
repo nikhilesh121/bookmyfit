@@ -305,8 +305,8 @@ export default function GymListingPage() {
     : detectingLocation || locationState === 'checking'
       ? 'Finding your GPS location...'
       : locationState === 'denied'
-        ? 'Location is off - tap to allow or open settings'
-        : 'Allow location to show closest gyms first';
+        ? 'Tap to allow location or open settings'
+        : 'GPS not found - tap to retry nearby sorting';
 
   return (
     <SafeAreaView style={s.root} edges={['top', 'left', 'right', 'bottom']}>

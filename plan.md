@@ -458,11 +458,11 @@ enum UserRole {
 - [ ] Mobile: Tier badges on gym cards
 
 #### Week 17-18: Rating & Review + Fraud Prevention
-- [ ] Backend: Rating submission & moderation
+- [ ] Backend: Rating submission with auto-published eligible gym reviews and scoped moderation for non-auto/abuse cases
 - [ ] Backend: Duplicate scan detection
 - [ ] Backend: Suspicious activity flagging
 - [ ] Mobile: Rate & Review screen
-- [ ] Admin: Rating moderation page
+- [ ] Admin: Rating moderation page for non-auto reviews and takedowns
 - [ ] Admin: Fraud monitoring dashboard
 
 **Milestone**: Multi-gym platform live with settlement engine

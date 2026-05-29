@@ -8,7 +8,17 @@ const configuredApiBase =
   (Constants.expoConfig?.extra as any)?.apiUrl ||
   'http://localhost:3003';
 
-export const API_BASE = String(configuredApiBase).replace(/\/+$/, '');
+const normalizeApiBase = (value: string) => {
+  const base = String(value || '').replace(/\/+$/, '');
+  if (Platform.OS === 'android') {
+    return base.replace(/^http:\/\/(localhost|127\.0\.0\.1)(?::|$)/i, (match) =>
+      match.replace(/localhost|127\.0\.0\.1/i, '10.0.2.2'),
+    );
+  }
+  return base;
+};
+
+export const API_BASE = normalizeApiBase(configuredApiBase);
 
 const webFallback = new Map<string, string>();
 

@@ -404,8 +404,7 @@ export default function PaymentWebview() {
 
   useEffect(() => {
     if (isMock) return;
-    const timer = setTimeout(() => setShowManualConfirm(true), 14000);
-    return () => clearTimeout(timer);
+    setShowManualConfirm(false);
   }, [isMock, orderId]);
 
   // ── Mock Payment Screen (dev / sandbox without Cashfree keys) ────────────

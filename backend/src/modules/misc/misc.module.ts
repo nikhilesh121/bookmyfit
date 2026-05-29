@@ -29,10 +29,11 @@ import {
 
 // ============ Ratings ============
 @Injectable()
-class RatingsService {
+export class RatingsService {
   constructor(
     @InjectRepository(RatingEntity) private readonly repo: Repository<RatingEntity>,
     @InjectRepository(CheckinEntity) private readonly checkins: Repository<CheckinEntity>,
+    @InjectRepository(SubscriptionEntity) private readonly subscriptions: Repository<SubscriptionEntity>,
     @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
     @InjectRepository(TrainerEntity) private readonly trainers: Repository<TrainerEntity>,
     @InjectRepository(WellnessPartnerEntity) private readonly wellnessPartners: Repository<WellnessPartnerEntity>,
@@ -97,6 +98,22 @@ class RatingsService {
     throw new BadRequestException('Invalid targetType');
   }
 
+  private async canUserRateGym(userId: string, gymId: string) {
+    const [checkinCount, activeDirectPassCount] = await Promise.all([
+      this.checkins.count({ where: { userId, gymId, status: 'success' } }),
+      this.subscriptions
+        .createQueryBuilder('s')
+        .where('s."userId" = :userId', { userId })
+        .andWhere('s.status = :status', { status: 'active' })
+        .andWhere('s."planType" IN (:...planTypes)', { planTypes: ['same_gym', 'day_pass'] })
+        .andWhere('s."startDate" <= CURRENT_DATE')
+        .andWhere('s."endDate" >= CURRENT_DATE')
+        .andWhere('CAST(:gymId AS uuid) = ANY(COALESCE(s."gymIds", ARRAY[]::uuid[]))', { gymId })
+        .getCount(),
+    ]);
+    return checkinCount > 0 || activeDirectPassCount > 0;
+  }
+
   async submit(userId: string, targetType: 'gym' | 'trainer' | 'wellness', targetId: string, stars: number, review?: string, status: 'pending' | 'approved' | 'rejected' = 'pending') {
     const normalizedStars = Number(stars);
     if (!userId) throw new BadRequestException('userId is required');
@@ -104,16 +121,17 @@ class RatingsService {
     if (!['gym', 'trainer', 'wellness'].includes(targetType)) throw new BadRequestException('Invalid targetType');
     if (!['pending', 'approved', 'rejected'].includes(status)) throw new BadRequestException('Invalid status');
     const target = await this.targetPatch(targetType, targetId);
-    // Eligibility: must have at least 1 successful check-in (for gym)
+    let finalStatus = status;
     if (targetType === 'gym') {
-      const hasCheckin = await this.checkins.count({ where: { userId, gymId: targetId, status: 'success' } });
-      if (hasCheckin === 0) throw new BadRequestException('Must check in at least once to rate');
+      const canRate = await this.canUserRateGym(userId, targetId);
+      if (!canRate) throw new BadRequestException('You need an active pass for this gym or a completed check-in to rate it');
+      if (status === 'pending') finalStatus = 'approved';
     }
     const rating = await this.repo.save(this.repo.create({
       userId,
       stars: normalizedStars,
       review: String(review || '').trim() || null,
-      status,
+      status: finalStatus,
       ...target,
     }));
     if (rating.status === 'approved') await this.refreshAggregateForRating(rating);

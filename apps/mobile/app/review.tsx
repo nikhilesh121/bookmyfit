@@ -38,7 +38,7 @@ export default function Review() {
         stars: rating,
         review: text.trim() || undefined,
       });
-      Alert.alert('Review Submitted!', 'Thank you for your feedback.', [
+      Alert.alert('Review Published!', 'Thank you for your feedback.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err: any) {

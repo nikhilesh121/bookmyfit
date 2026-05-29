@@ -38,19 +38,19 @@ This section is the single checklist for all requested work. Status meanings:
 | BMF-010 | User app | Category filters should be re-selectable and show matching gyms/services | LOCAL FIXED / NEEDS API VERIFY |
 | BMF-011 | User app | Show all database gyms, not only fixed/demo gyms | LOCAL FIXED / NEEDS API VERIFY |
 | BMF-012 | User app | Nearby gyms must use GPS/location and gym lat/lng | LOCAL FIXED / NEEDS APK |
-| BMF-013 | User app | Gym cards/detail should show subscribed state and prevent duplicate same-gym subscription before expiry | LOCAL FIXED / NEEDS API VERIFY |
+| BMF-013 | User app | Gym cards/detail should show subscribed state and prevent duplicate same-gym subscription before expiry | LOCAL API VERIFIED / NEEDS APK UI REGRESSION PASS |
 | BMF-014 | User app | Gym detail must show amenities, images, videos, operating hours, break time, ratings from gym/admin data | LOCAL FIXED / NEEDS APK |
-| BMF-015 | User app | Real rating flow from user reviews, no fake rating | LOCAL FIXED / NEEDS APK |
+| BMF-015 | User app | Real rating flow from user reviews, no fake rating | LOCAL API VERIFIED / NEEDS FULL APK UI PASS |
 | BMF-016 | User app | Gym profile gallery: show all gym-uploaded images | LOCAL FIXED / NEEDS APK |
 | BMF-017 | User app | Pass page should show current subscription or expired/renew state, not all mixed together | LOCAL FIXED / NEEDS APK |
 | BMF-018 | User app | Membership page should show past memberships separately | PARTIAL / NEEDS VERIFY |
 | BMF-019 | User app | QR page must show manual verification code under/near QR | LOCAL FIXED / NEEDS APK DEVICE VERIFY |
 | BMF-020 | User app | After QR scan/check-in, QR should stop showing or show checked-in state | LOCAL FIXED / NEEDS APK DEVICE VERIFY |
 | BMF-021 | User app | Booking rule: user can book again only if previous booking is cancelled/not attempted; not if already attended same day | PARTIAL / NEEDS CONCURRENCY VERIFY |
-| BMF-022 | Payment | Cashfree payment success returns/loading issue after payment | LOCAL FIXED / NEEDS CASHFREE E2E |
+| BMF-022 | Payment | Cashfree payment success returns/loading issue after payment | LOCAL ANDROID CASHFREE SANDBOX PASSED |
 | BMF-023 | Payment | Checkout should not show extra GST because displayed amount is GST-inclusive | PARTIAL / NEEDS VERIFY |
 | BMF-024 | Payment | Trainer add-on amount should match gym trainer price and include admin commission in checkout | PENDING VERIFY |
-| BMF-025 | Payment | Use test Cashfree credentials until live credentials are added | NEEDS ENV VERIFY |
+| BMF-025 | Payment | Use test Cashfree credentials until live credentials are added | LIVE APK ENV MUST USE SANDBOX |
 | BMF-026 | Subscription | Same-gym pass amount should include admin commission globally or per-service override | PARTIAL / NEEDS VERIFY |
 | BMF-027 | Subscription | Day pass commission should be managed from same place as plan/commission management | PARTIAL / NEEDS VERIFY |
 | BMF-028 | Subscription | Multi-gym pass is admin-managed; no extra commission should stack on it | NEEDS VERIFY |
@@ -100,7 +100,7 @@ This section is the single checklist for all requested work. Status meanings:
 | BMF-072 | User app | Homepage featured gyms must use the same active/KYC-approved/location-ready visibility rule as gym listing | LOCAL FIXED / NEEDS APK |
 | BMF-073 | Landing | Landing/onboard gym registration must send required phone and workout categories | LOCAL FIXED |
 | BMF-074 | User app | Gym and wellness discovery should be GPS-first but also consider rating, review count, and popularity | LOCAL FIXED / NEEDS APK |
-| BMF-075 | User app | Gym Near Me page design/loading should be stable and safe on Android/iOS system nav areas | LOCAL FIXED / NEEDS APK |
+| BMF-075 | User app | Gym Near Me page design/loading should be stable and safe on Android/iOS system nav areas | LOCAL ANDROID VERIFIED / NEEDS PHYSICAL IOS-ANDROID PASS |
 | BMF-076 | User app | Standalone Personal Trainers page should not be a dead empty page when no gym is selected | LOCAL FIXED / NEEDS API DATA VERIFY |
 
 ## Current Status Summary
@@ -2955,6 +2955,43 @@ Status:
 - Not pushed live in this change.
 - APK was not regenerated in this change.
 
+## Change 050 - Gym review auto-publish and rating test cases
+
+Date: 2026-05-25
+
+Scope requested:
+- Work through the test-case coverage and fix the issue where a subscribed user could not review their gym.
+- Gym reviews from valid subscribed/check-in users should not sit in pending; they should show for the gym immediately.
+
+Agents used:
+- Backend review-flow explorer checked rating endpoints, eligibility, status transitions, and aggregate behavior.
+- Mobile review-flow explorer checked gym detail review submission and focus refresh.
+- Gym/admin review explorer checked portal display behavior for approved/pending reviews.
+- Test-case/doc explorer checked review-related test-case wording.
+
+Changes made locally:
+- Backend ratings:
+  - Gym review eligibility now accepts either an active same-gym/day-pass subscription for that gym or a successful check-in at that gym.
+  - Normal user gym reviews now auto-publish as `approved`.
+  - Auto-published reviews immediately refresh the gym aggregate rating and rating count.
+  - Multi-gym users still need a real check-in at a particular gym before reviewing that gym.
+- Data migration:
+  - Added a migration to approve existing pending gym reviews and refresh gym rating totals, so old stuck reviews are not left hidden.
+- Mobile user app:
+  - Review success copy now says `Review Published!` to match the auto-publish behavior.
+- Test cases and docs:
+  - Updated `BOOKMYFIT_TEST_CASES.md` rating cases for auto-published eligible gym reviews.
+  - Scoped rating moderation language in `plan.md` to non-auto/takedown cases.
+
+Verification:
+- `pnpm.cmd --filter backend exec tsc --noEmit` passed.
+- `pnpm.cmd --filter mobile exec tsc --noEmit` passed.
+
+Status:
+- Fixed locally.
+- Not pushed live in this change.
+- APK was not regenerated in this change.
+
 ## Change 043 - Mobile nearby-best discovery and trainer page repair
 
 Date: 2026-05-22
@@ -3100,7 +3137,7 @@ Changes made locally:
   - Reference column now shows subscription/order references more compactly.
 - Reviews:
   - Added `GET /api/v1/gyms/my-reviews` for gym owners/staff.
-  - Added a new Gym Partner `Reviews` page with average rating, review counts, approval status, member ID, date, and review text.
+  - Added a new Gym Partner `Reviews` page with average rating, review counts, review status, member ID, date, and review text.
   - Added `Reviews` to the gym portal sidebar.
 - Amenity and category icons:
   - Expanded default gym amenity icons for AC, parking, shower, locker, changing room, WiFi, pool, steam/sauna, trainer, water, 24/7 access, cycling, recovery, and air ventilation.
@@ -3376,3 +3413,35 @@ Status:
 - Fixed and tested locally.
 - Not pushed live in this change.
 - APK was not regenerated in this change.
+
+## Change 042 - Android/web QA pass and Cashfree sandbox completion
+
+Date: 2026-05-29
+
+Requested scope:
+- Test user, gym, admin, corporate, and wellness flows locally where possible.
+- Use Android app and web portals.
+- Verify user `9040283338` and Cashfree payment flow.
+
+What was executed:
+- Android emulator `emulator-5554` ran the mobile app with local API.
+- User login/session, Home, Explore, Gyms Near You, gym detail, media/amenities, plans, checkout, payment, pass/subscription, bookings, and profile screens opened.
+- Cashfree sandbox card flow completed: card selection, OTP `111000`, SUCCESS status, app success screen.
+- Backend subscription API confirmed the paid order became active: `SUB_20a378b8-34ba-4b3a` for `Local Registration Smoke 20260521204213`.
+- Subscribed-user review API was verified for the newly subscribed gym. The review was auto-approved and appeared in public ratings.
+- 48 authenticated local portal routes passed across gym/admin/corporate/wellness portals after the admin analytics fix.
+
+Fixes made in this pass:
+- Removed the premature real-Cashfree `Taking too long?` overlay that could cover/interrupt the Cashfree checkout before payment completion.
+- Kept post-payment activation behind secure `/payments/verify/:orderId` verification.
+- Adjusted the Gyms Near You GPS banner text so permission-denied and GPS-unavailable states are not confused.
+- Updated the QA execution report with current Android/payment/web evidence.
+
+Remaining notes:
+- The existing live-API APK static audit showed `cashfreeBaseUrl=https://api.cashfree.com`. While test Cashfree credentials are used, the live-API APK must be built with `EXPO_PUBLIC_CASHFREE_BASE_URL=https://sandbox.cashfree.com`.
+- Camera QR scanner, physical device GPS behavior, and iOS safe-area behavior still need a real-device pass.
+
+Evidence:
+- `artifacts/qa-manual-2026-05-29/android/payment-after-submit.png`
+- `artifacts/qa-manual-2026-05-29/android/`
+- `artifacts/qa-manual-2026-05-29/portal-smoke-results.json`

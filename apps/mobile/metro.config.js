@@ -36,7 +36,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === './apps/mobile/index.js' || moduleName.endsWith('/apps/mobile/index.js')) {
     return { filePath: path.resolve(projectRoot, 'index.js'), type: 'sourceFile' };
   }
-  if (moduleName === './node_modules/expo-router/entry.js') {
+  if (moduleName === './node_modules/expo-router/entry' || moduleName === './node_modules/expo-router/entry.js') {
     return { filePath: path.resolve(workspaceModules, 'expo-router', 'entry.js'), type: 'sourceFile' };
   }
 

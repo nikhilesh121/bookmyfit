@@ -93,14 +93,21 @@ class CheckinsService {
     this.capacityGateway.broadcastCapacity(resolvedGymId, checkins.length, (gym as any)?.capacity || 100);
     return { count: checkins.length, checkins: await this.enrichWithAmounts(checkins, resolvedGymId) };
   }
-  async statsForGym(gymId: string, month: string) {
-    const [year, m] = month.split('-').map(Number);
+  async statsForGym(gymId: string, month?: string) {
+    const normalizedMonth = month || new Date().toISOString().slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(normalizedMonth)) {
+      throw new BadRequestException('month must be in YYYY-MM format');
+    }
+    const [year, m] = normalizedMonth.split('-').map(Number);
+    if (!Number.isInteger(year) || !Number.isInteger(m) || m < 1 || m > 12) {
+      throw new BadRequestException('month must be in YYYY-MM format');
+    }
     const from = new Date(year, m - 1, 1);
     const to = new Date(year, m, 1);
     const count = await this.repo.count({
       where: { gymId, status: 'success', checkinTime: Between(from, to) },
     });
-    return { gymId, month, checkinCount: count };
+    return { gymId, month: normalizedMonth, checkinCount: count };
   }
 
   async gymIdForScanner(user: any, requestedGymId?: string) {
