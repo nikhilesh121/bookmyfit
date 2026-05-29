@@ -69,7 +69,18 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
       <aside className="w-[280px] border-r flex flex-col" style={{ borderColor: 'rgba(255,255,255,0.07)', background: 'linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015))' }}>
         <div className="px-5 py-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
           {logoUrl ? (
-            <img src={logoUrl} alt={logoText} style={{ maxWidth: 190, maxHeight: 44, objectFit: 'contain', display: 'block' }} />
+            <img
+              src={logoUrl}
+              alt={logoText}
+              style={{
+                width: 210,
+                maxWidth: '100%',
+                maxHeight: 60,
+                objectFit: 'contain',
+                objectPosition: 'left center',
+                display: 'block',
+              }}
+            />
           ) : (
             <div className="serif flex items-center gap-2" style={{ fontSize: 21, fontWeight: 900, letterSpacing: '-0.7px' }}>
               <span style={{ width: 8, height: 8, borderRadius: 999, background: 'var(--accent)', boxShadow: '0 0 18px rgba(61,255,84,0.75)' }} />

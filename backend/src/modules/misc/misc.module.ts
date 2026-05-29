@@ -879,6 +879,7 @@ class AdminSettingsController {
 @Controller('branding')
 class BrandingController {
   constructor(@InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>) {}
+  private readonly defaultLogoVersion = 'brand-crop-1';
 
   private requestOrigin(req: any) {
     const forwardedProto = String(req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim();
@@ -891,9 +892,14 @@ class BrandingController {
   private resolveLogoUrl(logoUrl: string, req: any) {
     const origin = this.requestOrigin(req);
     const clean = String(logoUrl || '').trim();
-    if (!clean) return origin ? `${origin}/api/v1/branding/logo` : '/api/v1/branding/logo';
-    if (/^https?:\/\//i.test(clean)) return clean;
-    if (clean.startsWith('/')) return origin ? `${origin}${clean}` : clean;
+    const withLogoVersion = (url: string) => url.includes('?') ? `${url}&v=${this.defaultLogoVersion}` : `${url}?v=${this.defaultLogoVersion}`;
+    const isDefaultLogo = (url: string) => /\/api\/v1\/branding\/logo\/?$/i.test(url.split('?')[0]);
+    if (!clean) return withLogoVersion(origin ? `${origin}/api/v1/branding/logo` : '/api/v1/branding/logo');
+    if (/^https?:\/\//i.test(clean)) return isDefaultLogo(clean) ? withLogoVersion(clean) : clean;
+    if (clean.startsWith('/')) {
+      const path = origin ? `${origin}${clean}` : clean;
+      return isDefaultLogo(path) ? withLogoVersion(path) : path;
+    }
     return clean;
   }
 
@@ -911,6 +917,8 @@ class BrandingController {
   @Get('logo')
   logo(@Res() res: Response) {
     const logoPath = [
+      resolve(process.cwd(), '../logo-brand.png'),
+      resolve(process.cwd(), 'logo-brand.png'),
       resolve(process.cwd(), '../logo-full.png'),
       resolve(process.cwd(), 'logo-full.png'),
     ].find((candidate) => existsSync(candidate));

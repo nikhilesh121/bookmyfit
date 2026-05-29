@@ -106,7 +106,18 @@ export default function Shell({ children, title }: { children: React.ReactNode; 
         <div className="p-5 border-b flex items-center justify-between" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
           <div>
             {logoUrl ? (
-              <img src={logoUrl} alt={logoText} style={{ maxWidth: 184, maxHeight: 42, objectFit: 'contain', display: 'block' }} />
+              <img
+                src={logoUrl}
+                alt={logoText}
+                style={{
+                  width: 196,
+                  maxWidth: '100%',
+                  maxHeight: 58,
+                  objectFit: 'contain',
+                  objectPosition: 'left center',
+                  display: 'block',
+                }}
+              />
             ) : (
               <div className="serif" style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-1px' }}>{logoText}</div>
             )}
