@@ -53,20 +53,31 @@ class SettlementService {
     return this.money(amount / (1 + value / 100));
   }
 
-  private directSubscriptionBaseAmount(sub: SubscriptionEntity, gym: GymEntity, plan: GymPlanEntity | null, commission: CommissionConfig) {
+  private directSubscriptionBaseAmount(
+    sub: SubscriptionEntity,
+    gym: GymEntity,
+    plan: GymPlanEntity | null,
+    commission: CommissionConfig,
+    checkoutAmountOverride?: number,
+  ) {
+    const checkoutAmount = checkoutAmountOverride ?? Number(sub.amountPaid || 0);
     if (sub.planType === 'same_gym') {
       const planPrice = Number((plan as any)?.salePrice || plan?.price || 0);
       if (planPrice > 0) return this.money(planPrice);
       const monthlyPrice = Number((gym as any).sameGymMonthlyPrice || 0);
       if (monthlyPrice > 0) return this.money(monthlyPrice * Math.max(1, Number(sub.durationMonths) || 1));
-      return this.baseFromCheckoutAmount(sub.amountPaid, commission);
+      return this.baseFromCheckoutAmount(checkoutAmount, commission);
     }
     if (sub.planType === 'day_pass') {
       const gymPrice = Number((gym as any).dayPassPrice || 0);
       if (gymPrice > 0) return this.money(gymPrice);
-      return this.baseFromCheckoutAmount(sub.amountPaid, commission) || 149;
+      return this.baseFromCheckoutAmount(checkoutAmount, commission) || 149;
     }
     return 0;
+  }
+
+  private subscriptionCheckoutWithoutTrainer(sub: SubscriptionEntity, trainerCheckoutAmount: number) {
+    return Math.max(0, this.money(sub.amountPaid) - this.money(trainerCheckoutAmount));
   }
 
   private directGymSubscriptionsQuery(gymId: string) {
@@ -119,6 +130,17 @@ class SettlementService {
     };
   }
 
+  private async trainerCheckoutAmountsByOrder(gymId: string, orderIds: string[]) {
+    const ids = [...new Set(orderIds.filter(Boolean))];
+    const byOrder = new Map<string, number>();
+    if (!ids.length) return byOrder;
+    const rows = await this.trainerBookings.find({ where: { gymId, cashfreeOrderId: In(ids) } });
+    for (const row of rows) {
+      byOrder.set(row.cashfreeOrderId, (byOrder.get(row.cashfreeOrderId) || 0) + this.money(row.amount));
+    }
+    return byOrder;
+  }
+
   private async revenueSummary(gym: GymEntity, from?: Date, to?: Date) {
     const configRow = await this.configs.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } });
     const sameGymCommissionConfig = serviceCommission(configRow?.value, 'same_gym');
@@ -129,14 +151,20 @@ class SettlementService {
     const planIds = [...new Set(subs.map((s) => s.gymPlanId).filter(Boolean))];
     const plans = planIds.length ? await this.gymPlans.find({ where: { id: In(planIds as string[]) } }) : [];
     const planMap = new Map(plans.map((plan) => [plan.id, plan]));
+    const trainerCheckoutByOrder = await this.trainerCheckoutAmountsByOrder(
+      gym.id,
+      subs.map((sub) => sub.razorpayOrderId).filter(Boolean),
+    );
     let sameGymBase = 0;
     let dayPassBase = 0;
     for (const sub of subs) {
+      const trainerCheckoutAmount = sub.razorpayOrderId ? (trainerCheckoutByOrder.get(sub.razorpayOrderId) || 0) : 0;
+      const subscriptionCheckoutAmount = this.subscriptionCheckoutWithoutTrainer(sub, trainerCheckoutAmount);
       if (sub.planType === 'same_gym') {
         const plan = sub.gymPlanId ? planMap.get(sub.gymPlanId) : null;
-        sameGymBase += this.directSubscriptionBaseAmount(sub, gym, plan || null, sameGymCommissionConfig);
+        sameGymBase += this.directSubscriptionBaseAmount(sub, gym, plan || null, sameGymCommissionConfig, subscriptionCheckoutAmount);
       } else if (sub.planType === 'day_pass') {
-        dayPassBase += this.directSubscriptionBaseAmount(sub, gym, null, dayPassCommissionConfig);
+        dayPassBase += this.directSubscriptionBaseAmount(sub, gym, null, dayPassCommissionConfig, subscriptionCheckoutAmount);
       }
     }
     const sameGymCommission = this.money(commissionAmount(sameGymBase, sameGymCommissionConfig));

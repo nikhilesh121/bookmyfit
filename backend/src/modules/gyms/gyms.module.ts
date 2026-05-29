@@ -534,21 +534,32 @@ class GymsService {
     return this.money(amount / (1 + value / 100));
   }
 
-  private gymPlanAmount(sub: SubscriptionEntity, gym: any, plan?: GymPlanEntity | null, commission?: CommissionConfig | null) {
+  private gymPlanAmount(
+    sub: SubscriptionEntity,
+    gym: any,
+    plan?: GymPlanEntity | null,
+    commission?: CommissionConfig | null,
+    checkoutAmountOverride?: number,
+  ) {
     if (!this.isPaidSubscription(sub)) return 0;
+    const checkoutAmount = checkoutAmountOverride ?? Number(sub.amountPaid || 0);
     if (sub.planType === 'same_gym') {
       const planPrice = Number((plan as any)?.salePrice || plan?.price || 0);
       if (planPrice > 0) return this.money(planPrice);
       const monthlyPrice = Number(gym.sameGymMonthlyPrice || 0);
       if (monthlyPrice > 0) return this.money(monthlyPrice * Math.max(1, Number(sub.durationMonths) || 1));
-      return this.baseFromCheckoutAmount(sub.amountPaid, commission);
+      return this.baseFromCheckoutAmount(checkoutAmount, commission);
     }
     if (sub.planType === 'day_pass') {
       const gymPrice = Number(gym.dayPassPrice || 0);
       if (gymPrice > 0) return this.money(gymPrice);
-      return this.baseFromCheckoutAmount(sub.amountPaid, commission) || 149;
+      return this.baseFromCheckoutAmount(checkoutAmount, commission) || 149;
     }
     return 0;
+  }
+
+  private subscriptionCheckoutWithoutTrainer(sub: SubscriptionEntity, trainerCheckoutAmount: number) {
+    return Math.max(0, this.money(sub.amountPaid) - this.money(trainerCheckoutAmount));
   }
 
   private async directSubscriptionCommissionConfig() {
@@ -595,15 +606,23 @@ class GymsService {
 
   private async trainerAddonsByOrder(gymId: string, orderIds: string[]) {
     const ids = [...new Set(orderIds.filter(Boolean))];
-    if (!ids.length) return { byOrder: new Map<string, any[]>(), amountByOrder: new Map<string, number>() };
+    if (!ids.length) {
+      return {
+        byOrder: new Map<string, any[]>(),
+        amountByOrder: new Map<string, number>(),
+        checkoutAmountByOrder: new Map<string, number>(),
+      };
+    }
     const bookings = await this.trainerBookings.find({ where: { gymId, cashfreeOrderId: In(ids) } });
     const trainerIds = [...new Set(bookings.map((b) => b.trainerId).filter(Boolean))];
     const trainers = trainerIds.length ? await this.trainers.find({ where: { id: In(trainerIds) } }) : [];
     const trainerMap = new Map(trainers.map((t) => [t.id, t]));
     const byOrder = new Map<string, any[]>();
     const amountByOrder = new Map<string, number>();
+    const checkoutAmountByOrder = new Map<string, number>();
     for (const booking of bookings) {
       const trainer = trainerMap.get(booking.trainerId);
+      const checkoutAmount = this.money(booking.amount);
       const gymAmount = ['confirmed', 'completed', 'active'].includes(String(booking.status).toLowerCase())
         ? this.trainerGymAmount(booking)
         : 0;
@@ -617,7 +636,7 @@ class GymsService {
         sessionDate: booking.sessionDate,
         durationMonths: booking.durationMonths,
         sessions: booking.sessions,
-        amount: this.money(booking.amount),
+        amount: checkoutAmount,
         platformCommission: this.money(booking.platformCommission),
         monthlyPrice: booking.durationMonths ? Math.round(gymAmount / Math.max(1, booking.durationMonths)) : gymAmount,
         gymAmount,
@@ -628,8 +647,9 @@ class GymsService {
       rows.push(item);
       byOrder.set(booking.cashfreeOrderId, rows);
       amountByOrder.set(booking.cashfreeOrderId, (amountByOrder.get(booking.cashfreeOrderId) || 0) + gymAmount);
+      checkoutAmountByOrder.set(booking.cashfreeOrderId, (checkoutAmountByOrder.get(booking.cashfreeOrderId) || 0) + checkoutAmount);
     }
-    return { byOrder, amountByOrder };
+    return { byOrder, amountByOrder, checkoutAmountByOrder };
   }
 
   private async multiGymVisitCounts(gymId: string, subIds: string[], from?: Date, to?: Date) {
@@ -761,7 +781,11 @@ class GymsService {
     const planRows = gymPlanIds.length ? await this.gymPlans.find({ where: { id: In(gymPlanIds as string[]) } }) : [];
     const planMap = new Map(planRows.map((p) => [p.id, p]));
     const commissionConfig = await this.directSubscriptionCommissionConfig();
-    const { byOrder: trainerAddonsByOrder, amountByOrder: trainerAmountByOrder } = await this.trainerAddonsByOrder(
+    const {
+      byOrder: trainerAddonsByOrder,
+      amountByOrder: trainerAmountByOrder,
+      checkoutAmountByOrder: trainerCheckoutAmountByOrder,
+    } = await this.trainerAddonsByOrder(
       gym.id,
       subs.map((s) => s.razorpayOrderId).filter(Boolean),
     );
@@ -787,11 +811,18 @@ class GymsService {
       const isExpired = s.endDate ? String(s.endDate).slice(0, 10) < todayIso : false;
       const gymCount = Math.max((s.gymIds || []).length, belongsByGymPlan ? 1 : 0);
       const canDeactivate = s.planType !== 'multi_gym' && ((s.gymIds || []).includes(gym.id) || belongsByGymPlan);
-      const subscriptionGymAmount = s.planType === 'multi_gym'
-        ? this.money((multiGymVisitCount.get(s.id) || 0) * ratePerDay)
-        : this.gymPlanAmount(s, gym, gymPlan, commissionConfig[s.planType as 'same_gym' | 'day_pass']);
       const trainerAddons = s.razorpayOrderId ? (trainerAddonsByOrder.get(s.razorpayOrderId) || []) : [];
       const trainerGymAmount = s.razorpayOrderId ? (trainerAmountByOrder.get(s.razorpayOrderId) || 0) : 0;
+      const trainerCheckoutAmount = s.razorpayOrderId ? (trainerCheckoutAmountByOrder.get(s.razorpayOrderId) || 0) : 0;
+      const subscriptionGymAmount = s.planType === 'multi_gym'
+        ? this.money((multiGymVisitCount.get(s.id) || 0) * ratePerDay)
+        : this.gymPlanAmount(
+          s,
+          gym,
+          gymPlan,
+          commissionConfig[s.planType as 'same_gym' | 'day_pass'],
+          this.subscriptionCheckoutWithoutTrainer(s, trainerCheckoutAmount),
+        );
       const memberCode = this.memberCode(s.userId);
       return {
         id: s.id,
@@ -870,7 +901,11 @@ class GymsService {
     const userMap = new Map<string, UserEntity>(users.map((u): [string, UserEntity] => [u.id, u]));
     const planMap = new Map<string, GymPlanEntity>(planRows.map((p): [string, GymPlanEntity] => [p.id, p]));
     const commissionConfig = await this.directSubscriptionCommissionConfig();
-    const { byOrder: trainerAddonsByOrder, amountByOrder: trainerAmountByOrder } = await this.trainerAddonsByOrder(
+    const {
+      byOrder: trainerAddonsByOrder,
+      amountByOrder: trainerAmountByOrder,
+      checkoutAmountByOrder: trainerCheckoutAmountByOrder,
+    } = await this.trainerAddonsByOrder(
       gym.id,
       subs.map((s) => s.razorpayOrderId).filter(Boolean),
     );
@@ -924,11 +959,18 @@ class GymsService {
       const isExpired = s.endDate ? String(s.endDate).slice(0, 10) < todayIso : false;
       const gymCount = Math.max((s.gymIds || []).length, belongsByGymPlan ? 1 : 0);
       const canDeactivate = s.planType !== 'multi_gym' && ((s.gymIds || []).includes(gym.id) || belongsByGymPlan);
-      const subscriptionGymAmount = s.planType === 'multi_gym'
-        ? this.money((multiGymVisitCount.get(s.id) || 0) * ratePerDay)
-        : this.gymPlanAmount(s, gym, gymPlan, commissionConfig[s.planType as 'same_gym' | 'day_pass']);
       const trainerAddons = s.razorpayOrderId ? (trainerAddonsByOrder.get(s.razorpayOrderId) || []) : [];
       const trainerGymAmount = s.razorpayOrderId ? (trainerAmountByOrder.get(s.razorpayOrderId) || 0) : 0;
+      const trainerCheckoutAmount = s.razorpayOrderId ? (trainerCheckoutAmountByOrder.get(s.razorpayOrderId) || 0) : 0;
+      const subscriptionGymAmount = s.planType === 'multi_gym'
+        ? this.money((multiGymVisitCount.get(s.id) || 0) * ratePerDay)
+        : this.gymPlanAmount(
+          s,
+          gym,
+          gymPlan,
+          commissionConfig[s.planType as 'same_gym' | 'day_pass'],
+          this.subscriptionCheckoutWithoutTrainer(s, trainerCheckoutAmount),
+        );
       const checkinSummary = checkinsBySub.get(s.id) || { count: 0, lastVisit: null };
       const memberCode = this.memberCode(s.userId);
       return {
@@ -1125,6 +1167,10 @@ class GymsService {
     const userMap = new Map<string, UserEntity>(users.map((u): [string, UserEntity] => [u.id, u]));
     const subMap = new Map<string, SubscriptionEntity>(subs.map((s): [string, SubscriptionEntity] => [s.id, s]));
     const commissionConfig = await this.directSubscriptionCommissionConfig();
+    const { checkoutAmountByOrder: reportTrainerCheckoutAmountByOrder } = await this.trainerAddonsByOrder(
+      gym.id,
+      allReportSubs.map((s) => s.razorpayOrderId).filter(Boolean),
+    );
     const daily = new Map<string, number>();
     const hourly = new Map<number, number>();
     const members = new Map<string, { id: string; memberCode: string; name: string; visits: number; plan: string; lastVisit: string }>();
@@ -1155,15 +1201,23 @@ class GymsService {
     const peakHour = peak === undefined ? '--' : `${String(peak).padStart(2, '0')}:00`;
     const ratePerDay = await this.multiGymVisitPayout(gym);
     const directPlans = (list: SubscriptionEntity[]) => list.filter((sub) => sub.planType === 'same_gym' || sub.planType === 'day_pass');
-    const totalForPlans = (list: SubscriptionEntity[]) => directPlans(list).reduce((sum, sub) => (
-      sum + this.gymPlanAmount(sub, gym, sub.gymPlanId ? planMap.get(sub.gymPlanId) : null, commissionConfig[sub.planType as 'same_gym' | 'day_pass'])
-    ), 0);
+    const planAmountForReport = (sub: SubscriptionEntity) => {
+      const trainerCheckoutAmount = sub.razorpayOrderId ? (reportTrainerCheckoutAmountByOrder.get(sub.razorpayOrderId) || 0) : 0;
+      return this.gymPlanAmount(
+        sub,
+        gym,
+        sub.gymPlanId ? planMap.get(sub.gymPlanId) : null,
+        commissionConfig[sub.planType as 'same_gym' | 'day_pass'],
+        this.subscriptionCheckoutWithoutTrainer(sub, trainerCheckoutAmount),
+      );
+    };
+    const totalForPlans = (list: SubscriptionEntity[]) => directPlans(list).reduce((sum, sub) => sum + planAmountForReport(sub), 0);
     const sameGymRevenue = periodSubs
       .filter((sub) => sub.planType === 'same_gym')
-      .reduce((sum, sub) => sum + this.gymPlanAmount(sub, gym, sub.gymPlanId ? planMap.get(sub.gymPlanId) : null, commissionConfig.same_gym), 0);
+      .reduce((sum, sub) => sum + planAmountForReport(sub), 0);
     const dayPassRevenue = periodSubs
       .filter((sub) => sub.planType === 'day_pass')
-      .reduce((sum, sub) => sum + this.gymPlanAmount(sub, gym, sub.gymPlanId ? planMap.get(sub.gymPlanId) : null, commissionConfig.day_pass), 0);
+      .reduce((sum, sub) => sum + planAmountForReport(sub), 0);
     const periodMultiGymSubIds = [...new Set(rows
       .filter((row) => subMap.get(row.subscriptionId)?.planType === 'multi_gym')
       .map((row) => row.subscriptionId)
