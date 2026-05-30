@@ -176,7 +176,7 @@ const CITIES = ['Bhubaneswar', 'Cuttack', 'Puri', 'Rourkela', 'Sambalpur', 'Berh
 export default function Home() {
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [city, setCity] = useState('Bhubaneswar');
+  const [city, setCity] = useState('Nearby');
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [heroIdx, setHeroIdx] = useState(0);
   const [wellnessServices, setWellnessServices] = useState<any[]>([]);
@@ -192,22 +192,28 @@ export default function Home() {
   const heroRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    // Load saved city for display, but still use GPS for nearby gym ordering.
+    let alive = true;
+    // Use GPS as the primary display/location source; saved city is only a fallback.
     appStorage.getItem('bmf_city').then((saved) => {
-      if (saved) setCity(saved);
       (async () => {
         try {
-          const coords = await getNearbyCoords();
-          if (!coords) return;
-          setUserCoords(coords);
-          if (!saved) {
-            const [geo] = await Location.reverseGeocodeAsync({ latitude: coords.lat, longitude: coords.lng });
-            const c = geo?.city || geo?.subregion || geo?.region;
-            if (c) setCity(c);
+          const coords = await getNearbyCoords({ forceRefresh: true, timeoutMs: 3500 });
+          if (!coords) {
+            if (alive && saved) setCity(saved);
+            return;
           }
-        } catch {}
+          if (!alive) return;
+          setUserCoords(coords);
+          const [geo] = await Location.reverseGeocodeAsync({ latitude: coords.lat, longitude: coords.lng });
+          const c = geo?.city || geo?.subregion || geo?.region;
+          if (c) setCity(c);
+          else if (saved) setCity(saved);
+        } catch {
+          if (alive && saved) setCity(saved);
+        }
       })();
     }).catch(() => {});
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {

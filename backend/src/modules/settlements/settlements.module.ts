@@ -36,7 +36,7 @@ class SettlementService {
   ) {}
 
   private paidSubscriptionStatuses() {
-    return ['active', 'frozen', 'expired', 'cancelled'];
+    return ['active', 'frozen', 'expired'];
   }
 
   private money(value: any) {

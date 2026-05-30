@@ -32,7 +32,7 @@ export default function HomeServicesScreen() {
     let active = true;
     (async () => {
       try {
-        const coords = await getNearbyCoords();
+        const coords = await getNearbyCoords({ forceRefresh: true, timeoutMs: 3500 });
         const res: any = await wellnessApi.list({ serviceType: 'home', limit: 50, ...nearbyQueryParams(coords) });
         if (!active) return;
         const list: Provider[] = res?.data || (Array.isArray(res) ? res : []);

@@ -8,6 +8,7 @@ import { Injectable } from '@nestjs/common';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
+import { CheckinEntity } from '../../database/entities/checkin.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
@@ -31,9 +32,29 @@ class UsersService {
     @InjectRepository(UserEntity) private readonly repo: Repository<UserEntity>,
     @InjectRepository(SubscriptionEntity) private readonly subs: Repository<SubscriptionEntity>,
     @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
+    @InjectRepository(CheckinEntity) private readonly checkins: Repository<CheckinEntity>,
   ) {}
 
-  me(id: string) { return this.repo.findOne({ where: { id } }); }
+  async me(id: string) {
+    const user = await this.repo.findOne({ where: { id } });
+    if (!user) return null;
+    const today = new Date().toISOString().slice(0, 10);
+    const [activePlansCount, totalCheckins] = await Promise.all([
+      this.subs.createQueryBuilder('s')
+        .where('s."userId" = :id', { id })
+        .andWhere('LOWER(s.status) = :status', { status: 'active' })
+        .andWhere('(s."endDate" IS NULL OR s."endDate" >= :today)', { today })
+        .getCount(),
+      this.checkins.count({ where: { userId: id, status: 'success' as any } }),
+    ]);
+    return {
+      ...user,
+      activePlansCount,
+      activeSubscriptions: activePlansCount,
+      totalCheckins,
+      checkinsCount: totalCheckins,
+    };
+  }
   async list(page: any = 1, limit: any = 20, search?: string, role?: UserRole) {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
     const qb = this.repo.createQueryBuilder('u').orderBy('u.createdAt', 'DESC').skip(skip).take(take);
@@ -236,7 +257,7 @@ class UsersController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([UserEntity, SubscriptionEntity, GymEntity])],
+  imports: [TypeOrmModule.forFeature([UserEntity, SubscriptionEntity, GymEntity, CheckinEntity])],
   controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService],

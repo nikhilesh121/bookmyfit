@@ -1,8 +1,48 @@
 # BookMyFit Test Execution Report
 
-Date: 2026-05-29
+Date: 2026-05-30
 
 This report records what was actually executed locally after opening Docker, Postgres, Redis, the backend, web portals, and the Android emulator. I did not mark camera QR, physical-device GPS variance, Play Console, live deployment, or live Cashfree credentials as passed because those still need external hardware/services or production credentials.
+
+## 2026-05-30 QA Addendum
+
+Local services were rechecked with the backend on `http://localhost:3003`, Metro on `8081`, and the Android emulator `emulator-5554`.
+
+| Area | Status | Evidence |
+|---|---|---|
+| Backend health | Passed | `GET /api/v1/health` returned `ok` after backend restart |
+| Backend TypeScript | Passed | `pnpm.cmd --filter backend exec tsc --noEmit` |
+| Backend Jest | Passed | 2 suites, 6 tests |
+| Mobile TypeScript | Passed | `pnpm.cmd --filter mobile exec tsc --noEmit` |
+| Portal route smoke | Passed | 48/48 authenticated gym/admin/corporate/wellness routes passed |
+| Android home/GPS smoke | Partial pass | Fresh emulator launch loaded Home; stale city fallback fixed to show `Nearby` until fresh GPS resolves |
+| Android QR smoke | Partial | QR route requires active logged-in app session; QR code screen source now scrolls so manual code cannot clip on short screens |
+| Review flow | Passed API | User `9040283338` with active gym subscription submitted review; review auto-approved, duplicate review collapsed to one record, public response hides `userId` |
+| Cashfree stuck return | Code fixed / needs payment pass | Mobile now exposes delayed manual verify recovery and already detects Cashfree "Go to the next step" fallback |
+
+Fixes applied during this pass:
+
+- Mobile nearby location cache now expires and app-open listing pages force a fresh GPS lookup before using saved city.
+- Home and Explore no longer show `Bhubaneswar` as the primary default; they show `Nearby` until GPS or saved city is available.
+- Gym, wellness, spa, multi-gym, trainer, and home-service lists request fresh location for nearby sorting.
+- Payment WebView now shows a delayed secure "I have completed payment" verification option instead of leaving users stuck forever.
+- Review screen blocks empty target submissions and uses truthful published/submitted copy based on API status.
+- QR screen content is scrollable so manual verification code and instructions do not clip on small phones.
+- Cancelled subscriptions are no longer counted as paid gym revenue in gym reports/settlements.
+- KYC approval no longer silently reactivates suspended or inactive gyms.
+- Gym reviews update an existing user/target review instead of creating unlimited duplicates.
+- Public gym review responses expose member code/display name only, not raw `userId`.
+- QR/manual daily check-in limit now checks the database as well as Redis.
+
+Remaining items from agent/manual audit:
+
+| Area | Remaining risk |
+|---|---|
+| Physical mobile QA | Camera scanner, real Android/iOS safe areas, and real GPS permission/device-service behavior still need a physical phone pass |
+| Live Cashfree | Production Cashfree credentials and live return/webhook behavior still need live credentials |
+| Admin filters | Admin check-in date/status/plan filters need backend filtering support; subscriptions/ratings KPI totals are still page-local in some screens |
+| Settlement depth | More fixture-based tests are needed for commission, trainer add-on, cancelled duplicate, and multi-gym payout edge cases |
+| Health endpoint | `/health` is shallow; a future `/health/deep` should query Postgres and Redis |
 
 ## Summary
 

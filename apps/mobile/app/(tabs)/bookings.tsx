@@ -223,7 +223,7 @@ export default function BookingsTab() {
         ) : activeTab === 'gym' ? (
           <View style={s.list}>
             {activeBooking ? (
-              <TouchableOpacity style={s.activeCard} activeOpacity={0.88} onPress={openQr}>
+              <View style={s.activeCard}>
                 <View style={s.activeTop}>
                   <View style={s.statusDot} />
                   <Text style={s.statusText}>Active Session</Text>
@@ -240,12 +240,12 @@ export default function BookingsTab() {
                   </View>
                 )}
                 <View style={s.qrBtnRow}>
-                  <View style={s.qrBtn}>
+                  <TouchableOpacity style={s.qrBtn} onPress={openQr} activeOpacity={0.86}>
                     <IconQR size={16} color="#060606" />
                     <Text style={s.qrBtnText}>Show QR</Text>
-                  </View>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
+              </View>
             ) : null}
 
             {gymBookings.length === 0 ? (

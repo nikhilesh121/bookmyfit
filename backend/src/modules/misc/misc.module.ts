@@ -45,6 +45,17 @@ export class RatingsService {
     return { targetType: null, targetId: null };
   }
 
+  private memberCode(userId?: string | null) {
+    const compact = String(userId || 'member').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    return `BMF-${compact.slice(0, 10).padEnd(10, '0')}`;
+  }
+
+  private publicMemberName(name: any, userId?: string | null) {
+    const clean = String(name || '').trim();
+    if (/^\d{10,15}$/.test(clean)) return `Member ${this.memberCode(userId).replace('BMF-', '').slice(0, 6)}`;
+    return clean || `Member ${this.memberCode(userId).replace('BMF-', '').slice(0, 6)}`;
+  }
+
   private ratingResponse(rating: RatingEntity) {
     const target = this.targetFromRating(rating);
     return { ...rating, ...target };
@@ -127,13 +138,24 @@ export class RatingsService {
       if (!canRate) throw new BadRequestException('You need an active pass for this gym or a completed check-in to rate it');
       if (status === 'pending') finalStatus = 'approved';
     }
-    const rating = await this.repo.save(this.repo.create({
+    const ratingWhere = { userId, ...(target as any) } as any;
+    const existingRows = typeof (this.repo as any).find === 'function'
+      ? await this.repo.find({ where: ratingWhere, order: { createdAt: 'DESC' } as any })
+      : [];
+    const existing = existingRows[0] || (typeof (this.repo as any).findOne === 'function'
+      ? await this.repo.findOne({ where: ratingWhere })
+      : null);
+    if (existingRows.length > 1 && typeof (this.repo as any).delete === 'function') {
+      await this.repo.delete(existingRows.slice(1).map((row) => row.id));
+    }
+    const rating = await this.repo.save({
+      ...(existing || {}),
       userId,
       stars: normalizedStars,
       review: String(review || '').trim() || null,
       status: finalStatus,
       ...target,
-    }));
+    });
     if (rating.status === 'approved') await this.refreshAggregateForRating(rating);
     return this.ratingResponse(rating);
   }
@@ -173,11 +195,18 @@ export class RatingsService {
       ])
       .getRawMany();
     return rows.map((rating) => ({
-      ...rating,
+      id: rating.id,
+      gymId: rating.gymId,
       stars: Number(rating.stars),
+      review: rating.review,
+      status: rating.status,
+      createdAt: rating.createdAt,
       targetType: 'gym',
       targetId: rating.gymId,
-      user: rating.userName ? { id: rating.userId, name: rating.userName } : undefined,
+      user: {
+        memberCode: this.memberCode(rating.userId),
+        name: this.publicMemberName(rating.userName, rating.userId),
+      },
     }));
   }
 }
@@ -496,7 +525,7 @@ class RatingsController {
   pending() { return this.svc.listPending(); }
   @Get('gym/:gymId') forGym(@Param('gymId') gymId: string) { return this.svc.listForGym(gymId); }
   /** Admin list with optional ?status=pending|approved|rejected filter */
-  @Get()
+  @Get() @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
   list(@Query('status') status?: string) { return this.svc.listByStatus(status); }
 }
 

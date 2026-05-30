@@ -37,17 +37,17 @@ This section is the single checklist for all requested work. Status meanings:
 | BMF-009 | User app | Default image for wellness partners/services/products with missing images | LOCAL FIXED / NEEDS APK |
 | BMF-010 | User app | Category filters should be re-selectable and show matching gyms/services | LOCAL FIXED / NEEDS API VERIFY |
 | BMF-011 | User app | Show all database gyms, not only fixed/demo gyms | LOCAL FIXED / NEEDS API VERIFY |
-| BMF-012 | User app | Nearby gyms must use GPS/location and gym lat/lng | LOCAL FIXED / NEEDS APK |
+| BMF-012 | User app | Nearby gyms must use GPS/location and gym lat/lng | LOCAL FIXED / ANDROID PARTIAL VERIFIED / NEEDS PHYSICAL DEVICE |
 | BMF-013 | User app | Gym cards/detail should show subscribed state and prevent duplicate same-gym subscription before expiry | LOCAL API VERIFIED / NEEDS APK UI REGRESSION PASS |
 | BMF-014 | User app | Gym detail must show amenities, images, videos, operating hours, break time, ratings from gym/admin data | LOCAL FIXED / NEEDS APK |
-| BMF-015 | User app | Real rating flow from user reviews, no fake rating | LOCAL API VERIFIED / NEEDS FULL APK UI PASS |
+| BMF-015 | User app | Real rating flow from user reviews, no fake rating | LOCAL API VERIFIED / AUTO-APPROVED / NEEDS FULL APK UI PASS |
 | BMF-016 | User app | Gym profile gallery: show all gym-uploaded images | LOCAL FIXED / NEEDS APK |
 | BMF-017 | User app | Pass page should show current subscription or expired/renew state, not all mixed together | LOCAL FIXED / NEEDS APK |
 | BMF-018 | User app | Membership page should show past memberships separately | PARTIAL / NEEDS VERIFY |
-| BMF-019 | User app | QR page must show manual verification code under/near QR | LOCAL FIXED / NEEDS APK DEVICE VERIFY |
-| BMF-020 | User app | After QR scan/check-in, QR should stop showing or show checked-in state | LOCAL FIXED / NEEDS APK DEVICE VERIFY |
+| BMF-019 | User app | QR page must show manual verification code under/near QR | LOCAL FIXED / SCROLL SAFE / NEEDS ACTIVE BOOKING DEVICE VERIFY |
+| BMF-020 | User app | After QR scan/check-in, QR should stop showing or show checked-in state | LOCAL FIXED / NEEDS CAMERA DEVICE VERIFY |
 | BMF-021 | User app | Booking rule: user can book again only if previous booking is cancelled/not attempted; not if already attended same day | PARTIAL / NEEDS CONCURRENCY VERIFY |
-| BMF-022 | Payment | Cashfree payment success returns/loading issue after payment | LOCAL ANDROID CASHFREE SANDBOX PASSED |
+| BMF-022 | Payment | Cashfree payment success returns/loading issue after payment | LOCAL CODE FIXED / SANDBOX DEVICE REVERIFY NEEDED |
 | BMF-023 | Payment | Checkout should not show extra GST because displayed amount is GST-inclusive | PARTIAL / NEEDS VERIFY |
 | BMF-024 | Payment | Trainer add-on amount should match gym trainer price and include admin commission in checkout | PENDING VERIFY |
 | BMF-025 | Payment | Use test Cashfree credentials until live credentials are added | LIVE APK ENV MUST USE SANDBOX |
@@ -67,12 +67,12 @@ This section is the single checklist for all requested work. Status meanings:
 | BMF-039 | Gym portal | Gym can upload multiple profile images and videos for user detail page | PARTIAL / LOCAL FIXED FOR IMAGES |
 | BMF-040 | Gym portal | Gym location lat/lng set manually or auto once; gym cannot edit after submit, admin can edit | PARTIAL / NEEDS VERIFY |
 | BMF-041 | Gym portal | Amenities from admin should show to gym; gym can add/remove/request | LOCAL FIXED / NEEDS E2E VERIFY |
-| BMF-042 | Gym portal | Member page should show users subscribed to that gym with correct gym amount only | PARTIAL / LOCAL FIXED HISTORY DATA |
+| BMF-042 | Gym portal | Member page should show users subscribed to that gym with correct gym amount only | LOCAL FIXED / CANCELLED DUPLICATE REVENUE EXCLUDED |
 | BMF-043 | Gym portal | Remove inline member history and use a detailed Member History page | LOCAL FIXED |
 | BMF-044 | Gym portal | Member History should show subscription, selected trainer, amounts, visits, references | LOCAL FIXED |
 | BMF-045 | Gym portal | Reports and settlement should show real subscription/check-in/trainer data | PARTIAL / REPORT ERROR STATE LOCAL FIXED |
 | BMF-046 | Gym portal | Reports graph design is ugly/stretched | LOCAL FIXED |
-| BMF-047 | Gym portal | QR scanner should show success/error and manual ID verification should work | LOCAL FIXED / NEEDS CAMERA DEVICE VERIFY |
+| BMF-047 | Gym portal | QR scanner should show success/error and manual ID verification should work | LOCAL FIXED / DB DAILY LOCK ADDED / NEEDS CAMERA DEVICE VERIFY |
 | BMF-048 | Gym portal | QR scanner error "gym profile is not loaded yet" | LOCAL FIXED / NEEDS CAMERA DEVICE VERIFY |
 | BMF-049 | Gym portal | Sidebar left spacing and menu scroll reset issue | LOCAL FIXED |
 | BMF-050 | Gym portal | KYC dynamic fields by document type | LOCAL FIXED |
@@ -100,8 +100,39 @@ This section is the single checklist for all requested work. Status meanings:
 | BMF-072 | User app | Homepage featured gyms must use the same active/KYC-approved/location-ready visibility rule as gym listing | LOCAL FIXED / NEEDS APK |
 | BMF-073 | Landing | Landing/onboard gym registration must send required phone and workout categories | LOCAL FIXED |
 | BMF-074 | User app | Gym and wellness discovery should be GPS-first but also consider rating, review count, and popularity | LOCAL FIXED / NEEDS APK |
-| BMF-075 | User app | Gym Near Me page design/loading should be stable and safe on Android/iOS system nav areas | LOCAL ANDROID VERIFIED / NEEDS PHYSICAL IOS-ANDROID PASS |
+| BMF-075 | User app | Gym Near Me page design/loading should be stable and safe on Android/iOS system nav areas | LOCAL ANDROID PARTIAL VERIFIED / NEEDS PHYSICAL IOS-ANDROID PASS |
 | BMF-076 | User app | Standalone Personal Trainers page should not be a dead empty page when no gym is selected | LOCAL FIXED / NEEDS API DATA VERIFY |
+
+### 2026-05-30 Local QA and Fix Update
+
+Additional checks run locally:
+
+| Area | Result |
+| --- | --- |
+| Backend TypeScript | Passed: `pnpm.cmd --filter backend exec tsc --noEmit` |
+| Backend Jest | Passed: 2 suites, 6 tests |
+| Mobile TypeScript | Passed: `pnpm.cmd --filter mobile exec tsc --noEmit` |
+| Portal routes | Passed: 48/48 authenticated gym/admin/corporate/wellness routes |
+| Review API | Passed: user `9040283338` review auto-approved; duplicate review collapsed to one row; public ratings hide raw `userId` |
+| Android Home | Passed partial: app opens and uses `Nearby` instead of stale hardcoded city while GPS resolves |
+
+Fixes added:
+
+- Fresh GPS lookup and expiring coordinate cache for all user discovery pages.
+- Payment WebView delayed manual verify recovery for Cashfree stuck/next-step page.
+- Review target validation and truthful review submitted/published message.
+- QR page made scrollable so manual code can remain visible on smaller screens.
+- Cancelled subscriptions removed from paid gym revenue and settlement calculations.
+- KYC approval preserves suspended/inactive gym status.
+- Public gym ratings no longer expose raw user IDs.
+- QR/manual repeat check-in now falls back to database check if Redis lock is missing.
+
+Still not honestly closed:
+
+- Physical phone camera QR scanner and real safe-area/navbar pass.
+- Live Cashfree production credential return/webhook pass.
+- Admin check-in filters and page-local KPI totals need deeper backend/UI work.
+- Full settlement fixture coverage for commission, trainer add-ons, cancelled duplicate orders, and multi-gym payout.
 
 ## Current Status Summary
 

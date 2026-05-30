@@ -123,6 +123,26 @@ class SubscriptionsService {
     return `You already have an active pass for this gym${existing?.endDate ? ` until ${existing.endDate}` : ''}`;
   }
 
+  private activeMultiGymPass(userId: string, excludeId?: string) {
+    const qb = this.repo.createQueryBuilder('s')
+      .select('s.id', 'id')
+      .addSelect('s."endDate"', 'endDate')
+      .where('s."userId" = :userId', { userId })
+      .andWhere('s.status = :status', { status: 'active' })
+      .andWhere('s."planType" = :planType', { planType: 'multi_gym' })
+      .andWhere('s."endDate" >= CURRENT_DATE');
+
+    if (excludeId) qb.andWhere('s.id != :excludeId', { excludeId });
+    return qb.getRawOne();
+  }
+
+  private async assertNoActiveMultiGymPass(userId: string, excludeId?: string) {
+    const existing = await this.activeMultiGymPass(userId, excludeId);
+    if (existing) {
+      throw new BadRequestException(`You already have an active Multi Gym Pass${existing?.endDate ? ` until ${existing.endDate}` : ''}`);
+    }
+  }
+
   private normalizeGymSummary(gym: any) {
     if (!gym) return null;
     const photos = Array.isArray(gym.photos) ? gym.photos.filter(Boolean) : [];
@@ -159,6 +179,21 @@ class SubscriptionsService {
       .andWhere('s.status = :status', { status: 'pending' })
       .andWhere('s."planType" IN (:...planTypes)', { planTypes: ['same_gym', 'day_pass'] })
       .andWhere('CAST(:gymId AS uuid) = ANY(s."gymIds")', { gymId })
+      .getRawMany();
+    if (!pending.length) return;
+    const ids = pending.map((row: any) => row.id).filter(Boolean);
+    const orderIds = pending.map((row: any) => row.cashfreeOrderId).filter(Boolean);
+    if (ids.length) await this.repo.update(ids, { status: 'cancelled' as any });
+    if (orderIds.length) await this.trainerBookings.update({ cashfreeOrderId: In(orderIds) }, { status: 'cancelled' });
+  }
+
+  private async cancelPendingMultiGymPasses(userId: string) {
+    const pending = await this.repo.createQueryBuilder('s')
+      .select('s.id', 'id')
+      .addSelect('s."razorpayOrderId"', 'cashfreeOrderId')
+      .where('s."userId" = :userId', { userId })
+      .andWhere('s.status = :status', { status: 'pending' })
+      .andWhere('s."planType" = :planType', { planType: 'multi_gym' })
       .getRawMany();
     if (!pending.length) return;
     const ids = pending.map((row: any) => row.id).filter(Boolean);
@@ -298,6 +333,8 @@ class SubscriptionsService {
       amount = this.amountWithCheckoutCommission(Number((gymPlan as any).salePrice || gymPlan.price), 'same_gym', config);
       durationMonths = Math.max(1, Math.round((gymPlan.durationDays || 30) / 30));
     } else if (dto.planType === 'multi_gym') {
+      await this.cancelPendingMultiGymPasses(userId);
+      await this.assertNoActiveMultiGymPass(userId);
       const price = config.multi_gym?.basePrice || 1499;
       amount = Math.max(1, Math.round(price * (durationMonths || 1)));
     } else if (dto.planType === 'day_pass') {
@@ -401,6 +438,8 @@ class SubscriptionsService {
     if ((payment as any)?.mock) {
       if ((sub.planType === 'same_gym' || sub.planType === 'day_pass') && sub.gymIds?.[0]) {
         await this.assertNoActiveGymPass(userId, sub.gymIds[0], sub.id);
+      } else if (sub.planType === 'multi_gym') {
+        await this.assertNoActiveMultiGymPass(userId, sub.id);
       }
       await this.repo.update(sub.id, { status: 'active' });
       if (ptBooking) await this.trainerBookings.update(ptBooking.id, { status: 'confirmed' });
@@ -421,6 +460,8 @@ class SubscriptionsService {
 
     if ((sub.planType === 'same_gym' || sub.planType === 'day_pass') && sub.gymIds?.[0]) {
       await this.assertNoActiveGymPass(userId, sub.gymIds[0], sub.id);
+    } else if (sub.planType === 'multi_gym') {
+      await this.assertNoActiveMultiGymPass(userId, sub.id);
     }
 
     // Only explicit mock orders activate without asking Cashfree.

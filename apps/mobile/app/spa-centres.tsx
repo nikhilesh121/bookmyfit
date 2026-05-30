@@ -49,7 +49,7 @@ export default function SpaCentresScreen() {
     let active = true;
     (async () => {
       try {
-        const coords = await getNearbyCoords();
+        const coords = await getNearbyCoords({ forceRefresh: true, timeoutMs: 3500 });
         const res: any = await wellnessApi.list({ limit: 100, ...nearbyQueryParams(coords) });
         if (!active) return;
         const raw: Partner[] = Array.isArray(res) ? res : res?.data || [];

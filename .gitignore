@@ -11,6 +11,13 @@ build/
 .DS_Store
 coverage/
 artifacts/
+*.apk
+test-results/
+playwright-report/
+blob-report/
+apps/mobile/dist-web/
+.codex/
+.pnpm-store/
 *.tsbuildinfo
 backend/dist/
 # Expo generated native folders (regenerated via expo prebuild)

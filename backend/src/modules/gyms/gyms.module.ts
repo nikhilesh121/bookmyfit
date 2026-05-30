@@ -84,6 +84,9 @@ class GymsService {
 
   private memberName(user?: UserEntity | null, userId?: string | null) {
     const name = String(user?.name || '').trim();
+    if (/\b[6-9]\d{9}\b/.test(name)) {
+      return `Member ${this.memberCode(userId).replace('BMF-', '').slice(0, 6)}`;
+    }
     return name || `Member ${this.memberCode(userId).replace('BMF-', '').slice(0, 6)}`;
   }
 
@@ -506,14 +509,17 @@ class GymsService {
   }
 
   private statusForKyc(kycStatus: string, currentStatus?: string): GymStatus {
-    if (kycStatus === 'approved') return 'active';
+    if (kycStatus === 'approved') {
+      if (currentStatus === 'suspended' || currentStatus === 'inactive') return currentStatus;
+      return 'active';
+    }
     if (kycStatus === 'rejected') return 'rejected';
     if (currentStatus === 'active' || currentStatus === 'rejected') return 'pending';
     return (currentStatus as GymStatus) || 'pending';
   }
 
   private paidSubscriptionStatuses() {
-    return ['active', 'frozen', 'expired', 'cancelled'];
+    return ['active', 'frozen', 'expired'];
   }
 
   private money(value: any) {
@@ -712,7 +718,7 @@ class GymsService {
         id: row.id,
         userId: row.userId,
         memberCode: this.memberCode(row.userId),
-        userName: row.userName || this.memberName(null, row.userId),
+        userName: this.memberName({ name: row.userName } as any, row.userId),
         stars: Number(row.stars || 0),
         review: row.review || '',
         status: row.status,
@@ -1566,7 +1572,15 @@ class GymsService {
   }
 
   async setTier(id: string, tier: string, commissionRate: number) {
-    await this.repo.update(id, { tier: tier as any, commissionRate });
+    const tierMap: Record<string, string> = {
+      elite: 'corporate_exclusive',
+      corporate_exclusive: 'corporate_exclusive',
+      premium: 'premium',
+      standard: 'standard',
+    };
+    const normalizedTier = tierMap[String(tier || '').toLowerCase()] || 'standard';
+    const normalizedCommission = Math.max(0, Math.min(100, Number(commissionRate) || 0));
+    await this.repo.update(id, { tier: normalizedTier as any, commissionRate: normalizedCommission });
     return this.get(id);
   }
 

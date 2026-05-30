@@ -68,7 +68,7 @@ export default function WellnessScreen() {
     let alive = true;
     (async () => {
       try {
-        const coords = await getNearbyCoords();
+        const coords = await getNearbyCoords({ forceRefresh: true, timeoutMs: 3500 });
         const [pRes, sRes] = await Promise.all([
           wellnessApi.list({ page: 1, limit: 50, ...nearbyQueryParams(coords) }).catch(() => null),
           fetch(`${API}/api/v1/wellness/services/all`).then(r => r.json()).catch(() => null),

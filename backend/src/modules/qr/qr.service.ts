@@ -1,7 +1,7 @@
 import { Injectable, Inject, BadRequestException, ConflictException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Between, Repository } from 'typeorm';
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import { CheckinEntity } from '../../database/entities/checkin.entity';
@@ -51,6 +51,9 @@ function memberCode(userId?: string | null) {
 
 function memberName(user?: UserEntity | null, userId?: string | null) {
   const name = String(user?.name || '').trim();
+  if (/\b[6-9]\d{9}\b/.test(name)) {
+    return `Member ${memberCode(userId).replace('BMF-', '').slice(0, 6)}`;
+  }
   return name || `Member ${memberCode(userId).replace('BMF-', '').slice(0, 6)}`;
 }
 
@@ -73,6 +76,27 @@ export class QrService {
   private visitSplit(ratePerDay: number, planType?: string | null) {
     const payout = planType === 'multi_gym' ? Math.max(0, Number(ratePerDay) || 0) : 0;
     return { adminEarns: 0, gymEarns: payout };
+  }
+
+  private istDayRangeUtc(today: string) {
+    const [year, month, day] = today.split('-').map((part) => Number(part));
+    const start = new Date(Date.UTC(year, month - 1, day) - 5.5 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    return { start, end };
+  }
+
+  private async existingDailyCheckinGymId(userId: string, today: string) {
+    const dailyKey = `checkin:daily:${userId}:${today}`;
+    const redisGymId = await this.redis.get(dailyKey);
+    if (redisGymId) return redisGymId;
+
+    const { start, end } = this.istDayRangeUtc(today);
+    const row = await this.checkins.findOne({
+      where: { userId, status: 'success', checkinTime: Between(start, end) },
+      order: { checkinTime: 'DESC' },
+    });
+    if (row?.gymId) await this.redis.set(dailyKey, row.gymId, 'EX', 24 * 60 * 60);
+    return row?.gymId || null;
   }
 
   private async multiGymVisitPayout(gym: GymEntity | any) {
@@ -181,10 +205,12 @@ export class QrService {
     // 3. Daily lock: has user already checked in today?
     const today = todayIST();
     const dailyKey = `checkin:daily:${userId}:${today}`;
-    const existingCheckinGymId = await this.redis.get(dailyKey);
-    if (existingCheckinGymId && existingCheckinGymId !== gymId) {
+    const existingCheckinGymId = await this.existingDailyCheckinGymId(userId, today);
+    if (existingCheckinGymId) {
       await this.logFailure(qrToken, gymId, 'failed_daily_limit', `Already checked in at ${existingCheckinGymId}`);
-      throw new ConflictException('Already checked in at another gym today');
+      throw new ConflictException(existingCheckinGymId === gymId
+        ? 'Already checked in at this gym today'
+        : 'Already checked in at another gym today');
     }
 
     // 4. Validate subscription + plan allows this gym
@@ -193,11 +219,6 @@ export class QrService {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'No active subscription');
       throw new UnauthorizedException('Subscription not active');
     }
-    if (sub.planType === 'multi_gym' && existingCheckinGymId) {
-      await this.logFailure(qrToken, gymId, 'failed_daily_limit', `Already checked in at ${existingCheckinGymId}`);
-      throw new ConflictException('Your Multi Gym Pass allows 1 check-in per day');
-    }
-
     const coveredGyms = sub.gymIds || [];
     if (sub.planType === 'same_gym' && !coveredGyms.includes(gymId)) {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'Gym not in plan');
@@ -331,10 +352,10 @@ export class QrService {
 
     const today = todayIST();
     const dailyKey = `checkin:daily:${booking.userId}:${today}`;
-    const existingCheckinGymId = await this.redis.get(dailyKey);
-    if (existingCheckinGymId && (sub.planType === 'multi_gym' || existingCheckinGymId !== gymId)) {
-      throw new ConflictException(sub.planType === 'multi_gym'
-        ? 'Your Multi Gym Pass allows 1 check-in per day'
+    const existingCheckinGymId = await this.existingDailyCheckinGymId(booking.userId, today);
+    if (existingCheckinGymId) {
+      throw new ConflictException(existingCheckinGymId === gymId
+        ? 'Already checked in at this gym today'
         : 'Already checked in at another gym today');
     }
 

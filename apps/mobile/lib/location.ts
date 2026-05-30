@@ -10,7 +10,9 @@ export type LocationPermissionState = {
 };
 
 let cachedCoords: UserCoords | null = null;
+let cachedCoordsAt = 0;
 let pendingCoords: Promise<UserCoords | null> | null = null;
+const COORD_CACHE_MS = 2 * 60 * 1000;
 
 function toCoords(position: Location.LocationObject | null | undefined): UserCoords | null {
   const lat = Number(position?.coords?.latitude);
@@ -76,7 +78,7 @@ export async function requestNearbyCoords(): Promise<UserCoords | null> {
       return null;
     }
 
-    return getNearbyCoords({ requestPermission: false, timeoutMs: 3500 });
+    return getNearbyCoords({ requestPermission: false, timeoutMs: 3500, forceRefresh: true });
   } catch {
     return null;
   }
@@ -92,14 +94,14 @@ export async function requestLocationOnAppOpen(): Promise<UserCoords | null> {
     }
 
     await promptForDeviceLocationServices().catch(() => false);
-    return getNearbyCoords({ requestPermission: false, timeoutMs: 2500 });
+    return getNearbyCoords({ requestPermission: false, timeoutMs: 2500, forceRefresh: true });
   } catch {
     return null;
   }
 }
 
-export async function getNearbyCoords(options: { requestPermission?: boolean; timeoutMs?: number } = {}): Promise<UserCoords | null> {
-  if (cachedCoords) return cachedCoords;
+export async function getNearbyCoords(options: { requestPermission?: boolean; timeoutMs?: number; forceRefresh?: boolean } = {}): Promise<UserCoords | null> {
+  if (!options.forceRefresh && cachedCoords && Date.now() - cachedCoordsAt < COORD_CACHE_MS) return cachedCoords;
   if (pendingCoords) return pendingCoords;
 
   pendingCoords = (async () => {
@@ -113,18 +115,22 @@ export async function getNearbyCoords(options: { requestPermission?: boolean; ti
       }
       if (!granted) return null;
 
+      const current = toCoords(await waitForPosition(options.timeoutMs || 2500));
+      if (current) {
+        cachedCoords = current;
+        cachedCoordsAt = Date.now();
+        return current;
+      }
+
       const lastKnown = toCoords(await Location.getLastKnownPositionAsync({
-        maxAge: 10 * 60 * 1000,
-        requiredAccuracy: 3000,
+        maxAge: 2 * 60 * 1000,
+        requiredAccuracy: 2000,
       }).catch(() => null));
       if (lastKnown) {
         cachedCoords = lastKnown;
-        return lastKnown;
+        cachedCoordsAt = Date.now();
       }
-
-      const current = toCoords(await waitForPosition(options.timeoutMs || 2500));
-      if (current) cachedCoords = current;
-      return current;
+      return lastKnown;
     } catch {
       return null;
     } finally {

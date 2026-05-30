@@ -1,4 +1,4 @@
-import { Module, Controller, Post, Body, Req, Headers, HttpCode, BadRequestException, Injectable, Param, UseGuards, Get, Query, Header } from '@nestjs/common';
+import { Module, Controller, Post, Body, Req, Headers, HttpCode, BadRequestException, ForbiddenException, Injectable, Param, UseGuards, Get, Query, Header } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -34,7 +34,29 @@ class PaymentsService {
     return qb.getRawOne();
   }
 
-  private async applyOrderStatus(orderId: string, status?: string, paymentId?: string, event?: string) {
+  private activeMultiGymPass(userId: string, excludeId?: string) {
+    const qb = this.subs.createQueryBuilder('s')
+      .select('s.id', 'id')
+      .addSelect('s."endDate"', 'endDate')
+      .where('s."userId" = :userId', { userId })
+      .andWhere('s.status = :status', { status: 'active' })
+      .andWhere('s."planType" = :planType', { planType: 'multi_gym' })
+      .andWhere('s."endDate" >= CURRENT_DATE');
+
+    if (excludeId) qb.andWhere('s.id != :excludeId', { excludeId });
+    return qb.getRawOne();
+  }
+
+  private assertActorCanVerify(actor: any, refs: Array<{ userId?: string | null } | null>) {
+    if (!actor || actor.role === 'super_admin') return;
+    if (!refs.some(Boolean)) return;
+    const actorId = String(actor.userId || '');
+    if (!actorId) throw new ForbiddenException('You cannot verify this payment');
+    const ownsOrder = refs.some((ref) => ref?.userId && String(ref.userId) === actorId);
+    if (!ownsOrder) throw new ForbiddenException('You cannot verify this payment');
+  }
+
+  private async applyOrderStatus(orderId: string, status?: string, paymentId?: string, event?: string, actor?: any) {
     if (!orderId) return { processed: false, reason: 'No order_id' };
 
     // Try each entity type in turn
@@ -44,6 +66,7 @@ class PaymentsService {
       this.ptBookings.findOne({ where: { cashfreeOrderId: orderId } }),
       this.wellnessBookings.findOne({ where: { cashfreeOrderId: orderId } }),
     ]);
+    this.assertActorCanVerify(actor, [sub, order, pt, wellness]);
 
     const normalizedStatus = String(status || '').toUpperCase();
     const paid = normalizedStatus === 'PAID';
@@ -60,6 +83,20 @@ class PaymentsService {
           await this.subs.save(sub);
           if (sub.razorpayOrderId) await this.ptBookings.update({ cashfreeOrderId: sub.razorpayOrderId }, { status: 'cancelled' });
           processed.push({ kind: 'subscription', paid, activated: false, reason: 'duplicate_active_gym_pass' });
+        } else {
+          sub.status = 'active';
+          sub.razorpayPaymentId = paymentId || sub.razorpayPaymentId;
+          await this.subs.save(sub);
+          processed.push({ kind: 'subscription', paid, activated: true });
+        }
+      } else if (paid && sub.planType === 'multi_gym') {
+        const duplicate = await this.activeMultiGymPass(sub.userId, sub.id);
+        if (duplicate) {
+          sub.status = 'cancelled';
+          sub.razorpayPaymentId = paymentId || sub.razorpayPaymentId;
+          await this.subs.save(sub);
+          if (sub.razorpayOrderId) await this.ptBookings.update({ cashfreeOrderId: sub.razorpayOrderId }, { status: 'cancelled' });
+          processed.push({ kind: 'subscription', paid, activated: false, reason: 'duplicate_active_multi_gym_pass' });
         } else {
           sub.status = 'active';
           sub.razorpayPaymentId = paymentId || sub.razorpayPaymentId;
@@ -112,11 +149,11 @@ class PaymentsService {
     return this.applyOrderStatus(orderId || '', status, paymentId, event);
   }
 
-  async verifyOrder(orderId: string) {
+  async verifyOrder(orderId: string, actor?: any) {
     const payment = await this.cashfree.fetchPaidStatus(orderId);
     const status = payment.orderStatus;
     if (!status) throw new BadRequestException('Unable to verify payment status');
-    const processed = await this.applyOrderStatus(orderId, payment.paid ? 'PAID' : status, payment.paymentId);
+    const processed = await this.applyOrderStatus(orderId, payment.paid ? 'PAID' : status, payment.paymentId, undefined, actor);
     return { ...processed, orderId, paymentStatus: payment.paid ? 'PAID' : status, paid: payment.paid };
   }
 }
@@ -138,8 +175,8 @@ class PaymentsController {
   @UseGuards(JwtAuthGuard)
   @Post('verify/:orderId')
   @ApiOperation({ summary: 'Verify a Cashfree order and update matching BookMyFit record' })
-  verifyOrder(@Param('orderId') orderId: string) {
-    return this.svc.verifyOrder(orderId);
+  verifyOrder(@Param('orderId') orderId: string, @Req() req: any) {
+    return this.svc.verifyOrder(orderId, req.user);
   }
 
   @Get('return')

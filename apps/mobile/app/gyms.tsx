@@ -124,7 +124,7 @@ export default function GymListingPage() {
         setLocationState('denied');
         return null;
       }
-      const next = await getNearbyCoords();
+      const next = await getNearbyCoords({ forceRefresh: true, timeoutMs: 3500 });
       const latest = await getLocationPermissionState();
       if (!next) {
         setLocationState(latest.status === 'denied' || latest.needsSettings ? 'denied' : 'unavailable');

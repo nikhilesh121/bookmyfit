@@ -78,7 +78,7 @@ export default function TrainersScreen() {
           return;
         }
 
-        const coords = await getNearbyCoords();
+        const coords = await getNearbyCoords({ forceRefresh: true, timeoutMs: 3500 });
         const gymsData: any = await gymsApi.list({ page: 1, limit: 24, ...nearbyQueryParams(coords) });
         const gyms = (Array.isArray(gymsData) ? gymsData : gymsData?.data || gymsData?.gyms || [])
           .sort(nearbyBestSort)

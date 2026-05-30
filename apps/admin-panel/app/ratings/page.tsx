@@ -51,7 +51,7 @@ export default function RatingsPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<FilterTab>('pending');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [weekStats, setWeekStats] = useState({ pending: 0, approved: 0, rejected: 0 });
+  const [statusCounts, setStatusCounts] = useState({ pending: 0, approved: 0, rejected: 0 });
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [total, setTotal] = useState(0);
@@ -68,9 +68,7 @@ export default function RatingsPage() {
       setRatings(list);
       setTotal((res as any)?.total ?? list.length);
       setPages((res as any)?.pages ?? 1);
-      if (status === 'pending') {
-        setWeekStats((prev) => ({ ...prev, pending: (res as any)?.total ?? list.length }));
-      }
+      setStatusCounts((prev) => ({ ...prev, [status]: (res as any)?.total ?? list.length }));
     } catch {
       setRatings([]);
       setTotal(0);
@@ -88,7 +86,7 @@ export default function RatingsPage() {
       await api.post(`/ratings/${id}/approve`);
       toast('Rating approved');
       setRatings((prev) => prev.filter((r) => r.id !== id));
-      setWeekStats((prev) => ({ ...prev, approved: prev.approved + 1, pending: Math.max(0, prev.pending - 1) }));
+      setStatusCounts((prev) => ({ ...prev, approved: prev.approved + 1, pending: Math.max(0, prev.pending - 1) }));
     } catch (e: any) {
       toast(e.message || 'Approval failed', 'error');
     } finally {
@@ -102,7 +100,7 @@ export default function RatingsPage() {
       await api.post(`/ratings/${id}/reject`);
       toast('Rating rejected');
       setRatings((prev) => prev.filter((r) => r.id !== id));
-      setWeekStats((prev) => ({ ...prev, rejected: prev.rejected + 1, pending: Math.max(0, prev.pending - 1) }));
+      setStatusCounts((prev) => ({ ...prev, rejected: prev.rejected + 1, pending: Math.max(0, prev.pending - 1) }));
     } catch (e: any) {
       toast(e.message || 'Rejection failed', 'error');
     } finally {
@@ -123,9 +121,9 @@ export default function RatingsPage() {
       {/* KPI cards */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         {[
-          { label: 'Total Pending', value: weekStats.pending, icon: MessageSquare, color: '#FFB400' },
-          { label: 'Approved This Week', value: weekStats.approved, icon: CheckCircle, color: 'var(--accent)' },
-          { label: 'Rejected This Week', value: weekStats.rejected, icon: XCircle, color: '#FF3C3C' },
+          { label: 'Total Pending', value: statusCounts.pending, icon: MessageSquare, color: '#FFB400' },
+          { label: 'Approved Loaded', value: statusCounts.approved, icon: CheckCircle, color: 'var(--accent)' },
+          { label: 'Rejected Loaded', value: statusCounts.rejected, icon: XCircle, color: '#FF3C3C' },
         ].map((s) => {
           const Icon = s.icon;
           return (

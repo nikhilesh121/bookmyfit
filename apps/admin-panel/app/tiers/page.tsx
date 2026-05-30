@@ -19,11 +19,28 @@ type EditState = {
   commissionRate: number;
 };
 
-const TIERS = ['Elite', 'Premium', 'Standard'] as const;
+const TIERS = [
+  { label: 'Elite', value: 'corporate_exclusive' },
+  { label: 'Premium', value: 'premium' },
+  { label: 'Standard', value: 'standard' },
+] as const;
+
+function normalizeTier(tier?: string) {
+  const lower = String(tier || '').toLowerCase();
+  if (lower === 'elite' || lower === 'corporate_exclusive') return 'corporate_exclusive';
+  if (lower === 'premium') return 'premium';
+  return 'standard';
+}
+
+function tierLabel(tier?: string) {
+  const value = normalizeTier(tier);
+  return TIERS.find((item) => item.value === value)?.label || 'Standard';
+}
 
 function tierBadge(tier: string): React.CSSProperties {
-  if (tier === 'Elite') return { background: 'rgba(61,255,84,0.15)', color: '#3DFF54' };
-  if (tier === 'Premium') return { background: 'rgba(155,0,255,0.15)', color: '#9B59B6' };
+  const normalized = normalizeTier(tier);
+  if (normalized === 'corporate_exclusive') return { background: 'rgba(61,255,84,0.15)', color: '#3DFF54' };
+  if (normalized === 'premium') return { background: 'rgba(155,0,255,0.15)', color: '#9B59B6' };
   return { background: 'rgba(255,138,0,0.15)', color: '#FF8A00' };
 }
 
@@ -69,7 +86,7 @@ export default function TiersPage() {
   const startEdit = (g: Gym) => {
     setEdits((prev) => ({
       ...prev,
-      [g.id]: { tier: g.tier || 'Standard', commissionRate: g.commissionRate ?? 15 },
+      [g.id]: { tier: normalizeTier(g.tier), commissionRate: g.commissionRate ?? 15 },
     }));
   };
 
@@ -97,9 +114,9 @@ export default function TiersPage() {
     }
   };
 
-  const elite = gyms.filter((g) => g.tier === 'Elite').length;
-  const premium = gyms.filter((g) => g.tier === 'Premium').length;
-  const standard = gyms.filter((g) => !g.tier || g.tier === 'Standard').length;
+  const elite = gyms.filter((g) => normalizeTier(g.tier) === 'corporate_exclusive').length;
+  const premium = gyms.filter((g) => normalizeTier(g.tier) === 'premium').length;
+  const standard = gyms.filter((g) => normalizeTier(g.tier) === 'standard').length;
   const avgCommission = gyms.length > 0
     ? (gyms.reduce((s, g) => s + (g.commissionRate ?? 15), 0) / gyms.length).toFixed(1)
     : '—';
@@ -168,11 +185,11 @@ export default function TiersPage() {
                             onChange={(e) => setEdits((prev) => ({ ...prev, [g.id]: { ...edit, tier: e.target.value } }))}
                             className="glass-input"
                             style={{ padding: '4px 10px', fontSize: 12, minWidth: 120 }}>
-                            {TIERS.map((t) => <option key={t} value={t}>{t}</option>)}
+                            {TIERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                           </select>
                         ) : (
                           <span style={{ padding: '3px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, ...tierBadge(g.tier || 'Standard') }}>
-                            {g.tier || 'Standard'}
+                            {tierLabel(g.tier)}
                           </span>
                         )}
                       </td>

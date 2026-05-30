@@ -175,9 +175,9 @@ export default function KYCPage() {
       <div className="grid grid-cols-4 gap-4 mb-8">
         {[
           { label: 'Total Pending', value: pending, icon: Clock, color: '#FFB400' },
-          { label: 'Approved Today', value: approved, icon: CheckCircle, color: 'var(--accent)' },
-          { label: 'Rejected Today', value: rejected, icon: XCircle, color: '#FF3C3C' },
-          { label: 'Avg Review Time', value: '2.4h', icon: Building2, color: '#00AFFF' },
+          { label: 'Approved Loaded', value: approved, icon: CheckCircle, color: 'var(--accent)' },
+          { label: 'Rejected Loaded', value: rejected, icon: XCircle, color: '#FF3C3C' },
+          { label: 'Loaded Gyms', value: gyms.length, icon: Building2, color: '#00AFFF' },
         ].map((s) => {
           const Icon = s.icon;
           return (

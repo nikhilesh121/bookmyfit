@@ -32,7 +32,7 @@ type BookingRow = {
   subscription?: { planName?: string; planType?: string; amountPaid?: number; gymAmount?: number; checkoutAmountPaid?: number; status?: string };
   slot?: { startTime: string; endTime: string; date: string };
   sessionType?: { name: string; color: string };
-  user?: { name: string; phone: string };
+  user?: { name: string; memberCode?: string };
 };
 
 type Category = { id: string; _id?: string; name: string };
@@ -492,7 +492,7 @@ export default function SessionsPage() {
                       <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 700, color: 'var(--accent)', letterSpacing: 1 }}>#{b.manualCode || b.bookingRef || b.id}</td>
                       <td style={{ padding: '12px 16px', fontSize: 14, color: '#fff' }}>
                         {b.user?.name ?? '-'}
-                        {b.user?.phone && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{b.user.phone}</div>}
+                        {b.user?.memberCode && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>ID {b.user.memberCode}</div>}
                       </td>
                       <td style={{ padding: '12px 16px', fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>
                         {b.subscription?.planName || b.planName || b.planType || '-'}

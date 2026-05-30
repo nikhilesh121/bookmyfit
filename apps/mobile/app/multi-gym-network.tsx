@@ -35,7 +35,7 @@ export default function MultiGymNetwork() {
     let alive = true;
     (async () => {
       try {
-        const coords = await getNearbyCoords();
+        const coords = await getNearbyCoords({ forceRefresh: true, timeoutMs: 3500 });
         const data: any = await gymsApi.list({ page: 1, limit: 100, ...nearbyQueryParams(coords) });
         if (!alive) return;
         const list = Array.isArray(data) ? data : data?.gyms || data?.data || [];

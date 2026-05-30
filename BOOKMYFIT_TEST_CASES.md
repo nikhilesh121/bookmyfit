@@ -78,6 +78,19 @@ Create or verify these records before full regression:
 | BR-015 | P0 | E2E | Gym location lock | Gym saves valid lat/lng once from settings, reloads, tries changing | Gym cannot edit after successful save; admin can correct |
 | BR-016 | P1 | E2E | Gym review auto-publish | Same-gym/day-pass user for gym A, or a user with a successful check-in at gym A, submits a 1-5 star review | Review is approved immediately, visible on gym detail/reviews, and aggregate rating updates |
 | BR-017 | P0 | SEC | Role isolation across portals | Use admin/gym/corporate/wellness/end-user tokens against each other's privileged routes | Every route rejects unauthorized roles and never leaks scoped data |
+
+## 2026-05-30 Additional Regression Cases
+
+| ID | Priority | Type | Scenario | Steps | Expected Result |
+|---|---:|---|---|---|---|
+| REG-20260530-01 | P0 | API | Review dedupe and auto-publish | User with active same-gym/day-pass submits two reviews for the same gym | One approved review remains for that user/gym and aggregate rating updates |
+| REG-20260530-02 | P0 | SEC | Public reviews hide raw user id | Fetch `/ratings/gym/:gymId` | Response includes safe member display only, not raw `userId` or phone |
+| REG-20260530-03 | P0 | DATA | Cancelled duplicates excluded from gym revenue | Create active paid pass, create duplicate paid pass that becomes cancelled, open gym members/report/settlement | Only non-cancelled paid subscription revenue counts |
+| REG-20260530-04 | P0 | API | QR daily lock survives Redis miss | Complete check-in, clear Redis daily key, retry QR/manual check-in same IST day | Backend still rejects repeat check-in using DB fallback |
+| REG-20260530-05 | P0 | ADMIN | KYC approval does not reactivate suspended gym | Suspend gym, approve final KYC document | KYC can become approved, but gym remains suspended until admin activates |
+| REG-20260530-06 | P1 | MOBILE | Nearby pages avoid stale city | Set emulator/device GPS to a new city, relaunch app, open Home/Explore/Gyms/Wellness | UI shows `Nearby` while resolving and sorts by fresh GPS before saved city fallback |
+| REG-20260530-07 | P0 | MOBILE | Cashfree stuck return recovery | Complete sandbox payment and remain on Cashfree next-step/loading page for more than 60 seconds | App shows secure manual verify recovery and verifies server-side before success |
+| REG-20260530-08 | P1 | MOBILE | QR manual code on small screen | Open QR screen on short Android viewport | QR screen scrolls and manual verification code remains accessible |
 | BR-018 | P0 | DATA | Payment idempotency | Replay the same paid webhook/verify request multiple times | Subscription/order/booking activates once; no duplicate members, invoices, check-ins, or payouts |
 | BR-019 | P0 | DATA | Money rounding consistency | Purchase all service types with percentage/fixed commission and sale prices | Checkout, invoice, admin revenue, gym-facing amount, and settlement totals match to paise/rupee rounding rule |
 | BR-020 | P0 | SEC | Soft-deleted/deactivated content hidden | Deactivate gym, trainer, wellness partner, service, product, category, and amenity | Hidden from public/mobile lists while historical financial records remain readable to authorized admins |

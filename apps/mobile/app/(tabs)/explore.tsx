@@ -1,8 +1,12 @@
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ImageBackground, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import * as Location from 'expo-location';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconPin, IconArrowRight } from '../../components/Icons';
+import { appStorage } from '../../lib/api';
+import { getNearbyCoords } from '../../lib/location';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 
 const { width: W } = Dimensions.get('window');
@@ -78,6 +82,32 @@ const SMALL_CARDS = [
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function ExploreHub() {
+  const [locationLabel, setLocationLabel] = useState('Nearby');
+
+  useEffect(() => {
+    let alive = true;
+    appStorage.getItem('bmf_city').then((saved) => {
+      (async () => {
+        try {
+          const coords = await getNearbyCoords({ forceRefresh: true, timeoutMs: 3500 });
+          if (!coords) {
+            if (alive && saved) setLocationLabel(saved);
+            return;
+          }
+          if (!alive) return;
+          const [geo] = await Location.reverseGeocodeAsync({ latitude: coords.lat, longitude: coords.lng });
+          const next = geo?.city || geo?.subregion || geo?.region;
+          if (next) setLocationLabel(next);
+          else if (saved) setLocationLabel(saved);
+        } catch {
+          if (alive && saved) setLocationLabel(saved);
+        }
+      })();
+    }).catch(() => {});
+
+    return () => { alive = false; };
+  }, []);
+
   return (
     <SafeAreaView style={s.root} edges={['top', 'left', 'right']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
@@ -87,7 +117,7 @@ export default function ExploreHub() {
           <Text style={s.title}>Explore</Text>
           <View style={s.locRow}>
             <IconPin size={12} color={colors.accent} />
-            <Text style={s.locText}>Bhubaneswar</Text>
+            <Text style={s.locText}>{locationLabel}</Text>
           </View>
         </View>
 

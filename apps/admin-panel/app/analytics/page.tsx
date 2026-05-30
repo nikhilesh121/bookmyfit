@@ -78,10 +78,10 @@ export default function AnalyticsPage() {
   const checkins = summary.avgCheckinsPerDay ?? 0;
 
   const kpis = [
-    { label: 'Total Revenue', icon: TrendingUp, value: formatRevenue(revenue), change: '+18%' },
-    { label: 'Active Subscribers', icon: Users, value: formatCount(subscribers), change: '+8%' },
-    { label: 'New Sign-ups', icon: UserPlus, value: formatCount(signups), change: '+12%' },
-    { label: 'Avg Check-ins/Day', icon: Activity, value: formatCount(checkins), change: '+5%' },
+    { label: 'Total Revenue', icon: TrendingUp, value: formatRevenue(revenue) },
+    { label: 'Active Subscribers', icon: Users, value: formatCount(subscribers) },
+    { label: 'New Sign-ups', icon: UserPlus, value: formatCount(signups) },
+    { label: 'Avg Check-ins/Day', icon: Activity, value: formatCount(checkins) },
   ];
 
   const monthlyData = summary.monthlyRevenue ?? [];
@@ -107,7 +107,7 @@ export default function AnalyticsPage() {
                 <div key={k.label} className="card stat-glow p-5">
                   <div className="flex items-center justify-between mb-2">
                     <Icon size={16} style={{ color: 'var(--accent)' }} />
-                    <span className="accent-pill">{k.change}</span>
+                    <span className="accent-pill">Live</span>
                   </div>
                   <div className="text-2xl font-bold">{k.value}</div>
                   <div className="text-xs mt-1" style={{ color: 'var(--t2)' }}>{k.label}</div>

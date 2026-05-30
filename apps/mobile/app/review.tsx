@@ -28,19 +28,29 @@ export default function Review() {
 
   const handleSubmit = async () => {
     if (rating === 0) return;
+    const targetId = (isGym ? gymId : trainerId) || '';
+    if (!targetId) {
+      Alert.alert('Review unavailable', 'Please open the gym or trainer again and try submitting your review.');
+      return;
+    }
     setLoading(true);
     try {
       const user = await getUser();
-      await miscApi.submitReview({
+      const res: any = await miscApi.submitReview({
         targetType: isGym ? 'gym' : 'trainer',
-        targetId: (isGym ? gymId : trainerId) || '',
+        targetId,
         userId: user?.id || user?._id || '',
         stars: rating,
         review: text.trim() || undefined,
       });
-      Alert.alert('Review Published!', 'Thank you for your feedback.', [
+      const published = String(res?.status || '').toLowerCase() === 'approved';
+      Alert.alert(
+        published ? 'Review Published!' : 'Review Submitted',
+        published ? 'Thank you for your feedback.' : 'Thank you. Your review is waiting for approval.',
+        [
         { text: 'OK', onPress: () => router.back() },
-      ]);
+        ],
+      );
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to submit review. Please try again.');
     } finally {

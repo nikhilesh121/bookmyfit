@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
@@ -266,7 +266,10 @@ export default function QrScreen() {
           <View style={{ width: 38 }} />
         </View>
 
-        <View style={s.content}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={s.content}
+        >
           {/* Gym name badge */}
           {gymName ? (
             <View style={s.gymBadge}>
@@ -349,7 +352,7 @@ export default function QrScreen() {
               <Text style={s.bookBtnText}>Book Another Slot</Text>
             </TouchableOpacity>
           )}
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </AuroraBackground>
   );
@@ -367,7 +370,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   title: { fontFamily: fonts.serif, fontSize: 18, color: '#fff' },
-  content: { flex: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 12 },
+  content: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 12, paddingBottom: 28 },
   gymBadge: {
     backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
     borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 6, marginBottom: 8,

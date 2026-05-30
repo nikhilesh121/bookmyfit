@@ -1,4 +1,4 @@
-import {
+﻿import {
   Module, Controller, Get, Post, Put, Delete, Param, Body, Query,
   Injectable, UseGuards, Req, NotFoundException, BadRequestException,
   ConflictException, ForbiddenException, Logger,
@@ -31,7 +31,7 @@ import { BookingQrEntity } from '../../database/entities/booking-qr.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 
-// ─── DTOs ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ DTOs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class SetScheduleDayDto {
   @IsNumber() @Min(0) @Max(6) dayOfWeek: number;
@@ -80,7 +80,7 @@ class BookSlotDto {
   @IsOptional() @IsString() subscriptionId?: string;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function randomRef(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -134,10 +134,10 @@ function hourlySlots(openTime: string, closeTime: string, durationMins: number, 
 
 function dayOfWeekFromDate(dateStr: string): number {
   const d = new Date(dateStr + 'T12:00:00Z');
-  return (d.getUTCDay() + 6) % 7; // 0=Mon…6=Sun
+  return (d.getUTCDay() + 6) % 7; // 0=Monâ€¦6=Sun
 }
 
-// ─── Service ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Service â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -178,6 +178,19 @@ export class SessionsService {
     private readonly email: EmailService,
     private readonly jwt: JwtService,
   ) {}
+
+  private memberCode(userId?: string | null) {
+    const id = String(userId || '').replace(/-/g, '').toUpperCase();
+    return id ? `BMF-${id.slice(0, 10)}` : 'BMF-UNKNOWN';
+  }
+
+  private memberName(user?: UserEntity | null, userId?: string | null) {
+    const name = String(user?.name || '').trim();
+    if (/\b[6-9]\d{9}\b/.test(name)) {
+      return `Member ${this.memberCode(userId).replace('BMF-', '').slice(0, 6)}`;
+    }
+    return name || `Member ${this.memberCode(userId).replace('BMF-', '').slice(0, 6)}`;
+  }
 
   private normalizeDaysOfWeek(daysOfWeek: any): number[] {
     if (!Array.isArray(daysOfWeek) || daysOfWeek.length === 0) {
@@ -264,7 +277,7 @@ export class SessionsService {
     return this.bookingRepo.count({ where });
   }
 
-  // ── Operating Hours ──────────────────────────────────────────────────────
+  // â”€â”€ Operating Hours â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getSchedule(gymId: string) {
     const rows = await this.scheduleRepo.find({ where: { gymId }, order: { dayOfWeek: 'ASC' } });
@@ -342,7 +355,7 @@ export class SessionsService {
     }
   }
 
-  // ── Session Types ────────────────────────────────────────────────────────
+  // â”€â”€ Session Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getSessionTypes(gymId: string) {
     return this.typeRepo.find({ where: { gymId }, order: { kind: 'ASC', createdAt: 'ASC' } });
@@ -354,7 +367,7 @@ export class SessionsService {
     return this.typeRepo.save(
       this.typeRepo.create({
         gymId, name: 'Gym Workout', kind: 'standard',
-        description: 'Open gym access — available every hour during operating hours.',
+        description: 'Open gym access â€” available every hour during operating hours.',
         durationMinutes: 60, maxCapacity: 30, color: '#3DFF54', isActive: true,
       }),
     );
@@ -423,7 +436,7 @@ export class SessionsService {
       .execute();
   }
 
-  // ── Session Schedules (Recurring Rules) ──────────────────────────────────
+  // â”€â”€ Session Schedules (Recurring Rules) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getSessionSchedules(gymId: string) {
     const rules = await this.ruleRepo.find({ where: { gymId }, order: { createdAt: 'ASC' } });
@@ -464,18 +477,18 @@ export class SessionsService {
     return { success: true };
   }
 
-  // ── Slot Generation ──────────────────────────────────────────────────────
+  // â”€â”€ Slot Generation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async nightlySlotGeneration() {
-    this.logger.log('🕛 Nightly slot generation started');
+    this.logger.log('ðŸ•› Nightly slot generation started');
     const gyms = await this.gymRepo.find({ where: { status: 'active' } });
     for (const gym of gyms) {
       try { await this.generateSlotsForGym(gym.id, 30); } catch (e: any) {
         this.logger.error(`Failed for gym ${gym.id}: ${e.message}`);
       }
     }
-    this.logger.log(`✅ Slot generation done for ${gyms.length} gyms`);
+    this.logger.log(`âœ… Slot generation done for ${gyms.length} gyms`);
   }
 
   async generateSlotsForGym(gymId: string, daysAhead: number) {
@@ -547,7 +560,7 @@ export class SessionsService {
     return { generated: slotsToCreate.length };
   }
 
-  // ── Customer: Browse & Book ──────────────────────────────────────────────
+  // â”€â”€ Customer: Browse & Book â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getSlotsForGym(gymId: string, date: string, userId?: string) {
     await this.generateSlotsForGym(gymId, 8); // generate 8 days so any date in the date picker works
@@ -669,9 +682,9 @@ export class SessionsService {
         throw new BadRequestException('Your 1-Day Pass is for a different gym.');
       }
     }
-    // multi_gym: valid at any gym — no gym check needed
+    // multi_gym: valid at any gym â€” no gym check needed
 
-    // Daily session lock — day_pass is exempt (can book multiple passes per day)
+    // Daily session lock â€” day_pass is exempt (can book multiple passes per day)
     let booking = await this.bookingRepo.findOne({ where: { slotId: slot.id, userId } as any });
     if (booking && this.dailyBlockingStatuses.includes(booking.status)) {
       throw new ConflictException('You already have this slot booked.');
@@ -792,9 +805,9 @@ export class SessionsService {
         <h2>${heading}</h2>
         <div style="background:#111;border:1px solid #333;border-radius:8px;padding:16px;margin:20px 0">
           <p style="margin:4px 0;color:#fff"><strong>${sName}</strong></p>
-          <p style="margin:4px 0;color:#aaa">📍 ${gName}</p>
-          <p style="margin:4px 0;color:#aaa">📅 ${dateLabel}</p>
-          <p style="margin:4px 0;color:#aaa">🕐 ${slot.startTime} – ${slot.endTime}</p>
+          <p style="margin:4px 0;color:#aaa">ðŸ“ ${gName}</p>
+          <p style="margin:4px 0;color:#aaa">ðŸ“… ${dateLabel}</p>
+          <p style="margin:4px 0;color:#aaa">ðŸ• ${slot.startTime} â€“ ${slot.endTime}</p>
           <p style="margin:8px 0 0;color:#3DFF54;font-weight:700;letter-spacing:2px">REF: ${booking.bookingRef}</p>
         </div>
         ${extra}
@@ -803,14 +816,14 @@ export class SessionsService {
     if ((user as any)?.email) {
       await this.email.sendRaw(
         (user as any).email,
-        `Session Confirmed – ${sName} at ${gName}`,
-        html('Session Confirmed ✅', '<p style="color:#aaa">Show your QR code at the gym entrance to check in.</p>'),
+        `Session Confirmed â€“ ${sName} at ${gName}`,
+        html('Session Confirmed âœ…', '<p style="color:#aaa">Show your QR code at the gym entrance to check in.</p>'),
       );
     }
     if ((gym as any)?.ownerEmail) {
       await this.email.sendRaw(
         (gym as any).ownerEmail,
-        `New Booking – ${sName} on ${slot.date}`,
+        `New Booking â€“ ${sName} on ${slot.date}`,
         html(`New Booking at ${gName}`, `<p style="color:#aaa">Member: ${uName}</p>`),
       );
     }
@@ -858,7 +871,7 @@ export class SessionsService {
     });
   }
 
-  // ── QR Check-in ──────────────────────────────────────────────────────────
+  // â”€â”€ QR Check-in â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getActiveBooking(userId: string) {
     const now = new Date();
@@ -1016,7 +1029,7 @@ export class SessionsService {
     const gymEntity = await this.gymRepo.findOne({ where: { id: gymId } });
     const commissionAmount = sub.planType === 'multi_gym' ? Number(gymEntity?.ratePerDay ?? 0) : 0;
 
-    // Create Attendance record — commissionAmount is what BMF owes this gym per visit-day
+    // Create Attendance record â€” commissionAmount is what BMF owes this gym per visit-day
     const attendance = await this.attendanceRepo.save(
       this.attendanceRepo.create({
         bookingId: booking.id, gymId, userId, subscriptionId: sub.id,
@@ -1030,14 +1043,14 @@ export class SessionsService {
 
     return {
       success: true, alreadyCheckedIn: false, isAutoGenerated: isAutoGen,
-      message: `✅ Welcome, ${user?.name ?? 'Member'}! Checked in for ${sessionType?.name ?? 'Gym Workout'}.`,
-      user: { id: userId, name: user?.name, phone: (user as any)?.phone },
+      message: `Checked in ${this.memberName(user, userId)} for ${sessionType?.name ?? 'Gym Workout'}.`,
+      user: { id: userId, name: this.memberName(user, userId), memberCode: this.memberCode(userId) },
       gym: { id: gymId, name: gymEntity?.name },
       booking, attendance, sessionType,
     };
   }
 
-  // ── Not-Attended Cron (every 5 min) ─────────────────────────────────────
+  // â”€â”€ Not-Attended Cron (every 5 min) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Cron('*/5 * * * *')
   async markNotAttended() {
@@ -1068,8 +1081,8 @@ export class SessionsService {
           'You missed your session today',
           `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0a0a0a;color:#fff;padding:32px;border-radius:12px">
             <div style="color:#3DFF54;font-size:22px;font-weight:700;margin-bottom:8px">BookMyFit</div>
-            <h2 style="color:#FF6B6B">Session Missed 😔</h2>
-            <p style="color:#aaa">Hi ${user?.name ?? 'Member'}, you missed your <strong>${st?.name ?? 'session'}</strong> today (${slot?.startTime ?? ''} – ${slot?.endTime ?? ''}).</p>
+            <h2 style="color:#FF6B6B">Session Missed ðŸ˜”</h2>
+            <p style="color:#aaa">Hi ${user?.name ?? 'Member'}, you missed your <strong>${st?.name ?? 'session'}</strong> today (${slot?.startTime ?? ''} â€“ ${slot?.endTime ?? ''}).</p>
             <p style="color:#aaa">Book your next session on the BookMyFit app and keep going!</p>
           </div>`,
         ).catch(() => {});
@@ -1078,7 +1091,7 @@ export class SessionsService {
     this.logger.log(`Marked ${expired.length} booking(s) as not_attended`);
   }
 
-  // ── Attendance & Admin ───────────────────────────────────────────────────
+  // â”€â”€ Attendance & Admin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async listAttendance(gymId?: string, date?: string, page = 1, limit = 50) {
     const qb = this.attendanceRepo.createQueryBuilder('a');
@@ -1159,7 +1172,7 @@ export class SessionsService {
       const gym = gyms.find((g) => g.id === b.gymId);
       const gymPlan = sub?.gymPlanId ? gymPlans.find((plan) => plan.id === (sub as any).gymPlanId) : null;
       const baseGymAmount = sub?.planType === 'same_gym'
-        ? Number(gymPlan?.price ?? gym?.sameGymMonthlyPrice ?? 0)
+        ? Number((gymPlan as any)?.salePrice || gymPlan?.price || gym?.sameGymMonthlyPrice || 0)
         : sub?.planType === 'day_pass'
           ? Number(gym?.dayPassPrice ?? 149)
           : sub?.planType === 'multi_gym'
@@ -1174,7 +1187,10 @@ export class SessionsService {
         ...b,
         slot,
         sessionType: slot ? types.find((t) => t.id === slot.sessionTypeId) : null,
-        user: users.find((u) => u.id === b.userId),
+        user: (() => {
+          const user = users.find((u) => u.id === b.userId);
+          return user ? { id: user.id, name: this.memberName(user, user.id), memberCode: this.memberCode(user.id) } : null;
+        })(),
         gym,
         subscription: sub ? {
           id: sub.id,
@@ -1221,7 +1237,7 @@ export class SessionsService {
   }
 }
 
-// ─── Controller ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Controller â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @ApiTags('Sessions')
 @Controller('sessions')
@@ -1334,7 +1350,7 @@ export class SessionsController {
     return this.svc.getBookingsForGym(gymId, date);
   }
 
-  /** Called by gym portal QR scanner — body.userId decoded from scanned QR */
+  /** Called by gym portal QR scanner â€” body.userId decoded from scanned QR */
   @Post('checkin')
   @ApiBearerAuth() @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
   async checkin(@Req() req: any, @Body() body: { userId: string }) {
@@ -1376,7 +1392,7 @@ export class SessionsController {
   }
 }
 
-// ─── Module ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Module â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @Module({
   imports: [
