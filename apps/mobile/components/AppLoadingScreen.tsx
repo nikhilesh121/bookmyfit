@@ -1,27 +1,27 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, ImageBackground, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radius } from '../theme/brand';
-import { API_BASE } from '../lib/api';
+import type { LaunchConfig } from '../lib/launchConfig';
+import { DEFAULT_LAUNCH_CONFIG, launchMediaUrl } from '../lib/launchConfig';
 
-export default function AppLoadingScreen() {
-  const [branding, setBranding] = useState<{ logoUrl?: string; logoText?: string; shortText?: string }>({
-    logoText: 'BookMyFit',
-    shortText: 'BMF',
-  });
+type Props = {
+  message?: string;
+  launchConfig?: LaunchConfig | null;
+};
 
-  useEffect(() => {
-    fetch(`${API_BASE}/api/v1/branding`)
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => { if (data) setBranding(data); })
-      .catch(() => {});
-  }, []);
+export default function AppLoadingScreen({ message, launchConfig }: Props) {
+  const config = launchConfig || DEFAULT_LAUNCH_CONFIG;
+  const splash = config.splash || DEFAULT_LAUNCH_CONFIG.splash;
+  const branding = config.branding || {};
+  const logoUrl = launchMediaUrl(splash.logoUrl || branding.logoUrl);
+  const backgroundImageUrl = launchMediaUrl(splash.imageUrl);
+  const logoText = String(branding.shortText || branding.logoText || splash.title || 'BMF');
+  const title = String(splash.title || branding.logoText || 'BookMyFit');
+  const subtitle = String(message || splash.subtitle || 'Opening BookMyFit...');
+  const bgColor = String(splash.backgroundColor || colors.bg);
 
-  const logoUrl = String(branding.logoUrl || '').trim();
-  const logoText = String(branding.shortText || branding.logoText || 'BMF');
-
-  return (
-    <View style={s.root}>
+  const content = (
+    <View style={[s.root, { backgroundColor: backgroundImageUrl ? 'transparent' : bgColor }]}>
       <LinearGradient
         colors={['rgba(0,212,106,0.18)', 'rgba(255,30,90,0.08)', 'transparent']}
         start={{ x: 0, y: 0 }}
@@ -35,20 +35,41 @@ export default function AppLoadingScreen() {
           <Text style={s.logoText}>{logoText.slice(0, 4).toUpperCase()}</Text>
         </View>
       )}
-      <Text style={s.title}>{branding.logoText || 'BookMyFit'}</Text>
-      <Text style={s.subtitle}>Getting your fitness pass ready</Text>
-      <ActivityIndicator color={colors.accent} style={s.loader} />
+      <Text style={s.title}>{title}</Text>
+      <Text style={s.subtitle}>{subtitle}</Text>
+      {splash.showSpinner !== false && <ActivityIndicator color={colors.accent} style={s.loader} />}
     </View>
   );
+
+  if (backgroundImageUrl) {
+    return (
+      <ImageBackground source={{ uri: backgroundImageUrl }} style={s.bgImage} imageStyle={s.bgImageAsset} resizeMode="cover">
+        <View style={s.bgScrim} />
+        {content}
+      </ImageBackground>
+    );
+  }
+
+  return content;
 }
 
 const s = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+  },
+  bgImage: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  bgImageAsset: {
+    opacity: 0.42,
+  },
+  bgScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.44)',
   },
   glow: {
     ...StyleSheet.absoluteFillObject,

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, BarChart3, Building2, Users, CreditCard, Briefcase, UserCheck, Calendar,
   DollarSign, Percent, Home as HomeIcon, Package, Tags, Bell, Settings, ShieldAlert, LogOut,
-  ShieldCheck, Star, Award, ClipboardCheck, ListChecks, Sparkles, Activity,
+  ShieldCheck, Star, Award, ClipboardCheck, ListChecks, Sparkles, Activity, Smartphone,
 } from 'lucide-react';
 
 const NAV = [
@@ -33,6 +33,7 @@ const NAV = [
   ]},
   { group: 'Content', items: [
     { href: '/homepage', label: 'Homepage Builder', icon: HomeIcon },
+    { href: '/app-launch', label: 'App Launch', icon: Smartphone },
     { href: '/store', label: 'Store Products', icon: Package },
     { href: '/categories', label: 'Categories & Amenities', icon: Tags },
   ]},

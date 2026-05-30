@@ -13,8 +13,13 @@ import { useEffect, useState } from 'react';
 import { colors } from '../theme/brand';
 import { appStorage, authApi, getToken, setUser } from '../lib/api';
 import AppLoadingScreen from '../components/AppLoadingScreen';
+import { DEFAULT_LAUNCH_CONFIG, LaunchConfig, loadLaunchConfig } from '../lib/launchConfig';
 
 const ONBOARDED_KEY = 'bmf_onboarded';
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function resolveInitialRoute() {
   try {
@@ -51,6 +56,7 @@ async function resolveInitialRoute() {
 
 export default function RootLayout() {
   const [booting, setBooting] = useState(true);
+  const [launchConfig, setLaunchConfig] = useState<LaunchConfig>(DEFAULT_LAUNCH_CONFIG);
   const [loaded] = useFonts({
     Poppins_400Regular,
     Poppins_500Medium,
@@ -92,14 +98,30 @@ export default function RootLayout() {
   useEffect(() => {
     if (!loaded) return;
     let active = true;
-    resolveInitialRoute().finally(() => {
-      if (active) setBooting(false);
-    });
+    const startedAt = Date.now();
+
+    (async () => {
+      let nextConfig = DEFAULT_LAUNCH_CONFIG;
+      try {
+        const [config] = await Promise.all([
+          loadLaunchConfig(),
+          resolveInitialRoute(),
+        ]);
+        nextConfig = config;
+        if (active) setLaunchConfig(config);
+      } finally {
+        const elapsed = Date.now() - startedAt;
+        const remaining = Math.max(0, nextConfig.splash.minDurationMs - elapsed);
+        if (remaining > 0) await wait(remaining);
+        if (active) setBooting(false);
+      }
+    })();
+
     return () => { active = false; };
   }, [loaded]);
 
   if (!loaded) {
-    return <AppLoadingScreen />;
+    return <AppLoadingScreen launchConfig={launchConfig} />;
   }
 
   return (
@@ -149,7 +171,7 @@ export default function RootLayout() {
       </Stack>
       {booting && (
         <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 999 }}>
-          <AppLoadingScreen />
+          <AppLoadingScreen launchConfig={launchConfig} />
         </View>
       )}
     </>

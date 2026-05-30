@@ -848,6 +848,188 @@ const DEFAULT_ADMIN_SETTINGS = {
   flags: { storeModule: true, wellnessBooking: true, aiRecommendations: false, corporatePortal: true, mapView: false },
 };
 
+// ============ Mobile Launch Content ============
+const MOBILE_LAUNCH_CONFIG_KEY = 'mobile_launch_config';
+
+const DEFAULT_MOBILE_LAUNCH_CONFIG = {
+  _version: 1,
+  splash: {
+    minDurationMs: 1400,
+    logoUrl: '',
+    imageUrl: '',
+    title: 'BookMyFit',
+    subtitle: 'Opening BookMyFit...',
+    backgroundColor: '#060606',
+    showSpinner: true,
+  },
+  onboarding: {
+    kicker: 'BOOKMYFIT',
+    slides: [
+      {
+        id: 'train-anywhere',
+        imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&q=80',
+        title: 'Train Anywhere',
+        description: 'One subscription. Access gyms across your city.',
+        aurora: ['rgba(120,40,200,0.45)', 'rgba(255,120,40,0.25)'],
+      },
+      {
+        id: 'qr-check-in',
+        imageUrl: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&q=80',
+        title: 'QR Check-In',
+        description: 'Book a slot and get a secure QR code for the gym desk.',
+        aurora: ['rgba(0,140,255,0.35)', 'rgba(120,40,200,0.30)'],
+      },
+      {
+        id: 'track-progress',
+        imageUrl: 'https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=800&q=80',
+        title: 'Track Progress',
+        description: 'See your visits, memberships, trainer add-ons, and bookings.',
+        aurora: ['rgba(0,212,106,0.20)', 'rgba(0,140,255,0.30)'],
+      },
+    ],
+  },
+};
+
+function cleanConfigText(value: any, fallback: string, maxLength = 200) {
+  const clean = String(value ?? '').trim();
+  return (clean || fallback).slice(0, maxLength);
+}
+
+function cleanOptionalText(value: any, maxLength = 1000) {
+  const clean = String(value ?? '').trim();
+  return clean.slice(0, maxLength);
+}
+
+function clampNumber(value: any, fallback: number, min: number, max: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+function normalizeLaunchSlide(slide: any, index: number) {
+  const fallback = DEFAULT_MOBILE_LAUNCH_CONFIG.onboarding.slides[index % DEFAULT_MOBILE_LAUNCH_CONFIG.onboarding.slides.length];
+  const description = cleanConfigText(slide?.description ?? slide?.subtitle, fallback.description, 260);
+  const aurora = Array.isArray(slide?.aurora) && slide.aurora.length >= 2
+    ? [cleanConfigText(slide.aurora[0], fallback.aurora[0], 80), cleanConfigText(slide.aurora[1], fallback.aurora[1], 80)]
+    : fallback.aurora;
+  return {
+    id: cleanConfigText(slide?.id, fallback.id || `slide-${index + 1}`, 80),
+    imageUrl: cleanOptionalText(slide?.imageUrl || slide?.image, 1000) || fallback.imageUrl,
+    title: cleanConfigText(slide?.title, fallback.title, 80),
+    description,
+    subtitle: description,
+    kicker: cleanOptionalText(slide?.kicker, 40),
+    aurora,
+    order: index,
+  };
+}
+
+function normalizeMobileLaunchConfig(value: any) {
+  const rawSlides = Array.isArray(value?.onboarding?.slides) ? value.onboarding.slides : [];
+  const sourceSlides = rawSlides.length ? rawSlides : DEFAULT_MOBILE_LAUNCH_CONFIG.onboarding.slides;
+  const slides = sourceSlides.map((slide: any, index: number) => normalizeLaunchSlide(slide, index));
+  while (slides.length < 3) {
+    slides.push(normalizeLaunchSlide(DEFAULT_MOBILE_LAUNCH_CONFIG.onboarding.slides[slides.length], slides.length));
+  }
+
+  return {
+    _version: 1,
+    splash: {
+      minDurationMs: clampNumber(value?.splash?.minDurationMs ?? value?.splash?.durationMs, DEFAULT_MOBILE_LAUNCH_CONFIG.splash.minDurationMs, 500, 10000),
+      logoUrl: cleanOptionalText(value?.splash?.logoUrl, 1000),
+      imageUrl: cleanOptionalText(value?.splash?.imageUrl ?? value?.splash?.backgroundImageUrl, 1000),
+      title: cleanConfigText(value?.splash?.title, DEFAULT_MOBILE_LAUNCH_CONFIG.splash.title, 80),
+      subtitle: cleanConfigText(value?.splash?.subtitle ?? value?.splash?.message, DEFAULT_MOBILE_LAUNCH_CONFIG.splash.subtitle, 180),
+      backgroundColor: cleanConfigText(value?.splash?.backgroundColor, DEFAULT_MOBILE_LAUNCH_CONFIG.splash.backgroundColor, 24),
+      showSpinner: value?.splash?.showSpinner !== false,
+    },
+    onboarding: {
+      kicker: cleanConfigText(value?.onboarding?.kicker, DEFAULT_MOBILE_LAUNCH_CONFIG.onboarding.kicker, 40),
+      slides,
+    },
+    updatedAt: value?.updatedAt || null,
+  };
+}
+
+function assertMobileLaunchConfig(body: any) {
+  const splash = body?.splash || {};
+  if (!String(splash.title || '').trim()) throw new BadRequestException('Splash title is required');
+  if (!String(splash.subtitle || splash.message || '').trim()) throw new BadRequestException('Splash subtitle is required');
+  const slides = Array.isArray(body?.onboarding?.slides) ? body.onboarding.slides : [];
+  if (slides.length < 3) throw new BadRequestException('At least 3 onboarding pages are required');
+  slides.forEach((slide: any, index: number) => {
+    if (!String(slide?.title || '').trim()) throw new BadRequestException(`Onboarding page ${index + 1} title is required`);
+    if (!String(slide?.description || slide?.subtitle || '').trim()) throw new BadRequestException(`Onboarding page ${index + 1} description is required`);
+  });
+}
+
+@Injectable()
+class MobileLaunchConfigService {
+  constructor(@InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>) {}
+
+  private async loadStoredConfig() {
+    const row = await this.configRepo.findOne({ where: { key: MOBILE_LAUNCH_CONFIG_KEY } });
+    return normalizeMobileLaunchConfig(row?.value);
+  }
+
+  private async loadBranding() {
+    const row = await this.configRepo.findOne({ where: { key: ADMIN_SETTINGS_KEY } });
+    const branding = { ...DEFAULT_ADMIN_SETTINGS.branding, ...(row?.value?.branding || {}) };
+    return {
+      logoUrl: String(branding.logoUrl || '/api/v1/branding/logo').trim(),
+      logoText: String(branding.logoText || 'BookMyFit.in').trim(),
+      shortText: String(branding.shortText || branding.logoText || 'BookMyFit').trim(),
+    };
+  }
+
+  async getPublicConfig() {
+    const [config, branding] = await Promise.all([this.loadStoredConfig(), this.loadBranding()]);
+    return { ...config, branding };
+  }
+
+  async getAdminConfig() {
+    return this.loadStoredConfig();
+  }
+
+  async saveAdminConfig(body: any) {
+    assertMobileLaunchConfig(body);
+    const value = normalizeMobileLaunchConfig({ ...body, updatedAt: new Date().toISOString() });
+    await this.configRepo.save({ key: MOBILE_LAUNCH_CONFIG_KEY, value });
+    return value;
+  }
+}
+
+@ApiTags('Mobile Launch Content')
+@Controller('mobile/launch-config')
+class MobileLaunchConfigController {
+  constructor(private readonly svc: MobileLaunchConfigService) {}
+
+  @Get()
+  getConfig() {
+    return this.svc.getPublicConfig();
+  }
+}
+
+@ApiTags('Admin Mobile Launch Content')
+@Controller('admin/mobile-launch-config')
+class AdminMobileLaunchConfigController {
+  constructor(private readonly svc: MobileLaunchConfigService) {}
+
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  getConfig() {
+    return this.svc.getAdminConfig();
+  }
+
+  @Put()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  saveConfig(@Body() body: any) {
+    return this.svc.saveAdminConfig(body);
+  }
+}
+
 @ApiTags('Admin Settings')
 @Controller('admin/settings')
 class AdminSettingsController {
@@ -992,8 +1174,8 @@ class CommissionController {
     CheckinEntity, UserEntity, SubscriptionEntity, GymEntity, TrainerEntity, WellnessPartnerEntity, FraudAlertEntity,
     AppConfigEntity, ProductEntity,
   ])],
-  controllers: [RatingsController, CouponsController, NotificationsController, MasterController, VideosController, AnalyticsController, FraudController, CommissionController, HomepageController, AdminSettingsController, BrandingController],
-  providers: [RatingsService, CouponsService, NotificationsService, MasterDataService, VideosService, AnalyticsService, FraudService],
+  controllers: [RatingsController, CouponsController, NotificationsController, MasterController, VideosController, AnalyticsController, FraudController, CommissionController, HomepageController, MobileLaunchConfigController, AdminMobileLaunchConfigController, AdminSettingsController, BrandingController],
+  providers: [RatingsService, CouponsService, NotificationsService, MasterDataService, VideosService, AnalyticsService, FraudService, MobileLaunchConfigService],
   exports: [RatingsService, CouponsService, NotificationsService, MasterDataService, VideosService, FraudService],
 })
 export class MiscModule {}
