@@ -129,12 +129,14 @@ export default function PlansPage() {
 
   return (
     <Shell title="Plan Management">
-      <div style={{ maxWidth: 980 }}>
-        <div style={{ marginBottom: 24 }}>
-          <h1 className="serif" style={{ fontSize: 28, fontWeight: 900, marginBottom: 6 }}>Plan Management</h1>
-          <p style={{ color: 'var(--t2)', fontSize: 14, maxWidth: 760 }}>
+      <div>
+        <div className="admin-page-header">
+          <div>
+          <h1 className="admin-page-title">Plan Management</h1>
+          <p className="admin-page-copy">
             Manage global checkout commission and service-level overrides from one place. User checkout shows the base amount plus the configured add-on.
           </p>
+          </div>
         </div>
 
         {loading ? (
@@ -269,7 +271,7 @@ export default function PlansPage() {
                     )}
                   </div>
 
-                  <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(280px, 1.2fr) minmax(190px, 0.8fr)', gap: 14, alignItems: 'center' }}>
+                  <div className="admin-form-grid" style={{ marginTop: 18, alignItems: 'center' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--t)', fontSize: 13 }}>
                       <input
                         type="checkbox"

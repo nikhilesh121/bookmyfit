@@ -128,9 +128,10 @@ export default function CorporatePage() {
       </div>
 
       {/* Search + Add */}
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
         <input
           className="glass-input flex-1"
+          style={{ minWidth: 260 }}
           placeholder="Search by company name or email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}

@@ -143,7 +143,7 @@ export default function AnalyticsPage() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <div className="glass p-6">
           <h3 className="serif text-lg mb-4">Top Gyms</h3>
           <table className="glass-table">

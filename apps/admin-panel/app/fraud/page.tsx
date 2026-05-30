@@ -79,14 +79,14 @@ export default function FraudPage() {
 
   return (
     <Shell title="Fraud Monitoring">
-      <div style={{ padding: '2rem', maxWidth: 1200 }}>
+      <div>
         <div style={{ marginBottom: '1.75rem' }}>
           <p className="kicker">Admin</p>
           <h1 className="serif" style={{ fontSize: '2rem', color: 'var(--t)', margin: 0 }}>Fraud Monitoring</h1>
         </div>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.75rem' }}>
+        <div className="admin-stat-grid" style={{ marginBottom: '1.75rem' }}>
           {loading ? Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="animate-pulse" style={{ height: 90, borderRadius: 8, background: 'var(--surface)' }} />
           )) : (
@@ -124,7 +124,7 @@ export default function FraudPage() {
         </div>
 
         {/* Table */}
-        <div className="glass" style={{ borderRadius: 12, overflow: 'hidden' }}>
+        <div className="glass" style={{ borderRadius: 12, overflowX: 'auto' }}>
           {loading ? (
             <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {Array.from({ length: 4 }).map((_, i) => (

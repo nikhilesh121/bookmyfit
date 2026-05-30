@@ -271,10 +271,10 @@ export default function WellnessPage() {
       )}
 
       {/* Page header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+      <div className="admin-page-header">
         <div>
-          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, color: '#fff', margin: 0, letterSpacing: -0.5 }}>Wellness Services</h1>
-          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 14, margin: '4px 0 0', fontFamily: 'DM Sans, sans-serif' }}>
+          <h1 className="admin-page-title">Wellness Services</h1>
+          <p className="admin-page-copy">
             Manage spa centres, services, pricing and visibility
           </p>
         </div>
@@ -285,7 +285,7 @@ export default function WellnessPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
         {(['centres', 'services'] as const).map(t => (
           <button
             key={t}
@@ -312,7 +312,7 @@ export default function WellnessPage() {
               <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: '#fff', margin: '0 0 20px', fontSize: 17 }}>
                 {editingPartner ? 'Edit Spa Centre' : 'New Spa Centre'}
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+              <div className="admin-form-grid" style={{ marginBottom: 16 }}>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={label('NAME *')}>NAME *</label>
                   <input style={input} placeholder="e.g. Serenity Spa & Wellness" value={partnerForm.name} onChange={e => setPartnerForm(f => ({ ...f, name: e.target.value }))} />
@@ -368,9 +368,9 @@ export default function WellnessPage() {
           )}
 
           {/* Partners table */}
-          <div style={{ display: 'grid', gap: 10 }}>
+          <div className="admin-card-list">
             {partners.map(p => (
-              <div key={p.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div key={p.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
                     <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 16, color: '#fff' }}>{p.name}</span>
@@ -393,7 +393,7 @@ export default function WellnessPage() {
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                   <button style={btn()} onClick={() => openEditPartner(p)}><Edit3 size={14} /> Edit</button>
                   <button
                     style={{ ...btn(), background: 'rgba(255,255,255,0.05)', color: '#60A5FA', borderColor: 'rgba(96,165,250,0.2)' }}
@@ -438,7 +438,7 @@ export default function WellnessPage() {
               <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: '#fff', margin: '0 0 20px', fontSize: 17 }}>
                 {editingSvc ? 'Edit Service' : 'New Service'}
               </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+              <div className="admin-form-grid" style={{ marginBottom: 16 }}>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={label('SERVICE NAME *')}>SERVICE NAME *</label>
                   <input style={input} placeholder="e.g. Full Body Massage" value={svcForm.name} onChange={e => setSvcForm(f => ({ ...f, name: e.target.value }))} />
@@ -494,13 +494,13 @@ export default function WellnessPage() {
           )}
 
           {/* Services list */}
-          <div style={{ display: 'grid', gap: 10 }}>
+          <div className="admin-card-list">
             {filteredServices.map(svc => {
               const partner = partners.find(p => p.id === svc.partnerId) || svc.partner;
               const cc = catColor[svc.category] || '#aaa';
               const approval = svc.approvalStatus || 'approved';
               return (
-                <div key={svc.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16, opacity: svc.isActive || approval === 'pending' ? 1 : 0.5 }}>
+                <div key={svc.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', opacity: svc.isActive || approval === 'pending' ? 1 : 0.5 }}>
                   {svc.imageUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={svc.imageUrl} alt={svc.name} style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
@@ -534,7 +534,7 @@ export default function WellnessPage() {
                       )}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                     {approval !== 'approved' && (
                       <button style={btn('green')} onClick={() => reviewService(svc.id, 'approved')}><Check size={14} /> Approve</button>
                     )}

@@ -109,9 +109,9 @@ export default function NotificationsPage() {
 
   return (
     <Shell title="Push Notifications">
-      <div style={{ maxWidth: 1100 }}>
+      <div>
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.75rem' }}>
+        <div className="admin-stat-grid" style={{ marginBottom: '1.75rem' }}>
           <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <Bell size={22} color="var(--accent)" />
             <div>
@@ -137,7 +137,7 @@ export default function NotificationsPage() {
 
         {/* Send / Broadcast Tabs */}
         <div className="glass p-6 mb-6">
-          <div className="flex gap-2 mb-5">
+          <div className="flex gap-2 mb-5 flex-wrap">
             {(['broadcast', 'send'] as const).map((t) => (
               <button key={t} onClick={() => setActiveTab(t)}
                 className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all"
@@ -211,7 +211,7 @@ export default function NotificationsPage() {
 
         {/* Notifications Table */}
         <h3 className="serif" style={{ fontSize: '1.1rem', color: 'var(--t)', marginBottom: '0.9rem' }}>All Notifications</h3>
-        <div className="glass" style={{ borderRadius: 12, overflow: 'hidden' }}>
+        <div className="glass" style={{ borderRadius: 12, overflowX: 'auto' }}>
           {loading ? (
             <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {Array.from({ length: 3 }).map((_, i) => (

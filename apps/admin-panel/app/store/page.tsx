@@ -157,7 +157,7 @@ export default function StorePage() {
               <select className="glass-input" value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
               </select>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10 }}>
                 <input className="glass-input" placeholder="Price ₹" type="number" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} required />
                 <input className="glass-input" placeholder="MRP ₹" type="number" value={editForm.mrp} onChange={e => setEditForm(f => ({ ...f, mrp: e.target.value }))} />
                 <input className="glass-input" placeholder="Stock" type="number" value={editForm.stock} onChange={e => setEditForm(f => ({ ...f, stock: e.target.value }))} required />
@@ -184,7 +184,7 @@ export default function StorePage() {
         </div>
       )}
       {/* Tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 flex-wrap">
         {(['products', 'orders'] as const).map((t) => (
           <button
             key={t}
@@ -225,7 +225,7 @@ export default function StorePage() {
 
       {tab === 'products' && (
         <>
-          <div className="flex justify-end mb-4">
+          <div className="flex justify-end mb-4 flex-wrap">
             <button className="btn btn-primary flex items-center gap-2" onClick={() => setShowAddForm((v) => !v)}>
               <Plus size={14} /> Add Product
             </button>

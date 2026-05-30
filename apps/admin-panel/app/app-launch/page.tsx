@@ -209,12 +209,12 @@ export default function AppLaunchPage() {
 
   return (
     <Shell title="App Launch">
-      <div className="card p-4 mb-6 flex items-start justify-between gap-4" style={{ borderColor: 'rgba(100,160,255,0.3)', background: 'rgba(100,160,255,0.06)' }}>
+      <div className="card p-4 mb-6 flex items-start justify-between gap-4 flex-wrap" style={{ borderColor: 'rgba(100,160,255,0.3)', background: 'rgba(100,160,255,0.06)' }}>
         <div style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.6 }}>
           <strong style={{ color: 'var(--t)' }}>Splash and onboarding content</strong> controls what users see when they open the mobile app.
           The splash appears on every app launch. Onboarding appears for new users until they tap Get Started.
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap">
           <button className="btn btn-ghost" onClick={resetDefaults}><RotateCcw size={14} /> Defaults</button>
           <button className="btn btn-primary" onClick={save} disabled={saving || Boolean(validation)}>
             <Save size={14} /> {saving ? 'Saving...' : 'Save'}
@@ -228,7 +228,7 @@ export default function AppLaunchPage() {
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
           <div className="space-y-6">
             <div className="glass p-6">
-              <div className="flex items-start justify-between gap-4 mb-5">
+              <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
                 <div>
                   <h3 className="serif text-lg mb-2">Splash Screen</h3>
                   <p className="text-sm" style={{ color: 'var(--t2)' }}>
@@ -270,7 +270,7 @@ export default function AppLaunchPage() {
             </div>
 
             <div className="glass p-6">
-              <div className="flex items-start justify-between gap-4 mb-5">
+              <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
                 <div>
                   <h3 className="serif text-lg mb-2">Onboarding Pages</h3>
                   <p className="text-sm" style={{ color: 'var(--t2)' }}>
@@ -310,7 +310,7 @@ export default function AppLaunchPage() {
 
                 {activeSlide && (
                   <div className="card p-5">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                       <h4 className="serif text-lg">Edit Page {selected + 1}</h4>
                       <div className="flex gap-2">
                         <button className="btn btn-ghost" onClick={() => moveSlide(selected, -1)} disabled={selected === 0}><ArrowUp size={14} /></button>

@@ -193,7 +193,7 @@ export default function KYCPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-2 mb-5">
+      <div className="flex gap-2 mb-5 flex-wrap">
         {TABS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className="btn text-xs"
@@ -291,7 +291,7 @@ export default function KYCPage() {
                     {expandedId === g.id && (
                       <tr key={`${g.id}-expanded`} style={{ background: 'rgba(255,255,255,0.02)' }}>
                         <td colSpan={7} style={{ padding: '16px 24px' }}>
-                          <div className="grid grid-cols-2 gap-6" style={{ fontSize: 13 }}>
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6" style={{ fontSize: 13 }}>
                             <div>
                               <div className="kicker mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>KYC Status</div>
                               <div style={{ color: 'var(--t)', marginBottom: 12 }}>{g.kycStatus || g.status || 'not_started'}</div>

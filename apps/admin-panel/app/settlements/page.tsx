@@ -141,8 +141,8 @@ export default function SettlementsPage() {
         })}
       </div>
 
-      <div className="flex items-center gap-3 mb-5">
-        <input value={q} onChange={(e) => setQ(e.target.value)} className="glass-input flex-1" placeholder="Search by gym name..." />
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
+        <input value={q} onChange={(e) => setQ(e.target.value)} className="glass-input flex-1" style={{ minWidth: 260 }} placeholder="Search by gym name..." />
         <button onClick={load} className="btn btn-ghost text-sm">Refresh</button>
         <button className="btn btn-primary text-sm" onClick={() => setShowGenerate(true)}>Generate Settlement</button>
       </div>

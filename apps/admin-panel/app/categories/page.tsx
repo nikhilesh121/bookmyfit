@@ -399,7 +399,7 @@ export default function CategoriesPage() {
         ) : (
           <div className="space-y-3">
             {pending.map((r) => (
-              <div key={r.id} className="flex items-center justify-between gap-3 p-3 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <div key={r.id} className="flex items-center justify-between gap-3 p-3 rounded-xl flex-wrap" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-2 min-w-0">
                   <IconPreview iconUrl={r.iconUrl} />
                   <div className="min-w-0">
@@ -408,7 +408,7 @@ export default function CategoriesPage() {
                     <span className="ml-2 accent-pill">Amenity</span>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <button className="btn btn-primary text-xs flex items-center gap-1" onClick={() => approveRequest(r.id)}>
                     <CheckCircle size={12} /> Approve
                   </button>
