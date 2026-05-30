@@ -3,7 +3,7 @@ import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet,
   Image, ImageBackground, ActivityIndicator, Share,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
@@ -33,6 +33,7 @@ function groupByCategory(services: Service[]): Record<string, Service[]> {
 
 export default function WellnessDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
   const [partner, setPartner] = useState<Partner | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,8 +89,11 @@ export default function WellnessDetailScreen() {
   const grouped = groupByCategory(services);
 
   return (
-    <SafeAreaView style={s.screen} edges={['left', 'right']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+    <SafeAreaView style={s.screen} edges={['top', 'left', 'right']}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 34) + 48 }}
+      >
         <View style={s.heroContainer}>
           <ImageBackground source={{ uri: heroUri }} style={s.heroImg}>
             <LinearGradient colors={['transparent', 'rgba(0,0,0,0.55)', 'rgba(6,6,6,0.92)']} locations={[0.3, 0.65, 1]} style={s.heroGradient}>
@@ -207,8 +211,8 @@ const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   heroContainer: { width: '100%' },
   heroImg: { width: '100%', height: 300, backgroundColor: colors.surface },
-  heroGradient: { flex: 1, height: 300, justifyContent: 'space-between', paddingTop: 52, paddingHorizontal: 16, paddingBottom: 20 },
-  heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', padding: 16 },
+  heroGradient: { flex: 1, height: 300, justifyContent: 'space-between', paddingTop: 16, paddingHorizontal: 16, paddingBottom: 20 },
+  heroTopRow: { flexDirection: 'row', justifyContent: 'space-between' },
   glassCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
   heroBottom: { gap: 10 },
   discountBadge: { alignSelf: 'flex-start', backgroundColor: colors.accent, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
@@ -229,7 +233,7 @@ const s = StyleSheet.create({
   emptyCard: { padding: 16, borderRadius: radius.lg, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass },
   emptyTitle: { fontFamily: fonts.serif, fontSize: 22, color: '#fff', textAlign: 'center', marginBottom: 8 },
   emptyText: { fontFamily: fonts.sans, fontSize: 14, color: colors.t2, textAlign: 'center', lineHeight: 20 },
-  svcCard: { flexDirection: 'row', gap: 12, padding: 12, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  svcCard: { flexDirection: 'row', gap: 12, padding: 12, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginBottom: 12, minHeight: 134 },
   svcImg: { width: 86, height: 104, borderRadius: radius.md, backgroundColor: colors.bg },
   svcBody: { flex: 1 },
   svcName: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff', marginBottom: 8 },
@@ -243,6 +247,6 @@ const s = StyleSheet.create({
   svcPrice: { fontFamily: fonts.sansBold, fontSize: 17, color: colors.accent },
   discBadge: { backgroundColor: 'rgba(255,107,107,0.16)', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 },
   discText: { fontFamily: fonts.sansBold, fontSize: 10, color: '#ff6b6b' },
-  bookBtn: { alignSelf: 'flex-start', backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 8 },
+  bookBtn: { alignSelf: 'flex-start', minWidth: 112, minHeight: 38, backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: 16, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
   bookBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
 });

@@ -15,7 +15,8 @@ import * as crypto from 'crypto';
 @Injectable()
 export class CashfreeService {
   private readonly logger = new Logger('Cashfree');
-  private readonly apiBase = process.env.CASHFREE_ENV === 'production'
+  private readonly cashfreeEnv = process.env.CASHFREE_ENV === 'production' ? 'production' : 'sandbox';
+  private readonly apiBase = this.cashfreeEnv === 'production'
     ? 'https://api.cashfree.com/pg'
     : 'https://sandbox.cashfree.com/pg';
   private readonly clientId = process.env.CASHFREE_CLIENT_ID || 'TEST_CLIENT_ID';
@@ -30,6 +31,8 @@ export class CashfreeService {
       orderId,
       paymentSessionId: `mock_session_${orderId}`,
       orderStatus: 'ACTIVE',
+      cashfreeMode: this.cashfreeEnv,
+      cashfreeBaseUrl: this.cashfreeEnv === 'production' ? 'https://api.cashfree.com' : 'https://sandbox.cashfree.com',
       mock: true,
     };
   }
@@ -115,6 +118,8 @@ export class CashfreeService {
         orderId: data.order_id,
         paymentSessionId: data.payment_session_id,
         orderStatus: data.order_status,
+        cashfreeMode: this.cashfreeEnv,
+        cashfreeBaseUrl: this.cashfreeEnv === 'production' ? 'https://api.cashfree.com' : 'https://sandbox.cashfree.com',
       };
     } catch (err: any) {
       this.logger.error(`Cashfree API error: ${err.message}`);

@@ -86,6 +86,8 @@ export default function CartScreen() {
         params: {
           paymentSessionId: payment?.paymentSessionId || payment?.payment_session_id || '',
           orderId: payment?.orderId || payment?.order_id || order?.cashfreeOrderId || order?.id || '',
+          cashfreeMode: payment?.cashfreeMode || payment?.cashfreeEnv || '',
+          cashfreeBaseUrl: payment?.cashfreeBaseUrl || '',
           returnRoute: 'store',
           serviceName: `Order #${String(order?.id || '').slice(0, 8).toUpperCase()}`,
           amount: String(order?.totalAmount || total),

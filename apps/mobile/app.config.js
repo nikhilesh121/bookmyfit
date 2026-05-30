@@ -6,10 +6,9 @@ const apiUrl =
     ? 'https://bookmyfit.in'
     : 'http://localhost:3003');
 
-const isLiveApi = /^https:\/\/(www\.)?bookmyfit\.in(?:\/|$)/.test(apiUrl);
 const cashfreeBaseUrl =
   process.env.EXPO_PUBLIC_CASHFREE_BASE_URL ||
-  (isLiveApi ? 'https://api.cashfree.com' : 'https://sandbox.cashfree.com');
+  'https://sandbox.cashfree.com';
 
 const withArm64Only = (config) =>
   withGradleProperties(config, (props) => {

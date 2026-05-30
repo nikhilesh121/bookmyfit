@@ -9,11 +9,10 @@ import { IconArrowLeft, IconCheck } from '../components/Icons';
 import { subscriptionsApi, api, API_BASE } from '../lib/api';
 import { clearCart } from './cart';
 
-const CASHFREE_BASE_URL: string =
+const DEFAULT_CASHFREE_BASE_URL: string =
   process.env.EXPO_PUBLIC_CASHFREE_BASE_URL ||
   (Constants.expoConfig?.extra as any)?.cashfreeBaseUrl ||
   'https://sandbox.cashfree.com';
-const CASHFREE_MODE = CASHFREE_BASE_URL.includes('sandbox') ? 'sandbox' : 'production';
 const VERIFY_DELAYS_MS = [0, 1000, 2000, 3000, 5000, 8000, 12000];
 const EXTERNAL_PAYMENT_PREFIXES = [
   'upi://',
@@ -52,10 +51,12 @@ const isExternalPaymentIntent = (url: string) => {
 export default function PaymentWebview() {
   const {
     orderId, sessionId, paymentSessionId,
+    cashfreeMode, cashfreeBaseUrl,
     planId, planName, gymId, gymName, subId, amountPaid, validUntil,
     bookingId, returnRoute, serviceName, amount,
   } = useLocalSearchParams<{
     orderId: string; sessionId?: string; paymentSessionId?: string;
+    cashfreeMode?: string; cashfreeBaseUrl?: string;
     planId?: string; planName?: string; gymId?: string; gymName?: string; subId?: string; amountPaid?: string; validUntil?: string;
     bookingId?: string; returnRoute?: string; serviceName?: string; amount?: string;
   }>();
@@ -69,12 +70,22 @@ export default function PaymentWebview() {
 
   // Support both old 'sessionId' param and new 'paymentSessionId' param
   const effectiveSessionId = paymentSessionId || sessionId || '';
+  const effectiveCashfreeMode =
+    String(cashfreeMode || '').toLowerCase() === 'production'
+      ? 'production'
+      : String(cashfreeMode || '').toLowerCase() === 'sandbox'
+        ? 'sandbox'
+        : String(cashfreeBaseUrl || DEFAULT_CASHFREE_BASE_URL).includes('sandbox')
+          ? 'sandbox'
+          : 'production';
+  const effectiveCashfreeBaseUrl =
+    effectiveCashfreeMode === 'production' ? 'https://api.cashfree.com' : 'https://sandbox.cashfree.com';
   const isMock = effectiveSessionId.startsWith('mock_session_');
   const allowMockPayment = __DEV__ || API_BASE.includes('localhost') || API_BASE.includes('127.0.0.1');
 
   const checkoutHtml = useMemo(() => {
     const safeSession = JSON.stringify(effectiveSessionId);
-    const safeMode = JSON.stringify(CASHFREE_MODE);
+    const safeMode = JSON.stringify(effectiveCashfreeMode);
     const safeOrderId = JSON.stringify(orderId || '');
     return `<!doctype html>
 <html>
@@ -135,7 +146,7 @@ export default function PaymentWebview() {
     </script>
   </body>
 </html>`;
-  }, [effectiveSessionId, orderId]);
+  }, [effectiveSessionId, effectiveCashfreeMode, orderId]);
 
   const showPaymentFailed = (message = 'Your payment was not completed. Please try again.') => {
     successHandledRef.current = false;
@@ -532,7 +543,7 @@ export default function PaymentWebview() {
 
       <WebView
         ref={webviewRef}
-        source={{ html: checkoutHtml, baseUrl: CASHFREE_BASE_URL }}
+        source={{ html: checkoutHtml, baseUrl: effectiveCashfreeBaseUrl }}
         originWhitelist={['*']}
         onLoadEnd={() => {
           setLoading(false);

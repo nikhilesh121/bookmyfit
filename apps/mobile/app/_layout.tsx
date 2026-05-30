@@ -133,6 +133,7 @@ export default function RootLayout() {
         <Stack.Screen name="trainers" options={{ headerShown: false }} />
         <Stack.Screen name="slots" options={{ headerShown: false }} />
         <Stack.Screen name="wellness" options={{ headerShown: false }} />
+        <Stack.Screen name="wellness/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="subscription-detail" options={{ headerShown: false }} />
         <Stack.Screen name="product/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="payment-webview" options={{ headerShown: false, gestureEnabled: false }} />

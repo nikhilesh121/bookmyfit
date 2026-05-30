@@ -90,6 +90,8 @@ export default function Order() {
       const subId = subRecord?.id || subRecord?._id;
       const orderId = paymentInfo?.orderId || result?.orderId;
       const sessionId = paymentInfo?.paymentSessionId || result?.paymentSessionId;
+      const cashfreeMode = paymentInfo?.cashfreeMode || paymentInfo?.cashfreeEnv || result?.cashfreeMode || '';
+      const cashfreeBaseUrl = paymentInfo?.cashfreeBaseUrl || result?.cashfreeBaseUrl || '';
       const validUntil = formatDateLabel(subRecord?.endDate)
         || new Date(Date.now() + Math.max(months, 1) * 30 * 24 * 3600 * 1000)
           .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -123,6 +125,8 @@ export default function Order() {
           params: {
             orderId,
             sessionId,
+            cashfreeMode,
+            cashfreeBaseUrl,
             planId: planId || '',
             planName: planName || 'Standard Plan',
             gymId: gymId || '',

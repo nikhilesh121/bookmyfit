@@ -84,6 +84,8 @@ export default function BookServiceScreen() {
         params: {
           paymentSessionId: payment?.paymentSessionId || payment?.payment_session_id || '',
           orderId: payment?.orderId || payment?.order_id || booking?.cashfreeOrderId || booking?.id,
+          cashfreeMode: payment?.cashfreeMode || payment?.cashfreeEnv || '',
+          cashfreeBaseUrl: payment?.cashfreeBaseUrl || '',
           bookingId: booking?.id || '',
           returnRoute: 'wellness',
           serviceName: serviceName || '',

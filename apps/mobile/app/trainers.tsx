@@ -127,6 +127,8 @@ export default function TrainersScreen() {
       });
       const orderId: string = res?.payment?.orderId || res?.payment?.cfOrderId || res?.booking?.cashfreeOrderId || '';
       const sessionId: string = res?.payment?.cfSessionId || res?.payment?.paymentSessionId || '';
+      const cashfreeMode: string = res?.payment?.cashfreeMode || res?.payment?.cashfreeEnv || '';
+      const cashfreeBaseUrl: string = res?.payment?.cashfreeBaseUrl || '';
       const chargedAmount = Number(res?.booking?.amount || res?.payment?.amount || totalPrice);
       setSelected(null);
       if (orderId) {
@@ -135,6 +137,8 @@ export default function TrainersScreen() {
           params: {
             orderId,
             sessionId,
+            cashfreeMode,
+            cashfreeBaseUrl,
             planId: 'pt_monthly',
             planName: `${months} month trainer plan`,
             gymId: selected.gymId || (gymId as string) || '',
