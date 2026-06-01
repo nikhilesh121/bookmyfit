@@ -138,7 +138,7 @@ export class AuthService {
     if (session.provider === 'msg91') {
       const verifyResponse = await this.msg91Post(
         MSG91_VERIFY_OTP_URL,
-        { reqId: session.reqId, otp: code },
+        { widgetId: process.env.MSG91_OTP_WIDGET_ID, reqId: session.reqId, otp: code },
         { authkey: process.env.MSG91_AUTH_KEY || '' },
       );
       if (!this.isMsg91Success(verifyResponse)) {
