@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
@@ -7,36 +7,58 @@ import { IconArrowLeft, IconCheck } from '../components/Icons';
 import AuroraBackground from '../components/AuroraBackground';
 import { authApi, setTokens, setUser } from '../lib/api';
 
-// Expo Router can return string | string[] — always coerce to string
+// Expo Router can return string | string[]; always coerce to string.
 function str(v: string | string[] | undefined): string {
   if (Array.isArray(v)) return v[0] ?? '';
   return v ?? '';
 }
+
+const RESEND_WAIT_SECONDS = 30;
 
 export default function OtpScreen() {
   const raw = useLocalSearchParams();
   const phone         = str(raw.phone);
   const userExistsParam = str(raw.userExists);
   const userNameParam   = str(raw.userName);
-  const devOtp = str(raw.devOtp);
+  const initialDevOtp = str(raw.devOtp);
 
   const isExistingUser = userExistsParam === 'true';
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSeconds, setResendSeconds] = useState(RESEND_WAIT_SECONDS);
+  const [devOtp, setDevOtp] = useState(initialDevOtp);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const timer = setTimeout(() => setResendSeconds((value) => Math.max(value - 1, 0)), 1000);
+    return () => clearTimeout(timer);
+  }, [resendSeconds]);
 
   const verify = async () => {
-    if (code.length < 6) return Alert.alert('Enter OTP', 'Please enter the 6-digit OTP.');
-    if (!isExistingUser && !name.trim()) return Alert.alert('Enter your name', 'Please enter your name to create your account.');
+    if (loading) return;
+    if (code.length < 6) {
+      setError('Please enter the 6-digit OTP.');
+      return;
+    }
+    if (!isExistingUser && !name.trim()) {
+      setError('Please enter your name to create your account.');
+      return;
+    }
+    setError('');
+    setNotice('');
     setLoading(true);
     try {
       const deviceId = `dev-${Date.now()}`;
-      // Always send name as a string — existing users send their known name,
+      // Always send name as a string; existing users send their known name,
       // new users send what they typed. Never send undefined (production backend requires it).
       const nameToSend = isExistingUser ? (userNameParam || 'User') : (name.trim() || 'User');
       const data: any = await authApi.verifyOtp(phone, code, deviceId, nameToSend);
 
-      if (!data?.accessToken) throw new Error('Login failed — no token returned. Please try again.');
+      if (!data?.accessToken) throw new Error('Login failed. No token returned. Please try again.');
 
       // Store tokens
       await setTokens(data.accessToken, data.refreshToken || '');
@@ -52,9 +74,27 @@ export default function OtpScreen() {
         router.replace('/(tabs)' as any);
       }
     } catch (err: any) {
-      Alert.alert('Verification Failed', err?.message ?? 'Something went wrong. Please try again.');
+      setError(err?.message ?? 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resendOtp = async () => {
+    if (loading || resendLoading || resendSeconds > 0) return;
+    setError('');
+    setNotice('');
+    setResendLoading(true);
+    try {
+      const data = await authApi.sendOtp(phone) as any;
+      setCode('');
+      setDevOtp(data?.devOtp || '');
+      setResendSeconds(RESEND_WAIT_SECONDS);
+      setNotice(`A new OTP has been sent to +91 ${phone}.`);
+    } catch (err: any) {
+      setError(err?.message || 'Unable to resend OTP. Please try again.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -86,8 +126,17 @@ export default function OtpScreen() {
               <>
                 <Text style={s.label}>Your name</Text>
                 <View style={s.inputRow}>
-                  <TextInput style={s.input} placeholder="First + last name" placeholderTextColor={colors.t3}
-                    value={name} onChangeText={setName} />
+                  <TextInput
+                    style={s.input}
+                    placeholder="First + last name"
+                    placeholderTextColor={colors.t3}
+                    value={name}
+                    onChangeText={(value) => {
+                      setName(value);
+                      if (error) setError('');
+                    }}
+                    editable={!loading && !resendLoading}
+                  />
                 </View>
               </>
             )}
@@ -95,8 +144,16 @@ export default function OtpScreen() {
             <View style={[s.inputRow, { borderColor: code.length > 0 ? colors.accentBorder : colors.borderGlass }]}>
               <TextInput
                 style={[s.input, { letterSpacing: 10, fontFamily: fonts.sansBold, fontSize: 20, textAlign: 'center' }]}
-                placeholder="••••••" placeholderTextColor={colors.t3}
-                keyboardType="number-pad" value={code} onChangeText={setCode} maxLength={6} autoFocus
+                placeholder="------" placeholderTextColor={colors.t3}
+                keyboardType="number-pad"
+                value={code}
+                onChangeText={(value) => {
+                  setCode(value.replace(/\D/g, '').slice(0, 6));
+                  if (error) setError('');
+                }}
+                maxLength={6}
+                autoFocus
+                editable={!loading && !resendLoading}
               />
             </View>
             {!!devOtp && (
@@ -104,6 +161,21 @@ export default function OtpScreen() {
                 Test OTP: <Text style={{ color: colors.accent, fontFamily: fonts.sansBold }}>{devOtp}</Text>
               </Text>
             )}
+            {!!error && <Text style={s.errorText}>{error}</Text>}
+            {!!notice && <Text style={s.noticeText}>{notice}</Text>}
+            <View style={s.resendRow}>
+              <Text style={s.resendText}>
+                {resendSeconds > 0 ? `Resend OTP in ${resendSeconds}s` : 'Did not receive the OTP?'}
+              </Text>
+              <TouchableOpacity
+                style={[s.resendBtn, (resendSeconds > 0 || resendLoading || loading) && s.resendBtnDisabled]}
+                disabled={resendSeconds > 0 || resendLoading || loading}
+                onPress={resendOtp}
+                activeOpacity={0.85}
+              >
+                {resendLoading ? <ActivityIndicator size="small" color={colors.accent} /> : <Text style={s.resendBtnText}>Resend</Text>}
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={s.bottom}>
@@ -114,7 +186,10 @@ export default function OtpScreen() {
               activeOpacity={0.85}
             >
               {loading ? (
-                <Text style={s.ctaText}>Verifying…</Text>
+                <>
+                  <ActivityIndicator size="small" color="#000" />
+                  <Text style={s.ctaText}>Verifying...</Text>
+                </>
               ) : (
                 <>
                   <Text style={s.ctaText}>Verify & Continue</Text>
@@ -150,6 +225,18 @@ const s = StyleSheet.create({
   },
   input: { flex: 1, fontFamily: fonts.sans, fontSize: 15, color: '#fff' },
   devHint: { fontFamily: fonts.sans, fontSize: 11, color: colors.t3, marginTop: 12 },
+  errorText: { marginTop: 12, fontFamily: fonts.sansMedium, fontSize: 12, color: colors.error, lineHeight: 18 },
+  noticeText: { marginTop: 12, fontFamily: fonts.sansMedium, fontSize: 12, color: colors.success, lineHeight: 18 },
+  resendRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  resendText: { flex: 1, fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
+  resendBtn: {
+    minWidth: 90, height: 38, borderRadius: radius.pill,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.accentBorder,
+    backgroundColor: colors.accentSoft,
+  },
+  resendBtnDisabled: { opacity: 0.45 },
+  resendBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
   bottom: { paddingBottom: 32 },
   cta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,

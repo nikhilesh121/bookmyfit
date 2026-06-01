@@ -215,7 +215,11 @@ export class AuthService {
   }
 
   private msg91ErrorMessage(data: any, fallback: string) {
-    return String(data?.message || data?.msg || data?.error || fallback);
+    const message = String(data?.message || data?.msg || data?.error || fallback);
+    if (message.toLowerCase().includes('captcha')) {
+      return 'OTP setup error: disable Captcha Validation in the MSG91 OTP Widget settings for this API flow.';
+    }
+    return message;
   }
 
   async setupFirstAdmin(email: string, password: string) {
