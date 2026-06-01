@@ -57,6 +57,21 @@ function findMsg91RequestId(data: any) {
   return null;
 }
 
+function looksLikeJwt(value: any) {
+  const text = String(value ?? '').trim();
+  return /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(text);
+}
+
+function findMsg91AccessToken(data: any) {
+  const explicit = findNestedValue(data, ['access-token', 'accessToken', 'token', 'jwt', 'jwtToken']);
+  if (explicit) return String(explicit).trim();
+
+  const message = findNestedValue(data, ['message', 'msg']);
+  if (looksLikeJwt(message)) return String(message).trim();
+
+  return null;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -144,18 +159,23 @@ export class AuthService {
       if (!this.isMsg91Success(verifyResponse)) {
         throw new UnauthorizedException(this.msg91ErrorMessage(verifyResponse, 'Invalid or expired OTP'));
       }
-      const accessToken = findNestedValue(verifyResponse, ['access-token', 'accessToken', 'token', 'jwt', 'jwtToken']);
-      if (!accessToken) throw new UnauthorizedException('OTP provider did not return access token');
-      const accessResponse = await this.msg91Post(
-        MSG91_VERIFY_ACCESS_TOKEN_URL,
-        { authkey: process.env.MSG91_AUTH_KEY, 'access-token': accessToken },
-      );
-      if (!this.isMsg91Success(accessResponse)) {
-        throw new UnauthorizedException(this.msg91ErrorMessage(accessResponse, 'OTP token verification failed'));
-      }
-      const verifiedIdentifier = findNestedValue(accessResponse, ['identifier', 'mobile', 'phone', 'phoneNumber', 'number']);
+      const verifiedIdentifier = findNestedValue(verifyResponse, ['identifier', 'mobile', 'phone', 'phoneNumber', 'number']);
       if (verifiedIdentifier && normalizePhone(String(verifiedIdentifier)) !== phone) {
         throw new UnauthorizedException('OTP token does not match this phone number');
+      }
+      const accessToken = findMsg91AccessToken(verifyResponse);
+      if (accessToken) {
+        const accessResponse = await this.msg91Post(
+          MSG91_VERIFY_ACCESS_TOKEN_URL,
+          { authkey: process.env.MSG91_AUTH_KEY, 'access-token': accessToken },
+        );
+        if (!this.isMsg91Success(accessResponse)) {
+          throw new UnauthorizedException(this.msg91ErrorMessage(accessResponse, 'OTP token verification failed'));
+        }
+        const tokenIdentifier = findNestedValue(accessResponse, ['identifier', 'mobile', 'phone', 'phoneNumber', 'number']);
+        if (tokenIdentifier && normalizePhone(String(tokenIdentifier)) !== phone) {
+          throw new UnauthorizedException('OTP token does not match this phone number');
+        }
       }
     } else if (!session.code || session.code !== code) {
       throw new UnauthorizedException('Invalid or expired OTP');
@@ -228,7 +248,7 @@ export class AuthService {
   private isMsg91Success(data: any) {
     const type = String(data?.type || data?.status || '').toLowerCase();
     const message = String(data?.message || data?.msg || '').toLowerCase();
-    const hasToken = !!findNestedValue(data, ['access-token', 'accessToken', 'token', 'jwt', 'jwtToken']);
+    const hasToken = !!findMsg91AccessToken(data);
     const hasReqId = !!findMsg91RequestId(data);
     if (type.includes('error') || message.includes('invalid') || message.includes('failed') || message.includes('fail')) return false;
     return type.includes('success') || message.includes('success') || message.includes('sent') || message.includes('verified') || hasToken || hasReqId;
