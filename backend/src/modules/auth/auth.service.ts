@@ -11,8 +11,30 @@ import { CorporateAccountEntity } from '../../database/entities/corporate.entity
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 import { EmailService } from '../email/email.service';
 
+const MSG91_SEND_OTP_URL = 'https://api.msg91.com/api/v5/widget/sendOtp';
+const MSG91_VERIFY_OTP_URL = 'https://api.msg91.com/api/v5/widget/verifyOtp';
+const MSG91_VERIFY_ACCESS_TOKEN_URL = 'https://control.msg91.com/api/v5/widget/verifyAccessToken';
+
 function normalizeCatalogName(value: any): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function normalizePhone(value: string) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  return digits.slice(-10);
+}
+
+function findNestedValue(data: any, keys: string[]): any {
+  if (!data || typeof data !== 'object') return undefined;
+  for (const key of keys) {
+    if (data[key] !== undefined && data[key] !== null && data[key] !== '') return data[key];
+  }
+  for (const value of Object.values(data)) {
+    const nested = findNestedValue(value, keys);
+    if (nested !== undefined && nested !== null && nested !== '') return nested;
+  }
+  return undefined;
 }
 
 @Injectable()
@@ -28,37 +50,97 @@ export class AuthService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async sendOtp(phone: string) {
-    const smsConfigured = process.env.TWILIO_ACCOUNT_SID &&
-      !process.env.TWILIO_ACCOUNT_SID.startsWith('xxxxx') &&
-      process.env.TWILIO_ACCOUNT_SID !== 'placeholder';
+  async sendOtp(rawPhone: string) {
+    const phone = normalizePhone(rawPhone);
+    if (phone.length !== 10) throw new BadRequestException('Enter a valid 10-digit mobile number');
+    const existingUser = await this.users.findOne({ where: { phone } });
+    const testCode = this.getTestOtpCode(phone);
 
-    // Use fixed dev OTP when SMS is not configured (no Twilio keys set)
-    const code = smsConfigured
-      ? Math.floor(100000 + Math.random() * 900000).toString()
-      : '123456';
-
-    await this.redis.set(`otp:${phone}`, code, 'EX', 600);
-
-    if (smsConfigured) {
-      // TODO: uncomment when Twilio is live
-      // await twilio.messages.create({ to: `+91${phone}`, from: process.env.TWILIO_PHONE_NUMBER, body: `Your BookMyFit OTP: ${code}` });
+    if (testCode) {
+      await this.redis.set(`otp:${phone}`, JSON.stringify({ provider: 'test', code: testCode }), 'EX', 600);
+      return {
+        success: true,
+        message: 'OTP sent',
+        userExists: !!existingUser,
+        userName: existingUser?.name || null,
+        ...(this.shouldExposeDevOtp() && { devOtp: testCode }),
+      };
     }
 
-    const existingUser = await this.users.findOne({ where: { phone } });
+    if (this.isMsg91Configured()) {
+      const identifier = `91${phone}`;
+      const response = await this.msg91Post(
+        MSG91_SEND_OTP_URL,
+        { widgetId: process.env.MSG91_OTP_WIDGET_ID, identifier },
+        { authkey: process.env.MSG91_AUTH_KEY || '' },
+      );
+      if (!this.isMsg91Success(response)) {
+        throw new BadRequestException(this.msg91ErrorMessage(response, 'Unable to send OTP'));
+      }
+      const reqId = findNestedValue(response, ['reqId', 'requestId', 'request_id', 'requestID']);
+      if (!reqId) throw new BadRequestException('OTP provider did not return request ID');
+      await this.redis.set(`otp:${phone}`, JSON.stringify({ provider: 'msg91', reqId, identifier }), 'EX', 600);
+      return {
+        success: true,
+        message: 'OTP sent via SMS',
+        userExists: !!existingUser,
+        userName: existingUser?.name || null,
+      };
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('OTP service is not configured');
+    }
+
+    const code = '123456';
+    await this.redis.set(`otp:${phone}`, JSON.stringify({ provider: 'local', code }), 'EX', 600);
     return {
       success: true,
-      message: smsConfigured ? 'OTP sent via SMS' : 'OTP sent',
+      message: 'OTP sent',
       userExists: !!existingUser,
       userName: existingUser?.name || null,
-      // Always expose devOtp when SMS is not configured so app can show the hint
-      ...(!smsConfigured && { devOtp: code }),
+      ...(this.shouldExposeDevOtp() && { devOtp: code }),
     };
   }
 
-  async verifyOtp(phone: string, code: string, deviceId: string, name?: string) {
+  async verifyOtp(rawPhone: string, code: string, deviceId: string, name?: string) {
+    const phone = normalizePhone(rawPhone);
     const stored = await this.redis.get(`otp:${phone}`);
-    if (!stored || stored !== code) throw new UnauthorizedException('Invalid or expired OTP');
+    if (!stored) throw new UnauthorizedException('Invalid or expired OTP');
+
+    let session: any;
+    try {
+      session = JSON.parse(stored);
+    } catch {
+      session = { provider: 'legacy', code: stored };
+    }
+
+    if (session.provider === 'msg91') {
+      const verifyResponse = await this.msg91Post(
+        MSG91_VERIFY_OTP_URL,
+        { reqId: session.reqId, otp: code },
+        { authkey: process.env.MSG91_AUTH_KEY || '' },
+      );
+      if (!this.isMsg91Success(verifyResponse)) {
+        throw new UnauthorizedException(this.msg91ErrorMessage(verifyResponse, 'Invalid or expired OTP'));
+      }
+      const accessToken = findNestedValue(verifyResponse, ['access-token', 'accessToken', 'token', 'jwt', 'jwtToken']);
+      if (!accessToken) throw new UnauthorizedException('OTP provider did not return access token');
+      const accessResponse = await this.msg91Post(
+        MSG91_VERIFY_ACCESS_TOKEN_URL,
+        { authkey: process.env.MSG91_AUTH_KEY, 'access-token': accessToken },
+      );
+      if (!this.isMsg91Success(accessResponse)) {
+        throw new UnauthorizedException(this.msg91ErrorMessage(accessResponse, 'OTP token verification failed'));
+      }
+      const verifiedIdentifier = findNestedValue(accessResponse, ['identifier', 'mobile', 'phone', 'phoneNumber', 'number']);
+      if (verifiedIdentifier && normalizePhone(String(verifiedIdentifier)) !== phone) {
+        throw new UnauthorizedException('OTP token does not match this phone number');
+      }
+    } else if (!session.code || session.code !== code) {
+      throw new UnauthorizedException('Invalid or expired OTP');
+    }
+
     await this.redis.del(`otp:${phone}`);
 
     let user = await this.users.findOne({ where: { phone } });
@@ -76,6 +158,64 @@ export class AuthService {
     }
 
     return this.issueTokens(user);
+  }
+
+  private isMsg91Configured() {
+    const authKey = process.env.MSG91_AUTH_KEY;
+    const widgetId = process.env.MSG91_OTP_WIDGET_ID;
+    return !!authKey && !!widgetId && authKey !== 'xxxxx' && authKey !== 'placeholder';
+  }
+
+  private getTestOtpCode(phone: string) {
+    const entries = String(process.env.OTP_TEST_NUMBERS || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    for (const entry of entries) {
+      const [rawNumber, rawCode] = entry.split(':').map((part) => String(part || '').trim());
+      if (normalizePhone(rawNumber) === phone && /^\d{6}$/.test(rawCode)) return rawCode;
+    }
+    const singleTestPhone = process.env.OTP_TEST_PHONE ? normalizePhone(process.env.OTP_TEST_PHONE) : '';
+    const singleTestCode = process.env.OTP_TEST_CODE || '123456';
+    if (singleTestPhone && singleTestPhone === phone && /^\d{6}$/.test(singleTestCode)) return singleTestCode;
+    return null;
+  }
+
+  private shouldExposeDevOtp() {
+    return process.env.OTP_EXPOSE_DEV_OTP === 'true' || process.env.NODE_ENV !== 'production';
+  }
+
+  private async msg91Post(url: string, body: Record<string, any>, headers: Record<string, string> = {}) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { message: text };
+    }
+    if (!res.ok) throw new BadRequestException(this.msg91ErrorMessage(data, `OTP provider error ${res.status}`));
+    return data;
+  }
+
+  private isMsg91Success(data: any) {
+    const type = String(data?.type || data?.status || '').toLowerCase();
+    const message = String(data?.message || data?.msg || '').toLowerCase();
+    const hasToken = !!findNestedValue(data, ['access-token', 'accessToken', 'token', 'jwt', 'jwtToken']);
+    const hasReqId = !!findNestedValue(data, ['reqId', 'requestId', 'request_id', 'requestID']);
+    if (type.includes('error') || message.includes('invalid') || message.includes('failed') || message.includes('fail')) return false;
+    return type.includes('success') || message.includes('success') || message.includes('sent') || message.includes('verified') || hasToken || hasReqId;
+  }
+
+  private msg91ErrorMessage(data: any, fallback: string) {
+    return String(data?.message || data?.msg || data?.error || fallback);
   }
 
   async setupFirstAdmin(email: string, password: string) {

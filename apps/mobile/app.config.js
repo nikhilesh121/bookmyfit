@@ -26,6 +26,7 @@ module.exports = withArm64Only({
     version: "1.0.0",
     orientation: "portrait",
     scheme: "bookmyfit",
+    icon: "./assets/icon.png",
     userInterfaceStyle: "dark",
     splash: {
       backgroundColor: "#0a0f0a",
@@ -37,6 +38,10 @@ module.exports = withArm64Only({
     },
     android: {
       package: "in.bookmyfit.app",
+      adaptiveIcon: {
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#060606",
+      },
       permissions: [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",

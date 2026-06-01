@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export const metadata = {
   title: 'Delete Account | BookMyFit',
-  description: 'Request deletion of your BookMyFit member account and personal profile details.',
+  description: 'Request deletion of your BookMyFit account and associated personal profile details.',
 };
 
 export default function DeleteAccountPage() {
@@ -34,24 +34,26 @@ export default function DeleteAccountPage() {
           Delete your BookMyFit account
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 16, lineHeight: 1.7 }}>
-          You can delete your BookMyFit member account from inside the mobile app from
+          You can delete your BookMyFit account from inside the mobile app from
           Profile - Delete Account. If you cannot access the app, you can request deletion
-          from this page.
+          from this public page.
         </p>
 
         <div style={{ marginTop: 24, display: 'grid', gap: 14 }}>
           <div style={{ padding: 18, borderRadius: 14, background: 'rgba(0,212,106,0.10)', border: '1px solid rgba(0,212,106,0.26)' }}>
             <strong>What will be removed</strong>
             <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,0.68)', lineHeight: 1.6 }}>
-              Your member login access and personal profile identifiers such as phone, email,
-              name, and device login details will be removed or anonymized.
+              Your app login access and personal profile identifiers such as phone, email,
+              name, profile details, and device login details will be removed or anonymized.
             </p>
           </div>
           <div style={{ padding: 18, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
             <strong>What may be retained</strong>
             <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,0.68)', lineHeight: 1.6 }}>
-              Payment, invoice, booking, safety, fraud-prevention, and accounting records may
-              be retained for the period required by law or business compliance.
+              Payment references, invoices, bookings, check-ins, safety records,
+              fraud-prevention records, and accounting or settlement records may be retained
+              where required by law, payment processing, dispute handling, security, or
+              business compliance. Retained records are limited to those purposes.
             </p>
           </div>
         </div>
@@ -77,7 +79,8 @@ export default function DeleteAccountPage() {
 
         <p style={{ marginTop: 20, color: 'rgba(255,255,255,0.52)', fontSize: 13, lineHeight: 1.6 }}>
           Email: support@bookmyfit.in. We may contact you to verify ownership before completing
-          the deletion request.
+          the deletion request. Most verified deletion requests are reviewed within a reasonable
+          support window; urgent payment or safety records may require additional verification.
         </p>
       </section>
     </main>

@@ -34,6 +34,7 @@ export default function Login() {
           phone: phoneDigits,
           userExists: data.userExists ? 'true' : 'false',
           userName: data.userName || '',
+          devOtp: data.devOtp || '',
         },
       });
     } catch (err: any) {
@@ -92,10 +93,6 @@ export default function Login() {
               <Text style={s.ctaText}>{loading ? 'Sending…' : 'Continue'}</Text>
               <IconArrowRight size={16} color="#000" />
             </TouchableOpacity>
-            <Text style={s.devHint}>
-              Dev: OTP is always{' '}
-              <Text style={{ color: colors.accent, fontFamily: fonts.sansBold }}>123456</Text>
-            </Text>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -132,6 +129,5 @@ const s = StyleSheet.create({
     shadowColor: colors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 16,
   },
   ctaText: { fontFamily: fonts.sansBold, fontSize: 16, color: '#000', letterSpacing: 0.3 },
-  devHint: { fontFamily: fonts.sans, fontSize: 11, color: colors.t3, textAlign: 'center' },
 });
 

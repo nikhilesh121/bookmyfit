@@ -1,8 +1,10 @@
 import { ActivityIndicator, Image, ImageBackground, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, radius } from '../theme/brand';
+import { colors } from '../theme/brand';
 import type { LaunchConfig } from '../lib/launchConfig';
 import { DEFAULT_LAUNCH_CONFIG, launchMediaUrl } from '../lib/launchConfig';
+
+const BUNDLED_LOGO = require('../assets/logo-brand.png');
 
 type Props = {
   message?: string;
@@ -15,7 +17,7 @@ export default function AppLoadingScreen({ message, launchConfig }: Props) {
   const branding = config.branding || {};
   const logoUrl = launchMediaUrl(splash.logoUrl || branding.logoUrl);
   const backgroundImageUrl = launchMediaUrl(splash.imageUrl);
-  const logoText = String(branding.shortText || branding.logoText || splash.title || 'BMF');
+  const logoSource = logoUrl ? { uri: logoUrl } : BUNDLED_LOGO;
   const title = String(splash.title || branding.logoText || 'BookMyFit');
   const subtitle = String(message || splash.subtitle || 'Opening BookMyFit...');
   const bgColor = String(splash.backgroundColor || colors.bg);
@@ -28,13 +30,7 @@ export default function AppLoadingScreen({ message, launchConfig }: Props) {
         end={{ x: 1, y: 1 }}
         style={s.glow}
       />
-      {logoUrl ? (
-        <Image source={{ uri: logoUrl }} style={s.logoImage} resizeMode="contain" />
-      ) : (
-        <View style={s.logoBox}>
-          <Text style={s.logoText}>{logoText.slice(0, 4).toUpperCase()}</Text>
-        </View>
-      )}
+      <Image source={logoSource} style={s.logoImage} resizeMode="contain" />
       <Text style={s.title}>{title}</Text>
       <Text style={s.subtitle}>{subtitle}</Text>
       {splash.showSpinner !== false && <ActivityIndicator color={colors.accent} style={s.loader} />}
@@ -74,27 +70,10 @@ const s = StyleSheet.create({
   glow: {
     ...StyleSheet.absoluteFillObject,
   },
-  logoBox: {
-    width: 74,
-    height: 74,
-    borderRadius: radius.xxl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accentSoft,
-    borderWidth: 1,
-    borderColor: colors.accentBorder,
-    marginBottom: 18,
-  },
   logoImage: {
     width: 190,
     height: 82,
     marginBottom: 16,
-  },
-  logoText: {
-    color: colors.accent,
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: 1,
   },
   title: {
     color: '#fff',

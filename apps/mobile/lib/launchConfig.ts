@@ -48,7 +48,7 @@ export const DEFAULT_LAUNCH_CONFIG: LaunchConfig = {
     minDurationMs: 1400,
     logoUrl: '',
     imageUrl: '',
-    title: 'BookMyFit',
+    title: 'BookMyFits',
     subtitle: 'Opening BookMyFit...',
     backgroundColor: '#060606',
     showSpinner: true,

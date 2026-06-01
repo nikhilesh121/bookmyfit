@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
@@ -71,6 +71,12 @@ export default function Profile() {
     );
   };
 
+  const openPolicy = (path: string) => {
+    Linking.openURL(`https://bookmyfit.in${path}`).catch(() => {
+      Alert.alert('Unable to open', 'Please visit bookmyfit.in for the latest policy details.');
+    });
+  };
+
   const MENU_ITEMS = [
     { label: 'My Subscriptions', icon: IconCreditCard, onPress: () => router.push('/(tabs)/subscriptions') },
     { label: 'My Session Bookings', icon: IconCalendar, onPress: () => router.push('/my-bookings') },
@@ -80,7 +86,7 @@ export default function Profile() {
     { label: 'Rate App', icon: IconBolt, onPress: () => Alert.alert('Rate App', 'Thank you for your support!') },
     { label: 'Help & Support', icon: IconInfo, onPress: () => Alert.alert('Help & Support', 'Email us at support@bookmyfit.in') },
     { label: 'Edit Profile', icon: IconUser, onPress: () => router.push('/edit-profile') },
-    { label: 'Privacy & Security', icon: IconLock, onPress: () => Alert.alert('Privacy', 'Your data is safe with us.') },
+    { label: 'Privacy & Security', icon: IconLock, onPress: () => openPolicy('/privacy') },
     { label: 'Refund Policy', icon: IconShield, onPress: () => {
       Alert.alert(
         'No Refund Policy',

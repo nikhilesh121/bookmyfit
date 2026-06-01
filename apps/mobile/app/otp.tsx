@@ -18,6 +18,7 @@ export default function OtpScreen() {
   const phone         = str(raw.phone);
   const userExistsParam = str(raw.userExists);
   const userNameParam   = str(raw.userName);
+  const devOtp = str(raw.devOtp);
 
   const isExistingUser = userExistsParam === 'true';
   const [code, setCode] = useState('');
@@ -98,10 +99,11 @@ export default function OtpScreen() {
                 keyboardType="number-pad" value={code} onChangeText={setCode} maxLength={6} autoFocus
               />
             </View>
-            <Text style={s.devHint}>
-              Dev mode: OTP is{' '}
-              <Text style={{ color: colors.accent, fontFamily: fonts.sansBold }}>123456</Text>
-            </Text>
+            {!!devOtp && (
+              <Text style={s.devHint}>
+                Test OTP: <Text style={{ color: colors.accent, fontFamily: fonts.sansBold }}>{devOtp}</Text>
+              </Text>
+            )}
           </View>
 
           <View style={s.bottom}>
