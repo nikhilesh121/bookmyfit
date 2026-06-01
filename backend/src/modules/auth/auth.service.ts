@@ -37,6 +37,26 @@ function findNestedValue(data: any, keys: string[]): any {
   return undefined;
 }
 
+function looksLikeMsg91RequestId(value: any) {
+  const text = String(value ?? '').trim();
+  if (!text || text.length < 8 || text.length > 160) return false;
+  if (/\s/.test(text) || !/^[A-Za-z0-9_-]+$/.test(text)) return false;
+  const lower = text.toLowerCase();
+  if (lower.includes('otp') || lower.includes('sent') || lower.includes('success') || lower.includes('verified')) return false;
+  return true;
+}
+
+function findMsg91RequestId(data: any) {
+  const explicit = findNestedValue(data, ['reqId', 'req_id', 'requestId', 'request_id', 'requestID', 'request-id', 'id']);
+  if (looksLikeMsg91RequestId(explicit)) return String(explicit).trim();
+
+  // Some MSG91 OTP responses return the request id in `message` instead of `reqId`.
+  const message = findNestedValue(data, ['message', 'msg']);
+  if (looksLikeMsg91RequestId(message)) return String(message).trim();
+
+  return null;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -77,7 +97,7 @@ export class AuthService {
       if (!this.isMsg91Success(response)) {
         throw new BadRequestException(this.msg91ErrorMessage(response, 'Unable to send OTP'));
       }
-      const reqId = findNestedValue(response, ['reqId', 'requestId', 'request_id', 'requestID']);
+      const reqId = findMsg91RequestId(response);
       if (!reqId) throw new BadRequestException('OTP provider did not return request ID');
       await this.redis.set(`otp:${phone}`, JSON.stringify({ provider: 'msg91', reqId, identifier }), 'EX', 600);
       return {
@@ -209,7 +229,7 @@ export class AuthService {
     const type = String(data?.type || data?.status || '').toLowerCase();
     const message = String(data?.message || data?.msg || '').toLowerCase();
     const hasToken = !!findNestedValue(data, ['access-token', 'accessToken', 'token', 'jwt', 'jwtToken']);
-    const hasReqId = !!findNestedValue(data, ['reqId', 'requestId', 'request_id', 'requestID']);
+    const hasReqId = !!findMsg91RequestId(data);
     if (type.includes('error') || message.includes('invalid') || message.includes('failed') || message.includes('fail')) return false;
     return type.includes('success') || message.includes('success') || message.includes('sent') || message.includes('verified') || hasToken || hasReqId;
   }
