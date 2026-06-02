@@ -23,6 +23,7 @@ type Partner = {
   id: string;
   name: string;
   serviceType?: string;
+  serviceTypes?: string[];
   city?: string;
   area?: string;
   rating?: number;
@@ -35,7 +36,9 @@ type Partner = {
 };
 
 function isHomeService(partner: Partner) {
-  return String(partner.serviceType || '').toLowerCase().includes('home');
+  return (partner.serviceTypes?.length ? partner.serviceTypes : [partner.serviceType])
+    .filter(Boolean)
+    .some((type) => String(type).toLowerCase().includes('home'));
 }
 
 export default function SpaCentresScreen() {
@@ -71,7 +74,11 @@ export default function SpaCentresScreen() {
   const filtered = useMemo(() => {
     if (category === 'All') return partners;
     const q = category.toLowerCase();
-    return partners.filter((partner) => [partner.serviceType, partner.name].filter(Boolean).join(' ').toLowerCase().includes(q));
+    return partners.filter((partner) => [
+      ...(partner.serviceTypes || []),
+      partner.serviceType,
+      partner.name,
+    ].filter(Boolean).join(' ').toLowerCase().includes(q));
   }, [category, partners]);
 
   return (

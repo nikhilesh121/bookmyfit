@@ -12,6 +12,7 @@ type WellnessPartner = {
   area?: string;
   address?: string;
   serviceType?: string;
+  serviceTypes?: string[];
   photos?: string[];
   status?: string;
 };
@@ -27,7 +28,7 @@ export default function ProfilePage() {
     city: '',
     area: '',
     address: '',
-    serviceType: '',
+    serviceTypes: [] as string[],
     photoUrl: '',
   });
   const { toast } = useToast();
@@ -41,12 +42,17 @@ export default function ProfilePage() {
     api.get<WellnessPartner>(`/wellness/partners/${partnerId}`)
       .then(data => {
         setPartner(data);
+        const selectedTypes = Array.isArray(data.serviceTypes) && data.serviceTypes.length
+          ? data.serviceTypes
+          : data.serviceType
+            ? [data.serviceType]
+            : [];
         setForm({
           name: data.name || '',
           city: data.city || '',
           area: data.area || '',
           address: data.address || '',
-          serviceType: data.serviceType || '',
+          serviceTypes: selectedTypes.map(t => String(t).toLowerCase()),
           photoUrl: data.photos?.[0] || '',
         });
       })
@@ -57,6 +63,10 @@ export default function ProfilePage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!partnerId) return;
+    if (form.serviceTypes.length === 0) {
+      toast('Select at least one service type', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const updated = await api.put<WellnessPartner>(`/wellness/partners/${partnerId}`, {
@@ -64,7 +74,8 @@ export default function ProfilePage() {
         city: form.city,
         area: form.area,
         address: form.address,
-        serviceType: form.serviceType,
+        serviceType: form.serviceTypes[0],
+        serviceTypes: form.serviceTypes,
         photos: form.photoUrl ? [form.photoUrl] : [],
       });
       setPartner(updated);
@@ -74,6 +85,15 @@ export default function ProfilePage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const toggleServiceType = (type: string) => {
+    const key = type.toLowerCase();
+    setForm(f => {
+      const exists = f.serviceTypes.includes(key);
+      const next = exists ? f.serviceTypes.filter(item => item !== key) : [...f.serviceTypes, key];
+      return { ...f, serviceTypes: next };
+    });
   };
 
   const typeColor: Record<string, string> = {
@@ -140,12 +160,12 @@ export default function ProfilePage() {
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Service Type</label>
+                <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Service Types</label>
                 <input
                   type="text"
-                  value={form.serviceType}
-                  onChange={e => setForm(f => ({ ...f, serviceType: e.target.value }))}
-                  placeholder="e.g. spa"
+                  value={form.serviceTypes.join(', ')}
+                  readOnly
+                  placeholder="Select service types below"
                   className="glass-input w-full"
                 />
               </div>
@@ -179,13 +199,13 @@ export default function ProfilePage() {
             <h2 className="serif text-lg mb-4">Service Types</h2>
             <div className="flex flex-wrap gap-3">
               {SERVICE_TYPES.map(t => {
-                const active = form.serviceType === t;
+                const active = form.serviceTypes.includes(t);
                 const color = typeColor[t] || '#3DFF54';
                 return (
                   <button
                     key={t}
                     type="button"
-                    onClick={() => setForm(f => ({ ...f, serviceType: t }))}
+                    onClick={() => toggleServiceType(t)}
                     className="px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition"
                     style={{
                       background: active ? `${color}22` : 'var(--glass-bg)',

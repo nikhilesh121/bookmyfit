@@ -13,6 +13,7 @@ import { wellnessPartnerImage, wellnessServiceImage } from '../../lib/imageFallb
 
 type Partner = {
   id: string; name: string; serviceType?: string; city?: string; area?: string;
+  serviceTypes?: string[];
   address?: string; rating?: number; reviewCount?: number; distanceLabel?: string;
   photos?: string[]; discountPercent?: number;
 };

@@ -3476,3 +3476,119 @@ Evidence:
 - `artifacts/qa-manual-2026-05-29/android/payment-after-submit.png`
 - `artifacts/qa-manual-2026-05-29/android/`
 - `artifacts/qa-manual-2026-05-29/portal-smoke-results.json`
+
+## Change 043 - Bug_issues_ DOCX pass
+
+Date: 2026-06-01
+
+Source files reviewed:
+- `Bug_issues_/bookmyfit-error.docx`
+- `Bug_issues_/bookmyfit-errord2.docx`
+
+Issues found and fixed:
+- Wellness profile save 500/persistence failure:
+  - Added a real wellness partner lookup endpoint for partner logins.
+  - Stopped the wellness portal from silently using the admin/user id as the partner id.
+  - Hardened partner update so it loads the existing row first, merges safe fields, and returns the saved row.
+- Wellness multiple service types:
+  - Added `wellness_partners.serviceTypes` migration and kept legacy `serviceType` as the primary type for compatibility.
+  - Updated backend filters so wellness lists/services match any selected service type.
+  - Updated wellness portal profile to select multiple service types.
+  - Updated admin/mobile wellness type handling to read `serviceTypes`.
+- Mobile My Memberships mixing active and expired:
+  - Backend `/subscriptions` now returns an effective `expired` status when an active row has a past end date.
+  - Mobile membership normalization also converts past active rows to expired before rendering.
+- Mobile edit profile success but stale data:
+  - Backend user update now trims/sanitizes fields and returns fresh `me`.
+  - Mobile edit profile writes the updated user cache.
+  - Mobile profile tab refreshes every time it is focused.
+- Corporate Add Employee `No seats available`:
+  - Corporate employee creation now accepts the portal form payload by email/name.
+  - Backend creates/finds the end user, counts active employees as the seat source of truth, syncs `assignedSeats`, and returns a clear seat error.
+  - Corporate signup now sends requested seats.
+  - Corporate employees page shows seat allocation and disables Add Employee when no seats are available.
+
+Verification:
+- `pnpm --filter backend build` passed.
+- `pnpm --filter backend test` passed: 2 suites, 6 tests.
+- `pnpm --filter mobile exec tsc --noEmit -p tsconfig.json` passed.
+- `pnpm --filter @bmf/wellness-portal build` passed.
+- `pnpm --filter admin-panel build` passed with existing image optimization warnings only.
+- `pnpm --filter corporate-panel build` passed.
+
+Status:
+- Fixed and verified locally.
+- Needs database migration before live restart: `1779200000000-AddWellnessPartnerServiceTypes`.
+- Not deployed live in this change.
+- APK not regenerated in this change.
+
+## Change 044 - End-to-end local QA pass
+
+Date: 2026-06-02
+
+Requested scope:
+- Run end-to-end local testing across user, gym, admin, corporate, wellness, backend, and mobile web where this machine can honestly verify.
+- Fix issues found during the E2E pass.
+
+Fixes made:
+- User profile update:
+  - File: `backend/src/modules/users/users.module.ts`
+  - Error: `PUT /users/me` returned 200 but profile changes did not persist.
+  - Root cause: the global whitelist validation pipe stripped update fields because `UpdateUserDto` had no validation decorators.
+  - Fix: added `class-validator` decorators for `name`, `email`, `dob`, and `gender`.
+- Admin attendance:
+  - File: `backend/src/modules/sessions/sessions.module.ts`
+  - Error: `/sessions/admin/attendance?limit=5` returned 500.
+  - Root cause: unsafe query parsing allowed `page` to become `NaN`, which TypeORM rejected in `.skip(...)`.
+  - Fix: normalize page/limit with safe numeric defaults and max limit before querying.
+
+Verification completed:
+- Docker/Postgres/Redis local stack available.
+- Backend migration and seed ran before testing.
+- API E2E smoke: 67 passed, 0 failed, 2 skipped.
+- Portal/mobile route smoke: 46 passed, 0 failed.
+- `pnpm --filter backend test` passed: 2 suites, 6 tests.
+- `pnpm --filter backend build` passed.
+- `pnpm --filter mobile exec tsc --noEmit -p tsconfig.json` passed.
+- `pnpm --filter admin-panel build` passed with existing image optimization warnings only.
+- `pnpm --filter gym-panel build` passed.
+- `pnpm --filter corporate-panel build` passed.
+- `pnpm --filter @bmf/wellness-portal build` passed.
+- `pnpm --filter mobile exec expo export --platform web --output-dir dist-web` passed.
+
+Flows verified in API E2E:
+- User OTP test login for `9040283338`.
+- User profile update and reload persistence.
+- Admin gym/subscription/wellness/ratings/pricing/attendance APIs.
+- Gym members, reviews, checkins, reports, plans, schedule, session types, and bookings APIs.
+- Gym member rows hide phone-like personal numbers.
+- Subscribed-user gym review auto-approves and appears in public gym ratings.
+- QR generation returns an active subscription token.
+- Wellness partner multi-service update and filtering.
+- Corporate employee add, duplicate block, and cleanup.
+- Gym registration creates a pending partner.
+
+Local URLs running for review:
+- Backend API: `http://localhost:3003/api/v1`
+- Swagger: `http://localhost:3003/api/docs`
+- Gym panel: `http://localhost:3001/login`
+- Corporate panel: `http://localhost:3002/login`
+- Admin panel: `http://localhost:3004/login`
+- Wellness portal: `http://localhost:3005/login`
+- Mobile web export: `http://localhost:8081`
+
+Evidence:
+- `artifacts/e2e-2026-06-02/api-smoke-results.json`
+- `artifacts/e2e-2026-06-02/route-smoke-results.json`
+
+Not honestly verified on this machine:
+- Physical phone GPS permission prompt and device-specific nearby sorting.
+- Camera QR scanner behavior.
+- Native Cashfree WebView completion on an installed APK.
+- APK install icon/splash/safe-area/navbar behavior on actual phones.
+- Manual booking code validation with a live active booking fixture.
+
+Status:
+- Fixed and verified locally.
+- Not pushed live in this change.
+- APK not regenerated in this change.

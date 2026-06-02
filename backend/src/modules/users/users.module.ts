@@ -5,6 +5,7 @@ import * as bcrypt from 'bcryptjs';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Injectable } from '@nestjs/common';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
 import { UserEntity, UserRole } from '../../database/entities/user.entity';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
@@ -18,9 +19,20 @@ function generateCode(): string {
 }
 
 class UpdateUserDto {
+  @IsOptional()
+  @IsString()
   name?: string;
+
+  @IsOptional()
+  @IsEmail()
   email?: string;
+
+  @IsOptional()
+  @IsString()
   dob?: string;
+
+  @IsOptional()
+  @IsString()
   gender?: string;
 }
 
@@ -133,7 +145,19 @@ class UsersService {
   }
 
   async update(id: string, data: Partial<UserEntity>) {
-    await this.repo.update(id, { name: data.name, email: data.email, dob: data.dob, gender: data.gender });
+    const patch: Partial<UserEntity> = {};
+    if (data.name !== undefined) {
+      const name = String(data.name || '').trim();
+      if (!name) throw new BadRequestException('Name cannot be empty');
+      patch.name = name;
+    }
+    if (data.email !== undefined) {
+      const email = String(data.email || '').trim().toLowerCase();
+      patch.email = email || null;
+    }
+    if (data.dob !== undefined) patch.dob = data.dob || null;
+    if (data.gender !== undefined) patch.gender = data.gender || null;
+    if (Object.keys(patch).length) await this.repo.update(id, patch);
     return this.me(id);
   }
 

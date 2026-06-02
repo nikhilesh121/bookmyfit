@@ -28,7 +28,12 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<T
     throw new Error('Session expired');
   }
   if (!res.ok) {
-    const msg = await res.text().catch(() => res.statusText);
+    const raw = await res.text().catch(() => res.statusText);
+    let msg = raw;
+    try {
+      const parsed = JSON.parse(raw);
+      msg = parsed?.message || parsed?.error || raw;
+    } catch {}
     throw new Error(msg || `HTTP ${res.status}`);
   }
   return res.json();

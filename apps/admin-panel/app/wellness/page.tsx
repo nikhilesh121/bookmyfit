@@ -40,7 +40,7 @@ const pill = (color: string): React.CSSProperties => ({
 });
 
 type Partner = {
-  id: string; name: string; serviceType: string; city: string; area: string;
+  id: string; name: string; serviceType: string; serviceTypes?: string[]; city: string; area: string;
   address: string; rating: number; reviewCount: number; status: string;
   discountPercent: number; distanceLabel: string; photos: string[]; commissionRate?: number;
   lat?: number; lng?: number;
@@ -104,7 +104,7 @@ export default function WellnessPage() {
   const openEditPartner = (p: Partner) => {
     setEditingPartner(p);
     setPartnerForm({
-      name: p.name, serviceType: p.serviceType, city: p.city, area: p.area,
+      name: p.name, serviceType: (p.serviceTypes?.[0] || p.serviceType || 'Spa'), city: p.city, area: p.area,
       address: p.address || '', status: p.status,
       discountPercent: String(p.discountPercent || 0),
       distanceLabel: p.distanceLabel || '',
@@ -117,6 +117,7 @@ export default function WellnessPage() {
     const body = {
       name: partnerForm.name,
       serviceType: partnerForm.serviceType,
+      serviceTypes: [partnerForm.serviceType],
       city: partnerForm.city,
       area: partnerForm.area,
       address: partnerForm.address || `${partnerForm.area}, ${partnerForm.city}`,
@@ -375,7 +376,7 @@ export default function WellnessPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
                     <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 16, color: '#fff' }}>{p.name}</span>
                     <span style={pill(statusColor[p.status] || '#aaa')}>{p.status}</span>
-                    <span style={pill('#9B5DE5')}>{p.serviceType}</span>
+                    <span style={pill('#9B5DE5')}>{(p.serviceTypes?.length ? p.serviceTypes : [p.serviceType]).filter(Boolean).join(', ')}</span>
                     {p.discountPercent > 0 && <span style={pill('#3DFF54')}>{p.discountPercent}% OFF</span>}
                   </div>
                   <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>

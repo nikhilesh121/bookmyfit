@@ -28,6 +28,7 @@ export default function CorporateSignup() {
         body: JSON.stringify({
           companyName: form.companyName, email: form.email,
           password: form.password, billingContact: form.billingContact,
+          employeeCount: Number(form.employeeCount) || 0,
         }),
       });
       const data = await res.json();
@@ -101,6 +102,17 @@ export default function CorporateSignup() {
           <div>
             <label style={labelStyle}>Billing Contact (Phone)</label>
             <input style={inputStyle} value={form.billingContact} onChange={set('billingContact')} placeholder="+91 98765 43210" required />
+          </div>
+          <div>
+            <label style={labelStyle}>Seats Required</label>
+            <input
+              style={inputStyle}
+              type="number"
+              min="0"
+              value={form.employeeCount}
+              onChange={set('employeeCount')}
+              placeholder="e.g. 25"
+            />
           </div>
 
           {/* Pricing info card */}

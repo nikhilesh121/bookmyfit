@@ -28,21 +28,101 @@ class WellnessService {
     @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
     private readonly cashfree: CashfreeService,
   ) {}
-  async listPartners(filter: { city?: string; serviceType?: string } = {}, page: any = 1, limit: any = 20) {
-    const where: any = { status: 'active' };
-    if (filter.city) where.city = filter.city;
-    if (filter.serviceType) where.serviceType = filter.serviceType;
-    const { skip, take, page: p, limit: l } = paginate(page, limit);
-    const [data, total] = await this.partners.findAndCount({ where, order: { rating: 'DESC' }, skip, take });
-    return paginatedResponse(data, total, p, l);
+  private normalizeServiceTypes(value: any): string[] {
+    const raw = Array.isArray(value)
+      ? value
+      : String(value || '')
+        .split(',')
+        .map((item) => item.trim());
+    const normalized = raw
+      .map((item) => String(item || '').trim().toLowerCase())
+      .filter(Boolean);
+    return Array.from(new Set(normalized));
   }
-  createPartner(data: Partial<WellnessPartnerEntity>) { return this.partners.save(this.partners.create(data)); }
+
+  private serviceTypesFor(partner: any): string[] {
+    const types = this.normalizeServiceTypes(
+      Array.isArray(partner?.serviceTypes) && partner.serviceTypes.length
+        ? partner.serviceTypes
+        : partner?.serviceType,
+    );
+    return types.length ? types : ['spa'];
+  }
+
+  private partnerResponse<T extends Record<string, any>>(partner: T): T {
+    if (!partner) return partner;
+    const serviceTypes = this.serviceTypesFor(partner);
+    return {
+      ...partner,
+      serviceTypes,
+      serviceType: serviceTypes[0] || partner.serviceType || 'spa',
+    };
+  }
+
+  private partnerPatch(data: any, existing?: WellnessPartnerEntity) {
+    const patch: any = {};
+    ['name', 'city', 'area', 'address', 'status', 'distanceLabel'].forEach((key) => {
+      if (data[key] !== undefined) patch[key] = String(data[key] ?? '').trim();
+    });
+    ['discountPercent', 'rating', 'reviewCount', 'commissionRate', 'lat', 'lng'].forEach((key) => {
+      if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
+        const value = Number(data[key]);
+        if (Number.isFinite(value)) patch[key] = value;
+      }
+    });
+    if (data.photos !== undefined) {
+      patch.photos = Array.isArray(data.photos)
+        ? data.photos.map((item: any) => String(item || '').trim()).filter(Boolean)
+        : String(data.photos || '').split(',').map((item) => item.trim()).filter(Boolean);
+    }
+    const serviceTypes = this.normalizeServiceTypes(data.serviceTypes ?? data.serviceType ?? existing?.serviceTypes ?? existing?.serviceType);
+    if (serviceTypes.length) {
+      patch.serviceTypes = serviceTypes;
+      patch.serviceType = serviceTypes[0];
+    } else if (!existing) {
+      patch.serviceTypes = ['spa'];
+      patch.serviceType = 'spa';
+    }
+    return patch;
+  }
+
+  private applyPartnerTypeFilter(qb: any, serviceType?: string) {
+    const normalized = this.normalizeServiceTypes(serviceType)[0];
+    if (!normalized) return;
+    qb.andWhere(
+      `(:serviceType = ANY(COALESCE(p."serviceTypes", ARRAY[]::text[])) OR LOWER(p."serviceType") = :serviceType)`,
+      { serviceType: normalized },
+    );
+  }
+
+  async listPartners(filter: { city?: string; serviceType?: string } = {}, page: any = 1, limit: any = 20) {
+    const { skip, take, page: p, limit: l } = paginate(page, limit);
+    const qb = this.partners.createQueryBuilder('p')
+      .where("p.status = 'active'");
+    if (filter.city) qb.andWhere('p.city = :city', { city: filter.city });
+    this.applyPartnerTypeFilter(qb, filter.serviceType);
+    const [data, total] = await qb.orderBy('p.rating', 'DESC').skip(skip).take(take).getManyAndCount();
+    return paginatedResponse(data.map((partner) => this.partnerResponse(partner)), total, p, l);
+  }
+  createPartner(data: Partial<WellnessPartnerEntity>) {
+    return this.partners.save(this.partners.create(this.partnerPatch(data))).then((partner) => this.partnerResponse(partner));
+  }
   async getPartner(id: string) {
     const partner = await this.partners.findOne({ where: { id } });
     if (!partner) throw new NotFoundException('Wellness partner not found');
-    return partner;
+    return this.partnerResponse(partner);
   }
-  updatePartner(id: string, data: Partial<WellnessPartnerEntity>) { return this.partners.save({ id, ...data }); }
+  async getPartnerForOwner(ownerId: string) {
+    const partner = await this.partners.findOne({ where: { ownerId }, order: { createdAt: 'ASC' } as any });
+    if (!partner) throw new NotFoundException('No wellness partner profile is linked to this login');
+    return this.partnerResponse(partner);
+  }
+  async updatePartner(id: string, data: Partial<WellnessPartnerEntity>) {
+    const existing = await this.partners.findOne({ where: { id } });
+    if (!existing) throw new NotFoundException('Wellness partner not found');
+    const saved = await this.partners.save({ ...existing, ...this.partnerPatch(data, existing) });
+    return this.partnerResponse(saved);
+  }
   async deletePartner(id: string) {
     await this.partners.update(id, { status: 'inactive' } as any);
     await this.services.update({ partnerId: id } as any, { isActive: false } as any);
@@ -90,7 +170,15 @@ class WellnessService {
       .where('s."isActive" = true')
       .andWhere("s.\"approvalStatus\" = 'approved'")
       .andWhere("p.status = 'active'");
-    if (filter.category) qb.andWhere('p."serviceType" = :cat', { cat: filter.category });
+    if (filter.category) {
+      const category = this.normalizeServiceTypes(filter.category)[0];
+      if (category) {
+        qb.andWhere(
+          `(:category = ANY(COALESCE(p."serviceTypes", ARRAY[]::text[])) OR LOWER(p."serviceType") = :category)`,
+          { category },
+        );
+      }
+    }
     const rows = await qb.orderBy('s.price', 'ASC').getMany();
     return this.withCheckoutPrices(rows);
   }
@@ -116,7 +204,7 @@ class WellnessService {
       const svcs = await this.services.find({ where: { partnerId: partner.id } });
       const active = svcs.filter((s) => s.isActive && (s as any).approvalStatus === 'approved');
       const minPrice = active.length ? Math.min(...active.map(s => Number(s.price))) : null;
-      return { ...partner, minPrice, serviceCount: active.length, totalServiceCount: svcs.length };
+      return { ...this.partnerResponse(partner), minPrice, serviceCount: active.length, totalServiceCount: svcs.length };
     }));
     return result;
   }
@@ -154,7 +242,7 @@ class WellnessService {
     const qb = this.partners.createQueryBuilder('p')
       .where("p.status = 'active'");
     if (filter.city) qb.andWhere('p.city = :city', { city: filter.city });
-    if (filter.serviceType) qb.andWhere('p."serviceType" = :serviceType', { serviceType: filter.serviceType });
+    this.applyPartnerTypeFilter(qb, filter.serviceType);
     if (coords) {
       qb.andWhere('p.lat IS NOT NULL')
         .andWhere('p.lng IS NOT NULL')
@@ -197,7 +285,7 @@ class WellnessService {
       const minPrice = priced.length ? Math.min(...priced.map(s => Number((s as any).price))) : null;
       const distanceKm = distanceById.get(partner.id);
       return {
-        ...partner,
+        ...this.partnerResponse(partner),
         minPrice,
         serviceCount: svcs.length,
         ...(distanceKm !== undefined ? { distanceKm: Number(distanceKm.toFixed(2)), distanceLabel: `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)} km` } : {}),
@@ -239,7 +327,15 @@ class WellnessService {
         id: b.id, status: b.status, bookingDate: b.bookingDate, amount: b.amount,
         cashfreeOrderId: b.cashfreeOrderId, invoiceNumber: (b as any).invoiceNumber,
         service: service ? { id: service.id, name: service.name, durationMinutes: service.durationMinutes, imageUrl: service.imageUrl } : null,
-        partner: partner ? { id: partner.id, name: partner.name, serviceType: partner.serviceType, city: partner.city, area: partner.area, photos: partner.photos } : null,
+        partner: partner ? {
+          id: partner.id,
+          name: partner.name,
+          serviceType: this.serviceTypesFor(partner)[0],
+          serviceTypes: this.serviceTypesFor(partner),
+          city: partner.city,
+          area: partner.area,
+          photos: partner.photos,
+        } : null,
       };
     }));
   }
@@ -398,6 +494,13 @@ class WellnessController {
     @Query('limit') limit = 20,
   ) {
     return this.svc.listPartnersWithMinPrice({ city, serviceType: type, lat, lng, sort, radiusKm }, +page, +limit);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('wellness_partner')
+  @Get('me')
+  myPartner(@Req() req: any) {
+    return this.svc.getPartnerForOwner(req.user.userId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -211,6 +211,7 @@ export interface WellnessPartner {
   id: string;
   name: string;
   serviceType: string;
+  serviceTypes?: string[];
   city: string;
   area: string;
   address: string;

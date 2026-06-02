@@ -264,13 +264,19 @@ class SubscriptionsService {
       : [];
     const gymPlanMap: Record<string, any> = Object.fromEntries(gymPlans.map((plan: any) => [plan.id, plan]));
     const PLAN_LABELS: Record<string, string> = { day_pass: '1-Day Pass', same_gym: 'Same Gym Pass', multi_gym: 'Multi Gym Pass' };
+    const today = new Date().toISOString().slice(0, 10);
     return subs.map((sub: any) => {
       const primaryGymId = sub.gymIds?.[0] || null;
       const gym = primaryGymId ? (gymMap[primaryGymId] || null) : null;
       const gymPlan = sub.gymPlanId ? (gymPlanMap[sub.gymPlanId] || null) : null;
       const gymName = gym?.name || null;
+      const effectiveStatus = sub.status === 'active' && sub.endDate && String(sub.endDate).slice(0, 10) < today
+        ? 'expired'
+        : sub.status;
       return {
         ...sub,
+        status: effectiveStatus,
+        isCurrent: effectiveStatus === 'active',
         primaryGymId,
         gymId: primaryGymId,
         gymName,

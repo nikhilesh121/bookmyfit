@@ -73,6 +73,11 @@ function normalizeSubscription(sub: any) {
   const planType = derivePlanType(sub);
   const planName = sub.plan?.name || sub.planLabel || sub.planName || PLAN_BADGE_LABEL[planType] || 'Membership';
   const gymName = sub.gymName || sub.gym?.name || (planType === 'multi_gym' ? 'All Partner Gyms' : '');
+  const endDate = sub.endDate || sub.end_date || sub.validUntil || sub.expiresAt || '';
+  const rawStatus = String(sub.status || 'active').toLowerCase();
+  const effectiveStatus = rawStatus === 'active' && endDate && endOfDayMs(endDate) < Date.now()
+    ? 'expired'
+    : rawStatus;
 
   return {
     ...sub,
@@ -83,8 +88,8 @@ function normalizeSubscription(sub: any) {
     gymName,
     plan: sub.plan || { name: planName },
     startDate: sub.startDate || sub.start_date || sub.validFrom || sub.createdAt || '',
-    endDate: sub.endDate || sub.end_date || sub.validUntil || sub.expiresAt || '',
-    status: sub.status || 'active',
+    endDate,
+    status: effectiveStatus,
     amountPaid: sub.amountPaid || sub.amount || sub.totalAmount,
     gym: sub.gym || (gymName ? { id: gymId, name: gymName, images: [] } : undefined),
   };

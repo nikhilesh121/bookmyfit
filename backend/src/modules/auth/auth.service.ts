@@ -349,11 +349,12 @@ export class AuthService {
   }
 
   async registerCorporate(data: {
-    email: string; password: string; companyName: string; billingContact: string;
+    email: string; password: string; companyName: string; billingContact: string; employeeCount?: number; totalSeats?: number;
   }) {
     const existing = await this.users.findOne({ where: { email: data.email } });
     if (existing) throw new BadRequestException('An account with this email already exists');
     const passwordHash = await bcrypt.hash(data.password, 10);
+    const requestedSeats = Math.max(0, Math.round(Number(data.totalSeats ?? data.employeeCount ?? 0) || 0));
     const user = await this.users.save(
       this.users.create({ email: data.email, name: data.companyName, passwordHash, role: 'corporate_admin', isActive: true }),
     );
@@ -361,7 +362,7 @@ export class AuthService {
       this.corporates.create({
         companyName: data.companyName, email: data.email,
         billingContact: data.billingContact, planType: 'multigym',
-        totalSeats: 0, assignedSeats: 0, adminUserId: user.id, isActive: true,
+        totalSeats: requestedSeats, assignedSeats: 0, adminUserId: user.id, isActive: true,
       }),
     );
     // Fire-and-forget welcome email

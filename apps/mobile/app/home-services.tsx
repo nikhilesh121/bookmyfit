@@ -17,6 +17,7 @@ const CATEGORIES = ['All', 'Massage', 'Facial', 'Hair', 'Cleaning', 'Physio'];
 
 type Provider = {
   id: string; name: string; serviceType: string; city: string; area: string;
+  serviceTypes?: string[];
   rating: number; reviewCount: number; photos?: string[]; minPrice?: number;
   services?: string[]; distanceKm?: number; distanceLabel?: string;
 };
@@ -51,7 +52,7 @@ export default function HomeServicesScreen() {
 
   const filtered = providers.filter(p => {
     if (activeCategory === 'All') return true;
-    const haystack = [p.serviceType, p.name, ...(p.services || [])].filter(Boolean).join(' ').toLowerCase();
+    const haystack = [p.serviceType, ...(p.serviceTypes || []), p.name, ...(p.services || [])].filter(Boolean).join(' ').toLowerCase();
     return haystack.includes(activeCategory.toLowerCase());
   });
 
@@ -103,7 +104,7 @@ export default function HomeServicesScreen() {
           ) : (
             filtered.map(provider => {
               const heroImg = wellnessPartnerImage(provider);
-              const services = provider.services?.length ? provider.services : [provider.serviceType || 'Home Service'];
+              const services = provider.services?.length ? provider.services : (provider.serviceTypes?.length ? provider.serviceTypes : [provider.serviceType || 'Home Service']);
               return (
                 <View key={provider.id} style={s.providerCard}>
                   {/* Image header */}

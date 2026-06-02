@@ -4,7 +4,8 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 
 export class WellnessPartnerEntity {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ length: 200 }) name: string;
-  @Column({ length: 50 }) serviceType: string; // spa, home, physio, massage
+  @Column({ length: 50, default: 'spa' }) serviceType: string; // legacy primary type
+  @Column({ type: 'text', array: true, default: [] }) serviceTypes: string[];
   @Column({ length: 100 }) city: string;
   @Column({ length: 100 }) area: string;
   @Column({ type: 'text' }) address: string;

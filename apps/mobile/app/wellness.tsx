@@ -43,6 +43,7 @@ const HERO_SLIDES = [
 
 type ApiPartner = {
   id: string; name: string; serviceType: string; city: string; area: string;
+  serviceTypes?: string[];
   rating: number; reviewCount: number; distanceLabel: string; distanceKm?: number; photos: string[];
   discountPercent?: number; minPrice?: number | null; serviceCount?: number;
 };
@@ -127,9 +128,11 @@ export default function WellnessScreen() {
   const partnersByType = activeFilter === 'all'
     ? displayPartners
     : displayPartners.filter(p => {
-        const type = (p.serviceType || '').toLowerCase();
-        if (activeFilter === 'home') return type === 'home' || type.includes('home');
-        return type !== 'home' && !type.includes('home');
+        const types = (p.serviceTypes?.length ? p.serviceTypes : [p.serviceType])
+          .filter(Boolean)
+          .map(t => String(t).toLowerCase());
+        if (activeFilter === 'home') return types.some(type => type === 'home' || type.includes('home'));
+        return types.some(type => type !== 'home' && !type.includes('home'));
       });
   const filteredPartners = [...partnersByType].sort(nearbyBestSort);
   const partnerSectionTitle = activeFilter === 'home'
@@ -141,7 +144,7 @@ export default function WellnessScreen() {
 
   // Partner tags based on service type
   const getPartnerTags = (partner: ApiPartner) => {
-    const type = partner.serviceType?.toLowerCase() || 'spa';
+    const type = (partner.serviceTypes?.[0] || partner.serviceType || 'spa').toLowerCase();
     if (type === 'physio') return ['Physiotherapy', 'Rehab', 'Sports'];
     if (type === 'massage') return ['Massage', 'Relaxation', 'Deep Tissue'];
     if (type === 'home') return ['Home Service', 'At-Home', 'Private'];

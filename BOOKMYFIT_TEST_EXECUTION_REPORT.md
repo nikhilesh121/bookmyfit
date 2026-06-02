@@ -4,6 +4,82 @@ Date: 2026-05-30
 
 This report records what was actually executed locally after opening Docker, Postgres, Redis, the backend, web portals, and the Android emulator. I did not mark camera QR, physical-device GPS variance, Play Console, live deployment, or live Cashfree credentials as passed because those still need external hardware/services or production credentials.
 
+## 2026-06-02 E2E Local QA Pass
+
+Local runtime:
+- Docker/Postgres/Redis were available locally.
+- Backend was running on `http://localhost:3003/api/v1`.
+- Admin, gym, corporate, wellness, and mobile web servers were started locally.
+- Database migration and seed were run before the API pass.
+
+Fixes applied during this pass:
+- `backend/src/modules/users/users.module.ts`
+  - Added validation decorators to `UpdateUserDto`.
+  - Root cause: global `ValidationPipe({ whitelist: true })` stripped profile update fields, so `PUT /users/me` returned 200 but did not persist profile edits.
+- `backend/src/modules/sessions/sessions.module.ts`
+  - Hardened admin attendance pagination parsing.
+  - Root cause: missing/invalid `page` query could become `NaN`, causing TypeORM `skip` to throw and `/sessions/admin/attendance` to return 500.
+
+Verification summary:
+
+| Check | Result |
+|---|---|
+| Backend API E2E smoke | Passed: 67 pass, 0 fail, 2 skipped |
+| Portal/mobile route smoke | Passed: 46 pass, 0 fail |
+| `pnpm --filter backend test` | Passed: 2 suites, 6 tests |
+| `pnpm --filter backend build` | Passed |
+| `pnpm --filter mobile exec tsc --noEmit -p tsconfig.json` | Passed |
+| `pnpm --filter admin-panel build` | Passed with existing image optimization warnings only |
+| `pnpm --filter gym-panel build` | Passed |
+| `pnpm --filter corporate-panel build` | Passed |
+| `pnpm --filter @bmf/wellness-portal build` | Passed |
+| `pnpm --filter mobile exec expo export --platform web --output-dir dist-web` | Passed |
+
+API E2E highlights:
+- User OTP test login passed for `9040283338`.
+- User profile update now persists after reload.
+- Admin gym, subscription, wellness, ratings, pricing, and attendance APIs passed.
+- Gym members, reviews, checkins, reports, plans, operating schedule, session types, and bookings APIs passed.
+- Gym member API did not expose phone-like personal numbers in member rows.
+- Subscribed-user gym review was auto-approved and visible in public gym ratings.
+- QR generation returned a token for an active subscription.
+- Wellness partner multi-service update and filtering passed.
+- Corporate employee add, duplicate block, and cleanup passed.
+- Gym registration created a pending partner account.
+
+Skipped in API E2E:
+- Active booking manual-code verification was skipped because the seeded user had no active booking at test time.
+- Duplicate gym-plan duration create was skipped because the seeded gym owner currently had no plans in the local DB.
+
+Local URLs:
+
+| Service | URL |
+|---|---|
+| Backend API | `http://localhost:3003/api/v1` |
+| Swagger | `http://localhost:3003/api/docs` |
+| Gym panel | `http://localhost:3001/login` |
+| Corporate panel | `http://localhost:3002/login` |
+| Admin panel | `http://localhost:3004/login` |
+| Wellness portal | `http://localhost:3005/login` |
+| Mobile web export | `http://localhost:8081` |
+
+Evidence files:
+- `artifacts/e2e-2026-06-02/api-smoke-results.json`
+- `artifacts/e2e-2026-06-02/route-smoke-results.json`
+- `artifacts/e2e-2026-06-02/backend.out.log`
+- `artifacts/e2e-2026-06-02/admin.out.log`
+- `artifacts/e2e-2026-06-02/gym.out.log`
+- `artifacts/e2e-2026-06-02/corporate.out.log`
+- `artifacts/e2e-2026-06-02/wellness.out.log`
+- `artifacts/e2e-2026-06-02/mobile-web.out.log`
+
+Still needs physical-device/manual pass:
+- Real Android/iOS GPS permission prompt and nearby sorting behavior.
+- Camera QR scanner behavior.
+- Native Cashfree WebView completion using current live/test credentials.
+- APK install icon/splash/safe-area/navbar behavior on actual phones.
+- Manual booking code validation with a live active booking fixture.
+
 ## 2026-05-30 QA Addendum
 
 Local services were rechecked with the backend on `http://localhost:3003`, Metro on `8081`, and the Android emulator `emulator-5554`.

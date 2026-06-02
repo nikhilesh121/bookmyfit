@@ -10,6 +10,7 @@ const DEPTS = ['Engineering', 'Sales', 'Operations', 'Marketing', 'HR', 'Finance
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
+  const [account, setAccount] = useState<any>(null);
   const [corporateId, setCorporateId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -25,6 +26,7 @@ export default function EmployeesPage() {
         const corp = await api.get('/corporate/me');
 
         if (!corp) return;
+        setAccount(corp);
         const id = corp._id || corp.id;
         setCorporateId(id);
         const res = await api.get(`/corporate/${id}/employees`);
@@ -56,6 +58,7 @@ export default function EmployeesPage() {
       const newEmp = await api.post(`/corporate/${corporateId}/employees`, form);
       const emp = newEmp?.employee || newEmp;
       setEmployees((p) => [...p, emp]);
+      setAccount((prev: any) => prev ? { ...prev, assignedSeats: Number(prev.assignedSeats || 0) + 1 } : prev);
       setShowModal(false);
       setForm({ name: '', email: '', department: DEPTS[0], plan: PLANS[0] });
       toast(`Invite sent to ${form.email}`);
@@ -89,9 +92,24 @@ export default function EmployeesPage() {
   };
 
   const depts = ['All', ...Array.from(new Set(employees.map((e: any) => e.department).filter(Boolean)))];
+  const totalSeats = Number(account?.totalSeats || 0);
+  const activeEmployees = employees.filter((employee: any) => !employee.status || employee.status === 'active').length;
+  const assignedSeats = Number(account?.assignedSeats ?? activeEmployees);
+  const availableSeats = Math.max(0, totalSeats - Math.max(assignedSeats, activeEmployees));
 
   return (
     <Shell title="Employees">
+      <div className="glass p-4 mb-5 flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <div className="kicker">Seat Allocation</div>
+          <div className="text-sm" style={{ color: 'var(--t2)' }}>
+            {totalSeats > 0
+              ? `${Math.max(assignedSeats, activeEmployees)} of ${totalSeats} seats assigned`
+              : 'No seats assigned yet. Ask admin to allocate seats before adding employees.'}
+          </div>
+        </div>
+        <div className="accent-pill">{availableSeats} available</div>
+      </div>
       <div className="flex items-center gap-3 mb-5">
         <input
           className="glass-input flex-1"
@@ -109,7 +127,7 @@ export default function EmployeesPage() {
         <button className="btn btn-ghost" onClick={exportCsv}>
           <Download size={14} /> Export CSV
         </button>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Employee</button>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)} disabled={totalSeats <= 0 || availableSeats <= 0}>+ Add Employee</button>
       </div>
 
       <div className="glass overflow-hidden">

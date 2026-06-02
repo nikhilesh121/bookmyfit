@@ -5,7 +5,7 @@ import AuroraBackground from '../components/AuroraBackground';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconChevronRight } from '../components/Icons';
-import { usersApi } from '../lib/api';
+import { setUser, usersApi } from '../lib/api';
 
 export default function EditProfile() {
   const [name, setName] = useState('');
@@ -31,7 +31,8 @@ export default function EditProfile() {
     }
     setSaving(true);
     try {
-      await usersApi.update({ name: name.trim(), email: email.trim() || undefined });
+      const updated = await usersApi.update({ name: name.trim(), email: email.trim() || undefined });
+      await setUser(updated?.user || updated);
       Alert.alert('Success', 'Profile updated', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to update profile');

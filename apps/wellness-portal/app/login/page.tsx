@@ -28,10 +28,22 @@ export default function Login() {
       );
       if (!res.ok) throw new Error('Invalid credentials');
       const data = await res.json();
+      const token = data.accessToken;
+      let pid = partnerId.trim() || data.user?.partnerId || '';
+      if (!pid && data.user?.role === 'wellness_partner') {
+        const meRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003'}/api/v1/wellness/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (meRes.ok) {
+          const partner = await meRes.json();
+          pid = partner?.id || '';
+        }
+      }
+      if (!pid) {
+        throw new Error('No wellness partner profile is linked to this login. Enter the Partner ID or ask admin to link this account.');
+      }
       localStorage.setItem('bmf_wellness_token', data.accessToken);
       localStorage.setItem('bmf_wellness_user', JSON.stringify(data.user));
-      // Store partner ID — user can set it manually or it's derived from the response
-      const pid = partnerId.trim() || data.user?.partnerId || data.user?.id || '';
       localStorage.setItem('bmf_wellness_partner_id', pid);
       window.location.href = '/';
     } catch (err: any) {

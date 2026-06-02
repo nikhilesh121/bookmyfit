@@ -1097,14 +1097,16 @@ export class SessionsService {
     const qb = this.attendanceRepo.createQueryBuilder('a');
     if (gymId) qb.andWhere('a."gymId" = :gymId', { gymId });
     if (date) qb.andWhere('a."sessionDate" = :date', { date });
-    const [data, total] = await qb.orderBy('a."checkinAt"', 'DESC').skip((Number(page) - 1) * Number(limit)).take(Number(limit)).getManyAndCount();
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, Number(limit) || 50));
+    const [data, total] = await qb.orderBy('a."checkinAt"', 'DESC').skip((pageNum - 1) * limitNum).take(limitNum).getManyAndCount();
     const gymIds = [...new Set(data.map((a) => a.gymId))];
     const userIds = [...new Set(data.map((a) => a.userId))];
     const [gyms, users] = await Promise.all([
       gymIds.length ? this.gymRepo.createQueryBuilder('g').whereInIds(gymIds).getMany() : [],
       userIds.length ? this.userRepo.createQueryBuilder('u').whereInIds(userIds).getMany() : [],
     ]);
-    return { data: data.map((a) => ({ ...a, gym: gyms.find((g) => g.id === a.gymId), user: users.find((u) => u.id === a.userId) })), total, page: Number(page), limit: Number(limit) };
+    return { data: data.map((a) => ({ ...a, gym: gyms.find((g) => g.id === a.gymId), user: users.find((u) => u.id === a.userId) })), total, page: pageNum, limit: limitNum };
   }
 
   async attendanceSummaryByGym(month: string) {

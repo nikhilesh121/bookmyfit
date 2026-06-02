@@ -32,6 +32,8 @@ class CorporateRegisterDto {
   @IsString() @MinLength(6) password: string;
   @IsString() @IsNotEmpty() companyName: string;
   @IsString() @IsNotEmpty() billingContact: string;
+  @IsOptional() employeeCount?: number;
+  @IsOptional() totalSeats?: number;
 }
 
 @ApiTags('Auth')

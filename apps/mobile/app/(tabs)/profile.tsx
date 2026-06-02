@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconUser, IconBell, IconLock, IconInfo, IconChevronRight, IconBolt, IconCreditCard, IconClock, IconShopping, IconCalendar, IconShield } from '../../components/Icons';
 import { usersApi, logout } from '../../lib/api';
@@ -12,12 +12,15 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
+    let alive = true;
+    setLoading(true);
     usersApi.me()
-      .then((data: any) => setUser(data?.user || data))
+      .then((data: any) => { if (alive) setUser(data?.user || data); })
       .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []));
 
   const name = user?.name || 'Member';
   const phone = user?.phone || user?.phoneNumber || '';
