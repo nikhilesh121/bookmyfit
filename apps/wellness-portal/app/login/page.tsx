@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 
 export default function Login() {
-  const [email, setEmail] = useState('admin@bookmyfit.in');
+  const [email, setEmail] = useState('wellness@bookmyfit.in');
   const [password, setPassword] = useState('');
   const [partnerId, setPartnerId] = useState('');
   const [error, setError] = useState('');
@@ -18,8 +18,10 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
+      const rawBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+      const apiBase = rawBase.replace(/\/+$/, '').replace(/\/api\/v1$/, '');
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003'}/api/v1/auth/admin/login`,
+        `${apiBase}/api/v1/auth/admin/login`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -29,15 +31,17 @@ export default function Login() {
       if (!res.ok) throw new Error('Invalid credentials');
       const data = await res.json();
       const token = data.accessToken;
-      let pid = partnerId.trim() || data.user?.partnerId || '';
-      if (!pid && data.user?.role === 'wellness_partner') {
-        const meRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003'}/api/v1/wellness/me`, {
+      let pid = '';
+      if (data.user?.role === 'wellness_partner') {
+        const meRes = await fetch(`${apiBase}/api/v1/wellness/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (meRes.ok) {
           const partner = await meRes.json();
           pid = partner?.id || '';
         }
+      } else {
+        pid = partnerId.trim() || data.user?.partnerId || '';
       }
       if (!pid) {
         throw new Error('No wellness partner profile is linked to this login. Enter the Partner ID or ask admin to link this account.');
@@ -84,7 +88,7 @@ export default function Login() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@bookmyfit.in"
+              placeholder="wellness@bookmyfit.in"
               className="glass-input w-full"
               required
             />
@@ -121,7 +125,7 @@ export default function Login() {
         </form>
 
         <p className="text-xs mt-6 text-center" style={{ color: 'var(--t3)' }}>
-          Use admin@bookmyfit.in / admin123 for testing
+          Use wellness@bookmyfit.in / wellness123 for local testing
         </p>
       </div>
     </div>

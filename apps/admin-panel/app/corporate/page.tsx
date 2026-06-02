@@ -30,7 +30,7 @@ export default function CorporatePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', email: '', seats: '', plan: 'Corporate' });
+  const [addForm, setAddForm] = useState({ name: '', email: '', seats: '', plan: 'Corporate', adminUserId: '' });
   const [adding, setAdding] = useState(false);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -76,10 +76,11 @@ export default function CorporatePage() {
         totalSeats: Number(addForm.seats) || 10,
         planType: addForm.plan,
         billingContact: addForm.email,
+        adminUserId: addForm.adminUserId.trim() || null,
       });
       toast('Corporate account created');
       setShowAdd(false);
-      setAddForm({ name: '', email: '', seats: '', plan: 'Corporate' });
+      setAddForm({ name: '', email: '', seats: '', plan: 'Corporate', adminUserId: '' });
       load();
     } catch (e: any) {
       toast(e.message || 'Failed to create', 'error');
@@ -198,11 +199,12 @@ export default function CorporatePage() {
                         <Link href={`/corporate/${c.id}/employees`}>
                           <button className="btn btn-ghost text-xs">Employees</button>
                         </Link>
+                        <Link href={`/corporate/${c.id}`}>
+                          <button className="btn btn-ghost text-xs">Manage</button>
+                        </Link>
                         {!c.isActive ? (
                           <button className="btn btn-primary text-xs" onClick={() => handleApprove(c.id)}>Approve</button>
-                        ) : (
-                          <button className="btn btn-ghost text-xs" onClick={() => toast(`Managing ${c.companyName}`, 'info')}>Manage</button>
-                        )}
+                        ) : null}
                       </td>
                     </tr>
                   );
@@ -235,6 +237,10 @@ export default function CorporatePage() {
                 <select className="glass-input w-full" value={addForm.plan} onChange={(e) => setAddForm((f) => ({ ...f, plan: e.target.value }))}>
                   <option>Corporate</option><option>Elite</option><option>Pro</option>
                 </select>
+              </div>
+              <div>
+                <label className="kicker block mb-1">Corporate Admin User ID</label>
+                <input className="glass-input w-full font-mono" value={addForm.adminUserId} onChange={(e) => setAddForm((f) => ({ ...f, adminUserId: e.target.value }))} placeholder="Optional HR user UUID" />
               </div>
             </div>
             <div style={{display:'flex',gap:10,marginTop:20}}>

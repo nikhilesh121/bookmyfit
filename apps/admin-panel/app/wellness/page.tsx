@@ -52,7 +52,7 @@ type Service = {
 };
 type ApprovalStatus = NonNullable<Service['approvalStatus']>;
 
-const defaultPartnerForm = { name: '', serviceType: 'Spa', city: '', area: '', address: '', status: 'active', discountPercent: '0', distanceLabel: '', photos: '' };
+const defaultPartnerForm = { name: '', serviceType: 'Spa', city: '', area: '', address: '', status: 'active', discountPercent: '0', distanceLabel: '', photos: '', ownerEmail: '', ownerPassword: '' };
 const defaultServiceForm = { name: '', category: 'Massage', price: '', originalPrice: '', durationMinutes: '60', partnerId: '', imageUrl: '', isActive: true, approvalStatus: 'approved' };
 
 function asArray(value: any) {
@@ -109,6 +109,8 @@ export default function WellnessPage() {
       discountPercent: String(p.discountPercent || 0),
       distanceLabel: p.distanceLabel || '',
       photos: Array.isArray(p.photos) ? p.photos.join(', ') : String(p.photos || ''),
+      ownerEmail: '',
+      ownerPassword: '',
     });
     setShowPartnerForm(true);
   };
@@ -125,6 +127,8 @@ export default function WellnessPage() {
       discountPercent: Number(partnerForm.discountPercent) || 0,
       distanceLabel: partnerForm.distanceLabel,
       photos: partnerForm.photos ? partnerForm.photos.split(',').map(s => s.trim()).filter(Boolean) : [],
+      ...(partnerForm.ownerEmail.trim() ? { ownerEmail: partnerForm.ownerEmail.trim() } : {}),
+      ...(partnerForm.ownerPassword.trim() ? { ownerPassword: partnerForm.ownerPassword.trim() } : {}),
       rating: editingPartner?.rating || 0,
       reviewCount: editingPartner?.reviewCount || 0,
       ...(editingPartner && Number.isFinite(Number(editingPartner.lat)) ? { lat: Number(editingPartner.lat) } : {}),
@@ -329,6 +333,14 @@ export default function WellnessPage() {
                   <select style={{ ...input, cursor: 'pointer' }} value={partnerForm.status} onChange={e => setPartnerForm(f => ({ ...f, status: e.target.value }))}>
                     {['active', 'pending', 'inactive'].map(s => <option key={s} value={s} style={{ background: '#111' }}>{s}</option>)}
                   </select>
+                </div>
+                <div>
+                  <label style={label('OWNER EMAIL')}>OWNER EMAIL</label>
+                  <input style={input} type="email" placeholder="wellness@company.in" value={partnerForm.ownerEmail} onChange={e => setPartnerForm(f => ({ ...f, ownerEmail: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={label(editingPartner ? 'NEW OWNER PASSWORD (optional)' : 'OWNER PASSWORD')}>{editingPartner ? 'NEW OWNER PASSWORD' : 'OWNER PASSWORD'}</label>
+                  <input style={input} type="password" placeholder={editingPartner ? 'Leave blank to keep unchanged' : 'Minimum 6 characters'} value={partnerForm.ownerPassword} onChange={e => setPartnerForm(f => ({ ...f, ownerPassword: e.target.value }))} />
                 </div>
                 <div>
                   <label style={label('CITY *')}>CITY *</label>

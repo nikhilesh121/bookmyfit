@@ -20,15 +20,13 @@ export default function CorporateEmployeesPage() {
   const [pages, setPages] = useState(1);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ employeeCode: '', department: 'Engineering', userId: '' });
+  const [addForm, setAddForm] = useState({ name: '', email: '', employeeCode: '', department: 'Engineering', userId: '' });
   const [adding, setAdding] = useState(false);
 
   const loadCorp = useCallback(async () => {
     try {
-      const res: any = await api.get(`/corporate`);
-      const list = Array.isArray(res) ? res : res?.data ?? [];
-      const found = list.find((c: any) => c.id === id);
-      if (found) setCorporate(found);
+      const res: any = await api.get(`/corporate/${id}`);
+      setCorporate(res);
     } catch {}
   }, [id]);
 
@@ -49,13 +47,20 @@ export default function CorporateEmployeesPage() {
   useEffect(() => { load(); }, [load]);
 
   const handleAdd = async () => {
-    if (!addForm.employeeCode) { toast('Employee code required', 'error'); return; }
+    if (!addForm.email.trim() && !addForm.userId.trim()) { toast('Employee email or user ID required', 'error'); return; }
     setAdding(true);
     try {
-      await api.post(`/corporate/${id}/employees`, addForm);
+      await api.post(`/corporate/${id}/employees`, {
+        name: addForm.name.trim(),
+        email: addForm.email.trim(),
+        employeeCode: addForm.employeeCode.trim(),
+        department: addForm.department,
+        userId: addForm.userId.trim(),
+      });
       toast('Employee added');
       setShowAdd(false);
-      setAddForm({ employeeCode: '', department: 'Engineering', userId: '' });
+      setAddForm({ name: '', email: '', employeeCode: '', department: 'Engineering', userId: '' });
+      loadCorp();
       load();
     } catch (e: any) { toast(e.message || 'Failed to add', 'error'); }
     finally { setAdding(false); }
@@ -80,7 +85,7 @@ export default function CorporateEmployeesPage() {
   };
 
   const filtered = search
-    ? employees.filter((e) => (e.employeeCode || '').toLowerCase().includes(search.toLowerCase()) || (e.department || '').toLowerCase().includes(search.toLowerCase()))
+    ? employees.filter((e) => [e.name, e.email, e.employeeCode, e.department].some((value) => String(value || '').toLowerCase().includes(search.toLowerCase())))
     : employees;
 
   return (
@@ -114,7 +119,7 @@ export default function CorporateEmployeesPage() {
       </div>
 
       <div className="flex items-center gap-3 mb-5">
-        <input className="glass-input flex-1" placeholder="Search by code or department..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input className="glass-input flex-1" placeholder="Search by name, email, code or department..." value={search} onChange={(e) => setSearch(e.target.value)} />
         <button onClick={exportCSV} className="btn btn-ghost flex items-center gap-2 text-sm"><Download size={14} /> Export</button>
         <button onClick={() => setShowAdd(true)} className="btn btn-primary flex items-center gap-2 text-sm"><UserPlus size={14} /> Add Employee</button>
       </div>
@@ -123,19 +128,23 @@ export default function CorporateEmployeesPage() {
         <table className="glass-table">
           <thead>
             <tr>
-              <th>Employee Code</th><th>User ID</th><th>Department</th><th>Status</th><th>Assigned Date</th><th>Actions</th>
+              <th>Employee</th><th>Employee Code</th><th>User ID</th><th>Department</th><th>Status</th><th>Assigned Date</th><th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 6 }).map((__, j) => (<td key={j}><div className="animate-pulse h-4 rounded" style={{ background: 'var(--surface)' }} /></td>))}</tr>
+                <tr key={i}>{Array.from({ length: 7 }).map((__, j) => (<td key={j}><div className="animate-pulse h-4 rounded" style={{ background: 'var(--surface)' }} /></td>))}</tr>
               ))
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'var(--t3)' }}>No employees found</td></tr>
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--t3)' }}>No employees found</td></tr>
             ) : (
               filtered.map((e) => (
                 <tr key={e.id}>
+                  <td>
+                    <div className="font-semibold text-white">{e.name || '--'}</div>
+                    <div className="text-xs" style={{ color: 'var(--t3)' }}>{e.email || '--'}</div>
+                  </td>
                   <td className="font-mono font-semibold text-white">{e.employeeCode}</td>
                   <td className="font-mono text-xs" style={{ color: 'var(--t3)' }}>{e.userId?.slice(0, 8)}...</td>
                   <td style={{ color: 'var(--t2)' }}>{e.department || '--'}</td>
@@ -160,8 +169,16 @@ export default function CorporateEmployeesPage() {
             <h3 style={{ fontFamily: 'var(--serif)', fontSize: 18, color: '#fff', marginBottom: 20 }}>Add Employee</h3>
             <div className="space-y-3">
               <div>
+                <label className="kicker block mb-1">Name</label>
+                <input className="glass-input w-full" value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} placeholder="Employee name" />
+              </div>
+              <div>
+                <label className="kicker block mb-1">Email</label>
+                <input className="glass-input w-full" type="email" value={addForm.email} onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} placeholder="employee@company.in" />
+              </div>
+              <div>
                 <label className="kicker block mb-1">User ID (UUID)</label>
-                <input className="glass-input w-full" value={addForm.userId} onChange={(e) => setAddForm((f) => ({ ...f, userId: e.target.value }))} placeholder="User UUID" />
+                <input className="glass-input w-full" value={addForm.userId} onChange={(e) => setAddForm((f) => ({ ...f, userId: e.target.value }))} placeholder="Optional existing user UUID" />
               </div>
               <div>
                 <label className="kicker block mb-1">Employee Code</label>

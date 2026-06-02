@@ -1,4 +1,5 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const RAW_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const BASE = RAW_BASE.replace(/\/+$/, '').replace(/\/api\/v1$/, '');
 const TOKEN_KEY = 'bmf_wellness_token';
 
 function getToken(): string | null {

@@ -1,4 +1,4 @@
-import { Module, Controller, Get, Post, Put, Body, Param, Injectable, BadRequestException, UseGuards, Query, Req } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Body, Param, Injectable, BadRequestException, ForbiddenException, NotFoundException, UseGuards, Query, Req } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, MoreThanOrEqual } from 'typeorm';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
@@ -33,13 +33,98 @@ class CorporateService {
     return account;
   }
 
-  async linkAdmin(corporateId: string, userId: string) {
-    await this.accounts.update(corporateId, { adminUserId: userId });
-    return this.accounts.findOne({ where: { id: corporateId } });
+  async getAccount(id: string) {
+    const account = await this.accounts.findOne({ where: { id } });
+    if (!account) throw new NotFoundException('Corporate account not found');
+    account.assignedSeats = await this.syncAssignedSeats(account.id);
+    return account;
   }
 
-  create(data: Partial<CorporateAccountEntity>) {
-    return this.accounts.save(this.accounts.create(data));
+  async ensureAccountAccess(id: string, user: { role?: string; userId?: string }) {
+    if (user.role === 'super_admin') return this.getAccount(id);
+    if (user.role !== 'corporate_admin' || !user.userId) {
+      throw new ForbiddenException('Corporate access denied');
+    }
+    const account = await this.getByAdminUser(user.userId);
+    if (!account || account.id !== id) throw new ForbiddenException('Corporate access denied');
+    return account;
+  }
+
+  async linkAdmin(corporateId: string, userId: string) {
+    await this.getAccount(corporateId);
+    await this.assertCorporateAdminUser(userId);
+    await this.accounts.update(corporateId, { adminUserId: userId });
+    return this.getAccount(corporateId);
+  }
+
+  private async assertCorporateAdminUser(userId: string) {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Corporate admin user not found');
+    if (user.role !== 'corporate_admin') throw new BadRequestException('Selected user is not a corporate admin');
+    return user;
+  }
+
+  async create(data: Partial<CorporateAccountEntity>) {
+    const email = String(data.email || '').trim().toLowerCase();
+    const companyName = String(data.companyName || '').trim();
+    if (!email) throw new BadRequestException('Corporate email is required');
+    if (!companyName) throw new BadRequestException('Company name is required');
+    const existing = await this.accounts.findOne({ where: [{ email }, { companyName }] });
+    if (existing) throw new BadRequestException('Corporate account already exists');
+    const totalSeats = Number(data.totalSeats || 0);
+    const adminUserId = data.adminUserId ? String(data.adminUserId).trim() : null;
+    if (adminUserId) await this.assertCorporateAdminUser(adminUserId);
+    const account = this.accounts.create({
+      companyName,
+      email,
+      totalSeats: Number.isFinite(totalSeats) ? totalSeats : 0,
+      assignedSeats: 0,
+      planType: String(data.planType || 'standard').trim(),
+      billingContact: data.billingContact || null,
+      adminUserId,
+      isActive: data.isActive ?? true,
+    });
+    return this.accounts.save(account);
+  }
+
+  async update(id: string, data: Partial<CorporateAccountEntity>) {
+    const account = await this.getAccount(id);
+    const patch: Partial<CorporateAccountEntity> = {};
+    if (data.companyName !== undefined) {
+      const companyName = String(data.companyName || '').trim();
+      if (!companyName) throw new BadRequestException('Company name is required');
+      patch.companyName = companyName;
+    }
+    if (data.email !== undefined) {
+      const email = String(data.email || '').trim().toLowerCase();
+      if (!email) throw new BadRequestException('Corporate email is required');
+      patch.email = email;
+    }
+    if (data.totalSeats !== undefined) {
+      const totalSeats = Number(data.totalSeats);
+      if (!Number.isFinite(totalSeats) || totalSeats < account.assignedSeats) {
+        throw new BadRequestException('Total seats cannot be lower than assigned seats');
+      }
+      patch.totalSeats = totalSeats;
+    }
+    if (data.planType !== undefined) patch.planType = String(data.planType || 'standard').trim();
+    if (data.billingContact !== undefined) patch.billingContact = data.billingContact || null;
+    if (data.adminUserId !== undefined) {
+      const adminUserId = data.adminUserId ? String(data.adminUserId).trim() : null;
+      if (adminUserId) await this.assertCorporateAdminUser(adminUserId);
+      patch.adminUserId = adminUserId;
+    }
+    if (data.isActive !== undefined) patch.isActive = Boolean(data.isActive);
+    await this.accounts.update(id, patch);
+    return this.getAccount(id);
+  }
+
+  async approve(id: string, userId?: string) {
+    await this.getAccount(id);
+    const patch: Partial<CorporateAccountEntity> = { isActive: true };
+    if (userId) patch.adminUserId = userId;
+    await this.accounts.update(id, patch);
+    return this.getAccount(id);
   }
 
   async employeesOf(corporateId: string, page: any = 1, limit: any = 20) {
@@ -227,6 +312,16 @@ class CorporateController {
   @Post() @Roles('super_admin')
   create(@Body() body: any) { return this.svc.create(body); }
 
+  @Get(':id') @Roles('super_admin', 'corporate_admin')
+  getOne(@Param('id') id: string, @Req() req: any) {
+    return this.svc.ensureAccountAccess(id, req.user);
+  }
+
+  @Put(':id') @Roles('super_admin')
+  update(@Param('id') id: string, @Body() body: any) {
+    return this.svc.update(id, body);
+  }
+
   @Post(':id/link-admin') @Roles('super_admin')
   linkAdmin(@Param('id') id: string, @Body() body: { userId: string }) {
     return this.svc.linkAdmin(id, body.userId);
@@ -236,8 +331,7 @@ class CorporateController {
   @Post(':id/approve') @Roles('super_admin')
   approve(@Param('id') id: string, @Body() body: { userId?: string }) {
     // Approve = activate the corporate account (link-admin if userId provided)
-    if (body.userId) return this.svc.linkAdmin(id, body.userId);
-    return { success: true, corporateId: id, status: 'approved' };
+    return this.svc.approve(id, body?.userId);
   }
 
   /** Corporate admin requests additional seat allocation */
@@ -248,27 +342,32 @@ class CorporateController {
   }
 
   @Get(':id/employees') @Roles('super_admin', 'corporate_admin')
-  employees(@Param('id') id: string, @Query('page') page = 1, @Query('limit') limit = 20) {
+  async employees(@Param('id') id: string, @Query('page') page = 1, @Query('limit') limit = 20, @Req() req: any) {
+    await this.svc.ensureAccountAccess(id, req.user);
     return this.svc.employeesOf(id, +page, +limit);
   }
 
   @Post(':id/employees') @Roles('super_admin', 'corporate_admin')
-  assign(@Param('id') id: string, @Body() body: any) {
+  async assign(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    await this.svc.ensureAccountAccess(id, req.user);
     return this.svc.assignEmployee(id, body);
   }
 
   @Post(':id/employees/bulk') @Roles('super_admin', 'corporate_admin')
-  bulk(@Param('id') id: string, @Body() body: { employees: any[] }) {
+  async bulk(@Param('id') id: string, @Body() body: { employees: any[] }, @Req() req: any) {
+    await this.svc.ensureAccountAccess(id, req.user);
     return this.svc.bulkAssign(id, body.employees);
   }
 
   @Put(':id/employees/:empId') @Roles('super_admin', 'corporate_admin')
-  updateEmployee(@Param('id') id: string, @Param('empId') empId: string, @Body() body: any) {
+  async updateEmployee(@Param('id') id: string, @Param('empId') empId: string, @Body() body: any, @Req() req: any) {
+    await this.svc.ensureAccountAccess(id, req.user);
     return this.svc.updateEmployee(id, empId, body);
   }
 
   @Post(':id/employees/:empId/remove') @Roles('super_admin', 'corporate_admin')
-  removeEmployee(@Param('id') id: string, @Param('empId') empId: string) {
+  async removeEmployee(@Param('id') id: string, @Param('empId') empId: string, @Req() req: any) {
+    await this.svc.ensureAccountAccess(id, req.user);
     return this.svc.removeEmployee(id, empId);
   }
 }

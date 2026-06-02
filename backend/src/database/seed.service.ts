@@ -53,11 +53,12 @@ export class SeedService implements OnApplicationBootstrap {
       { email: 'gym@bookmyfit.in', phone: '9000000002', name: 'Gym Owner', role: 'gym_owner' as const, password: 'gym123' },
       { email: 'staff@bookmyfit.in', phone: '9000000003', name: 'Gym Staff', role: 'gym_staff' as const, password: 'staff123' },
       { email: 'hr@techcorp.in', phone: '9000000004', name: 'HR Admin', role: 'corporate_admin' as const, password: 'hr1234' },
+      { email: 'wellness@bookmyfit.in', phone: '9000000005', name: 'Wellness Partner', role: 'wellness_partner' as const, password: 'wellness123' },
     ];
     for (const u of seeds) {
       const existing = await this.users.findOne({ where: { email: u.email } });
       if (existing) {
-        if (u.email === 'hr@techcorp.in') {
+        if (u.email === 'hr@techcorp.in' || u.email === 'wellness@bookmyfit.in') {
           const hasExpectedPassword = existing.passwordHash
             ? await bcrypt.compare(u.password, existing.passwordHash)
             : false;
@@ -247,7 +248,21 @@ export class SeedService implements OnApplicationBootstrap {
   }
 
   private async seedWellness() {
-    if ((await this.wellnessPartners.count()) > 0) return;
+    const linkDemoOwner = async () => {
+      const owner = await this.users.findOne({ where: { email: 'wellness@bookmyfit.in' } });
+      if (!owner) return;
+      const partner = await this.wellnessPartners.findOne({ where: { ownerId: owner.id } as any });
+      if (partner) return;
+      const firstPartner = await this.wellnessPartners.findOne({ order: { createdAt: 'ASC' } as any });
+      if (firstPartner) {
+        await this.wellnessPartners.update(firstPartner.id, { ownerId: owner.id } as any);
+        this.log.log(`Linked wellness owner ${owner.email} to ${firstPartner.name}`);
+      }
+    };
+    if ((await this.wellnessPartners.count()) > 0) {
+      await linkDemoOwner();
+      return;
+    }
 
     const partners = [
       { name: 'Serenity Spa & Wellness', serviceType: 'spa', city: 'Bhubaneswar', area: 'Saheed Nagar', address: 'Plot 42, Saheed Nagar, Bhubaneswar 751007', lat: 20.2888, lng: 85.8480, rating: 4.8, reviewCount: 142, commissionRate: 30, status: 'active', photos: ['https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=900&q=80'], discountPercent: 20 },
@@ -258,6 +273,7 @@ export class SeedService implements OnApplicationBootstrap {
     ];
 
     const saved = await this.wellnessPartners.save(this.wellnessPartners.create(partners as any));
+    await linkDemoOwner();
     this.log.log(`Seeded ${saved.length} wellness partners`);
 
     const servicesByName: Record<string, any[]> = {

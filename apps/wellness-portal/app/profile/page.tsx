@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Shell from '../../components/Shell';
-import { api, getPartnerId } from '../../lib/api';
+import { api, getPartnerId, getUser } from '../../lib/api';
 import { useToast } from '../../components/Toast';
 import { Save } from 'lucide-react';
 
@@ -21,6 +21,8 @@ const SERVICE_TYPES = ['spa', 'home', 'physio', 'massage', 'yoga', 'nutrition'];
 
 export default function ProfilePage() {
   const [partner, setPartner] = useState<WellnessPartner | null>(null);
+  const [partnerId, setPartnerId] = useState<string | null>(null);
+  const [savePath, setSavePath] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -32,16 +34,32 @@ export default function ProfilePage() {
     photoUrl: '',
   });
   const { toast } = useToast();
-  const partnerId = getPartnerId();
 
   useEffect(() => {
-    if (!partnerId) {
+    const user = getUser();
+    const storedPartnerId = getPartnerId();
+    const path = user?.role === 'wellness_partner'
+      ? '/wellness/me'
+      : storedPartnerId
+        ? `/wellness/partners/${storedPartnerId}`
+        : null;
+    const nextSavePath = user?.role === 'wellness_partner'
+      ? '/wellness/me'
+      : storedPartnerId
+        ? `/wellness/partners/${storedPartnerId}`
+        : null;
+    if (!path) {
       setLoading(false);
       return;
     }
-    api.get<WellnessPartner>(`/wellness/partners/${partnerId}`)
+    setSavePath(nextSavePath);
+    api.get<WellnessPartner>(path)
       .then(data => {
         setPartner(data);
+        setPartnerId(data.id);
+        if (typeof window !== 'undefined' && data.id) {
+          localStorage.setItem('bmf_wellness_partner_id', data.id);
+        }
         const selectedTypes = Array.isArray(data.serviceTypes) && data.serviceTypes.length
           ? data.serviceTypes
           : data.serviceType
@@ -58,18 +76,21 @@ export default function ProfilePage() {
       })
       .catch(() => toast('Could not load profile', 'error'))
       .finally(() => setLoading(false));
-  }, [partnerId]);
+  }, [toast]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!partnerId) return;
+    if (!savePath) {
+      toast('No wellness partner profile is linked to this login', 'error');
+      return;
+    }
     if (form.serviceTypes.length === 0) {
       toast('Select at least one service type', 'error');
       return;
     }
     setSaving(true);
     try {
-      const updated = await api.put<WellnessPartner>(`/wellness/partners/${partnerId}`, {
+      const updated = await api.put<WellnessPartner>(savePath, {
         name: form.name,
         city: form.city,
         area: form.area,
@@ -79,6 +100,7 @@ export default function ProfilePage() {
         photos: form.photoUrl ? [form.photoUrl] : [],
       });
       setPartner(updated);
+      setPartnerId(updated.id);
       toast('Profile saved');
     } catch (err: any) {
       toast(err.message || 'Failed to save profile', 'error');

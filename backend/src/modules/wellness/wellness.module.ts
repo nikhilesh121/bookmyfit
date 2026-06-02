@@ -1,11 +1,13 @@
-import { Module, Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Injectable, UseGuards, Req, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Injectable, UseGuards, Req, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcryptjs';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import { IsString, IsDateString, IsOptional } from 'class-validator';
 import { WellnessPartnerEntity, WellnessServiceEntity, WellnessBookingEntity } from '../../database/entities/wellness.entity';
 import { AppConfigEntity } from '../../database/entities/app-config.entity';
+import { UserEntity } from '../../database/entities/user.entity';
 import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -26,6 +28,7 @@ class WellnessService {
     @InjectRepository(WellnessServiceEntity) private readonly services: Repository<WellnessServiceEntity>,
     @InjectRepository(WellnessBookingEntity) private readonly bookings: Repository<WellnessBookingEntity>,
     @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
+    @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
     private readonly cashfree: CashfreeService,
   ) {}
   private normalizeServiceTypes(value: any): string[] {
@@ -86,6 +89,51 @@ class WellnessService {
     return patch;
   }
 
+  private async resolveOwnerId(data: any, existing?: WellnessPartnerEntity) {
+    if (data.ownerId !== undefined && data.ownerId !== null && String(data.ownerId).trim()) {
+      const ownerId = String(data.ownerId).trim();
+      const user = await this.users.findOne({ where: { id: ownerId } });
+      if (!user) throw new BadRequestException('Selected wellness owner user was not found');
+      if (user.role !== 'wellness_partner') throw new BadRequestException('Selected owner must be a wellness partner user');
+      return ownerId;
+    }
+
+    const ownerEmail = String(data.ownerEmail || '').trim().toLowerCase();
+    if (!ownerEmail) {
+      const ownerPassword = String(data.ownerPassword || '').trim();
+      if (ownerPassword && existing?.ownerId) {
+        const user = await this.users.findOne({ where: { id: existing.ownerId } });
+        if (!user) throw new BadRequestException('Linked wellness owner user was not found');
+        user.passwordHash = await bcrypt.hash(ownerPassword, 10);
+        user.isActive = true;
+        await this.users.save(user);
+      }
+      return existing?.ownerId;
+    }
+    let user = await this.users.findOne({ where: { email: ownerEmail } });
+    if (user && user.role !== 'wellness_partner') {
+      throw new BadRequestException('Owner email is already used by another account type');
+    }
+    if (!user) {
+      const ownerPassword = String(data.ownerPassword || '').trim();
+      if (!ownerPassword || ownerPassword.length < 6) {
+        throw new BadRequestException('Owner password of at least 6 characters is required for a new wellness login');
+      }
+      user = await this.users.save(this.users.create({
+        email: ownerEmail,
+        passwordHash: await bcrypt.hash(ownerPassword, 10),
+        name: String(data.ownerName || data.name || ownerEmail.split('@')[0] || 'Wellness Partner').trim(),
+        role: 'wellness_partner',
+        isActive: true,
+      }));
+    } else if (data.ownerPassword !== undefined && String(data.ownerPassword || '').trim()) {
+      user.passwordHash = await bcrypt.hash(String(data.ownerPassword).trim(), 10);
+      user.isActive = true;
+      await this.users.save(user);
+    }
+    return user.id;
+  }
+
   private applyPartnerTypeFilter(qb: any, serviceType?: string) {
     const normalized = this.normalizeServiceTypes(serviceType)[0];
     if (!normalized) return;
@@ -104,8 +152,12 @@ class WellnessService {
     const [data, total] = await qb.orderBy('p.rating', 'DESC').skip(skip).take(take).getManyAndCount();
     return paginatedResponse(data.map((partner) => this.partnerResponse(partner)), total, p, l);
   }
-  createPartner(data: Partial<WellnessPartnerEntity>) {
-    return this.partners.save(this.partners.create(this.partnerPatch(data))).then((partner) => this.partnerResponse(partner));
+  async createPartner(data: Partial<WellnessPartnerEntity> & { ownerEmail?: string; ownerPassword?: string; ownerName?: string }) {
+    const patch = this.partnerPatch(data);
+    const ownerId = await this.resolveOwnerId(data);
+    if (ownerId) patch.ownerId = ownerId;
+    const partner = await this.partners.save(this.partners.create(patch));
+    return this.partnerResponse(partner);
   }
   async getPartner(id: string) {
     const partner = await this.partners.findOne({ where: { id } });
@@ -117,11 +169,20 @@ class WellnessService {
     if (!partner) throw new NotFoundException('No wellness partner profile is linked to this login');
     return this.partnerResponse(partner);
   }
-  async updatePartner(id: string, data: Partial<WellnessPartnerEntity>) {
+  async updatePartner(id: string, data: Partial<WellnessPartnerEntity> & { ownerEmail?: string; ownerPassword?: string; ownerName?: string }) {
     const existing = await this.partners.findOne({ where: { id } });
     if (!existing) throw new NotFoundException('Wellness partner not found');
-    const saved = await this.partners.save({ ...existing, ...this.partnerPatch(data, existing) });
+    const patch = this.partnerPatch(data, existing);
+    if (data.ownerId !== undefined || data.ownerEmail !== undefined || data.ownerPassword !== undefined) {
+      patch.ownerId = await this.resolveOwnerId(data, existing);
+    }
+    const saved = await this.partners.save({ ...existing, ...patch });
     return this.partnerResponse(saved);
+  }
+  async updatePartnerForOwner(ownerId: string, data: Partial<WellnessPartnerEntity>) {
+    const existing = await this.partners.findOne({ where: { ownerId } });
+    if (!existing) throw new NotFoundException('No wellness partner profile is linked to this login');
+    return this.updatePartner(existing.id, data);
   }
   async deletePartner(id: string) {
     await this.partners.update(id, { status: 'inactive' } as any);
@@ -504,6 +565,13 @@ class WellnessController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('wellness_partner')
+  @Put('me')
+  updateMyPartner(@Body() b: any, @Req() req: any) {
+    return this.svc.updatePartnerForOwner(req.user.userId, b);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   @Get('admin/partners')
   adminPartners() {
@@ -648,7 +716,7 @@ class WellnessController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([WellnessPartnerEntity, WellnessServiceEntity, WellnessBookingEntity, AppConfigEntity]), PaymentsModule],
+  imports: [TypeOrmModule.forFeature([WellnessPartnerEntity, WellnessServiceEntity, WellnessBookingEntity, AppConfigEntity, UserEntity]), PaymentsModule],
   controllers: [WellnessController],
   providers: [WellnessService],
 })
