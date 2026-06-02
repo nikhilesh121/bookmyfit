@@ -86,6 +86,10 @@ class WellnessService {
       patch.serviceTypes = ['spa'];
       patch.serviceType = 'spa';
     }
+    if (!existing) {
+      if (patch.lat === undefined) patch.lat = 0;
+      if (patch.lng === undefined) patch.lng = 0;
+    }
     return patch;
   }
 
