@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Shell from '../components/Shell';
-import { api, getUser } from '../lib/api';
+import { api } from '../lib/api';
+import { loadCorporateWithEmployees } from '../lib/corporate';
 import { Users, CheckCircle, TrendingUp, Briefcase, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
@@ -14,19 +15,15 @@ export default function CorporateDashboard() {
   useEffect(() => {
     async function load() {
       try {
-        const corp = await api.get('/corporate/me');
+        const { corporate: corp, employees: employeeList } = await loadCorporateWithEmployees();
         setCorporate(corp);
 
         if (corp) {
-          const id = corp._id || corp.id;
-          const [emps, ci] = await Promise.allSettled([
-            api.get(`/corporate/${id}/employees?limit=200`),
-            api.get('/corporate/me/checkins?limit=10'),
-          ]);
-          if (emps.status === 'fulfilled') {
-            const empList = Array.isArray(emps.value) ? emps.value : emps.value?.data || [];
-            setEmployees(empList);
-          }
+          setEmployees(employeeList);
+          const ci = await api.get('/corporate/me/checkins?limit=10').then(
+            (value: any) => ({ status: 'fulfilled' as const, value }),
+            (reason: any) => ({ status: 'rejected' as const, reason }),
+          );
           if (ci.status === 'fulfilled') {
             const ciList = Array.isArray(ci.value) ? ci.value : ci.value?.data || [];
             setCheckins(ciList);

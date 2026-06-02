@@ -48,6 +48,22 @@ export default function CorporateEmployeesPage() {
   useEffect(() => { loadCorp(); }, [loadCorp]);
   useEffect(() => { load(); }, [load]);
 
+  const fetchAllEmployees = async (): Promise<any[]> => {
+    const first: any = await api.get(`/corporate/${id}/employees?page=1&limit=100`);
+    const firstData = Array.isArray(first) ? first : first?.data ?? [];
+    const totalPages = Number(first?.pages ?? 1);
+    if (totalPages <= 1) return firstData;
+    const rest = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, index) =>
+        api.get(`/corporate/${id}/employees?page=${index + 2}&limit=100`)
+      )
+    );
+    return [
+      firstData,
+      ...rest.map((result: any) => Array.isArray(result) ? result : result?.data ?? []),
+    ].flat();
+  };
+
   const handleAdd = async () => {
     if (!addForm.phone.trim() && !addForm.userId.trim()) { toast('Employee phone or user ID required', 'error'); return; }
     setAdding(true);
@@ -63,8 +79,7 @@ export default function CorporateEmployeesPage() {
       toast('Employee added');
       setShowAdd(false);
       setAddForm(emptyForm);
-      loadCorp();
-      load();
+      await Promise.all([loadCorp(), load()]);
     } catch (e: any) { toast(e.message || 'Failed to add', 'error'); }
     finally { setAdding(false); }
   };
@@ -83,8 +98,7 @@ export default function CorporateEmployeesPage() {
       });
       toast('Employee updated');
       setEditing(null);
-      loadCorp();
-      load();
+      await Promise.all([loadCorp(), load()]);
     } catch (e: any) { toast(e.message || 'Failed to update', 'error'); }
     finally { setAdding(false); }
   };
@@ -93,8 +107,7 @@ export default function CorporateEmployeesPage() {
     try {
       await api.put(`/corporate/${id}/employees/${emp.id}`, { status });
       toast(status === 'active' ? 'Employee reactivated' : 'Employee suspended');
-      loadCorp();
-      load();
+      await Promise.all([loadCorp(), load()]);
     } catch (e: any) { toast(e.message || 'Status update failed', 'error'); }
   };
 
@@ -103,14 +116,18 @@ export default function CorporateEmployeesPage() {
     try {
       await api.post(`/corporate/${id}/employees/${empId}/remove`, {});
       toast('Employee removed');
-      load();
+      await Promise.all([loadCorp(), load()]);
     } catch (e: any) { toast(e.message || 'Failed to remove', 'error'); }
   };
 
-  const exportCSV = () => {
+  const exportCSV = async () => {
     const rows = [['ID', 'Name', 'Email', 'Phone', 'User ID', 'Employee Code', 'Department', 'Status', 'Assigned Date']];
-    employees.forEach((e) => rows.push([e.id, e.name, e.email, e.phone, e.userId, e.employeeCode, e.department, e.status, e.assignedDate]));
-    const csv = rows.map((r) => r.join(',')).join('\n');
+    const allEmployees = await fetchAllEmployees();
+    const rowsToExport = search
+      ? allEmployees.filter((e: any) => [e.name, e.email, e.employeeCode, e.department].some((value) => String(value || '').toLowerCase().includes(search.toLowerCase())))
+      : allEmployees;
+    rowsToExport.forEach((e: any) => rows.push([e.id, e.name, e.email, e.phone, e.userId, e.employeeCode, e.department, e.status, e.assignedDate]));
+    const csv = rows.map((r) => r.map((cell) => `"${String(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'employees.csv'; a.click();
     toast('CSV exported');

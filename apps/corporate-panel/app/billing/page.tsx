@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Shell from '../../components/Shell';
 import { api } from '../../lib/api';
+import { loadCorporateWithEmployees } from '../../lib/corporate';
 import { useToast } from '../../components/Toast';
 import { X } from 'lucide-react';
 
@@ -47,11 +48,10 @@ export default function BillingPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const corp = await api.get('/corporate/me');
+      const { corporate: corp, employees: employeeList } = await loadCorporateWithEmployees();
       if (!corp) return;
       setCorporate(corp);
-      const res = await api.get(`/corporate/${corp._id || corp.id}/employees?limit=200`);
-      setEmployees(Array.isArray(res) ? res : res?.data || []);
+      setEmployees(employeeList);
     } catch (e: any) {
       toast(e.message || 'Failed to load billing', 'error');
     } finally {

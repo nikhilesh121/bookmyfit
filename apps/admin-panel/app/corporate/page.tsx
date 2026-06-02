@@ -30,6 +30,7 @@ function statusBadge(isActive: boolean) {
 export default function CorporatePage() {
   const { toast } = useToast();
   const [data, setData] = useState<CorporateAccount[]>([]);
+  const [allAccounts, setAllAccounts] = useState<CorporateAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -62,8 +63,19 @@ export default function CorporatePage() {
       setData(arr);
       setTotal(res?.total ?? arr.length);
       setPages(res?.pages ?? 1);
+      const first: any = await api.get('/corporate?page=1&limit=100');
+      const firstPage = Array.isArray(first) ? first : first?.data ?? [];
+      const totalPages = Number(first?.pages ?? 1);
+      const rest = totalPages > 1
+        ? await Promise.all(Array.from({ length: totalPages - 1 }, (_, index) => api.get(`/corporate?page=${index + 2}&limit=100`)))
+        : [];
+      setAllAccounts([
+        firstPage,
+        ...rest.map((result: any) => Array.isArray(result) ? result : result?.data ?? []),
+      ].flat());
     } catch {
       setData([]);
+      setAllAccounts([]);
       setTotal(0);
       setPages(1);
     } finally {
@@ -95,12 +107,14 @@ export default function CorporatePage() {
 
   const handleAddCorporate = async () => {
     if (!addForm.name.trim() || !addForm.email.trim()) { toast('Name and email required', 'error'); return; }
+    const seats = Number(addForm.seats);
+    if (!Number.isFinite(seats) || seats <= 0) { toast('Enter paid seat count before creating the account', 'error'); return; }
     setAdding(true);
     try {
       const res: any = await api.post('/corporate', {
         companyName: addForm.name,
         email: addForm.email,
-        totalSeats: Number(addForm.seats) || 10,
+        totalSeats: seats,
         planType: addForm.plan,
         billingContact: addForm.email,
         adminName: addForm.adminName.trim() || addForm.name,
@@ -125,15 +139,16 @@ export default function CorporatePage() {
     (d.email ?? '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalSeats = data.reduce((a, d) => a + (d.totalSeats ?? 0), 0);
-  const totalUsed = data.reduce((a, d) => a + (d.assignedSeats ?? 0), 0);
+  const summaryAccounts = allAccounts.length ? allAccounts : data;
+  const totalSeats = summaryAccounts.reduce((a, d) => a + (d.totalSeats ?? 0), 0);
+  const totalUsed = summaryAccounts.reduce((a, d) => a + (d.assignedSeats ?? 0), 0);
   const utilization = totalSeats > 0 ? Math.round((totalUsed / totalSeats) * 100) : 0;
 
   const kpis = [
     { label: 'Total Accounts', icon: Briefcase, value: total || data.length },
     { label: 'Total Seats', icon: Users, value: totalSeats.toLocaleString() },
     { label: 'Utilization', icon: Activity, value: `${utilization}%` },
-    { label: 'Active Accounts', icon: TrendingUp, value: data.filter((d) => d.isActive).length },
+    { label: 'Active Accounts', icon: TrendingUp, value: summaryAccounts.filter((d) => d.isActive).length },
   ];
 
   return (

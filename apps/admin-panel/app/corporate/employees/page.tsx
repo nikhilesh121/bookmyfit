@@ -9,12 +9,22 @@ type Employee = {
   name?: string;
   email?: string;
   phone?: string;
+  employeeCode?: string;
   department?: string;
   checkinCount?: number;
   lastCheckin?: string;
   status?: string;
   corporate?: { companyName?: string };
 };
+
+function normalizePage(payload: any) {
+  const data = Array.isArray(payload) ? payload : payload?.data || [];
+  return {
+    data,
+    total: Number(payload?.total ?? data.length),
+    pages: Number(payload?.pages ?? 1),
+  };
+}
 
 function fmt(iso?: string) {
   if (!iso) return '—';
@@ -30,23 +40,13 @@ export default function CorporateEmployeesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const corps: any = await api.get('/corporate?limit=200').catch(() => []);
-      const corpList = Array.isArray(corps) ? corps : corps?.data ?? [];
-
-      const results = await Promise.allSettled(
-        corpList.slice(0, 10).map((c: any) =>
-          api.get<Employee[]>(`/corporate/${c.id || c._id}/employees?limit=100`).then(
-            (data) => (Array.isArray(data) ? data : (data as any)?.data ?? []).map((e: Employee) => ({
-              ...e,
-              corporate: { companyName: c.companyName },
-            }))
-          )
+      const first = normalizePage(await api.get('/corporate/employees?page=1&limit=100'));
+      const rest = await Promise.all(
+        Array.from({ length: first.pages - 1 }, (_, index) =>
+          api.get(`/corporate/employees?page=${index + 2}&limit=100`).then(normalizePage)
         )
       );
-
-      const all: Employee[] = results.flatMap((r) =>
-        r.status === 'fulfilled' ? r.value : []
-      );
+      const all: Employee[] = [first, ...rest].flatMap((employeePage) => employeePage.data);
       setEmployees(all);
     } catch {
       setEmployees([]);
@@ -61,7 +61,8 @@ export default function CorporateEmployeesPage() {
 
   const filtered = employees.filter((e) => {
     const q = search.toLowerCase();
-    const matchSearch = !q || (e.name || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q);
+    const matchSearch = !q || [e.name, e.email, e.phone, e.employeeCode]
+      .some((value) => String(value || '').toLowerCase().includes(q));
     const matchCompany = !companyFilter || e.corporate?.companyName === companyFilter;
     return matchSearch && matchCompany;
   });
@@ -69,6 +70,29 @@ export default function CorporateEmployeesPage() {
   const totalCheckins = filtered.reduce((s, e) => s + (e.checkinCount || 0), 0);
   const activeCount = filtered.filter((e) => e.status !== 'suspended' && e.status !== 'inactive').length;
   const avgCheckins = filtered.length ? (totalCheckins / filtered.length).toFixed(1) : '—';
+
+  const exportCsv = () => {
+    const rows = [['Name', 'Company', 'Email', 'Phone', 'Employee Code', 'Department', 'Check-ins', 'Last Visit', 'Status']];
+    filtered.forEach((employee) => rows.push([
+      employee.name || '',
+      employee.corporate?.companyName || '',
+      employee.email || '',
+      employee.phone || '',
+      employee.employeeCode || '',
+      employee.department || '',
+      String(employee.checkinCount ?? 0),
+      employee.lastCheckin ? new Date(employee.lastCheckin).toLocaleString('en-IN') : '',
+      employee.status || 'active',
+    ]));
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'corporate-employees.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <Shell title="Corporate Employees">
@@ -112,7 +136,7 @@ export default function CorporateEmployeesPage() {
           <option value="">All Companies</option>
           {companies.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <button className="btn btn-ghost" onClick={load}>
+        <button className="btn btn-ghost" onClick={exportCsv} disabled={loading || filtered.length === 0}>
           <Download size={14} /> Export
         </button>
       </div>
@@ -133,6 +157,7 @@ export default function CorporateEmployeesPage() {
                 <th>Company</th>
                 <th>Email</th>
                 <th>Department</th>
+                <th>Phone</th>
                 <th>Check-ins</th>
                 <th>Last Visit</th>
                 <th>Status</th>
@@ -147,6 +172,7 @@ export default function CorporateEmployeesPage() {
                   <td style={{ color: 'var(--t2)' }}>{e.corporate?.companyName || '—'}</td>
                   <td style={{ color: 'var(--t2)', fontSize: 12 }}>{e.email || '—'}</td>
                   <td>{e.department || '—'}</td>
+                  <td style={{ color: 'var(--t2)', fontSize: 12 }}>{e.phone || '--'}</td>
                   <td>{e.checkinCount ?? 0}</td>
                   <td style={{ color: 'var(--t2)', fontSize: 12 }}>{fmt(e.lastCheckin)}</td>
                   <td>

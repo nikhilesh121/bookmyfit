@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import Shell from '../../components/Shell';
-import { api } from '../../lib/api';
+import { fetchAllCorporateCheckins, loadCorporateWithEmployees } from '../../lib/corporate';
 import { Download } from 'lucide-react';
 
 export default function UsagePage() {
@@ -14,17 +14,15 @@ export default function UsagePage() {
   useEffect(() => {
     async function load() {
       try {
-        const corp = await api.get('/corporate/me');
-
         const [ci, emps] = await Promise.allSettled([
-          api.get('/corporate/me/checkins'),
-          corp ? api.get(`/corporate/${corp._id || corp.id}/employees`) : Promise.resolve([]),
+          fetchAllCorporateCheckins(),
+          loadCorporateWithEmployees(),
         ]);
         if (ci.status === 'fulfilled') {
-          setCheckins(Array.isArray(ci.value) ? ci.value : ci.value?.data || []);
+          setCheckins(ci.value.data || []);
         }
         if (emps.status === 'fulfilled') {
-          setEmployees(Array.isArray(emps.value) ? emps.value : emps.value?.data || []);
+          setEmployees(emps.value.employees || []);
         }
       } catch {}
       finally { setLoading(false); }

@@ -2,10 +2,34 @@
 import { useEffect, useState } from 'react';
 import Shell from '../../components/Shell';
 import { api } from '../../lib/api';
+import { loadCorporateWithEmployees } from '../../lib/corporate';
 import { useToast } from '../../components/Toast';
 import { Upload } from 'lucide-react';
 
 const DEPTS = ['Engineering', 'Sales', 'Operations', 'Marketing', 'HR', 'Finance', 'Other'];
+
+function parseCsvLine(line: string) {
+  const cells: string[] = [];
+  let current = '';
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === ',' && !quoted) {
+      cells.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+}
 
 export default function AssignPage() {
   const [corporateId, setCorporateId] = useState<string | null>(null);
@@ -19,13 +43,17 @@ export default function AssignPage() {
 
   const load = async () => {
     try {
-      const corp = await api.get('/corporate/me');
-      if (!corp) return;
+      const { corporate: corp, employees: employeeList } = await loadCorporateWithEmployees();
+      if (!corp) {
+        setCorporateId(null);
+        setAccount(null);
+        setEmployees([]);
+        return;
+      }
       const id = corp._id || corp.id;
       setCorporateId(id);
       setAccount(corp);
-      const res = await api.get(`/corporate/${id}/employees?limit=200`);
-      setEmployees(Array.isArray(res) ? res : res?.data || []);
+      setEmployees(employeeList);
     } catch (e: any) {
       toast(e.message || 'Failed to load seat data', 'error');
     }
@@ -46,7 +74,7 @@ export default function AssignPage() {
       await api.post(`/corporate/${corporateId}/employees`, form);
       toast(`Employee access assigned to ${form.phone}`);
       setForm({ name: '', email: '', phone: '', department: DEPTS[0] });
-      load();
+      await load();
     } catch (err: any) {
       toast(err.message || 'Failed to assign employee', 'error');
     } finally {
@@ -60,18 +88,39 @@ export default function AssignPage() {
     try {
       const text = await bulkFile.text();
       const lines = text.trim().split('\n').filter(Boolean);
-      const header = lines[0].toLowerCase();
-      const dataLines = header.includes('phone') || header.includes('email') ? lines.slice(1) : lines;
+      const headerCells = parseCsvLine(lines[0]).map((cell) => cell.toLowerCase());
+      const hasHeader = headerCells.some((cell) => ['phone', 'mobile', 'name', 'email', 'department'].includes(cell));
+      const dataLines = hasHeader ? lines.slice(1) : lines;
       const emps = dataLines.map((line) => {
-        const cols = line.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
-        return { phone: cols[0], name: cols[1] || 'Corporate Employee', email: cols[2] || '', department: cols[3] || 'Other' };
+        const cols = parseCsvLine(line);
+        if (hasHeader) {
+          const row: any = {};
+          headerCells.forEach((key, index) => {
+            const normalizedKey = key === 'mobile' ? 'phone' : key;
+            row[normalizedKey] = cols[index] || '';
+          });
+          return {
+            phone: row.phone || '',
+            name: row.name || row.employee || '',
+            email: row.email || '',
+            department: row.department || 'Other',
+          };
+        }
+        return { phone: cols[0], name: cols[1] || '', email: cols[2] || '', department: cols[3] || 'Other' };
       }).filter((e) => e.phone);
       if (emps.length === 0) { toast('No valid rows found in CSV', 'error'); return; }
+      if (emps.length > available) {
+        toast(`Only ${available} seats are available. Reduce the CSV rows or top-up seats first.`, 'error');
+        return;
+      }
       const res = await api.post(`/corporate/${corporateId}/employees/bulk`, { employees: emps });
       const failures = (res?.results || []).filter((row: any) => row.error).length;
-      toast(failures ? `${emps.length - failures} imported, ${failures} failed` : `${emps.length} employees imported`);
+      toast(
+        failures ? `${emps.length - failures} imported, ${failures} failed. Check duplicate phone/email or seats.` : `${emps.length} employees imported`,
+        failures ? (failures === emps.length ? 'error' : 'info') : 'success',
+      );
       setBulkFile(null);
-      load();
+      await load();
     } catch (err: any) {
       toast(err.message || 'Bulk import failed', 'error');
     } finally {

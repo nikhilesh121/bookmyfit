@@ -4,14 +4,6 @@ import Shell from '../../components/Shell';
 import { useToast } from '../../components/Toast';
 import { api } from '../../lib/api';
 
-const NOTIF_OPTIONS = [
-  'New employee onboarding',
-  'Monthly usage summary',
-  'Invoice reminders',
-  'Inactive employee alerts',
-  'Wellness insights digest',
-];
-
 export default function SettingsPage() {
   const { toast } = useToast();
   const [profile, setProfile] = useState<any>({
@@ -24,7 +16,6 @@ export default function SettingsPage() {
     billingStatus: '',
     isActive: false,
   });
-  const [notifs, setNotifs] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -33,10 +24,6 @@ export default function SettingsPage() {
     try {
       const corp = await api.get('/corporate/me');
       if (corp) setProfile(corp);
-      const defaults: Record<string, boolean> = {};
-      NOTIF_OPTIONS.forEach((n) => (defaults[n] = true));
-      const saved = JSON.parse(localStorage.getItem('bmf_corp_notifs') || 'null');
-      setNotifs(saved || defaults);
     } catch (e: any) {
       toast(e.message || 'Failed to load settings', 'error');
     } finally {
@@ -62,15 +49,9 @@ export default function SettingsPage() {
     }
   };
 
-  const toggleNotif = (n: string) => {
-    const updated = { ...notifs, [n]: !notifs[n] };
-    setNotifs(updated);
-    localStorage.setItem('bmf_corp_notifs', JSON.stringify(updated));
-  };
-
   return (
     <Shell title="Settings">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+      <div className="grid grid-cols-1 gap-5 mb-6" style={{ maxWidth: 760 }}>
         <div className="glass p-6">
           <h3 className="serif text-lg mb-4">Company Profile</h3>
           <div className="space-y-3">
@@ -87,26 +68,6 @@ export default function SettingsPage() {
               <input className="glass-input w-full" placeholder="Finance contact or billing email" value={profile.billingContact || ''} onChange={(e) => setProfile((p: any) => ({ ...p, billingContact: e.target.value }))} />
             </div>
             <button className="btn btn-primary" onClick={saveProfile} disabled={saving || loading}>{saving ? 'Saving...' : 'Save Profile'}</button>
-          </div>
-        </div>
-
-        <div className="glass p-6">
-          <h3 className="serif text-lg mb-4">Notification Preferences</h3>
-          <div className="space-y-3">
-            {NOTIF_OPTIONS.map((n) => (
-              <div key={n} className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                <span className="text-[13px] text-white">{n}</span>
-                <button
-                  onClick={() => toggleNotif(n)}
-                  className="w-10 h-5 rounded-full relative transition-colors"
-                  style={{ background: notifs[n] ? 'var(--accent)' : 'rgba(255,255,255,0.15)' }}
-                >
-                  <div className="w-4 h-4 bg-white rounded-full absolute top-0.5 transition-all"
-                    style={{ right: notifs[n] ? '2px' : undefined, left: notifs[n] ? undefined : '2px' }}
-                  />
-                </button>
-              </div>
-            ))}
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Shell from '../../components/Shell';
 import { api } from '../../lib/api';
+import { fetchAllCorporateCheckins } from '../../lib/corporate';
 
 export default function AnalyticsPage() {
   const [analytics, setAnalytics] = useState<any>(null);
@@ -12,11 +13,11 @@ export default function AnalyticsPage() {
     async function load() {
       const [an, ci] = await Promise.allSettled([
         api.get('/corporate/me/analytics'),
-        api.get('/corporate/me/checkins'),
+        fetchAllCorporateCheckins(),
       ]);
       if (an.status === 'fulfilled') setAnalytics(an.value);
       if (ci.status === 'fulfilled') {
-        setCheckins(Array.isArray(ci.value) ? ci.value : ci.value?.checkins || ci.value?.data || []);
+        setCheckins(ci.value.data || []);
       }
       setLoading(false);
     }

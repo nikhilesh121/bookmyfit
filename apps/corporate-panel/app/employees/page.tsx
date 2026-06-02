@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Shell from '../../components/Shell';
 import { api } from '../../lib/api';
+import { loadCorporateWithEmployees } from '../../lib/corporate';
 import { useToast } from '../../components/Toast';
 import { X, Download, Pencil, Trash2 } from 'lucide-react';
 
@@ -24,13 +25,16 @@ export default function EmployeesPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const corp = await api.get('/corporate/me');
-      if (!corp) return;
+      const { corporate: corp, employees: employeeList } = await loadCorporateWithEmployees();
+      if (!corp) {
+        setAccount(null);
+        setEmployees([]);
+        return;
+      }
       setAccount(corp);
       const id = corp._id || corp.id;
       setCorporateId(id);
-      const res = await api.get(`/corporate/${id}/employees?limit=200`);
-      setEmployees(Array.isArray(res) ? res : res?.data || []);
+      setEmployees(employeeList);
     } catch (e: any) {
       toast(e.message || 'Failed to load employees', 'error');
     } finally {
@@ -65,7 +69,7 @@ export default function EmployeesPage() {
       toast(emp?.email ? `Invite sent to ${emp.email}` : 'Employee added');
       setForm(EMPTY_FORM);
       setShowModal(false);
-      load();
+      await load();
     } catch (e: any) {
       toast(e.message || 'Failed to add employee', 'error');
     } finally {
@@ -87,7 +91,7 @@ export default function EmployeesPage() {
       });
       toast('Employee updated');
       setEditing(null);
-      load();
+      await load();
     } catch (e: any) {
       toast(e.message || 'Failed to update employee', 'error');
     } finally {
@@ -102,7 +106,7 @@ export default function EmployeesPage() {
     try {
       await api.put(`/corporate/${corporateId}/employees/${id}`, { status: nextStatus });
       toast(nextStatus === 'active' ? 'Employee activated' : 'Employee suspended');
-      load();
+      await load();
     } catch (e: any) {
       toast(e.message || 'Status update failed', 'error');
     }
@@ -113,7 +117,7 @@ export default function EmployeesPage() {
     try {
       await api.post(`/corporate/${corporateId}/employees/${emp.id}/remove`, {});
       toast('Employee removed and seat released');
-      load();
+      await load();
     } catch (e: any) {
       toast(e.message || 'Failed to remove employee', 'error');
     }

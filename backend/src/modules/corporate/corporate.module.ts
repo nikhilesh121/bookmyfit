@@ -34,7 +34,11 @@ class CorporateService {
   async list(page: any = 1, limit: any = 20) {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
     const [data, total] = await this.accounts.findAndCount({ order: { createdAt: 'DESC' }, skip, take });
-    return paginatedResponse(data, total, p, l);
+    const synced = await Promise.all(data.map(async (account) => ({
+      ...account,
+      assignedSeats: await this.syncAssignedSeats(account.id),
+    })));
+    return paginatedResponse(synced, total, p, l);
   }
 
   async getByAdminUser(userId: string) {
@@ -226,14 +230,27 @@ class CorporateService {
     return this.getAccount(id);
   }
 
-  async employeesOf(corporateId: string, page: any = 1, limit: any = 20) {
-    const { skip, take, page: p, limit: l } = paginate(page, limit);
-    const [data, total] = await this.employees.findAndCount({ where: { corporateId }, order: { assignedDate: 'DESC' }, skip, take });
+  private async enrichEmployees(data: CorporateEmployeeEntity[]) {
     const userIds = data.map((employee) => employee.userId).filter(Boolean);
     const users = userIds.length ? await this.users.find({ where: { id: In(userIds) } }) : [];
     const userMap = new Map(users.map((user) => [user.id, user]));
-    const enriched = data.map((employee) => {
+    const checkinRows = userIds.length
+      ? await this.checkins.createQueryBuilder('checkin')
+        .select('checkin."userId"', 'userId')
+        .addSelect('COUNT(*)', 'checkinCount')
+        .addSelect('MAX(checkin."checkinTime")', 'lastCheckin')
+        .where('checkin."userId" IN (:...userIds)', { userIds })
+        .andWhere('checkin.status = :status', { status: 'success' })
+        .groupBy('checkin."userId"')
+        .getRawMany()
+      : [];
+    const checkinMap = new Map(checkinRows.map((row) => [row.userId, {
+      checkinCount: Number(row.checkinCount || 0),
+      lastCheckin: row.lastCheckin || null,
+    }]));
+    return data.map((employee) => {
       const user = userMap.get(employee.userId);
+      const checkins = checkinMap.get(employee.userId) || { checkinCount: 0, lastCheckin: null };
       return {
         ...employee,
         name: user?.name || employee.employeeCode,
@@ -241,8 +258,39 @@ class CorporateService {
         phone: user?.phone || null,
         plan: 'Corporate Multi-Gym',
         loginMethod: user?.phone ? `OTP to ${user.phone}` : 'Phone missing',
+        checkinCount: checkins.checkinCount,
+        lastCheckin: checkins.lastCheckin,
       };
     });
+  }
+
+  async employeesOf(corporateId: string, page: any = 1, limit: any = 20) {
+    const { skip, take, page: p, limit: l } = paginate(page, limit);
+    const [data, total] = await this.employees.findAndCount({
+      where: { corporateId },
+      relations: { corporate: true },
+      order: { assignedDate: 'DESC' },
+      skip,
+      take,
+    });
+    const enriched = await this.enrichEmployees(data);
+    await this.syncAssignedSeats(corporateId);
+    return paginatedResponse(enriched, total, p, l);
+  }
+
+  async allEmployees(page: any = 1, limit: any = 50, corporateId?: string, status?: string) {
+    const { skip, take, page: p, limit: l } = paginate(page, limit);
+    const where: any = {};
+    if (corporateId) where.corporateId = corporateId;
+    if (status && status !== 'all') where.status = status;
+    const [data, total] = await this.employees.findAndCount({
+      where,
+      relations: { corporate: true },
+      order: { assignedDate: 'DESC' },
+      skip,
+      take,
+    });
+    const enriched = await this.enrichEmployees(data);
     return paginatedResponse(enriched, total, p, l);
   }
 
@@ -319,18 +367,6 @@ class CorporateService {
     if (!account) throw new BadRequestException('Corporate account not found');
     this.assertCanUseSeats(account);
 
-    const totalSeats = Number(account.totalSeats || 0);
-    const usedSeats = await this.activeSeatCount(corporateId);
-    if (usedSeats !== Number(account.assignedSeats || 0)) {
-      await this.accounts.update(corporateId, { assignedSeats: usedSeats });
-    }
-    if (totalSeats <= 0) {
-      throw new BadRequestException('No seats available. Ask admin to assign seats to this corporate account first.');
-    }
-    if (usedSeats >= totalSeats) {
-      throw new BadRequestException(`No seats available. ${usedSeats}/${totalSeats} seats are already assigned.`);
-    }
-
     const email = String(body.email || '').trim().toLowerCase();
     const phone = this.normalizePhone(body.phone || body.mobile);
     const requestedUserId = body.userId || body.id || '';
@@ -354,6 +390,29 @@ class CorporateService {
       }
     }
 
+    const existing = user ? await this.employees.findOne({ where: { corporateId, userId: user.id } }) : null;
+    if (existing?.status === 'active') throw new BadRequestException('Employee is already assigned to this corporate account');
+
+    const employeeCode = String(body.code || body.employeeCode || this.employeeCode()).trim();
+    const duplicateCode = employeeCode
+      ? await this.employees.findOne({ where: { corporateId, employeeCode } })
+      : null;
+    if (duplicateCode && (!existing || duplicateCode.id !== existing.id)) {
+      throw new BadRequestException('This employee code is already used in this corporate account');
+    }
+
+    const totalSeats = Number(account.totalSeats || 0);
+    const usedSeats = await this.activeSeatCount(corporateId);
+    if (usedSeats !== Number(account.assignedSeats || 0)) {
+      await this.accounts.update(corporateId, { assignedSeats: usedSeats });
+    }
+    if (totalSeats <= 0) {
+      throw new BadRequestException('No seats available. Ask admin to assign seats to this corporate account first.');
+    }
+    if (usedSeats >= totalSeats) {
+      throw new BadRequestException(`No seats available. ${usedSeats}/${totalSeats} seats are already assigned.`);
+    }
+
     if (!user) {
       user = await this.users.save(this.users.create({
         email: email || null,
@@ -370,12 +429,9 @@ class CorporateService {
       user = await this.users.save(user);
     }
 
-    const existing = await this.employees.findOne({ where: { corporateId, userId: user.id } });
     const department = String(body.department || '').trim();
-    const employeeCode = String(body.code || body.employeeCode || this.employeeCode()).trim();
     let employee: CorporateEmployeeEntity;
     if (existing) {
-      if (existing.status === 'active') throw new BadRequestException('Employee is already assigned to this corporate account');
       employee = await this.employees.save({ ...existing, status: 'active', department, employeeCode });
     } else {
       employee = await this.employees.save(
@@ -435,13 +491,23 @@ class CorporateService {
     }
 
     emp.department = body.department !== undefined ? String(body.department || '').trim() : emp.department;
-    emp.employeeCode = body.employeeCode !== undefined ? String(body.employeeCode || '').trim() : emp.employeeCode;
+    if (body.employeeCode !== undefined) {
+      const employeeCode = String(body.employeeCode || '').trim();
+      if (employeeCode) {
+        const duplicateCode = await this.employees.findOne({ where: { corporateId, employeeCode } });
+        if (duplicateCode && duplicateCode.id !== emp.id) {
+          throw new BadRequestException('This employee code is already used in this corporate account');
+        }
+      }
+      emp.employeeCode = employeeCode || emp.employeeCode;
+    }
     emp.status = nextStatus;
 
     const user = await this.users.findOne({ where: { id: emp.userId } });
     if (user) {
       const email = body.email !== undefined ? String(body.email || '').trim().toLowerCase() : user.email;
       const phone = body.phone !== undefined ? this.normalizePhone(body.phone) : user.phone;
+      if (body.phone !== undefined && body.phone && !phone) throw new BadRequestException('Enter a valid 10-digit phone number');
       if (phone && phone !== user.phone) {
         const byPhone = await this.users.findOne({ where: { phone } });
         if (byPhone && byPhone.id !== user.id) throw new BadRequestException('This phone number is already used by another user');
@@ -517,6 +583,7 @@ class CorporateService {
   async getAnalytics(adminUserId: string) {
     const account = await this.accounts.findOne({ where: { adminUserId } });
     if (!account) return { totalEmployees: 0, activeThisMonth: 0, totalCheckins: 0, monthlyBreakdown: [] };
+    const assignedSeats = await this.syncAssignedSeats(account.id);
     const employees = await this.employees.find({ where: { corporateId: account.id, status: 'active' } });
     const userIds = employees.map((e) => e.userId);
     const now = new Date();
@@ -528,14 +595,14 @@ class CorporateService {
     return {
       corporateName: account.companyName,
       totalSeats: account.totalSeats,
-      assignedSeats: account.assignedSeats,
+      assignedSeats,
       billingStatus: account.billingStatus,
       pricePerSeat: account.pricePerSeat,
       totalEmployees: employees.length,
       activeThisMonth: monthCheckins,
       totalCheckins,
       monthlyRevenue: [],
-      totalRevenue: Number(account.assignedSeats || 0) * Number(account.pricePerSeat || 999),
+      totalRevenue: Number(account.totalSeats || 0) * Number(account.pricePerSeat || 999),
       activeSubscribers: employees.length,
       newSignups: 0,
     };
@@ -550,11 +617,24 @@ class CorporateService {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
     const [data, total] = await this.checkins.findAndCount({
       where: { userId: In(userIds) },
+      relations: { user: true, gym: true },
       order: { checkinTime: 'DESC' },
       skip,
       take,
     });
-    return paginatedResponse(data, total, p, l);
+    const employeeMap = new Map(employees.map((employee) => [employee.userId, employee]));
+    const enriched = data.map((checkin) => {
+      const employee = employeeMap.get(checkin.userId);
+      return {
+        ...checkin,
+        createdAt: checkin.checkinTime,
+        userName: checkin.user?.name || employee?.employeeCode || null,
+        gymName: checkin.gym?.name || null,
+        department: employee?.department || null,
+        employeeCode: employee?.employeeCode || null,
+      };
+    });
+    return paginatedResponse(enriched, total, p, l);
   }
 }
 
@@ -602,6 +682,16 @@ class CorporateController {
 
   @Post() @Roles('super_admin')
   create(@Body() body: any) { return this.svc.create(body); }
+
+  @Get('employees') @Roles('super_admin')
+  allEmployees(
+    @Query('page') page = 1,
+    @Query('limit') limit = 50,
+    @Query('corporateId') corporateId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.svc.allEmployees(+page, +limit, corporateId, status);
+  }
 
   @Get(':id') @Roles('super_admin', 'corporate_admin')
   getOne(@Param('id') id: string, @Req() req: any) {
