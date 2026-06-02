@@ -17,6 +17,9 @@ type CorporateAccount = {
   billingContact?: string;
   adminUserId?: string;
   isActive: boolean;
+  pricePerSeat?: number;
+  billingStatus?: string;
+  adminLogin?: { email: string; password: string; portalUrl: string } | null;
   createdAt?: string;
 };
 
@@ -30,7 +33,21 @@ export default function CorporatePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', email: '', seats: '', plan: 'Corporate', adminUserId: '' });
+  const emptyAddForm = {
+    name: '',
+    email: '',
+    seats: '',
+    plan: 'Corporate',
+    adminName: '',
+    adminEmail: '',
+    adminPhone: '',
+    adminPassword: '',
+    pricePerSeat: '999',
+    billingStatus: 'active',
+    isActive: true,
+  };
+  const [addForm, setAddForm] = useState(emptyAddForm);
+  const [createdLogin, setCreatedLogin] = useState<{ email: string; password: string; portalUrl: string } | null>(null);
   const [adding, setAdding] = useState(false);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
@@ -66,21 +83,37 @@ export default function CorporatePage() {
     }
   };
 
+  const handleActiveToggle = async (account: CorporateAccount, isActive: boolean) => {
+    try {
+      await api.put(`/corporate/${account.id}`, { isActive });
+      toast(isActive ? 'Corporate account reactivated' : 'Corporate account suspended');
+      load();
+    } catch (e: any) {
+      toast(e.message || 'Status update failed', 'error');
+    }
+  };
+
   const handleAddCorporate = async () => {
     if (!addForm.name.trim() || !addForm.email.trim()) { toast('Name and email required', 'error'); return; }
     setAdding(true);
     try {
-      await api.post('/corporate', {
+      const res: any = await api.post('/corporate', {
         companyName: addForm.name,
         email: addForm.email,
         totalSeats: Number(addForm.seats) || 10,
         planType: addForm.plan,
         billingContact: addForm.email,
-        adminUserId: addForm.adminUserId.trim() || null,
+        adminName: addForm.adminName.trim() || addForm.name,
+        adminEmail: addForm.adminEmail.trim() || addForm.email,
+        adminPhone: addForm.adminPhone.trim() || null,
+        adminPassword: addForm.adminPassword.trim() || undefined,
+        pricePerSeat: Number(addForm.pricePerSeat) || 999,
+        billingStatus: addForm.billingStatus,
+        isActive: addForm.isActive,
       });
       toast('Corporate account created');
-      setShowAdd(false);
-      setAddForm({ name: '', email: '', seats: '', plan: 'Corporate', adminUserId: '' });
+      setCreatedLogin(res?.adminLogin || null);
+      setAddForm(emptyAddForm);
       load();
     } catch (e: any) {
       toast(e.message || 'Failed to create', 'error');
@@ -194,7 +227,12 @@ export default function CorporatePage() {
                       </td>
                       <td><span className="accent-pill">{c.planType}</span></td>
                       <td className="text-xs" style={{ color: 'var(--t2)' }}>{c.email}</td>
-                      <td><span className={statusBadge(c.isActive)}>{status.charAt(0).toUpperCase() + status.slice(1)}</span></td>
+                      <td>
+                        <div className="flex flex-col gap-1">
+                          <span className={statusBadge(c.isActive)}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+                          <span className={c.billingStatus === 'active' ? 'badge-active' : 'badge-pending'}>{c.billingStatus || 'active'}</span>
+                        </div>
+                      </td>
                       <td className="flex gap-2">
                         <Link href={`/corporate/${c.id}/employees`}>
                           <button className="btn btn-ghost text-xs">Employees</button>
@@ -205,6 +243,11 @@ export default function CorporatePage() {
                         {!c.isActive ? (
                           <button className="btn btn-primary text-xs" onClick={() => handleApprove(c.id)}>Approve</button>
                         ) : null}
+                        {c.isActive ? (
+                          <button className="btn btn-ghost text-xs" onClick={() => handleActiveToggle(c, false)}>Suspend</button>
+                        ) : (
+                          <button className="btn btn-ghost text-xs" onClick={() => handleActiveToggle(c, true)}>Reactivate</button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -219,6 +262,21 @@ export default function CorporatePage() {
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={() => setShowAdd(false)}>
           <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:20,padding:28,width:440,maxWidth:'90vw'}} onClick={e=>e.stopPropagation()}>
             <h3 style={{fontFamily:'var(--serif)',fontSize:20,color:'#fff',marginBottom:20}}>New Corporate Account</h3>
+            {createdLogin ? (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl" style={{ background: 'rgba(204,255,0,0.08)', border: '1px solid rgba(204,255,0,0.25)' }}>
+                  <div className="kicker mb-2">Corporate login details</div>
+                  <div className="text-sm text-white">Portal: {createdLogin.portalUrl}</div>
+                  <div className="text-sm text-white">Email: {createdLogin.email}</div>
+                  <div className="text-sm text-white">Password: {createdLogin.password}</div>
+                </div>
+                <button className="btn btn-primary w-full justify-center" onClick={() => {
+                  navigator.clipboard?.writeText(`Corporate portal: ${createdLogin.portalUrl}\nEmail: ${createdLogin.email}\nPassword: ${createdLogin.password}`);
+                  toast('Login details copied');
+                }}>Copy Login Details</button>
+                <button className="btn btn-ghost w-full justify-center" onClick={() => { setCreatedLogin(null); setShowAdd(false); }}>Done</button>
+              </div>
+            ) : (<>
             <div className="space-y-3">
               <div>
                 <label className="kicker block mb-1">Company Name</label>
@@ -239,8 +297,30 @@ export default function CorporatePage() {
                 </select>
               </div>
               <div>
-                <label className="kicker block mb-1">Corporate Admin User ID</label>
-                <input className="glass-input w-full font-mono" value={addForm.adminUserId} onChange={(e) => setAddForm((f) => ({ ...f, adminUserId: e.target.value }))} placeholder="Optional HR user UUID" />
+                <label className="kicker block mb-1">Per Seat Price</label>
+                <input className="glass-input w-full" type="number" value={addForm.pricePerSeat} onChange={(e) => setAddForm((f) => ({ ...f, pricePerSeat: e.target.value }))} placeholder="999" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="kicker block mb-1">Billing Status</label>
+                  <select className="glass-input w-full" value={addForm.billingStatus} onChange={(e) => setAddForm((f) => ({ ...f, billingStatus: e.target.value }))}>
+                    <option value="active">Active/Paid</option>
+                    <option value="pending_payment">Pending Payment</option>
+                    <option value="trial">Trial</option>
+                    <option value="suspended">Suspended</option>
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 mt-6 text-sm">
+                  <input type="checkbox" checked={addForm.isActive} onChange={(e) => setAddForm((f) => ({ ...f, isActive: e.target.checked }))} />
+                  Approved
+                </label>
+              </div>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                <div className="kicker mb-2">HR admin login</div>
+                <input className="glass-input w-full mb-2" value={addForm.adminName} onChange={(e) => setAddForm((f) => ({ ...f, adminName: e.target.value }))} placeholder="HR admin name" />
+                <input className="glass-input w-full mb-2" type="email" value={addForm.adminEmail} onChange={(e) => setAddForm((f) => ({ ...f, adminEmail: e.target.value }))} placeholder="hr@company.in" />
+                <input className="glass-input w-full mb-2" value={addForm.adminPhone} onChange={(e) => setAddForm((f) => ({ ...f, adminPhone: e.target.value }))} placeholder="HR phone (optional)" />
+                <input className="glass-input w-full" value={addForm.adminPassword} onChange={(e) => setAddForm((f) => ({ ...f, adminPassword: e.target.value }))} placeholder="Temporary password (auto if blank)" />
               </div>
             </div>
             <div style={{display:'flex',gap:10,marginTop:20}}>
@@ -249,6 +329,7 @@ export default function CorporatePage() {
                 {adding ? 'Creating...' : 'Create Account'}
               </button>
             </div>
+            </>)}
           </div>
         </div>
       )}

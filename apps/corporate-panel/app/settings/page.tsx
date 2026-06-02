@@ -1,11 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Shell from '../../components/Shell';
 import { useToast } from '../../components/Toast';
-import { X } from 'lucide-react';
-
-const PROFILE_KEY = 'bmf_corp_profile';
-const NOTIF_KEY = 'bmf_corp_notifs';
+import { api } from '../../lib/api';
 
 const NOTIF_OPTIONS = [
   'New employee onboarding',
@@ -17,40 +14,58 @@ const NOTIF_OPTIONS = [
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const [profile, setProfile] = useState({
-    companyName: 'TechCorp Solutions Pvt Ltd',
-    hrEmail: 'hr@techcorp.in',
-    billingAddress: '',
-    industry: 'Information Technology',
-    gstin: '27AABCT1234C1ZV',
+  const [profile, setProfile] = useState<any>({
+    companyName: '',
+    email: '',
+    billingContact: '',
+    planType: '',
+    totalSeats: 0,
+    pricePerSeat: 0,
+    billingStatus: '',
+    isActive: false,
   });
   const [notifs, setNotifs] = useState<Record<string, boolean>>({});
-  const [showDeactivate, setShowDeactivate] = useState(false);
-  const [confirmText, setConfirmText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const load = async () => {
+    setLoading(true);
     try {
-      const saved = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null');
-      if (saved) setProfile((p) => ({ ...p, ...saved }));
-      const savedNotifs = JSON.parse(localStorage.getItem(NOTIF_KEY) || 'null');
-      if (savedNotifs) setNotifs(savedNotifs);
-      else {
-        const defaults: Record<string, boolean> = {};
-        NOTIF_OPTIONS.forEach((n) => (defaults[n] = true));
-        setNotifs(defaults);
-      }
-    } catch {}
-  }, []);
+      const corp = await api.get('/corporate/me');
+      if (corp) setProfile(corp);
+      const defaults: Record<string, boolean> = {};
+      NOTIF_OPTIONS.forEach((n) => (defaults[n] = true));
+      const saved = JSON.parse(localStorage.getItem('bmf_corp_notifs') || 'null');
+      setNotifs(saved || defaults);
+    } catch (e: any) {
+      toast(e.message || 'Failed to load settings', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const saveProfile = () => {
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-    toast('Company profile saved');
+  useEffect(() => { load(); }, []);
+
+  const saveProfile = async () => {
+    setSaving(true);
+    try {
+      const updated = await api.put('/corporate/me', {
+        companyName: profile.companyName,
+        billingContact: profile.billingContact,
+      });
+      setProfile(updated);
+      toast('Company profile saved');
+    } catch (e: any) {
+      toast(e.message || 'Failed to save profile', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleNotif = (n: string) => {
     const updated = { ...notifs, [n]: !notifs[n] };
     setNotifs(updated);
-    localStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
+    localStorage.setItem('bmf_corp_notifs', JSON.stringify(updated));
   };
 
   return (
@@ -61,25 +76,17 @@ export default function SettingsPage() {
           <div className="space-y-3">
             <div>
               <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Company Name</label>
-              <input className="glass-input w-full" value={profile.companyName} onChange={(e) => setProfile((p) => ({ ...p, companyName: e.target.value }))} />
+              <input className="glass-input w-full" value={profile.companyName || ''} onChange={(e) => setProfile((p: any) => ({ ...p, companyName: e.target.value }))} />
             </div>
             <div>
-              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>HR Email</label>
-              <input className="glass-input w-full" type="email" value={profile.hrEmail} onChange={(e) => setProfile((p) => ({ ...p, hrEmail: e.target.value }))} />
+              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Account Email</label>
+              <input className="glass-input w-full" type="email" value={profile.email || ''} disabled />
             </div>
             <div>
-              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Billing Address</label>
-              <input className="glass-input w-full" placeholder="123 Business Park, Mumbai" value={profile.billingAddress} onChange={(e) => setProfile((p) => ({ ...p, billingAddress: e.target.value }))} />
+              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Billing Contact</label>
+              <input className="glass-input w-full" placeholder="Finance contact or billing email" value={profile.billingContact || ''} onChange={(e) => setProfile((p: any) => ({ ...p, billingContact: e.target.value }))} />
             </div>
-            <div>
-              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Industry</label>
-              <input className="glass-input w-full" value={profile.industry} onChange={(e) => setProfile((p) => ({ ...p, industry: e.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>GSTIN</label>
-              <input className="glass-input w-full" value={profile.gstin} onChange={(e) => setProfile((p) => ({ ...p, gstin: e.target.value }))} />
-            </div>
-            <button className="btn btn-primary" onClick={saveProfile}>Save Profile</button>
+            <button className="btn btn-primary" onClick={saveProfile} disabled={saving || loading}>{saving ? 'Saving...' : 'Save Profile'}</button>
           </div>
         </div>
 
@@ -106,47 +113,28 @@ export default function SettingsPage() {
 
       <div className="glass p-6 mb-6">
         <h3 className="serif text-lg mb-4">Current Plan</h3>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-semibold text-white">Elite Corporate Plan</p>
-            <p className="text-xs mt-1" style={{ color: 'var(--t2)' }}>Access to all partner gyms · Priority support · Advanced analytics</p>
-          </div>
-          <div className="flex gap-3 items-center">
-            <span className="accent-pill">Active</span>
-            <button className="btn btn-ghost text-sm" onClick={() => toast('Contact sales@bookmyfit.in to upgrade', 'info')}>Upgrade Plan</button>
-          </div>
+        <div className="grid grid-cols-4 gap-4">
+          {[
+            { label: 'Plan', value: profile.planType || 'Corporate' },
+            { label: 'Seats', value: String(profile.totalSeats || 0) },
+            { label: 'Per Seat', value: `Rs ${Number(profile.pricePerSeat || 999).toLocaleString('en-IN')}/mo` },
+            { label: 'Billing', value: profile.billingStatus || 'pending' },
+          ].map((item) => (
+            <div key={item.label} className="card stat-glow p-4">
+              <div className="text-xs font-semibold mb-1" style={{ color: 'var(--t2)' }}>{item.label}</div>
+              <div className="text-lg font-bold">{item.value}</div>
+            </div>
+          ))}
         </div>
       </div>
 
       <div className="glass p-6" style={{ border: '1px solid rgba(255,60,60,0.25)' }}>
-        <h3 className="serif text-lg mb-2" style={{ color: '#FF6060' }}>Danger Zone</h3>
-        <p className="text-sm mb-4" style={{ color: 'var(--t2)' }}>Deactivating your account will suspend all employee access immediately.</p>
-        <button className="btn text-sm" style={{ background: 'rgba(255,60,60,0.15)', border: '1px solid rgba(255,60,60,0.3)', color: '#FF6060' }}
-          onClick={() => setShowDeactivate(true)}>
-          Deactivate Account
-        </button>
+        <h3 className="serif text-lg mb-2" style={{ color: '#FF6060' }}>Account Status</h3>
+        <p className="text-sm mb-3" style={{ color: 'var(--t2)' }}>
+          {profile.isActive ? 'Your corporate account is approved by BookMyFit.' : 'Your corporate account is pending approval or suspended.'}
+        </p>
+        <p className="text-xs" style={{ color: 'var(--t3)' }}>Only BookMyFit admin can suspend/reactivate a corporate account or change paid seat counts.</p>
       </div>
-
-      {showDeactivate && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)' }}>
-          <div className="glass p-7 w-full max-w-sm" style={{ border: '1px solid rgba(255,60,60,0.3)' }}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="serif text-xl" style={{ color: '#FF6060' }}>Confirm Deactivation</h3>
-              <button onClick={() => { setShowDeactivate(false); setConfirmText(''); }} style={{ color: 'var(--t2)' }}><X size={18} /></button>
-            </div>
-            <p className="text-sm mb-4" style={{ color: 'var(--t2)' }}>Type <strong className="text-white">DEACTIVATE</strong> to confirm.</p>
-            <input className="glass-input w-full mb-4" placeholder="DEACTIVATE" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
-            <button
-              disabled={confirmText !== 'DEACTIVATE'}
-              className="btn w-full justify-center"
-              style={{ background: confirmText === 'DEACTIVATE' ? 'rgba(255,60,60,0.8)' : 'rgba(255,60,60,0.2)', color: '#fff', opacity: confirmText === 'DEACTIVATE' ? 1 : 0.5 }}
-              onClick={() => { toast('Deactivation request submitted. Our team will contact you.', 'info'); setShowDeactivate(false); setConfirmText(''); }}
-            >
-              Deactivate Account
-            </button>
-          </div>
-        </div>
-      )}
     </Shell>
   );
 }

@@ -21,7 +21,7 @@ export default function CorporateDashboard() {
           const id = corp._id || corp.id;
           const [emps, ci] = await Promise.allSettled([
             api.get(`/corporate/${id}/employees?limit=200`),
-            api.get('/checkins/my-history?limit=10'),
+            api.get('/corporate/me/checkins?limit=10'),
           ]);
           if (emps.status === 'fulfilled') {
             const empList = Array.isArray(emps.value) ? emps.value : emps.value?.data || [];
@@ -42,11 +42,11 @@ export default function CorporateDashboard() {
   }, []);
 
   const totalSeats = corporate?.totalSeats || corporate?.seats || 0;
-  const activeEmps = employees.filter((e: any) => e.status !== 'suspended' && e.status !== 'inactive').length;
-  const assigned = employees.length;
+  const activeEmps = employees.filter((e: any) => e.status === 'active').length;
+  const assigned = Number(corporate?.assignedSeats ?? activeEmps);
   const available = Math.max(0, totalSeats - assigned);
-  const perSeat = 1500;
-  const monthlyCost = `₹${(assigned * perSeat).toLocaleString('en-IN')}`;
+  const perSeat = Number(corporate?.pricePerSeat || 999);
+  const monthlyCost = `Rs ${(totalSeats * perSeat).toLocaleString('en-IN')}`;
 
   const recentCheckins = checkins.slice(0, 5);
 

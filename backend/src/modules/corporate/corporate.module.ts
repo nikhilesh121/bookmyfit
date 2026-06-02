@@ -1,15 +1,23 @@
 import { Module, Controller, Get, Post, Put, Body, Param, Injectable, BadRequestException, ForbiddenException, NotFoundException, UseGuards, Query, Req } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, MoreThanOrEqual } from 'typeorm';
+import * as bcrypt from 'bcryptjs';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { CorporateAccountEntity, CorporateEmployeeEntity } from '../../database/entities/corporate.entity';
 import { CheckinEntity } from '../../database/entities/checkin.entity';
 import { UserEntity } from '../../database/entities/user.entity';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
+import { CashfreeService } from '../payments/cashfree.service';
+import { PaymentsModule } from '../payments/payments.module';
+import { EmailModule } from '../email/email.module';
+import { EmailService } from '../email/email.service';
+
+const CORPORATE_PORTAL_URL = process.env.CORP_PANEL_URL || 'https://corporate.bookmyfit.in';
+const ACTIVE_BILLING_STATES = new Set(['active', 'trial']);
 
 @Injectable()
 class CorporateService {
@@ -18,6 +26,9 @@ class CorporateService {
     @InjectRepository(CorporateEmployeeEntity) private readonly employees: Repository<CorporateEmployeeEntity>,
     @InjectRepository(CheckinEntity) private readonly checkins: Repository<CheckinEntity>,
     @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
+    @InjectRepository(SubscriptionEntity) private readonly subscriptions: Repository<SubscriptionEntity>,
+    private readonly cashfree: CashfreeService,
+    private readonly email: EmailService,
   ) {}
 
   async list(page: any = 1, limit: any = 20) {
@@ -57,6 +68,17 @@ class CorporateService {
     return this.getAccount(corporateId);
   }
 
+  private normalizePhone(value: any): string | null {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (digits.length === 10) return digits;
+    if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+    return null;
+  }
+
+  private tempPassword() {
+    return `Bmf@${Date.now().toString(36).slice(-4)}${Math.random().toString(36).slice(2, 6)}`;
+  }
+
   private async assertCorporateAdminUser(userId: string) {
     const user = await this.users.findOne({ where: { id: userId } });
     if (!user) throw new BadRequestException('Corporate admin user not found');
@@ -64,30 +86,90 @@ class CorporateService {
     return user;
   }
 
-  async create(data: Partial<CorporateAccountEntity>) {
+  private async createOrUpdateCorporateAdmin(data: any, companyName: string, corporateEmail: string) {
+    const adminUserId = data.adminUserId ? String(data.adminUserId).trim() : '';
+    if (adminUserId) {
+      const user = await this.assertCorporateAdminUser(adminUserId);
+      return { user, login: null };
+    }
+
+    const adminEmail = String(data.adminEmail || data.hrEmail || corporateEmail || '').trim().toLowerCase();
+    if (!adminEmail) throw new BadRequestException('Corporate admin email is required');
+    const adminName = String(data.adminName || data.hrName || `${companyName} HR`).trim();
+    const adminPhone = this.normalizePhone(data.adminPhone || data.phone);
+    const password = String(data.adminPassword || data.password || this.tempPassword()).trim();
+    if (password.length < 6) throw new BadRequestException('Corporate admin password must be at least 6 characters');
+
+    let user = await this.users.findOne({ where: { email: adminEmail } });
+    if (user && user.role !== 'corporate_admin') {
+      throw new BadRequestException('This admin email is already used by another account role');
+    }
+
+    if (adminPhone) {
+      const byPhone = await this.users.findOne({ where: { phone: adminPhone } });
+      if (byPhone && (!user || byPhone.id !== user.id)) {
+        throw new BadRequestException('This admin phone is already used by another account');
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    if (!user) {
+      user = this.users.create({
+        email: adminEmail,
+        phone: adminPhone,
+        name: adminName,
+        passwordHash,
+        role: 'corporate_admin',
+        isActive: true,
+      });
+    } else {
+      user.name = adminName || user.name;
+      user.phone = adminPhone || user.phone;
+      user.passwordHash = passwordHash;
+      user.isActive = true;
+    }
+    user = await this.users.save(user);
+
+    const login = { email: user.email, password, portalUrl: CORPORATE_PORTAL_URL };
+    this.email.sendCorporateAdminCredentials({
+      companyName,
+      adminName: user.name,
+      email: user.email || adminEmail,
+      password,
+      portalUrl: CORPORATE_PORTAL_URL,
+    }).catch(() => {});
+
+    return { user, login };
+  }
+
+  async create(data: any) {
     const email = String(data.email || '').trim().toLowerCase();
     const companyName = String(data.companyName || '').trim();
     if (!email) throw new BadRequestException('Corporate email is required');
     if (!companyName) throw new BadRequestException('Company name is required');
     const existing = await this.accounts.findOne({ where: [{ email }, { companyName }] });
     if (existing) throw new BadRequestException('Corporate account already exists');
-    const totalSeats = Number(data.totalSeats || 0);
-    const adminUserId = data.adminUserId ? String(data.adminUserId).trim() : null;
-    if (adminUserId) await this.assertCorporateAdminUser(adminUserId);
+
+    const totalSeats = Math.max(0, Math.round(Number(data.totalSeats ?? data.seats ?? 0) || 0));
+    const pricePerSeat = Math.max(0, Math.round(Number(data.pricePerSeat ?? 999) || 999));
+    const { user, login } = await this.createOrUpdateCorporateAdmin(data, companyName, email);
     const account = this.accounts.create({
       companyName,
       email,
-      totalSeats: Number.isFinite(totalSeats) ? totalSeats : 0,
+      totalSeats,
       assignedSeats: 0,
-      planType: String(data.planType || 'standard').trim(),
-      billingContact: data.billingContact || null,
-      adminUserId,
+      pricePerSeat,
+      billingStatus: String(data.billingStatus || 'active') as any,
+      planType: String(data.planType || 'corporate').trim(),
+      billingContact: data.billingContact || email,
+      adminUserId: user.id,
       isActive: data.isActive ?? true,
     });
-    return this.accounts.save(account);
+    const saved = await this.accounts.save(account);
+    return { ...saved, adminLogin: login };
   }
 
-  async update(id: string, data: Partial<CorporateAccountEntity>) {
+  async update(id: string, data: any) {
     const account = await this.getAccount(id);
     const patch: Partial<CorporateAccountEntity> = {};
     if (data.companyName !== undefined) {
@@ -101,28 +183,45 @@ class CorporateService {
       patch.email = email;
     }
     if (data.totalSeats !== undefined) {
-      const totalSeats = Number(data.totalSeats);
-      if (!Number.isFinite(totalSeats) || totalSeats < account.assignedSeats) {
+      const totalSeats = Math.max(0, Math.round(Number(data.totalSeats) || 0));
+      if (totalSeats < account.assignedSeats) {
         throw new BadRequestException('Total seats cannot be lower than assigned seats');
       }
       patch.totalSeats = totalSeats;
     }
-    if (data.planType !== undefined) patch.planType = String(data.planType || 'standard').trim();
+    if (data.pricePerSeat !== undefined) {
+      const pricePerSeat = Math.max(0, Math.round(Number(data.pricePerSeat) || 0));
+      patch.pricePerSeat = pricePerSeat;
+    }
+    if (data.billingStatus !== undefined) patch.billingStatus = String(data.billingStatus || 'pending_payment') as any;
+    if (data.planType !== undefined) patch.planType = String(data.planType || 'corporate').trim();
     if (data.billingContact !== undefined) patch.billingContact = data.billingContact || null;
     if (data.adminUserId !== undefined) {
       const adminUserId = data.adminUserId ? String(data.adminUserId).trim() : null;
       if (adminUserId) await this.assertCorporateAdminUser(adminUserId);
-      patch.adminUserId = adminUserId;
+      patch.adminUserId = adminUserId as any;
     }
     if (data.isActive !== undefined) patch.isActive = Boolean(data.isActive);
     await this.accounts.update(id, patch);
     return this.getAccount(id);
   }
 
+  async updateSelf(adminUserId: string, data: any) {
+    const account = await this.getByAdminUser(adminUserId);
+    if (!account) throw new NotFoundException('Corporate account not found');
+    const patch: Partial<CorporateAccountEntity> = {};
+    if (data.companyName !== undefined) patch.companyName = String(data.companyName || account.companyName).trim();
+    if (data.billingContact !== undefined) patch.billingContact = data.billingContact || null;
+    await this.accounts.update(account.id, patch);
+    return this.getAccount(account.id);
+  }
+
   async approve(id: string, userId?: string) {
-    await this.getAccount(id);
     const patch: Partial<CorporateAccountEntity> = { isActive: true };
-    if (userId) patch.adminUserId = userId;
+    if (userId) {
+      await this.assertCorporateAdminUser(userId);
+      patch.adminUserId = userId;
+    }
     await this.accounts.update(id, patch);
     return this.getAccount(id);
   }
@@ -140,7 +239,8 @@ class CorporateService {
         name: user?.name || employee.employeeCode,
         email: user?.email || null,
         phone: user?.phone || null,
-        plan: 'Corporate',
+        plan: 'Corporate Multi-Gym',
+        loginMethod: user?.phone ? `OTP to ${user.phone}` : 'Phone missing',
       };
     });
     return paginatedResponse(enriched, total, p, l);
@@ -160,9 +260,65 @@ class CorporateService {
     return `EMP-${Date.now().toString(36).toUpperCase().slice(-6)}`;
   }
 
+  private assertCanUseSeats(account: CorporateAccountEntity) {
+    if (!account.isActive) throw new BadRequestException('Corporate account is not approved or is suspended');
+    if (!ACTIVE_BILLING_STATES.has(String(account.billingStatus || 'active'))) {
+      throw new BadRequestException('Corporate payment is pending. Please complete billing before assigning employees.');
+    }
+  }
+
+  private isoDate(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  private addMonths(date: Date, months: number) {
+    const next = new Date(date);
+    next.setMonth(next.getMonth() + months);
+    return next;
+  }
+
+  private async ensureEmployeeAccessSubscription(account: CorporateAccountEntity, userId: string) {
+    const now = new Date();
+    const existing = await this.subscriptions.findOne({
+      where: { corporateId: account.id, userId },
+      order: { createdAt: 'DESC' },
+    });
+    if (existing) {
+      existing.planType = 'multi_gym';
+      existing.status = 'active';
+      existing.durationMonths = Math.max(Number(existing.durationMonths || 12), 12);
+      existing.startDate = this.isoDate(now);
+      existing.endDate = this.isoDate(this.addMonths(now, 12));
+      existing.amountPaid = 0;
+      existing.gymIds = [];
+      return this.subscriptions.save(existing);
+    }
+    return this.subscriptions.save(this.subscriptions.create({
+      userId,
+      planType: 'multi_gym',
+      durationMonths: 12,
+      startDate: this.isoDate(now),
+      endDate: this.isoDate(this.addMonths(now, 12)),
+      status: 'active',
+      amountPaid: 0,
+      gymIds: [],
+      corporateId: account.id,
+      invoiceNumber: `CORP-${Date.now().toString(36).toUpperCase()}`,
+    }));
+  }
+
+  private async deactivateEmployeeAccess(accountId: string, userId: string) {
+    const subs = await this.subscriptions.find({ where: { corporateId: accountId, userId } });
+    const active = subs.filter((sub) => sub.status !== 'cancelled' && sub.status !== 'expired');
+    if (!active.length) return;
+    await this.subscriptions.save(active.map((sub) => ({ ...sub, status: 'cancelled' as any })));
+  }
+
   async assignEmployee(corporateId: string, body: any) {
     const account = await this.accounts.findOne({ where: { id: corporateId } });
     if (!account) throw new BadRequestException('Corporate account not found');
+    this.assertCanUseSeats(account);
+
     const totalSeats = Number(account.totalSeats || 0);
     const usedSeats = await this.activeSeatCount(corporateId);
     if (usedSeats !== Number(account.assignedSeats || 0)) {
@@ -176,53 +332,89 @@ class CorporateService {
     }
 
     const email = String(body.email || '').trim().toLowerCase();
+    const phone = this.normalizePhone(body.phone || body.mobile);
     const requestedUserId = body.userId || body.id || '';
     let user: UserEntity | null = null;
     if (requestedUserId) user = await this.users.findOne({ where: { id: requestedUserId } });
+    if (!user && phone) user = await this.users.findOne({ where: { phone } });
     if (!user && email) user = await this.users.findOne({ where: { email } });
-    if (!user && email) {
+    if (!user && !phone) throw new BadRequestException('Employee phone number is required for mobile OTP login');
+    if (user && !phone && !user.phone) throw new BadRequestException('Existing employee user must have a phone number for mobile OTP login');
+
+    if (phone) {
+      const byPhone = await this.users.findOne({ where: { phone } });
+      if (byPhone && (!user || byPhone.id !== user.id)) {
+        throw new BadRequestException('This phone number is already used by another user');
+      }
+    }
+    if (email) {
+      const byEmail = await this.users.findOne({ where: { email } });
+      if (byEmail && (!user || byEmail.id !== user.id)) {
+        throw new BadRequestException('This email is already used by another user');
+      }
+    }
+
+    if (!user) {
       user = await this.users.save(this.users.create({
-        email,
-        name: String(body.name || email.split('@')[0] || 'Corporate Employee').trim(),
+        email: email || null,
+        phone,
+        name: String(body.name || email?.split('@')[0] || 'Corporate Employee').trim(),
         role: 'end_user',
         isActive: true,
       }));
+    } else {
+      user.email = email || user.email;
+      user.phone = phone || user.phone;
+      user.name = String(body.name || user.name || 'Corporate Employee').trim();
+      user.isActive = true;
+      user = await this.users.save(user);
     }
-    if (!user) throw new BadRequestException('Employee email or existing userId is required');
 
     const existing = await this.employees.findOne({ where: { corporateId, userId: user.id } });
     const department = String(body.department || '').trim();
     const employeeCode = String(body.code || body.employeeCode || this.employeeCode()).trim();
+    let employee: CorporateEmployeeEntity;
     if (existing) {
       if (existing.status === 'active') throw new BadRequestException('Employee is already assigned to this corporate account');
-      const saved = await this.employees.save({ ...existing, status: 'active', department, employeeCode });
-      await this.syncAssignedSeats(corporateId);
-      return { ...saved, name: user.name, email: user.email, plan: 'Corporate' };
+      employee = await this.employees.save({ ...existing, status: 'active', department, employeeCode });
+    } else {
+      employee = await this.employees.save(
+        this.employees.create({ corporateId, userId: user.id, employeeCode, department, status: 'active' }),
+      );
+    }
+    await this.ensureEmployeeAccessSubscription(account, user.id);
+    await this.syncAssignedSeats(corporateId);
+
+    if (user.email) {
+      this.email.sendCorporateEmployeeInvite({
+        companyName: account.companyName,
+        employeeName: user.name,
+        email: user.email,
+        phone: user.phone,
+      }).catch(() => {});
     }
 
-    const employee = await this.employees.save(
-      this.employees.create({ corporateId, userId: user.id, employeeCode, department, status: 'active' }),
-    );
-    await this.syncAssignedSeats(corporateId);
-    return { ...employee, name: user.name, email: user.email, plan: 'Corporate' };
+    return { ...employee, name: user.name, email: user.email, phone: user.phone, plan: 'Corporate Multi-Gym' };
   }
 
-  async bulkAssign(corporateId: string, employees: Array<{ userId: string; code: string; department?: string }>) {
+  async bulkAssign(corporateId: string, employees: any[]) {
     const results = [];
-    for (const e of employees) {
+    for (const employee of employees || []) {
       try {
-        results.push(await this.assignEmployee(corporateId, e));
+        results.push(await this.assignEmployee(corporateId, employee));
       } catch (err: any) {
-        results.push({ error: err.message, userId: e.userId });
+        results.push({ error: err.message, email: employee.email, phone: employee.phone, userId: employee.userId });
       }
     }
-    return { processed: employees.length, results };
+    return { processed: employees?.length || 0, results };
   }
 
   async removeEmployee(corporateId: string, employeeId: string) {
     const emp = await this.employees.findOne({ where: { id: employeeId, corporateId } });
     if (!emp) throw new BadRequestException('Employee not found');
-    await this.employees.remove(emp);
+    emp.status = 'removed';
+    await this.employees.save(emp);
+    await this.deactivateEmployeeAccess(corporateId, emp.userId);
     await this.syncAssignedSeats(corporateId);
     return { success: true };
   }
@@ -230,14 +422,96 @@ class CorporateService {
   async updateEmployee(corporateId: string, employeeId: string, body: any) {
     const emp = await this.employees.findOne({ where: { id: employeeId, corporateId } });
     if (!emp) throw new BadRequestException('Employee not found');
-    const saved = await this.employees.save({
-      ...emp,
-      department: body.department !== undefined ? String(body.department || '').trim() : emp.department,
-      employeeCode: body.employeeCode !== undefined ? String(body.employeeCode || '').trim() : emp.employeeCode,
-      status: body.status || emp.status,
-    });
+    const account = await this.accounts.findOne({ where: { id: corporateId } });
+    if (!account) throw new BadRequestException('Corporate account not found');
+
+    const nextStatus = body.status !== undefined ? String(body.status || emp.status) : emp.status;
+    if (nextStatus === 'active' && emp.status !== 'active') {
+      this.assertCanUseSeats(account);
+      const usedSeats = await this.activeSeatCount(corporateId);
+      if (usedSeats >= Number(account.totalSeats || 0)) {
+        throw new BadRequestException(`No seats available. ${usedSeats}/${account.totalSeats} seats are already assigned.`);
+      }
+    }
+
+    emp.department = body.department !== undefined ? String(body.department || '').trim() : emp.department;
+    emp.employeeCode = body.employeeCode !== undefined ? String(body.employeeCode || '').trim() : emp.employeeCode;
+    emp.status = nextStatus;
+
+    const user = await this.users.findOne({ where: { id: emp.userId } });
+    if (user) {
+      const email = body.email !== undefined ? String(body.email || '').trim().toLowerCase() : user.email;
+      const phone = body.phone !== undefined ? this.normalizePhone(body.phone) : user.phone;
+      if (phone && phone !== user.phone) {
+        const byPhone = await this.users.findOne({ where: { phone } });
+        if (byPhone && byPhone.id !== user.id) throw new BadRequestException('This phone number is already used by another user');
+      }
+      if (email && email !== user.email) {
+        const byEmail = await this.users.findOne({ where: { email } });
+        if (byEmail && byEmail.id !== user.id) throw new BadRequestException('This email is already used by another user');
+      }
+      user.name = body.name !== undefined ? String(body.name || user.name).trim() : user.name;
+      user.email = email || user.email;
+      user.phone = phone || user.phone;
+      await this.users.save(user);
+    }
+
+    const saved = await this.employees.save(emp);
+    if (saved.status === 'active') await this.ensureEmployeeAccessSubscription(account, saved.userId);
+    else await this.deactivateEmployeeAccess(corporateId, saved.userId);
     await this.syncAssignedSeats(corporateId);
-    return saved;
+    return this.employeesOf(corporateId, 1, 1).then(() => saved);
+  }
+
+  async requestSeatPayment(adminUserId: string, additionalSeatsRaw: any = 0) {
+    const account = await this.getByAdminUser(adminUserId);
+    if (!account) throw new NotFoundException('Corporate account not found');
+    const additionalSeats = Math.max(0, Math.round(Number(additionalSeatsRaw) || 0));
+    if (account.pendingSeatOrderId) {
+      throw new BadRequestException(`Seat payment already pending for order ${account.pendingSeatOrderId}`);
+    }
+
+    const isTopup = additionalSeats > 0;
+    if (!isTopup && ACTIVE_BILLING_STATES.has(String(account.billingStatus || 'active'))) {
+      throw new BadRequestException('Corporate billing is already active');
+    }
+
+    const seatsToBill = isTopup ? additionalSeats : Math.max(1, Number(account.totalSeats || 0));
+    const pricePerSeat = Math.max(0, Number(account.pricePerSeat || 999));
+    const amount = Math.round(seatsToBill * pricePerSeat);
+    if (amount <= 0) throw new BadRequestException('Seat payment amount must be greater than zero');
+
+    const admin = await this.users.findOne({ where: { id: adminUserId } });
+    const orderId = `CORP_${account.id.replace(/-/g, '').slice(0, 12)}_${Date.now()}`;
+    const payment = await this.cashfree.createOrder({
+      orderId,
+      amount,
+      customerId: adminUserId,
+      customerPhone: admin?.phone || '9999999999',
+      customerEmail: admin?.email || account.email,
+      notes: {
+        kind: isTopup ? 'corporate_seat_topup' : 'corporate_initial_seats',
+        corporateId: account.id,
+        seats: seatsToBill,
+        pricePerSeat,
+      },
+    });
+
+    account.pendingSeatRequest = isTopup ? additionalSeats : 0;
+    account.pendingSeatOrderId = payment.orderId || orderId;
+    if (!isTopup) account.billingStatus = 'pending_payment' as any;
+    await this.accounts.save(account);
+    return {
+      success: true,
+      amount,
+      seats: seatsToBill,
+      pricePerSeat,
+      orderId: payment.orderId || orderId,
+      payment,
+      message: isTopup
+        ? `Payment created for ${additionalSeats} additional seats`
+        : 'Payment created for current corporate seats',
+    };
   }
 
   async getAnalytics(adminUserId: string) {
@@ -248,18 +522,20 @@ class CorporateService {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const [totalCheckins, monthCheckins] = await Promise.all([
-      userIds.length ? this.checkins.count({ where: { userId: In(userIds), status: 'success', checkinTime: MoreThanOrEqual(monthStart) } }) : Promise.resolve(0),
       userIds.length ? this.checkins.count({ where: { userId: In(userIds), status: 'success' } }) : Promise.resolve(0),
+      userIds.length ? this.checkins.count({ where: { userId: In(userIds), status: 'success', checkinTime: MoreThanOrEqual(monthStart) } }) : Promise.resolve(0),
     ]);
     return {
       corporateName: account.companyName,
       totalSeats: account.totalSeats,
       assignedSeats: account.assignedSeats,
+      billingStatus: account.billingStatus,
+      pricePerSeat: account.pricePerSeat,
       totalEmployees: employees.length,
       activeThisMonth: monthCheckins,
       totalCheckins,
       monthlyRevenue: [],
-      totalRevenue: account.assignedSeats * 1500,
+      totalRevenue: Number(account.assignedSeats || 0) * Number(account.pricePerSeat || 999),
       activeSubscribers: employees.length,
       newSignups: 0,
     };
@@ -296,6 +572,11 @@ class CorporateController {
     return corp;
   }
 
+  @Put('me') @Roles('corporate_admin')
+  updateMe(@Req() req: any, @Body() body: any) {
+    return this.svc.updateSelf(req.user.userId, body);
+  }
+
   @Get('me/analytics') @Roles('corporate_admin')
   meAnalytics(@Req() req: any) {
     return this.svc.getAnalytics(req.user.userId);
@@ -304,6 +585,16 @@ class CorporateController {
   @Get('me/checkins') @Roles('corporate_admin')
   meCheckins(@Req() req: any, @Query('page') page = 1, @Query('limit') limit = 50) {
     return this.svc.getCheckins(req.user.userId, +page, +limit);
+  }
+
+  @Post('me/seat-payment') @Roles('corporate_admin')
+  seatPayment(@Req() req: any, @Body() body: { additionalSeats?: number }) {
+    return this.svc.requestSeatPayment(req.user.userId, body?.additionalSeats || 0);
+  }
+
+  @Post('me/topup-request') @Roles('corporate_admin')
+  topupRequest(@Req() req: any, @Body() body: { additionalSeats: number }) {
+    return this.svc.requestSeatPayment(req.user.userId, body?.additionalSeats || 0);
   }
 
   @Get() @Roles('super_admin')
@@ -327,18 +618,9 @@ class CorporateController {
     return this.svc.linkAdmin(id, body.userId);
   }
 
-  /** Alias for link-admin — used by admin panel "Approve Corporate" button */
   @Post(':id/approve') @Roles('super_admin')
   approve(@Param('id') id: string, @Body() body: { userId?: string }) {
-    // Approve = activate the corporate account (link-admin if userId provided)
     return this.svc.approve(id, body?.userId);
-  }
-
-  /** Corporate admin requests additional seat allocation */
-  @Post('me/topup-request') @Roles('corporate_admin')
-  topupRequest(@Req() req: any, @Body() body: { additionalSeats: number }) {
-    // Creates a notification/request for super_admin — actual seat update is manual
-    return { success: true, message: `Topup request for ${body.additionalSeats} seats submitted`, requestedBy: req.user?.sub };
   }
 
   @Get(':id/employees') @Roles('super_admin', 'corporate_admin')
@@ -373,7 +655,11 @@ class CorporateController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CorporateAccountEntity, CorporateEmployeeEntity, CheckinEntity, UserEntity])],
+  imports: [
+    TypeOrmModule.forFeature([CorporateAccountEntity, CorporateEmployeeEntity, CheckinEntity, UserEntity, SubscriptionEntity]),
+    PaymentsModule,
+    EmailModule,
+  ],
   controllers: [CorporateController],
   providers: [CorporateService],
 })

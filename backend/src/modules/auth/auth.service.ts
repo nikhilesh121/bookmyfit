@@ -362,7 +362,9 @@ export class AuthService {
       this.corporates.create({
         companyName: data.companyName, email: data.email,
         billingContact: data.billingContact, planType: 'multigym',
-        totalSeats: requestedSeats, assignedSeats: 0, adminUserId: user.id, isActive: true,
+        totalSeats: requestedSeats, assignedSeats: 0, adminUserId: user.id, isActive: false,
+        pricePerSeat: 999,
+        billingStatus: requestedSeats > 0 ? 'pending_payment' : 'active',
       }),
     );
     // Fire-and-forget welcome email

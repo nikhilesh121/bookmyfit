@@ -5,22 +5,33 @@ import { api } from '../../lib/api';
 import { useToast } from '../../components/Toast';
 import { X } from 'lucide-react';
 
-const PER_SEAT = 1500;
+declare global {
+  interface Window {
+    Cashfree?: any;
+  }
+}
 
-function genInvoices(seats: number) {
-  const now = new Date();
-  return Array.from({ length: 4 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const period = d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-    const s = i === 0 ? Math.max(seats, 10) : Math.max(seats - i * 3, 10);
-    return {
-      id: `INV-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(3, '0')}`,
-      period,
-      seats: s,
-      amount: s * PER_SEAT,
-      status: i === 0 ? 'Due' : 'Paid',
-      date: new Date(d.getFullYear(), d.getMonth() + 1, 1).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-    };
+function money(value: number) {
+  return `Rs ${Math.round(value || 0).toLocaleString('en-IN')}`;
+}
+
+function loadCashfreeSdk() {
+  return new Promise<void>((resolve, reject) => {
+    if (typeof window === 'undefined') return reject(new Error('Browser is required'));
+    if (window.Cashfree) return resolve();
+    const existing = document.querySelector<HTMLScriptElement>('script[data-cashfree-sdk="true"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Cashfree SDK failed to load')), { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+    script.async = true;
+    script.dataset.cashfreeSdk = 'true';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Cashfree SDK failed to load'));
+    document.head.appendChild(script);
   });
 }
 
@@ -29,80 +40,94 @@ export default function BillingPage() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTopup, setShowTopup] = useState(false);
-  const [showPay, setShowPay] = useState<any>(null);
   const [topupSeats, setTopupSeats] = useState(10);
   const [requesting, setRequesting] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const corp = await api.get('/corporate/me');
-
-        if (!corp) return;
-        setCorporate(corp);
-        const res = await api.get(`/corporate/${corp._id || corp.id}/employees`);
-        setEmployees(Array.isArray(res) ? res : res?.data || []);
-      } catch {}
-      finally { setLoading(false); }
+  const load = async () => {
+    setLoading(true);
+    try {
+      const corp = await api.get('/corporate/me');
+      if (!corp) return;
+      setCorporate(corp);
+      const res = await api.get(`/corporate/${corp._id || corp.id}/employees?limit=200`);
+      setEmployees(Array.isArray(res) ? res : res?.data || []);
+    } catch (e: any) {
+      toast(e.message || 'Failed to load billing', 'error');
+    } finally {
+      setLoading(false);
     }
-    load();
-  }, []);
-
-  const seats = corporate?.totalSeats || corporate?.seats || employees.length;
-  const monthly = seats * PER_SEAT;
-  const invoices = genInvoices(seats);
-
-  const downloadInv = (inv: any) => {
-    const content = [
-      'BOOKMYFIT CORPORATE INVOICE',
-      '============================',
-      `Invoice #: ${inv.id}`,
-      `Period:    ${inv.period}`,
-      `Seats:     ${inv.seats}`,
-      `Per Seat:  ₹${PER_SEAT.toLocaleString('en-IN')}/month`,
-      `Amount:    ₹${inv.amount.toLocaleString('en-IN')}`,
-      `Due Date:  ${inv.date}`,
-      `Status:    ${inv.status}`,
-      '',
-      'Powered by BookMyFit Corporate',
-    ].join('\n');
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `${inv.id}.txt`; a.click();
-    URL.revokeObjectURL(url);
   };
 
-  const requestTopup = async () => {
+  useEffect(() => { load(); }, []);
+
+  const startCheckout = async (payload: any) => {
+    const payment = payload?.payment || payload;
+    const paymentSessionId = payment?.paymentSessionId;
+    if (!paymentSessionId) {
+      toast(`Payment order created: ${payload?.orderId || payment?.orderId || 'pending'}`, 'info');
+      return;
+    }
+    await loadCashfreeSdk();
+    const mode = payment?.cashfreeMode === 'production' ? 'production' : 'sandbox';
+    const cashfree = window.Cashfree({ mode });
+    await cashfree.checkout({ paymentSessionId, redirectTarget: '_self' });
+  };
+
+  const createSeatPayment = async (additionalSeats = 0) => {
     setRequesting(true);
     try {
-      await api.post('/corporate/me/topup-request', { additionalSeats: topupSeats });
-      toast(`Seat top-up request for ${topupSeats} seats submitted`);
+      const payload = additionalSeats > 0
+        ? await api.post('/corporate/me/topup-request', { additionalSeats })
+        : await api.post('/corporate/me/seat-payment', {});
+      toast(payload?.message || 'Payment order created');
+      await startCheckout(payload);
+    } catch (e: any) {
+      toast(e.message || 'Unable to create payment order', 'error');
+    } finally {
+      setRequesting(false);
       setShowTopup(false);
-    } catch {
-      toast('Top-up request submitted (pending admin approval)');
-      setShowTopup(false);
+    }
+  };
+
+  const verifyPending = async () => {
+    const orderId = corporate?.pendingSeatOrderId;
+    if (!orderId) return;
+    setRequesting(true);
+    try {
+      const res: any = await api.post(`/payments/verify/${orderId}`, {});
+      toast(res?.paid ? 'Payment verified and seats updated' : `Payment status: ${res?.paymentStatus || 'pending'}`);
+      load();
+    } catch (e: any) {
+      toast(e.message || 'Payment verification failed', 'error');
     } finally {
       setRequesting(false);
     }
   };
 
+  const seats = Number(corporate?.totalSeats || 0);
+  const assigned = Number(corporate?.assignedSeats || employees.filter((employee) => employee.status === 'active').length || 0);
+  const pricePerSeat = Number(corporate?.pricePerSeat || 999);
+  const monthly = seats * pricePerSeat;
+  const billingStatus = String(corporate?.billingStatus || 'pending_payment');
+  const needsPayment = !['active', 'trial'].includes(billingStatus);
+
   return (
     <Shell title="Billing & Invoices">
       <div className="glass p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <div>
-            <h3 className="serif text-lg">Current Subscription</h3>
-            <p className="text-xs mt-1" style={{ color: 'var(--t2)' }}>{corporate?.name || 'BookMyFit'} Corporate Elite Plan</p>
+            <h3 className="serif text-lg">Current Corporate Subscription</h3>
+            <p className="text-xs mt-1" style={{ color: 'var(--t2)' }}>{corporate?.companyName || 'BookMyFit'} Corporate Multi-Gym Access</p>
           </div>
-          <span className="accent-pill text-sm">Active</span>
+          <span className={billingStatus === 'active' ? 'badge-active' : 'badge-pending'}>{billingStatus}</span>
         </div>
         <div className="grid grid-cols-4 gap-4">
           {[
-            { label: 'Plan', value: 'Elite Corporate' },
-            { label: 'Seats', value: loading ? '…' : String(seats) },
-            { label: 'Per Seat', value: `₹${PER_SEAT.toLocaleString('en-IN')}/mo` },
-            { label: 'Monthly Total', value: loading ? '…' : `₹${monthly.toLocaleString('en-IN')}` },
+            { label: 'Seats', value: loading ? '...' : String(seats) },
+            { label: 'Assigned', value: loading ? '...' : String(assigned) },
+            { label: 'Per Seat', value: `${money(pricePerSeat)}/mo` },
+            { label: 'Monthly Total', value: loading ? '...' : money(monthly) },
           ].map((s) => (
             <div key={s.label} className="card stat-glow p-4">
               <div className="text-xs font-semibold mb-1" style={{ color: 'var(--t2)' }}>{s.label}</div>
@@ -110,37 +135,58 @@ export default function BillingPage() {
             </div>
           ))}
         </div>
+        <div className="flex gap-3 mt-5 flex-wrap">
+          {needsPayment && !corporate?.pendingSeatOrderId && (
+            <button className="btn btn-primary" disabled={requesting || seats <= 0} onClick={() => createSeatPayment(0)}>
+              {requesting ? 'Creating payment...' : `Pay ${money(monthly)}`}
+            </button>
+          )}
+          <button className="btn btn-ghost" onClick={() => setShowTopup(true)} disabled={requesting}>Top-up Seats</button>
+          {corporate?.pendingSeatOrderId && (
+            <button className="btn btn-primary" disabled={requesting} onClick={verifyPending}>
+              {requesting ? 'Checking...' : 'Verify Pending Payment'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="glass overflow-hidden">
-        <div className="flex items-center justify-between p-6 pb-3">
-          <h3 className="serif text-lg">Invoice History</h3>
-          <button className="btn btn-ghost text-sm" onClick={() => setShowTopup(true)}>+ Top-up Seats</button>
+        <div className="p-6 pb-3">
+          <h3 className="serif text-lg">Payment Records</h3>
+          <p className="text-xs mt-1" style={{ color: 'var(--t2)' }}>Only real Cashfree corporate seat orders are shown here.</p>
         </div>
         <table className="glass-table">
-          <thead><tr><th>Invoice</th><th>Period</th><th>Seats</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Action</th></tr></thead>
+          <thead><tr><th>Type</th><th>Order</th><th>Seats</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
           <tbody>
-            {invoices.map((inv) => (
-              <tr key={inv.id}>
-                <td className="font-semibold text-white">{inv.id}</td>
-                <td>{inv.period}</td>
-                <td>{inv.seats}</td>
-                <td>₹{inv.amount.toLocaleString('en-IN')}</td>
-                <td>{inv.date}</td>
-                <td><span className={inv.status === 'Paid' ? 'badge-active' : 'badge-pending'}>{inv.status}</span></td>
-                <td className="flex gap-2">
-                  <button className="btn btn-ghost text-xs py-1 px-3" onClick={() => downloadInv(inv)}>Download</button>
-                  {inv.status === 'Due' && (
-                    <button className="btn btn-primary text-xs py-1 px-3" onClick={() => setShowPay(inv)}>Pay Now</button>
-                  )}
-                </td>
+            {corporate?.pendingSeatOrderId ? (
+              <tr>
+                <td>Pending seat payment</td>
+                <td className="font-mono text-xs">{corporate.pendingSeatOrderId}</td>
+                <td>{Number(corporate.pendingSeatRequest || 0) || seats}</td>
+                <td>{money((Number(corporate.pendingSeatRequest || 0) || seats) * pricePerSeat)}</td>
+                <td><span className="badge-pending">Pending</span></td>
+                <td><button className="btn btn-ghost text-xs" onClick={verifyPending}>Verify</button></td>
               </tr>
-            ))}
+            ) : null}
+            {corporate?.lastSeatPaymentOrderId ? (
+              <tr>
+                <td>Last paid seat order</td>
+                <td className="font-mono text-xs">{corporate.lastSeatPaymentOrderId}</td>
+                <td>{seats}</td>
+                <td>{money(monthly)}</td>
+                <td><span className="badge-active">Paid</span></td>
+                <td>--</td>
+              </tr>
+            ) : null}
+            {!corporate?.pendingSeatOrderId && !corporate?.lastSeatPaymentOrderId ? (
+              <tr>
+                <td colSpan={6} className="text-center py-8" style={{ color: 'var(--t2)' }}>No corporate payment records yet.</td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
 
-      {/* Top-up Modal */}
       {showTopup && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}>
           <div className="glass p-7 w-full max-w-sm">
@@ -149,34 +195,11 @@ export default function BillingPage() {
               <button onClick={() => setShowTopup(false)} style={{ color: 'var(--t2)' }}><X size={18} /></button>
             </div>
             <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Additional Seats</label>
-            <input type="number" min={1} max={500} className="glass-input w-full mb-1" value={topupSeats} onChange={(e) => setTopupSeats(Number(e.target.value))} />
-            <p className="text-xs mb-5" style={{ color: 'var(--t2)' }}>Estimated cost: ₹{(topupSeats * PER_SEAT).toLocaleString('en-IN')}/mo</p>
-            <button className="btn btn-primary w-full justify-center" onClick={requestTopup} disabled={requesting}>
-              {requesting ? 'Submitting…' : 'Request Top-up'}
+            <input type="number" min={1} max={500} className="glass-input w-full mb-1" value={topupSeats} onChange={(e) => setTopupSeats(Math.max(1, Number(e.target.value) || 1))} />
+            <p className="text-xs mb-5" style={{ color: 'var(--t2)' }}>Payable now: {money(topupSeats * pricePerSeat)}</p>
+            <button className="btn btn-primary w-full justify-center" onClick={() => createSeatPayment(topupSeats)} disabled={requesting}>
+              {requesting ? 'Creating payment...' : 'Pay Top-up'}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Pay Modal */}
-      {showPay && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }}>
-          <div className="glass p-7 w-full max-w-sm">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="serif text-xl">Payment Details</h3>
-              <button onClick={() => setShowPay(null)} style={{ color: 'var(--t2)' }}><X size={18} /></button>
-            </div>
-            <div className="space-y-2 mb-5">
-              <div className="flex justify-between text-sm"><span style={{ color: 'var(--t2)' }}>Invoice</span><span className="font-semibold">{showPay.id}</span></div>
-              <div className="flex justify-between text-sm"><span style={{ color: 'var(--t2)' }}>Amount</span><span className="font-semibold text-lg" style={{ color: 'var(--accent)' }}>₹{showPay.amount.toLocaleString('en-IN')}</span></div>
-            </div>
-            <div className="p-4 rounded-xl mb-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-              <p className="text-xs font-semibold mb-1">Bank Transfer</p>
-              <p className="text-xs" style={{ color: 'var(--t2)' }}>Account: 1234567890</p>
-              <p className="text-xs" style={{ color: 'var(--t2)' }}>IFSC: HDFC0001234</p>
-              <p className="text-xs" style={{ color: 'var(--t2)' }}>Ref: {showPay.id}</p>
-            </div>
-            <button className="btn btn-ghost w-full justify-center" onClick={() => setShowPay(null)}>Close</button>
           </div>
         </div>
       )}

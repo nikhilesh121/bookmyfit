@@ -2,7 +2,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const API = RAW_API.replace(/\/+$/, '').replace(/\/api\/v1$/, '');
 
 export default function CorporateSignup() {
   const [form, setForm] = useState({
@@ -54,7 +55,7 @@ export default function CorporateSignup() {
         <div style={{ fontSize: 48, marginBottom: 16 }}>🏢</div>
         <h2 className="serif text-2xl font-bold mb-3">Welcome aboard!</h2>
         <p className="text-sm mb-6" style={{ color: 'var(--t2)', lineHeight: 1.7 }}>
-          Your corporate wellness account has been created. Sign in to your dashboard to add employees and configure their gym access plans.
+          Your corporate wellness account has been created. Sign in to complete payment and wait for BookMyFit approval before assigning employee access.
         </p>
         <Link href="/login" className="btn btn-primary" style={{ display: 'inline-block' }}>Sign in to dashboard</Link>
       </div>

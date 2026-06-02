@@ -76,6 +76,42 @@ export class EmailService {
     return this.sendRaw(opts.email, `BookMyFit Corporate – Welcome ${opts.companyName}!`, html);
   }
 
+  async sendCorporateAdminCredentials(opts: { companyName: string; adminName: string; email: string; password: string; portalUrl: string }) {
+    const html = `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0a0a0a;color:#fff;padding:32px;border-radius:12px">
+        <div style="color:#3DFF54;font-size:22px;font-weight:700;margin-bottom:8px">BookMyFit</div>
+        <h2 style="margin:0 0 16px">Corporate Admin Access</h2>
+        <p style="color:#aaa">Hi ${opts.adminName},</p>
+        <p style="color:#aaa">Your corporate admin access for <strong>${opts.companyName}</strong> has been created.</p>
+        <div style="background:#111;border:1px solid #222;border-radius:8px;padding:16px;margin:20px 0">
+          <p style="color:#aaa;margin:0 0 8px">Portal: <strong style="color:#fff">${opts.portalUrl}</strong></p>
+          <p style="color:#aaa;margin:0 0 8px">Email: <strong style="color:#fff">${opts.email}</strong></p>
+          <p style="color:#aaa;margin:0">Temporary password: <strong style="color:#3DFF54">${opts.password}</strong></p>
+        </div>
+        <a href="${opts.portalUrl}" style="display:inline-block;background:#3DFF54;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">Open Corporate Portal</a>
+        <p style="color:#777;font-size:12px;margin-top:18px">For security, change this password after the first sign in.</p>
+      </div>`;
+    return this.sendRaw(opts.email, `BookMyFit Corporate Login - ${opts.companyName}`, html);
+  }
+
+  async sendCorporateEmployeeInvite(opts: { companyName: string; employeeName: string; email: string; phone?: string | null }) {
+    const phoneLine = opts.phone
+      ? `<p style="color:#aaa;margin:0">Login phone: <strong style="color:#3DFF54">${opts.phone}</strong></p>`
+      : `<p style="color:#aaa;margin:0">Ask your HR team to add your phone number before signing in.</p>`;
+    const html = `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0a0a0a;color:#fff;padding:32px;border-radius:12px">
+        <div style="color:#3DFF54;font-size:22px;font-weight:700;margin-bottom:8px">BookMyFit</div>
+        <h2 style="margin:0 0 16px">Your Corporate Fitness Access Is Ready</h2>
+        <p style="color:#aaa">Hi ${opts.employeeName},</p>
+        <p style="color:#aaa"><strong>${opts.companyName}</strong> has assigned you a BookMyFit corporate seat.</p>
+        <div style="background:#111;border:1px solid #222;border-radius:8px;padding:16px;margin:20px 0">
+          ${phoneLine}
+          <p style="color:#aaa;margin:8px 0 0">Open the BookMyFit app and sign in with OTP using this phone number.</p>
+        </div>
+      </div>`;
+    return this.sendRaw(opts.email, `BookMyFit Corporate Access - ${opts.companyName}`, html);
+  }
+
   async sendSubscriptionConfirmation(opts: {
     userName: string;
     email: string;

@@ -1,8 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
 
+const RAW_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const API = RAW_API.replace(/\/+$/, '').replace(/\/api\/v1$/, '');
+
 export default function Login() {
-  const [email, setEmail] = useState('hr@techcorp.in');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -19,7 +22,7 @@ export default function Login() {
     if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
     setLoading(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003'}/api/v1/auth/admin/login`, {
+      const res = await fetch(`${API}/api/v1/auth/admin/login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });

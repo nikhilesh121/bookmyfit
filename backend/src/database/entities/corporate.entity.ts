@@ -1,5 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 
+export type CorporateBillingStatus = 'active' | 'pending_payment' | 'payment_failed' | 'suspended' | 'trial';
+
 @Entity('corporate_accounts')
 export class CorporateAccountEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -22,8 +24,26 @@ export class CorporateAccountEntity {
   @Column({ default: 0 })
   assignedSeats: number;
 
-  @Column({ length: 255 })
+  @Column({ length: 255, nullable: true })
   billingContact: string;
+
+  @Column({ type: 'int', default: 999 })
+  pricePerSeat: number;
+
+  @Column({ length: 30, default: 'active' })
+  billingStatus: CorporateBillingStatus;
+
+  @Column({ type: 'int', default: 0 })
+  pendingSeatRequest: number;
+
+  @Column({ length: 255, nullable: true })
+  pendingSeatOrderId: string;
+
+  @Column({ length: 255, nullable: true })
+  lastSeatPaymentOrderId: string;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  lastSeatPaymentAt: Date;
 
   @Column({ type: 'uuid', nullable: true })
   adminUserId: string;

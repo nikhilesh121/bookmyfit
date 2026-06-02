@@ -3592,3 +3592,29 @@ Status:
 - Fixed and verified locally.
 - Not pushed live in this change.
 - APK not regenerated in this change.
+## Change 041 - Corporate account, seats, employee access, and billing lifecycle
+
+Issues addressed:
+- Admin-created corporate accounts did not create usable HR login details.
+- Corporate employees could be added by email only, but the mobile app login needs phone OTP.
+- Employee deletion removed rows instead of preserving history and freeing the seat.
+- Corporate billing/invoice page showed generated demo invoices and hardcoded pricing.
+- Corporate self-registration activated seats without payment/approval gating.
+
+Changes made:
+- Added corporate billing fields: per-seat price, billing status, pending Cashfree seat order, pending top-up seat count, and last paid seat order.
+- Admin can create a corporate account with HR admin name/email/phone/password and copy the portal login details.
+- HR/admin employee management now supports phone, email, employee code, department, edit, suspend/reactivate, and remove/deallocate.
+- Active corporate seats now create/reactivate a corporate multi-gym subscription for the employee; suspended/removed employees have corporate access cancelled.
+- Seat assignment is blocked when the corporate account is not approved or billing is not active/trial.
+- Corporate top-up and initial seat payment now create Cashfree orders; seats increase only after `/payments/verify/:orderId` or webhook confirms payment.
+- Corporate panel billing no longer generates fake invoices; it shows real payment order state and uses backend per-seat price.
+- Corporate signup now creates a pending account, requiring payment and admin approval before employees can use access.
+
+Verification:
+- `pnpm --filter backend build` passed.
+- `pnpm --filter corporate-panel build` passed.
+- `pnpm --filter admin-panel build` passed.
+
+Remaining follow-up:
+- A formal corporate invoice PDF/download API is still needed if BookMyFit wants downloadable corporate GST invoices instead of payment-order records.

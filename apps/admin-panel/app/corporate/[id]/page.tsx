@@ -18,6 +18,11 @@ type CorporateAccount = {
   billingContact?: string | null;
   adminUserId?: string | null;
   isActive: boolean;
+  pricePerSeat?: number;
+  billingStatus?: string;
+  pendingSeatRequest?: number;
+  pendingSeatOrderId?: string | null;
+  lastSeatPaymentOrderId?: string | null;
 };
 
 export default function CorporateManagePage() {
@@ -34,6 +39,8 @@ export default function CorporateManagePage() {
     billingContact: '',
     adminUserId: '',
     isActive: true,
+    pricePerSeat: '999',
+    billingStatus: 'active',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -52,6 +59,8 @@ export default function CorporateManagePage() {
         billingContact: res.billingContact || '',
         adminUserId: res.adminUserId || '',
         isActive: Boolean(res.isActive),
+        pricePerSeat: String(res.pricePerSeat ?? 999),
+        billingStatus: res.billingStatus || 'active',
       });
     } catch (e: any) {
       toast(e.message || 'Failed to load corporate account', 'error');
@@ -83,6 +92,8 @@ export default function CorporateManagePage() {
         billingContact: form.billingContact.trim() || null,
         adminUserId: form.adminUserId.trim() || null,
         isActive: form.isActive,
+        pricePerSeat: Number(form.pricePerSeat) || 0,
+        billingStatus: form.billingStatus,
       });
       setAccount(res);
       toast('Corporate account updated');
@@ -130,6 +141,16 @@ export default function CorporateManagePage() {
         </div>
       </div>
 
+      {account?.pendingSeatOrderId && (
+        <div className="glass p-4 mb-6" style={{ borderColor: 'rgba(255,184,0,0.35)' }}>
+          <div className="kicker mb-1">Pending seat payment</div>
+          <div className="text-sm text-white">
+            Order {account.pendingSeatOrderId} {account.pendingSeatRequest ? `for ${account.pendingSeatRequest} extra seats` : 'for current seats'}
+          </div>
+          <div className="text-xs mt-1" style={{ color: 'var(--t2)' }}>Seats update only after Cashfree verifies the order as paid.</div>
+        </div>
+      )}
+
       <div className="glass p-7" style={{ maxWidth: 980 }}>
         <h2 style={{ fontFamily: 'var(--serif)', fontSize: 22, color: '#fff', marginBottom: 22 }}>Account Details</h2>
         <div className="grid grid-cols-2 gap-4">
@@ -154,6 +175,20 @@ export default function CorporateManagePage() {
           <label>
             <span className="kicker block mb-1">Billing Contact</span>
             <input className="glass-input w-full" value={form.billingContact} onChange={(e) => setForm((f) => ({ ...f, billingContact: e.target.value }))} placeholder="Finance contact or billing email" />
+          </label>
+          <label>
+            <span className="kicker block mb-1">Per Seat Price</span>
+            <input className="glass-input w-full" type="number" min={0} value={form.pricePerSeat} onChange={(e) => setForm((f) => ({ ...f, pricePerSeat: e.target.value }))} />
+          </label>
+          <label>
+            <span className="kicker block mb-1">Billing Status</span>
+            <select className="glass-input w-full" value={form.billingStatus} onChange={(e) => setForm((f) => ({ ...f, billingStatus: e.target.value }))}>
+              <option value="active">Active/Paid</option>
+              <option value="pending_payment">Pending Payment</option>
+              <option value="payment_failed">Payment Failed</option>
+              <option value="trial">Trial</option>
+              <option value="suspended">Suspended</option>
+            </select>
           </label>
           <label>
             <span className="kicker block mb-1">Corporate Admin User ID</span>

@@ -5,7 +5,7 @@ import Shell from '../../../../components/Shell';
 import Pagination from '../../../../components/Pagination';
 import { api } from '../../../../lib/api';
 import { useToast } from '../../../../components/Toast';
-import { Users, ArrowLeft, UserPlus, Trash2, Download } from 'lucide-react';
+import { Users, ArrowLeft, UserPlus, Trash2, Download, Pencil } from 'lucide-react';
 
 export default function CorporateEmployeesPage() {
   const { id } = useParams<{ id: string }>();
@@ -20,7 +20,9 @@ export default function CorporateEmployeesPage() {
   const [pages, setPages] = useState(1);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', email: '', employeeCode: '', department: 'Engineering', userId: '' });
+  const emptyForm = { name: '', email: '', phone: '', employeeCode: '', department: 'Engineering', userId: '' };
+  const [addForm, setAddForm] = useState(emptyForm);
+  const [editing, setEditing] = useState<any>(null);
   const [adding, setAdding] = useState(false);
 
   const loadCorp = useCallback(async () => {
@@ -47,23 +49,53 @@ export default function CorporateEmployeesPage() {
   useEffect(() => { load(); }, [load]);
 
   const handleAdd = async () => {
-    if (!addForm.email.trim() && !addForm.userId.trim()) { toast('Employee email or user ID required', 'error'); return; }
+    if (!addForm.phone.trim() && !addForm.userId.trim()) { toast('Employee phone or user ID required', 'error'); return; }
     setAdding(true);
     try {
       await api.post(`/corporate/${id}/employees`, {
         name: addForm.name.trim(),
         email: addForm.email.trim(),
+        phone: addForm.phone.trim(),
         employeeCode: addForm.employeeCode.trim(),
         department: addForm.department,
         userId: addForm.userId.trim(),
       });
       toast('Employee added');
       setShowAdd(false);
-      setAddForm({ name: '', email: '', employeeCode: '', department: 'Engineering', userId: '' });
+      setAddForm(emptyForm);
       loadCorp();
       load();
     } catch (e: any) { toast(e.message || 'Failed to add', 'error'); }
     finally { setAdding(false); }
+  };
+
+  const handleUpdate = async () => {
+    if (!editing) return;
+    setAdding(true);
+    try {
+      await api.put(`/corporate/${id}/employees/${editing.id}`, {
+        name: editing.name,
+        email: editing.email,
+        phone: editing.phone,
+        employeeCode: editing.employeeCode,
+        department: editing.department,
+        status: editing.status,
+      });
+      toast('Employee updated');
+      setEditing(null);
+      loadCorp();
+      load();
+    } catch (e: any) { toast(e.message || 'Failed to update', 'error'); }
+    finally { setAdding(false); }
+  };
+
+  const handleStatus = async (emp: any, status: string) => {
+    try {
+      await api.put(`/corporate/${id}/employees/${emp.id}`, { status });
+      toast(status === 'active' ? 'Employee reactivated' : 'Employee suspended');
+      loadCorp();
+      load();
+    } catch (e: any) { toast(e.message || 'Status update failed', 'error'); }
   };
 
   const handleRemove = async (empId: string) => {
@@ -76,8 +108,8 @@ export default function CorporateEmployeesPage() {
   };
 
   const exportCSV = () => {
-    const rows = [['ID', 'User ID', 'Employee Code', 'Department', 'Status', 'Assigned Date']];
-    employees.forEach((e) => rows.push([e.id, e.userId, e.employeeCode, e.department, e.status, e.assignedDate]));
+    const rows = [['ID', 'Name', 'Email', 'Phone', 'User ID', 'Employee Code', 'Department', 'Status', 'Assigned Date']];
+    employees.forEach((e) => rows.push([e.id, e.name, e.email, e.phone, e.userId, e.employeeCode, e.department, e.status, e.assignedDate]));
     const csv = rows.map((r) => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'employees.csv'; a.click();
@@ -128,16 +160,16 @@ export default function CorporateEmployeesPage() {
         <table className="glass-table">
           <thead>
             <tr>
-              <th>Employee</th><th>Employee Code</th><th>User ID</th><th>Department</th><th>Status</th><th>Assigned Date</th><th>Actions</th>
+              <th>Employee</th><th>Phone</th><th>Employee Code</th><th>User ID</th><th>Department</th><th>Status</th><th>Assigned Date</th><th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 7 }).map((__, j) => (<td key={j}><div className="animate-pulse h-4 rounded" style={{ background: 'var(--surface)' }} /></td>))}</tr>
+                <tr key={i}>{Array.from({ length: 8 }).map((__, j) => (<td key={j}><div className="animate-pulse h-4 rounded" style={{ background: 'var(--surface)' }} /></td>))}</tr>
               ))
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--t3)' }}>No employees found</td></tr>
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--t3)' }}>No employees found</td></tr>
             ) : (
               filtered.map((e) => (
                 <tr key={e.id}>
@@ -145,12 +177,21 @@ export default function CorporateEmployeesPage() {
                     <div className="font-semibold text-white">{e.name || '--'}</div>
                     <div className="text-xs" style={{ color: 'var(--t3)' }}>{e.email || '--'}</div>
                   </td>
+                  <td className="font-mono text-xs" style={{ color: 'var(--t2)' }}>{e.phone || '--'}</td>
                   <td className="font-mono font-semibold text-white">{e.employeeCode}</td>
                   <td className="font-mono text-xs" style={{ color: 'var(--t3)' }}>{e.userId?.slice(0, 8)}...</td>
                   <td style={{ color: 'var(--t2)' }}>{e.department || '--'}</td>
                   <td><span className={e.status === 'active' ? 'badge-active' : 'badge-pending'}>{e.status}</span></td>
                   <td className="text-xs" style={{ color: 'var(--t3)' }}>{e.assignedDate ? new Date(e.assignedDate).toLocaleDateString('en-IN') : '--'}</td>
-                  <td>
+                  <td className="flex gap-2 flex-wrap">
+                    <button onClick={() => setEditing(e)} className="btn btn-ghost text-xs flex items-center gap-1">
+                      <Pencil size={12} /> Edit
+                    </button>
+                    {e.status === 'active' ? (
+                      <button onClick={() => handleStatus(e, 'suspended')} className="btn btn-ghost text-xs">Suspend</button>
+                    ) : (
+                      <button onClick={() => handleStatus(e, 'active')} className="btn btn-ghost text-xs">Reactivate</button>
+                    )}
                     <button onClick={() => handleRemove(e.id)} className="btn btn-ghost text-xs flex items-center gap-1" style={{ color: 'var(--error)', borderColor: 'var(--error)' }}>
                       <Trash2 size={12} /> Remove
                     </button>
@@ -177,6 +218,10 @@ export default function CorporateEmployeesPage() {
                 <input className="glass-input w-full" type="email" value={addForm.email} onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))} placeholder="employee@company.in" />
               </div>
               <div>
+                <label className="kicker block mb-1">Phone for OTP Login</label>
+                <input className="glass-input w-full" value={addForm.phone} onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))} placeholder="10 digit mobile number" />
+              </div>
+              <div>
                 <label className="kicker block mb-1">User ID (UUID)</label>
                 <input className="glass-input w-full" value={addForm.userId} onChange={(e) => setAddForm((f) => ({ ...f, userId: e.target.value }))} placeholder="Optional existing user UUID" />
               </div>
@@ -194,6 +239,32 @@ export default function CorporateEmployeesPage() {
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
               <button className="btn btn-ghost flex-1" onClick={() => setShowAdd(false)}>Cancel</button>
               <button className="btn btn-primary flex-1" onClick={handleAdd} disabled={adding}>{adding ? 'Adding...' : 'Add Employee'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editing && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setEditing(null)}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 420, maxWidth: '90vw' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ fontFamily: 'var(--serif)', fontSize: 18, color: '#fff', marginBottom: 20 }}>Edit Employee</h3>
+            <div className="space-y-3">
+              <input className="glass-input w-full" value={editing.name || ''} onChange={(e) => setEditing((x: any) => ({ ...x, name: e.target.value }))} placeholder="Employee name" />
+              <input className="glass-input w-full" type="email" value={editing.email || ''} onChange={(e) => setEditing((x: any) => ({ ...x, email: e.target.value }))} placeholder="employee@company.in" />
+              <input className="glass-input w-full" value={editing.phone || ''} onChange={(e) => setEditing((x: any) => ({ ...x, phone: e.target.value }))} placeholder="10 digit mobile number" />
+              <input className="glass-input w-full" value={editing.employeeCode || ''} onChange={(e) => setEditing((x: any) => ({ ...x, employeeCode: e.target.value }))} placeholder="Employee code" />
+              <select className="glass-input w-full" value={editing.department || 'Other'} onChange={(e) => setEditing((x: any) => ({ ...x, department: e.target.value }))}>
+                {['Engineering', 'Sales', 'Operations', 'Marketing', 'HR', 'Finance', 'Other'].map((d) => (<option key={d}>{d}</option>))}
+              </select>
+              <select className="glass-input w-full" value={editing.status || 'active'} onChange={(e) => setEditing((x: any) => ({ ...x, status: e.target.value }))}>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+                <option value="removed">Removed</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button className="btn btn-ghost flex-1" onClick={() => setEditing(null)}>Cancel</button>
+              <button className="btn btn-primary flex-1" onClick={handleUpdate} disabled={adding}>{adding ? 'Saving...' : 'Save'}</button>
             </div>
           </div>
         </div>

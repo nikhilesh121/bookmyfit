@@ -7,6 +7,7 @@ import { SubscriptionEntity } from '../../database/entities/subscription.entity'
 import { OrderEntity } from '../../database/entities/store.entity';
 import { TrainerBookingEntity } from '../../database/entities/trainer.entity';
 import { WellnessBookingEntity } from '../../database/entities/wellness.entity';
+import { CorporateAccountEntity } from '../../database/entities/corporate.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Injectable()
@@ -16,6 +17,7 @@ class PaymentsService {
     @InjectRepository(OrderEntity) private readonly orders: Repository<OrderEntity>,
     @InjectRepository(TrainerBookingEntity) private readonly ptBookings: Repository<TrainerBookingEntity>,
     @InjectRepository(WellnessBookingEntity) private readonly wellnessBookings: Repository<WellnessBookingEntity>,
+    @InjectRepository(CorporateAccountEntity) private readonly corporates: Repository<CorporateAccountEntity>,
     private readonly cashfree: CashfreeService,
   ) {}
 
@@ -47,12 +49,15 @@ class PaymentsService {
     return qb.getRawOne();
   }
 
-  private assertActorCanVerify(actor: any, refs: Array<{ userId?: string | null } | null>) {
+  private assertActorCanVerify(actor: any, refs: Array<{ userId?: string | null; adminUserId?: string | null } | null>) {
     if (!actor || actor.role === 'super_admin') return;
     if (!refs.some(Boolean)) return;
     const actorId = String(actor.userId || '');
     if (!actorId) throw new ForbiddenException('You cannot verify this payment');
-    const ownsOrder = refs.some((ref) => ref?.userId && String(ref.userId) === actorId);
+    const ownsOrder = refs.some((ref) => (
+      (ref?.userId && String(ref.userId) === actorId) ||
+      (ref?.adminUserId && String(ref.adminUserId) === actorId)
+    ));
     if (!ownsOrder) throw new ForbiddenException('You cannot verify this payment');
   }
 
@@ -60,13 +65,14 @@ class PaymentsService {
     if (!orderId) return { processed: false, reason: 'No order_id' };
 
     // Try each entity type in turn
-    const [sub, order, pt, wellness] = await Promise.all([
+    const [sub, order, pt, wellness, corporate] = await Promise.all([
       this.subs.findOne({ where: { razorpayOrderId: orderId } }), // legacy column now stores cashfree id too
       this.orders.findOne({ where: { cashfreeOrderId: orderId } }),
       this.ptBookings.findOne({ where: { cashfreeOrderId: orderId } }),
       this.wellnessBookings.findOne({ where: { cashfreeOrderId: orderId } }),
+      this.corporates.findOne({ where: [{ pendingSeatOrderId: orderId }, { lastSeatPaymentOrderId: orderId }] }),
     ]);
-    this.assertActorCanVerify(actor, [sub, order, pt, wellness]);
+    this.assertActorCanVerify(actor, [sub, order, pt, wellness, corporate]);
 
     const normalizedStatus = String(status || '').toUpperCase();
     const paid = normalizedStatus === 'PAID';
@@ -128,6 +134,27 @@ class PaymentsService {
       else if (failed && wellness.status !== 'confirmed') wellness.status = 'cancelled';
       await this.wellnessBookings.save(wellness);
       processed.push({ kind: 'wellness', paid });
+    }
+    if (corporate) {
+      if (paid && corporate.pendingSeatOrderId === orderId) {
+        const requestedSeats = Math.max(0, Number(corporate.pendingSeatRequest || 0));
+        if (requestedSeats > 0) corporate.totalSeats = Number(corporate.totalSeats || 0) + requestedSeats;
+        corporate.pendingSeatRequest = 0;
+        corporate.pendingSeatOrderId = null as any;
+        corporate.billingStatus = 'active' as any;
+        corporate.lastSeatPaymentOrderId = orderId;
+        corporate.lastSeatPaymentAt = new Date();
+        await this.corporates.save(corporate);
+        processed.push({ kind: 'corporate_seats', paid, activated: true, totalSeats: corporate.totalSeats });
+      } else if (failed && corporate.pendingSeatOrderId === orderId) {
+        corporate.pendingSeatRequest = 0;
+        corporate.pendingSeatOrderId = null as any;
+        if (corporate.billingStatus !== 'active') corporate.billingStatus = 'payment_failed' as any;
+        await this.corporates.save(corporate);
+        processed.push({ kind: 'corporate_seats', paid, activated: false });
+      } else {
+        processed.push({ kind: 'corporate_seats', paid, activated: corporate.billingStatus === 'active' });
+      }
     }
 
     if (processed.length === 1) return { processed: true, ...processed[0] };
@@ -248,7 +275,7 @@ class PaymentsController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SubscriptionEntity, OrderEntity, TrainerBookingEntity, WellnessBookingEntity])],
+  imports: [TypeOrmModule.forFeature([SubscriptionEntity, OrderEntity, TrainerBookingEntity, WellnessBookingEntity, CorporateAccountEntity])],
   controllers: [PaymentsController],
   providers: [PaymentsService, CashfreeService],
   exports: [CashfreeService, PaymentsService],
