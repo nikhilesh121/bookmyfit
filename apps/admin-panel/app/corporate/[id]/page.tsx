@@ -38,9 +38,9 @@ export default function CorporateManagePage() {
     totalSeats: '',
     billingContact: '',
     adminUserId: '',
-    isActive: true,
-    pricePerSeat: '999',
-    billingStatus: 'active',
+    isActive: false,
+    pricePerSeat: '',
+    billingStatus: 'pending_payment',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -59,8 +59,8 @@ export default function CorporateManagePage() {
         billingContact: res.billingContact || '',
         adminUserId: res.adminUserId || '',
         isActive: Boolean(res.isActive),
-        pricePerSeat: String(res.pricePerSeat ?? 999),
-        billingStatus: res.billingStatus || 'active',
+        pricePerSeat: res.pricePerSeat !== null && res.pricePerSeat !== undefined ? String(res.pricePerSeat) : '',
+        billingStatus: res.billingStatus || 'pending_payment',
       });
     } catch (e: any) {
       toast(e.message || 'Failed to load corporate account', 'error');

@@ -94,6 +94,8 @@ class GymsService {
     const qb = this.repo.createQueryBuilder(alias)
       .select(`${alias}.id`, 'id')
       .addSelect(`${alias}.name`, 'name')
+      .addSelect(`${alias}.country`, 'country')
+      .addSelect(`${alias}.state`, 'state')
       .addSelect(`${alias}.city`, 'city')
       .addSelect(`${alias}.area`, 'area')
       .addSelect(`${alias}.address`, 'address')
@@ -300,6 +302,8 @@ class GymsService {
     if (photos !== undefined && coverPhoto === undefined) coverPhoto = photos[0] || null;
     const patch: any = {
       name: raw.name ?? raw.displayName,
+      country: raw.country,
+      state: raw.state,
       city: raw.city,
       area: raw.area,
       address: raw.address,
@@ -1307,13 +1311,15 @@ class GymsService {
   }
 
   async list(
-    filter: { city?: string; status?: string; kycStatus?: string; search?: string; tier?: string; category?: string; lat?: string; lng?: string; sort?: string; radiusKm?: string } = {},
+    filter: { country?: string; state?: string; city?: string; status?: string; kycStatus?: string; search?: string; tier?: string; category?: string; lat?: string; lng?: string; sort?: string; radiusKm?: string } = {},
     page: any = 1,
     limit: any = 20,
     options: { includeSensitive?: boolean; publicOnly?: boolean } = {},
   ) {
     const qb = this.safeGymQuery('g', !!options.includeSensitive);
-    if (filter.city) qb.andWhere('g.city = :city', { city: filter.city });
+    if (filter.country) qb.andWhere('LOWER(COALESCE(g.country, :defaultCountry)) = LOWER(:country)', { defaultCountry: 'India', country: filter.country });
+    if (filter.state) qb.andWhere('LOWER(COALESCE(g.state, \'\')) = LOWER(:state)', { state: filter.state });
+    if (filter.city) qb.andWhere('LOWER(g.city) = LOWER(:city)', { city: filter.city });
     if (options.publicOnly !== false) {
       if (filter.status && filter.status !== 'active') qb.andWhere('1 = 0');
       else qb.andWhere(this.publicVisibilityPredicate('g'), { publicStatus: 'active' });
@@ -1398,7 +1404,7 @@ class GymsService {
     return this.attachMasterDetails(liveRow, { publicView: !!options.publicOnly });
   }
 
-  async adminList(filter: { city?: string; status?: string; kycStatus?: string; search?: string; tier?: string; category?: string } = {}, page: any = 1, limit: any = 20) {
+  async adminList(filter: { country?: string; state?: string; city?: string; status?: string; kycStatus?: string; search?: string; tier?: string; category?: string } = {}, page: any = 1, limit: any = 20) {
     return this.list(filter, page, limit, { includeSensitive: true, publicOnly: false });
   }
 
@@ -1721,6 +1727,8 @@ class GymsController {
   }
 
   @Get() list(
+    @Query('country') country?: string,
+    @Query('state') state?: string,
     @Query('city') city?: string,
     @Query('status') status?: string,
     @Query('kycStatus') kycStatus?: string,
@@ -1734,11 +1742,13 @@ class GymsController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.svc.list({ city, status, kycStatus, search, tier, category, lat, lng, sort, radiusKm }, +page, +limit, { publicOnly: true });
+    return this.svc.list({ country, state, city, status, kycStatus, search, tier, category, lat, lng, sort, radiusKm }, +page, +limit, { publicOnly: true });
   }
 
   @Get('admin/list') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
   adminList(
+    @Query('country') country?: string,
+    @Query('state') state?: string,
     @Query('city') city?: string,
     @Query('status') status?: string,
     @Query('kycStatus') kycStatus?: string,
@@ -1748,7 +1758,7 @@ class GymsController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.svc.adminList({ city, status, kycStatus, search, tier, category }, +page, +limit);
+    return this.svc.adminList({ country, state, city, status, kycStatus, search, tier, category }, +page, +limit);
   }
   @Get('recommended') @UseGuards(JwtAuthGuard)
   recommended(@Req() req: any) { return this.svc.getRecommended(req.user.userId); }

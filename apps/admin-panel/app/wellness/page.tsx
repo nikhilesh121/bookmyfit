@@ -4,6 +4,7 @@ import Shell from '../../components/Shell';
 import { api } from '../../lib/api';
 import { useToast } from '../../components/Toast';
 import { Plus, Edit3, Trash2, Check, X, MapPin, Star, Clock, Tag, Building2, Image as ImageIcon, Activity } from 'lucide-react';
+import LocationFields from '../../components/LocationFields';
 
 const SERVICE_CATEGORIES = ['Massage', 'Cupping', 'Physio', 'Spa', 'Nutrition', 'Recovery', 'Other'];
 const SERVICE_TYPES = ['Spa', 'Home', 'Physio', 'Massage', 'Yoga', 'Nutrition'];
@@ -40,7 +41,7 @@ const pill = (color: string): React.CSSProperties => ({
 });
 
 type Partner = {
-  id: string; name: string; serviceType: string; serviceTypes?: string[]; city: string; area: string;
+  id: string; name: string; serviceType: string; serviceTypes?: string[]; country?: string; state?: string; city: string; area: string;
   address: string; rating: number; reviewCount: number; status: string;
   discountPercent: number; distanceLabel: string; photos: string[]; commissionRate?: number;
   lat?: number; lng?: number;
@@ -52,7 +53,7 @@ type Service = {
 };
 type ApprovalStatus = NonNullable<Service['approvalStatus']>;
 
-const defaultPartnerForm = { name: '', serviceType: 'Spa', city: '', area: '', address: '', status: 'active', discountPercent: '0', distanceLabel: '', photos: '', ownerEmail: '', ownerPassword: '' };
+const defaultPartnerForm = { name: '', serviceType: 'Spa', country: 'India', state: '', city: '', area: '', address: '', status: 'active', discountPercent: '0', distanceLabel: '', photos: '', ownerEmail: '', ownerPassword: '' };
 const defaultServiceForm = { name: '', category: 'Massage', price: '', originalPrice: '', durationMinutes: '60', partnerId: '', imageUrl: '', isActive: true, approvalStatus: 'approved' };
 
 function asArray(value: any) {
@@ -104,7 +105,7 @@ export default function WellnessPage() {
   const openEditPartner = (p: Partner) => {
     setEditingPartner(p);
     setPartnerForm({
-      name: p.name, serviceType: (p.serviceTypes?.[0] || p.serviceType || 'Spa'), city: p.city, area: p.area,
+      name: p.name, serviceType: (p.serviceTypes?.[0] || p.serviceType || 'Spa'), country: p.country || 'India', state: p.state || '', city: p.city, area: p.area,
       address: p.address || '', status: p.status,
       discountPercent: String(p.discountPercent || 0),
       distanceLabel: p.distanceLabel || '',
@@ -120,6 +121,8 @@ export default function WellnessPage() {
       name: partnerForm.name,
       serviceType: partnerForm.serviceType,
       serviceTypes: [partnerForm.serviceType],
+      country: partnerForm.country,
+      state: partnerForm.state,
       city: partnerForm.city,
       area: partnerForm.area,
       address: partnerForm.address || `${partnerForm.area}, ${partnerForm.city}`,
@@ -342,9 +345,16 @@ export default function WellnessPage() {
                   <label style={label(editingPartner ? 'NEW OWNER PASSWORD (optional)' : 'OWNER PASSWORD')}>{editingPartner ? 'NEW OWNER PASSWORD' : 'OWNER PASSWORD'}</label>
                   <input style={input} type="password" placeholder={editingPartner ? 'Leave blank to keep unchanged' : 'Minimum 6 characters'} value={partnerForm.ownerPassword} onChange={e => setPartnerForm(f => ({ ...f, ownerPassword: e.target.value }))} />
                 </div>
-                <div>
-                  <label style={label('CITY *')}>CITY *</label>
-                  <input style={input} placeholder="e.g. Mumbai" value={partnerForm.city} onChange={e => setPartnerForm(f => ({ ...f, city: e.target.value }))} />
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <LocationFields
+                    value={{ country: partnerForm.country, state: partnerForm.state, city: partnerForm.city }}
+                    onChange={(location) => setPartnerForm((f) => ({ ...f, ...location }))}
+                    requiredCity
+                    inputClassName=""
+                    inputStyle={input}
+                    labelStyle={label('LOCATION')}
+                    gridClassName="admin-form-grid"
+                  />
                 </div>
                 <div>
                   <label style={label('AREA')}>AREA</label>
@@ -393,7 +403,7 @@ export default function WellnessPage() {
                   </div>
                   <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.5)', fontSize: 13, fontFamily: 'DM Sans, sans-serif' }}>
-                      <MapPin size={13} /> {p.area}, {p.city}
+                      <MapPin size={13} /> {[p.area, p.city, p.state].filter(Boolean).join(', ')}
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.5)', fontSize: 13, fontFamily: 'DM Sans, sans-serif' }}>
                       <Star size={13} /> {p.rating || '—'} ({p.reviewCount || 0} reviews)

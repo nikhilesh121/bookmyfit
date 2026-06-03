@@ -16,6 +16,10 @@ function money(value: number) {
   return `Rs ${Math.round(value || 0).toLocaleString('en-IN')}`;
 }
 
+function hasPositiveNumber(value: any) {
+  return value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) > 0;
+}
+
 function loadCashfreeSdk() {
   return new Promise<void>((resolve, reject) => {
     if (typeof window === 'undefined') return reject(new Error('Browser is required'));
@@ -61,15 +65,39 @@ export default function BillingPage() {
 
   useEffect(() => { load(); }, []);
 
+  const verifyOrderId = async (orderId: string, successMessage = 'Payment verified and seats updated') => {
+    if (!orderId) return;
+    setRequesting(true);
+    try {
+      const res: any = await api.post(`/payments/verify/${orderId}`, {});
+      toast(res?.paid ? successMessage : `Payment status: ${res?.paymentStatus || 'pending'}`);
+      await load();
+    } catch (e: any) {
+      toast(e.message || 'Payment verification failed', 'error');
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const returnedOrderId = params.get('order_id') || params.get('orderId') || params.get('order_id[]') || '';
+    if (!returnedOrderId) return;
+    window.history.replaceState({}, document.title, window.location.pathname);
+    verifyOrderId(returnedOrderId, 'Corporate payment verified and seats updated');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const startCheckout = async (payload: any) => {
     const payment = payload?.payment || payload;
-    const paymentSessionId = payment?.paymentSessionId;
+    const paymentSessionId = payment?.paymentSessionId || payment?.payment_session_id || payload?.paymentSessionId || payload?.payment_session_id;
     if (!paymentSessionId) {
-      toast(`Payment order created: ${payload?.orderId || payment?.orderId || 'pending'}`, 'info');
+      toast('Cashfree did not return a payment session. Please verify your Cashfree keys and try again.', 'error');
       return;
     }
     await loadCashfreeSdk();
-    const mode = payment?.cashfreeMode === 'production' ? 'production' : 'sandbox';
+    const mode = payment?.cashfreeMode === 'production' || payment?.cashfreeEnv === 'production' ? 'production' : 'sandbox';
     const cashfree = window.Cashfree({ mode });
     await cashfree.checkout({ paymentSessionId, redirectTarget: '_self' });
   };
@@ -93,21 +121,13 @@ export default function BillingPage() {
   const verifyPending = async () => {
     const orderId = corporate?.pendingSeatOrderId;
     if (!orderId) return;
-    setRequesting(true);
-    try {
-      const res: any = await api.post(`/payments/verify/${orderId}`, {});
-      toast(res?.paid ? 'Payment verified and seats updated' : `Payment status: ${res?.paymentStatus || 'pending'}`);
-      load();
-    } catch (e: any) {
-      toast(e.message || 'Payment verification failed', 'error');
-    } finally {
-      setRequesting(false);
-    }
+    await verifyOrderId(orderId);
   };
 
   const seats = Number(corporate?.totalSeats || 0);
   const assigned = Number(corporate?.assignedSeats || employees.filter((employee) => employee.status === 'active').length || 0);
-  const pricePerSeat = Number(corporate?.pricePerSeat || 999);
+  const hasSeatPrice = hasPositiveNumber(corporate?.pricePerSeat);
+  const pricePerSeat = hasSeatPrice ? Number(corporate?.pricePerSeat) : 0;
   const monthly = seats * pricePerSeat;
   const billingStatus = String(corporate?.billingStatus || 'pending_payment');
   const needsPayment = !['active', 'trial'].includes(billingStatus);
@@ -117,8 +137,10 @@ export default function BillingPage() {
       <div className="glass p-6 mb-6">
         <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <div>
-            <h3 className="serif text-lg">Current Corporate Subscription</h3>
-            <p className="text-xs mt-1" style={{ color: 'var(--t2)' }}>{corporate?.companyName || 'BookMyFit'} Corporate Multi-Gym Access</p>
+            <h3 className="serif text-lg">Corporate Seat Billing</h3>
+            <p className="text-xs mt-1" style={{ color: 'var(--t2)' }}>
+              {corporate?.companyName || 'Corporate account'} pays monthly per seat. Employees receive multi-gym access while the corporate billing account stays active.
+            </p>
           </div>
           <span className={billingStatus === 'active' ? 'badge-active' : 'badge-pending'}>{billingStatus}</span>
         </div>
@@ -126,8 +148,8 @@ export default function BillingPage() {
           {[
             { label: 'Seats', value: loading ? '...' : String(seats) },
             { label: 'Assigned', value: loading ? '...' : String(assigned) },
-            { label: 'Per Seat', value: `${money(pricePerSeat)}/mo` },
-            { label: 'Monthly Total', value: loading ? '...' : money(monthly) },
+            { label: 'Per Seat / Month', value: hasSeatPrice ? money(pricePerSeat) : 'Not set' },
+            { label: 'Monthly Bill', value: loading ? '...' : hasSeatPrice ? money(monthly) : 'Not set' },
           ].map((s) => (
             <div key={s.label} className="card stat-glow p-4">
               <div className="text-xs font-semibold mb-1" style={{ color: 'var(--t2)' }}>{s.label}</div>
@@ -135,13 +157,18 @@ export default function BillingPage() {
             </div>
           ))}
         </div>
+        {!hasSeatPrice && !loading && (
+          <div className="mt-5 p-4 rounded-xl text-sm" style={{ border: '1px solid rgba(255,184,0,0.35)', background: 'rgba(255,184,0,0.08)', color: 'var(--t2)' }}>
+            Seat price is not configured yet. Ask BookMyFit admin to set the approved monthly per-seat price before collecting payment.
+          </div>
+        )}
         <div className="flex gap-3 mt-5 flex-wrap">
           {needsPayment && !corporate?.pendingSeatOrderId && (
-            <button className="btn btn-primary" disabled={requesting || seats <= 0} onClick={() => createSeatPayment(0)}>
-              {requesting ? 'Creating payment...' : `Pay ${money(monthly)}`}
+            <button className="btn btn-primary" disabled={requesting || seats <= 0 || !hasSeatPrice} onClick={() => createSeatPayment(0)}>
+              {requesting ? 'Creating payment...' : hasSeatPrice ? `Pay monthly bill ${money(monthly)}` : 'Price not configured'}
             </button>
           )}
-          <button className="btn btn-ghost" onClick={() => setShowTopup(true)} disabled={requesting}>Top-up Seats</button>
+          <button className="btn btn-ghost" onClick={() => setShowTopup(true)} disabled={requesting || !hasSeatPrice}>Top-up Seats</button>
           {corporate?.pendingSeatOrderId && (
             <button className="btn btn-primary" disabled={requesting} onClick={verifyPending}>
               {requesting ? 'Checking...' : 'Verify Pending Payment'}
@@ -163,7 +190,7 @@ export default function BillingPage() {
                 <td>Pending seat payment</td>
                 <td className="font-mono text-xs">{corporate.pendingSeatOrderId}</td>
                 <td>{Number(corporate.pendingSeatRequest || 0) || seats}</td>
-                <td>{money((Number(corporate.pendingSeatRequest || 0) || seats) * pricePerSeat)}</td>
+                <td>{hasSeatPrice ? money((Number(corporate.pendingSeatRequest || 0) || seats) * pricePerSeat) : 'Not set'}</td>
                 <td><span className="badge-pending">Pending</span></td>
                 <td><button className="btn btn-ghost text-xs" onClick={verifyPending}>Verify</button></td>
               </tr>
@@ -173,7 +200,7 @@ export default function BillingPage() {
                 <td>Last paid seat order</td>
                 <td className="font-mono text-xs">{corporate.lastSeatPaymentOrderId}</td>
                 <td>{seats}</td>
-                <td>{money(monthly)}</td>
+                <td>{hasSeatPrice ? money(monthly) : 'Not set'}</td>
                 <td><span className="badge-active">Paid</span></td>
                 <td>--</td>
               </tr>
@@ -196,8 +223,8 @@ export default function BillingPage() {
             </div>
             <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Additional Seats</label>
             <input type="number" min={1} max={500} className="glass-input w-full mb-1" value={topupSeats} onChange={(e) => setTopupSeats(Math.max(1, Number(e.target.value) || 1))} />
-            <p className="text-xs mb-5" style={{ color: 'var(--t2)' }}>Payable now: {money(topupSeats * pricePerSeat)}</p>
-            <button className="btn btn-primary w-full justify-center" onClick={() => createSeatPayment(topupSeats)} disabled={requesting}>
+            <p className="text-xs mb-5" style={{ color: 'var(--t2)' }}>Payable now: {hasSeatPrice ? money(topupSeats * pricePerSeat) : 'Not set'}</p>
+            <button className="btn btn-primary w-full justify-center" onClick={() => createSeatPayment(topupSeats)} disabled={requesting || !hasSeatPrice}>
               {requesting ? 'Creating payment...' : 'Pay Top-up'}
             </button>
           </div>

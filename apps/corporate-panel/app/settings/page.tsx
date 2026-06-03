@@ -18,6 +18,7 @@ export default function SettingsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const hasSeatPrice = profile.pricePerSeat !== null && profile.pricePerSeat !== undefined && Number(profile.pricePerSeat) > 0;
 
   const load = async () => {
     setLoading(true);
@@ -76,9 +77,9 @@ export default function SettingsPage() {
         <h3 className="serif text-lg mb-4">Current Plan</h3>
         <div className="grid grid-cols-4 gap-4">
           {[
-            { label: 'Plan', value: profile.planType || 'Corporate' },
+            { label: 'Plan', value: profile.planType || 'Not set' },
             { label: 'Seats', value: String(profile.totalSeats || 0) },
-            { label: 'Per Seat', value: `Rs ${Number(profile.pricePerSeat || 999).toLocaleString('en-IN')}/mo` },
+            { label: 'Per Seat', value: hasSeatPrice ? `Rs ${Number(profile.pricePerSeat).toLocaleString('en-IN')}/mo` : 'Not set' },
             { label: 'Billing', value: profile.billingStatus || 'pending' },
           ].map((item) => (
             <div key={item.label} className="card stat-glow p-4">

@@ -1094,36 +1094,77 @@ export class SessionsService {
   // â”€â”€ Attendance & Admin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async listAttendance(gymId?: string, date?: string, page = 1, limit = 50) {
-    const qb = this.attendanceRepo.createQueryBuilder('a');
-    if (gymId) qb.andWhere('a."gymId" = :gymId', { gymId });
-    if (date) qb.andWhere('a."sessionDate" = :date', { date });
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Math.min(100, Math.max(1, Number(limit) || 50));
-    const [data, total] = await qb.orderBy('a."checkinAt"', 'DESC').skip((pageNum - 1) * limitNum).take(limitNum).getManyAndCount();
-    const gymIds = [...new Set(data.map((a) => a.gymId))];
-    const userIds = [...new Set(data.map((a) => a.userId))];
-    const [gyms, users] = await Promise.all([
-      gymIds.length ? this.gymRepo.createQueryBuilder('g').whereInIds(gymIds).getMany() : [],
-      userIds.length ? this.userRepo.createQueryBuilder('u').whereInIds(userIds).getMany() : [],
-    ]);
-    return { data: data.map((a) => ({ ...a, gym: gyms.find((g) => g.id === a.gymId), user: users.find((u) => u.id === a.userId) })), total, page: pageNum, limit: limitNum };
+    const qb = this.checkinRepo
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.gym', 'gym')
+      .leftJoinAndSelect('c.user', 'user')
+      .where('c.status = :status', { status: 'success' });
+    if (gymId) qb.andWhere('c."gymId" = :gymId', { gymId });
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      qb.andWhere('c."checkinTime" >= :from AND c."checkinTime" < :to', {
+        from: new Date(`${date}T00:00:00.000`),
+        to: new Date(`${date}T23:59:59.999`),
+      });
+    }
+    const [checkins, total] = await qb
+      .orderBy('c."checkinTime"', 'DESC')
+      .skip((pageNum - 1) * limitNum)
+      .take(limitNum)
+      .getManyAndCount();
+    return { data: await this.checkinsAsAttendanceRows(checkins), total, page: pageNum, limit: limitNum };
   }
 
   async attendanceSummaryByGym(month: string) {
     const [y, m] = month.split('-').map(Number);
-    const from = `${y}-${String(m).padStart(2, '0')}-01`;
-    const toM = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
-    const rows = await this.attendanceRepo
-      .createQueryBuilder('a')
-      .select('a."gymId"', 'gymId')
-      .addSelect('COUNT(*)', 'totalAttendance')
-      .addSelect('SUM(a."commissionAmount")', 'totalCommission')
-      .where('a."sessionDate" >= :from AND a."sessionDate" < :to', { from, to: toM })
-      .groupBy('a."gymId"')
-      .getRawMany();
-    const gymIds = rows.map((r) => r.gymId);
-    const gyms = gymIds.length ? await this.gymRepo.createQueryBuilder('g').whereInIds(gymIds).getMany() : [];
-    return rows.map((r) => ({ ...r, gym: gyms.find((g) => g.id === r.gymId) }));
+    const from = new Date(y, m - 1, 1);
+    const to = new Date(y, m, 1);
+    const checkins = await this.checkinRepo
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.gym', 'gym')
+      .where('c.status = :status', { status: 'success' })
+      .andWhere('c."checkinTime" >= :from AND c."checkinTime" < :to', { from, to })
+      .getMany();
+    const rows = await this.checkinsAsAttendanceRows(checkins);
+    const byGym = new Map<string, { gymId: string; totalAttendance: number; totalCommission: number; gym?: any }>();
+    rows.forEach((row: any) => {
+      const current = byGym.get(row.gymId) || { gymId: row.gymId, totalAttendance: 0, totalCommission: 0, gym: row.gym };
+      current.totalAttendance += 1;
+      current.totalCommission += Number(row.commissionAmount || 0);
+      byGym.set(row.gymId, current);
+    });
+    return Array.from(byGym.values()).map((row) => ({
+      ...row,
+      totalAttendance: String(row.totalAttendance),
+      totalCommission: String(row.totalCommission),
+    }));
+  }
+
+  private async checkinsAsAttendanceRows(checkins: CheckinEntity[]) {
+    if (checkins.length === 0) return [];
+    const subIds = [...new Set(checkins.map((checkin) => checkin.subscriptionId).filter(Boolean))];
+    const subs = subIds.length ? await this.subRepo.find({ where: { id: In(subIds) } }) : [];
+    const subMap = new Map(subs.map((sub) => [sub.id, sub]));
+    return checkins.map((checkin: any) => {
+      const sub = subMap.get(checkin.subscriptionId);
+      const planType = sub?.planType || checkin.planType || 'same_gym';
+      const commissionAmount = planType === 'multi_gym' ? Math.max(0, Number(checkin.gym?.ratePerDay || 0)) : 0;
+      const checkinAt = checkin.checkinTime ? new Date(checkin.checkinTime) : new Date();
+      return {
+        id: checkin.id,
+        gymId: checkin.gymId,
+        userId: checkin.userId,
+        sessionDate: checkinAt.toISOString().slice(0, 10),
+        sessionTypeName: planType === 'multi_gym' ? 'Multi Gym Visit' : 'Gym Workout',
+        sessionKind: 'standard',
+        checkinAt,
+        commissionAmount,
+        settlementId: null,
+        gym: checkin.gym,
+        user: checkin.user,
+      };
+    });
   }
 
   async getGymIdForOwner(ownerId: string): Promise<string> {

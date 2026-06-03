@@ -16,9 +16,9 @@ import { UserEntity } from '../../database/entities/user.entity';
 import { SubscriptionEntity } from '../../database/entities/subscription.entity';
 import { GymEntity } from '../../database/entities/gym.entity';
 import { TrainerEntity } from '../../database/entities/trainer.entity';
-import { WellnessPartnerEntity } from '../../database/entities/wellness.entity';
+import { WellnessBookingEntity, WellnessPartnerEntity } from '../../database/entities/wellness.entity';
 import { AppConfigEntity } from '../../database/entities/app-config.entity';
-import { ProductEntity } from '../../database/entities/store.entity';
+import { OrderEntity, ProductEntity } from '../../database/entities/store.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
@@ -455,56 +455,158 @@ class AnalyticsService {
     @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
     @InjectRepository(CheckinEntity) private readonly checkins: Repository<CheckinEntity>,
     @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
+    @InjectRepository(WellnessBookingEntity) private readonly wellnessBookings: Repository<WellnessBookingEntity>,
+    @InjectRepository(OrderEntity) private readonly orders: Repository<OrderEntity>,
   ) {}
 
   async summary() {
-    const [totalRevenue, activeSubscribers, totalUsers, totalCheckins, totalGyms, pendingKyc] = await Promise.all([
-      this.subs.createQueryBuilder('s').select('SUM(s."amountPaid")', 'total').getRawOne().then((r) => Number(r?.total || 0)),
-      this.subs.count({ where: { status: 'active' } }),
+    const paidSubscriptionStatuses = ['active', 'expired'];
+    const paidWellnessStatuses = ['confirmed', 'completed', 'paid'];
+    const paidOrderStatuses = ['paid', 'confirmed', 'delivered'];
+
+    const subscriptionRevenueQuery = () => this.subs
+      .createQueryBuilder('s')
+      .select('COALESCE(SUM(s."amountPaid"), 0)', 'total')
+      .where('s.status IN (:...statuses)', { statuses: paidSubscriptionStatuses })
+      .andWhere('COALESCE(s."amountPaid", 0) > 0');
+
+    const [subscriptionRevenue, wellnessRevenue, storeRevenue, activeSubscribers, totalUsers, totalCheckins, totalGyms, activeGyms, pendingKyc] = await Promise.all([
+      subscriptionRevenueQuery().getRawOne().then((r) => Number(r?.total || 0)),
+      this.wellnessBookings
+        .createQueryBuilder('w')
+        .select('COALESCE(SUM(w.amount), 0)', 'total')
+        .where('LOWER(w.status) IN (:...statuses)', { statuses: paidWellnessStatuses })
+        .getRawOne()
+        .then((r) => Number(r?.total || 0)),
+      this.orders
+        .createQueryBuilder('o')
+        .select('COALESCE(SUM(o."totalAmount"), 0)', 'total')
+        .where('LOWER(o.status) IN (:...statuses)', { statuses: paidOrderStatuses })
+        .getRawOne()
+        .then((r) => Number(r?.total || 0)),
+      this.subs
+        .createQueryBuilder('s')
+        .select('COUNT(DISTINCT s."userId")', 'count')
+        .where('s.status = :status', { status: 'active' })
+        .andWhere('s."endDate" >= CURRENT_DATE')
+        .getRawOne()
+        .then((r) => Number(r?.count || 0)),
       this.users.count(),
       this.checkins.count({ where: { status: 'success' } }),
       this.gyms.count(),
+      this.gyms.count({ where: { status: 'active' } }),
       this.gyms.count({ where: { kycStatus: 'in_review' } }),
     ]);
+    const totalRevenue = subscriptionRevenue + wellnessRevenue + storeRevenue;
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const newSignups = await this.users
+    const [newSignups, recentCheckins] = await Promise.all([
+      this.users
       .createQueryBuilder('u')
       .where('u.createdAt >= :since', { since: thirtyDaysAgo })
-      .getCount();
+        .andWhere('u.role = :role', { role: 'end_user' })
+        .getCount(),
+      this.checkins
+        .createQueryBuilder('c')
+        .where('c.status = :status', { status: 'success' })
+        .andWhere('c."checkinTime" >= :since', { since: thirtyDaysAgo })
+        .getCount(),
+    ]);
 
-    const avgCheckinsPerDay = totalCheckins > 0 ? Math.round(totalCheckins / 30) : 0;
+    const avgCheckinsPerDay = recentCheckins > 0 ? Math.round(recentCheckins / 30) : 0;
 
-    const topGyms = await this.checkins
+    const topGymRows = await this.checkins
       .createQueryBuilder('c')
-      .select('c.gymId', 'gymId')
+      .select('c."gymId"', 'gymId')
       .addSelect('COUNT(*)', 'checkins')
-      .where('c.status = :st', { st: 'success' })
-      .groupBy('c.gymId')
+      .where('c.status = :status', { status: 'success' })
+      .andWhere('c."gymId" IS NOT NULL')
+      .groupBy('c."gymId"')
       .orderBy('"checkins"', 'DESC')
       .limit(5)
       .getRawMany();
+    const topGymIds = topGymRows.map((row) => row.gymId).filter(Boolean);
+    const topGymEntities = topGymIds.length ? await this.gyms.find({ where: { id: In(topGymIds) } }) : [];
+    const gymMap = new Map(topGymEntities.map((gym) => [gym.id, gym]));
+    const topGyms = await Promise.all(topGymRows.map(async (row) => {
+      const gym = gymMap.get(row.gymId);
+      const revenue = await subscriptionRevenueQuery()
+        .andWhere('CAST(:gymId AS uuid) = ANY(COALESCE(s."gymIds", ARRAY[]::uuid[]))', { gymId: row.gymId })
+        .getRawOne()
+        .then((r) => Number(r?.total || 0));
+      return {
+        gymId: row.gymId,
+        name: gym?.name || 'Unknown Gym',
+        checkins: Number(row.checkins || 0),
+        revenue,
+        rating: Number(gym?.rating || 0),
+      };
+    }));
 
     const topPlans = await this.subs
       .createQueryBuilder('s')
-      .select('s.planType', 'name')
+      .select('s."planType"', 'name')
       .addSelect('COUNT(*)', 'subscribers')
       .addSelect('SUM(s."amountPaid")', 'revenue')
-      .groupBy('s.planType')
+      .where('s.status IN (:...statuses)', { statuses: paidSubscriptionStatuses })
+      .andWhere('COALESCE(s."amountPaid", 0) > 0')
+      .groupBy('s."planType"')
       .orderBy('"subscribers"', 'DESC')
       .getRawMany();
 
-    const monthlyRevenue = await this.subs
+    const [subscriptionMonths, wellnessMonths, orderMonths] = await Promise.all([
+      this.subs
       .createQueryBuilder('s')
       .select("TO_CHAR(s.\"createdAt\", 'YYYY-MM')", 'month')
       .addSelect('SUM(s."amountPaid")', 'revenue')
+        .where('s.status IN (:...statuses)', { statuses: paidSubscriptionStatuses })
+        .andWhere('COALESCE(s."amountPaid", 0) > 0')
       .groupBy("TO_CHAR(s.\"createdAt\", 'YYYY-MM')")
-      .orderBy('month', 'DESC')
-      .limit(12)
-      .getRawMany();
+        .getRawMany(),
+      this.wellnessBookings
+        .createQueryBuilder('w')
+        .select("TO_CHAR(w.\"createdAt\", 'YYYY-MM')", 'month')
+        .addSelect('SUM(w.amount)', 'revenue')
+        .where('LOWER(w.status) IN (:...statuses)', { statuses: paidWellnessStatuses })
+        .groupBy("TO_CHAR(w.\"createdAt\", 'YYYY-MM')")
+        .getRawMany(),
+      this.orders
+        .createQueryBuilder('o')
+        .select("TO_CHAR(o.\"createdAt\", 'YYYY-MM')", 'month')
+        .addSelect('SUM(o."totalAmount")', 'revenue')
+        .where('LOWER(o.status) IN (:...statuses)', { statuses: paidOrderStatuses })
+        .groupBy("TO_CHAR(o.\"createdAt\", 'YYYY-MM')")
+        .getRawMany(),
+    ]);
+    const monthMap = new Map<string, number>();
+    for (const row of [...subscriptionMonths, ...wellnessMonths, ...orderMonths]) {
+      const month = String(row.month || '').trim();
+      if (!month) continue;
+      monthMap.set(month, (monthMap.get(month) || 0) + Number(row.revenue || 0));
+    }
+    const monthlyRevenue = Array.from(monthMap.entries())
+      .map(([month, revenue]) => ({ month, revenue }))
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .slice(-12);
 
-    return { totalRevenue, activeSubscribers, totalUsers, newSignups, avgCheckinsPerDay, totalGyms, pendingKyc, topGyms, topPlans, monthlyRevenue };
+    return {
+      totalRevenue,
+      subscriptionRevenue,
+      wellnessRevenue,
+      storeRevenue,
+      activeSubscribers,
+      totalUsers,
+      newSignups,
+      avgCheckinsPerDay,
+      totalCheckins,
+      totalGyms,
+      activeGyms,
+      pendingKyc,
+      topGyms,
+      topPlans,
+      monthlyRevenue,
+    };
   }
 }
 
@@ -1172,7 +1274,7 @@ class CommissionController {
   imports: [TypeOrmModule.forFeature([
     RatingEntity, CouponEntity, NotificationEntity, CategoryEntity, AmenityEntity, WorkoutVideoEntity,
     CheckinEntity, UserEntity, SubscriptionEntity, GymEntity, TrainerEntity, WellnessPartnerEntity, FraudAlertEntity,
-    AppConfigEntity, ProductEntity,
+    WellnessBookingEntity, AppConfigEntity, ProductEntity, OrderEntity,
   ])],
   controllers: [RatingsController, CouponsController, NotificationsController, MasterController, VideosController, AnalyticsController, FraudController, CommissionController, HomepageController, MobileLaunchConfigController, AdminMobileLaunchConfigController, AdminSettingsController, BrandingController],
   providers: [RatingsService, CouponsService, NotificationsService, MasterDataService, VideosService, AnalyticsService, FraudService, MobileLaunchConfigService],

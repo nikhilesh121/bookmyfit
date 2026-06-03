@@ -19,6 +19,10 @@ import { EmailService } from '../email/email.service';
 const CORPORATE_PORTAL_URL = process.env.CORP_PANEL_URL || 'https://corporate.bookmyfit.in';
 const ACTIVE_BILLING_STATES = new Set(['active', 'trial']);
 
+function corporateBillingReturnUrl() {
+  return `${CORPORATE_PORTAL_URL.replace(/\/$/, '')}/billing?order_id={order_id}`;
+}
+
 @Injectable()
 class CorporateService {
   constructor(
@@ -155,7 +159,9 @@ class CorporateService {
     if (existing) throw new BadRequestException('Corporate account already exists');
 
     const totalSeats = Math.max(0, Math.round(Number(data.totalSeats ?? data.seats ?? 0) || 0));
-    const pricePerSeat = Math.max(0, Math.round(Number(data.pricePerSeat ?? 999) || 999));
+    const pricePerSeat = data.pricePerSeat !== undefined
+      ? Math.max(0, Math.round(Number(data.pricePerSeat) || 0))
+      : 0;
     const { user, login } = await this.createOrUpdateCorporateAdmin(data, companyName, email);
     const account = this.accounts.create({
       companyName,
@@ -163,7 +169,7 @@ class CorporateService {
       totalSeats,
       assignedSeats: 0,
       pricePerSeat,
-      billingStatus: String(data.billingStatus || 'active') as any,
+      billingStatus: String(data.billingStatus || 'pending_payment') as any,
       planType: String(data.planType || 'corporate').trim(),
       billingContact: data.billingContact || email,
       adminUserId: user.id,
@@ -256,7 +262,7 @@ class CorporateService {
         name: user?.name || employee.employeeCode,
         email: user?.email || null,
         phone: user?.phone || null,
-        plan: 'Corporate Multi-Gym',
+        plan: employee.corporate?.planType || null,
         loginMethod: user?.phone ? `OTP to ${user.phone}` : 'Phone missing',
         checkinCount: checkins.checkinCount,
         lastCheckin: checkins.lastCheckin,
@@ -310,7 +316,7 @@ class CorporateService {
 
   private assertCanUseSeats(account: CorporateAccountEntity) {
     if (!account.isActive) throw new BadRequestException('Corporate account is not approved or is suspended');
-    if (!ACTIVE_BILLING_STATES.has(String(account.billingStatus || 'active'))) {
+    if (!ACTIVE_BILLING_STATES.has(String(account.billingStatus || 'pending_payment'))) {
       throw new BadRequestException('Corporate payment is pending. Please complete billing before assigning employees.');
     }
   }
@@ -450,7 +456,7 @@ class CorporateService {
       }).catch(() => {});
     }
 
-    return { ...employee, name: user.name, email: user.email, phone: user.phone, plan: 'Corporate Multi-Gym' };
+    return { ...employee, name: user.name, email: user.email, phone: user.phone, plan: account.planType || null };
   }
 
   async bulkAssign(corporateId: string, employees: any[]) {
@@ -538,23 +544,33 @@ class CorporateService {
     }
 
     const isTopup = additionalSeats > 0;
-    if (!isTopup && ACTIVE_BILLING_STATES.has(String(account.billingStatus || 'active'))) {
+    if (!isTopup && ACTIVE_BILLING_STATES.has(String(account.billingStatus || 'pending_payment'))) {
       throw new BadRequestException('Corporate billing is already active');
     }
 
-    const seatsToBill = isTopup ? additionalSeats : Math.max(1, Number(account.totalSeats || 0));
-    const pricePerSeat = Math.max(0, Number(account.pricePerSeat || 999));
+    const configuredSeats = Number(account.totalSeats || 0);
+    if (!isTopup && configuredSeats <= 0) {
+      throw new BadRequestException('Corporate seats are not configured. Ask admin to set the approved seat count before payment.');
+    }
+    const seatsToBill = isTopup ? additionalSeats : configuredSeats;
+    const pricePerSeat = Math.max(0, Number(account.pricePerSeat || 0));
+    if (pricePerSeat <= 0) {
+      throw new BadRequestException('Corporate seat price is not configured. Ask admin to set the approved per-seat price before payment.');
+    }
     const amount = Math.round(seatsToBill * pricePerSeat);
     if (amount <= 0) throw new BadRequestException('Seat payment amount must be greater than zero');
 
     const admin = await this.users.findOne({ where: { id: adminUserId } });
+    const billingPhone = this.normalizePhone(admin?.phone || account.billingContact);
+    if (!billingPhone) throw new BadRequestException('Billing phone is required before payment');
     const orderId = `CORP_${account.id.replace(/-/g, '').slice(0, 12)}_${Date.now()}`;
     const payment = await this.cashfree.createOrder({
       orderId,
       amount,
       customerId: adminUserId,
-      customerPhone: admin?.phone || '9999999999',
+      customerPhone: billingPhone,
       customerEmail: admin?.email || account.email,
+      returnUrl: corporateBillingReturnUrl(),
       notes: {
         kind: isTopup ? 'corporate_seat_topup' : 'corporate_initial_seats',
         corporateId: account.id,
@@ -602,7 +618,8 @@ class CorporateService {
       activeThisMonth: monthCheckins,
       totalCheckins,
       monthlyRevenue: [],
-      totalRevenue: Number(account.totalSeats || 0) * Number(account.pricePerSeat || 999),
+      monthlySeatBilling: Number(account.totalSeats || 0) * Number(account.pricePerSeat || 0),
+      totalRevenue: Number(account.totalSeats || 0) * Number(account.pricePerSeat || 0),
       activeSubscribers: employees.length,
       newSignups: 0,
     };

@@ -193,8 +193,11 @@ export default function Subscriptions() {
               const status = (sub.status || 'active').toLowerCase();
               const isActive = isActiveSubscription(sub);
               const planColor = isActive ? (PLAN_COLOR[planType] || colors.accent) : colors.t3;
-              const badgeLabel = PLAN_BADGE_LABEL[planType] || 'PASS';
-              const planDisplayName = sub.plan?.name || sub.planLabel || sub.planName || badgeLabel;
+              const isCorporateAccess = Boolean(sub.corporateId || sub.corporate?.id || sub.planSource === 'corporate');
+              const badgeLabel = isCorporateAccess ? 'CORPORATE' : (PLAN_BADGE_LABEL[planType] || 'PASS');
+              const planDisplayName = isCorporateAccess
+                ? 'Corporate Multi-Gym Access'
+                : (sub.plan?.name || sub.planLabel || sub.planName || badgeLabel);
 
               const gymDisplayName =
                 planType === 'multi_gym'
@@ -202,9 +205,11 @@ export default function Subscriptions() {
                   : (sub.gymName || sub.gym?.name || (planType === 'day_pass' ? 'Selected Gym' : 'Your Gym'));
 
               const validityText =
-                planType === 'day_pass'
-                  ? (sub.startDate ? `Valid: ${fmtDate(sub.startDate)}` : 'Day Pass')
-                  : (sub.startDate && sub.endDate ? `${fmtDate(sub.startDate)} – ${fmtDate(sub.endDate)}` : '');
+                isCorporateAccess
+                  ? (sub.startDate && sub.endDate ? `Employee access: ${fmtDate(sub.startDate)} - ${fmtDate(sub.endDate)}` : 'Employee access')
+                  : planType === 'day_pass'
+                    ? (sub.startDate ? `Valid: ${fmtDate(sub.startDate)}` : 'Day Pass')
+                    : (sub.startDate && sub.endDate ? `${fmtDate(sub.startDate)} - ${fmtDate(sub.endDate)}` : '');
 
               const progress = sub.startDate && sub.endDate
                 ? calcProgress(sub.startDate, sub.endDate)

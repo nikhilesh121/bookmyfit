@@ -4,11 +4,14 @@ import Shell from '../../components/Shell';
 import { api } from '../../lib/api';
 import { useEffect, useRef, useState } from 'react';
 import { Building2, MapPin, Phone, Mail, Globe, Star, Check, AlertTriangle, Image as ImageIcon, Video, Trash2, Plus, Upload, ArrowUp, ArrowDown } from 'lucide-react';
+import LocationFields from '../../components/LocationFields';
 
 interface FormState {
   displayName: string;
   description: string;
   address: string;
+  country: string;
+  state: string;
   city: string;
   area: string;
   pinCode: string;
@@ -69,6 +72,8 @@ export default function ProfilePage() {
     displayName: '',
     description: '',
     address: '',
+    country: 'India',
+    state: '',
     city: '',
     area: '',
     pinCode: '',
@@ -130,6 +135,8 @@ export default function ProfilePage() {
           displayName: data.name || data.displayName || '',
           description: data.description || '',
           address: data.address || '',
+          country: data.country || 'India',
+          state: data.state || '',
           city: data.city || '',
           area: data.area || '',
           pinCode: data.pinCode || data.pincode || '',
@@ -158,6 +165,8 @@ export default function ProfilePage() {
         name: form.displayName,
         description: form.description,
         address: form.address,
+        country: form.country,
+        state: form.state,
         city: form.city,
         area: form.area,
         pinCode: form.pinCode,
@@ -349,7 +358,7 @@ export default function ProfilePage() {
               <div className="w-full space-y-2 mt-2">
                 <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--t2)' }}>
                   <MapPin size={14} />
-                  <span>{form.address || '--'}{form.area ? `, ${form.area}` : ''}{form.city ? `, ${form.city}` : ''}</span>
+                  <span>{form.address || '--'}{form.area ? `, ${form.area}` : ''}{form.city ? `, ${form.city}` : ''}{form.state ? `, ${form.state}` : ''}</span>
                 </div>
                 <div
                   className="rounded-xl p-3"
@@ -603,7 +612,14 @@ export default function ProfilePage() {
                 />
               </div>
 
-              {/* City + Pin Code */}
+              <LocationFields
+                value={{ country: form.country, state: form.state, city: form.city }}
+                onChange={(location) => setForm((prev) => ({ ...prev, ...location }))}
+                inputClassName="glass-input w-full"
+                gridClassName="grid grid-cols-1 md:grid-cols-3 gap-4"
+              />
+
+              {/* Area + Pin Code */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>
@@ -614,17 +630,6 @@ export default function ProfilePage() {
                     value={form.area}
                     onChange={handleChange('area')}
                     placeholder="Area / locality"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>
-                    City
-                  </label>
-                  <input
-                    className="glass-input w-full"
-                    value={form.city}
-                    onChange={handleChange('city')}
-                    placeholder="City"
                   />
                 </div>
                 <div>

@@ -16,6 +16,12 @@ export class GymEntity {
   @Column({ length: 100 })
   city: string;
 
+  @Column({ length: 100, nullable: true, default: 'India' })
+  country?: string;
+
+  @Column({ length: 100, nullable: true })
+  state?: string;
+
   @Column({ length: 100 })
   area: string;
 

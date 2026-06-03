@@ -64,7 +64,7 @@ export default function AssignPage() {
   const totalSeats = Number(account?.totalSeats || 0);
   const assigned = employees.filter((employee) => employee.status === 'active').length;
   const available = Math.max(0, totalSeats - assigned);
-  const canUseSeats = Boolean(account?.isActive) && ['active', 'trial'].includes(String(account?.billingStatus || 'active'));
+  const canUseSeats = Boolean(account?.isActive) && ['active', 'trial'].includes(String(account?.billingStatus || 'pending_payment'));
 
   const handleAssign = async (e: any) => {
     e.preventDefault();

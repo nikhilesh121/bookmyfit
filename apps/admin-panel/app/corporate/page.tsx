@@ -43,9 +43,9 @@ export default function CorporatePage() {
     adminEmail: '',
     adminPhone: '',
     adminPassword: '',
-    pricePerSeat: '999',
-    billingStatus: 'active',
-    isActive: true,
+    pricePerSeat: '',
+    billingStatus: 'pending_payment',
+    isActive: false,
   };
   const [addForm, setAddForm] = useState(emptyAddForm);
   const [createdLogin, setCreatedLogin] = useState<{ email: string; password: string; portalUrl: string } | null>(null);
@@ -109,6 +109,8 @@ export default function CorporatePage() {
     if (!addForm.name.trim() || !addForm.email.trim()) { toast('Name and email required', 'error'); return; }
     const seats = Number(addForm.seats);
     if (!Number.isFinite(seats) || seats <= 0) { toast('Enter paid seat count before creating the account', 'error'); return; }
+    const pricePerSeat = Number(addForm.pricePerSeat);
+    if (!Number.isFinite(pricePerSeat) || pricePerSeat < 0) { toast('Enter a valid per-seat price', 'error'); return; }
     setAdding(true);
     try {
       const res: any = await api.post('/corporate', {
@@ -121,7 +123,7 @@ export default function CorporatePage() {
         adminEmail: addForm.adminEmail.trim() || addForm.email,
         adminPhone: addForm.adminPhone.trim() || null,
         adminPassword: addForm.adminPassword.trim() || undefined,
-        pricePerSeat: Number(addForm.pricePerSeat) || 999,
+        pricePerSeat: Math.max(0, Math.round(pricePerSeat)),
         billingStatus: addForm.billingStatus,
         isActive: addForm.isActive,
       });
@@ -245,7 +247,7 @@ export default function CorporatePage() {
                       <td>
                         <div className="flex flex-col gap-1">
                           <span className={statusBadge(c.isActive)}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>
-                          <span className={c.billingStatus === 'active' ? 'badge-active' : 'badge-pending'}>{c.billingStatus || 'active'}</span>
+                          <span className={c.billingStatus === 'active' ? 'badge-active' : 'badge-pending'}>{c.billingStatus || 'pending_payment'}</span>
                         </div>
                       </td>
                       <td className="flex gap-2">
@@ -313,7 +315,7 @@ export default function CorporatePage() {
               </div>
               <div>
                 <label className="kicker block mb-1">Per Seat Price</label>
-                <input className="glass-input w-full" type="number" value={addForm.pricePerSeat} onChange={(e) => setAddForm((f) => ({ ...f, pricePerSeat: e.target.value }))} placeholder="999" />
+                <input className="glass-input w-full" type="number" value={addForm.pricePerSeat} onChange={(e) => setAddForm((f) => ({ ...f, pricePerSeat: e.target.value }))} placeholder="Set approved price" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

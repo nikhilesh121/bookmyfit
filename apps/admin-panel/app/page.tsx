@@ -7,10 +7,12 @@ import { Building2, Users, CreditCard, TrendingUp, DollarSign, Calendar, CheckCi
 
 interface Summary {
   totalRevenue: number;
+  monthlyRevenue?: { month: string; revenue?: number | string; amount?: number | string }[];
   activeSubscribers: number;
   newSignups: number;
   avgCheckinsPerDay: number;
   totalGyms: number;
+  activeGyms?: number;
   pendingKyc: number;
 }
 
@@ -47,14 +49,17 @@ export default function AdminDashboard() {
     }).finally(() => setLoading(false));
   }, []);
 
-  const totalGyms = gyms.length || summary?.totalGyms || 0;
-  const pendingGyms = gyms.filter((g: any) => g.kycStatus === 'in_review').length || summary?.pendingKyc || 0;
-  const activeGyms = gyms.filter((g: any) => g.status === 'active').length;
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const currentMonthRevenue = summary?.monthlyRevenue?.find((row) => row.month === currentMonth);
+  const monthlyRevenue = Number(currentMonthRevenue?.revenue ?? currentMonthRevenue?.amount ?? 0);
+  const totalGyms = summary?.totalGyms ?? gyms.length ?? 0;
+  const pendingGyms = summary?.pendingKyc ?? gyms.filter((g: any) => g.kycStatus === 'in_review').length;
+  const activeGyms = summary?.activeGyms ?? gyms.filter((g: any) => g.status === 'active').length;
 
   const stats = [
     { label: 'Total Gyms', value: loading ? '—' : String(totalGyms), sub: `${activeGyms} active`, icon: Building2 },
     { label: 'Active Subscribers', value: loading ? '—' : (summary?.activeSubscribers?.toLocaleString() ?? '—'), sub: `+${summary?.newSignups ?? 0} this month`, icon: Users },
-    { label: 'Monthly Revenue', value: loading ? '—' : summary ? `₹${(summary.totalRevenue / 100000).toFixed(1)}L` : '—', sub: 'Gross collected', icon: DollarSign },
+    { label: 'Monthly Revenue', value: loading ? '—' : `Rs ${monthlyRevenue.toLocaleString('en-IN')}`, sub: 'Current month gross', icon: DollarSign },
     { label: 'Avg Daily Check-ins', value: loading ? '—' : (summary?.avgCheckinsPerDay?.toLocaleString() ?? '—'), sub: 'Per day average', icon: Calendar },
     { label: 'New Sign-ups', value: loading ? '—' : (summary?.newSignups?.toLocaleString() ?? '—'), sub: 'This month', icon: TrendingUp },
     { label: 'Pending KYC', value: loading ? '—' : String(pendingGyms), sub: 'Gyms awaiting review', icon: Clock },

@@ -5,10 +5,13 @@ import { AlertTriangle, CheckCircle, Clock, Edit3, Eye, PauseCircle, Power, Powe
 import { api } from '../../lib/api';
 import { useToast } from '../../components/Toast';
 import Pagination from '../../components/Pagination';
+import LocationFields from '../../components/LocationFields';
 
 type Gym = {
   id: string;
   name: string;
+  country?: string;
+  state?: string;
   city: string;
   area?: string;
   address?: string;
@@ -117,6 +120,8 @@ export default function GymsPage() {
     setForm({
       name: fieldValue(gym.name),
       description: fieldValue(gym.description),
+      country: fieldValue(gym.country || 'India'),
+      state: fieldValue(gym.state),
       city: fieldValue(gym.city),
       area: fieldValue(gym.area),
       address: fieldValue(gym.address),
@@ -155,6 +160,8 @@ export default function GymsPage() {
       const body: any = {
         name: form.name,
         description: form.description,
+        country: form.country,
+        state: form.state,
         city: form.city,
         area: form.area,
         address: form.address,
@@ -256,7 +263,7 @@ export default function GymsPage() {
                   return (
                   <tr key={g.id}>
                     <td className="font-semibold" style={{ color: '#fff' }}>{g.name}</td>
-                    <td>{g.city}{g.area ? `, ${g.area}` : ''}</td>
+                    <td>{g.city}{g.state ? `, ${g.state}` : ''}{g.area ? ` - ${g.area}` : ''}</td>
                     <td>{titleCase(g.tier)}</td>
                     <td><StatusBadge status={g.status} /></td>
                     <td style={{ color: locationReady ? 'var(--t2)' : '#FFB400', fontSize: 12 }}>
@@ -292,6 +299,8 @@ export default function GymsPage() {
               {[
                 ['Status', selectedGym.status],
                 ['Tier', titleCase(selectedGym.tier)],
+                ['Country', selectedGym.country || 'India'],
+                ['State', selectedGym.state || '-'],
                 ['City', selectedGym.city],
                 ['Area', selectedGym.area || '-'],
                 ['Address', selectedGym.address || '-'],
@@ -320,8 +329,17 @@ export default function GymsPage() {
               <button onClick={() => setEditingGym(null)} className="btn btn-ghost text-xs"><X size={16} /></button>
             </div>
             <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <LocationFields
+                  value={{ country: form.country, state: form.state, city: form.city }}
+                  onChange={(location) => setForm((f) => ({ ...f, ...location }))}
+                  requiredCity
+                  inputClassName="glass-input w-full"
+                  gridClassName="grid grid-cols-1 md:grid-cols-3 gap-4"
+                />
+              </div>
               {[
-                ['name', 'Name'], ['city', 'City'], ['area', 'Area'], ['pinCode', 'Pin Code'],
+                ['name', 'Name'], ['area', 'Area'], ['pinCode', 'Pin Code'],
                 ['contactPhone', 'Phone'], ['contactEmail', 'Email'], ['website', 'Website'],
                 ['lat', 'Latitude'], ['lng', 'Longitude'], ['ratePerDay', 'Multi-gym Visit Payout Override'], ['dayPassPrice', 'Day Pass Price'], ['capacity', 'Capacity'],
               ].map(([key, label]) => (

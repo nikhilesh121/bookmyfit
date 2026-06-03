@@ -171,12 +171,13 @@ function Sk({ h, w, br = 12, style }: { h: number; w?: number | string; br?: num
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
-const CITIES = ['Bhubaneswar', 'Cuttack', 'Puri', 'Rourkela', 'Sambalpur', 'Berhampur', 'Delhi', 'Mumbai', 'Bangalore', 'Hyderabad', 'Pune', 'Chennai', 'Kolkata'];
+const FALLBACK_CITIES = ['Bhubaneswar', 'Cuttack', 'Puri', 'Rourkela', 'Sambalpur', 'Berhampur', 'Delhi', 'Mumbai', 'Bangalore', 'Hyderabad', 'Pune', 'Chennai', 'Kolkata'];
 
 export default function Home() {
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [city, setCity] = useState('Nearby');
+  const [cityOptions, setCityOptions] = useState<string[]>(FALLBACK_CITIES);
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [heroIdx, setHeroIdx] = useState(0);
   const [wellnessServices, setWellnessServices] = useState<any[]>([]);
@@ -214,6 +215,16 @@ export default function Home() {
       })();
     }).catch(() => {});
     return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/v1/locations/cities?countryCode=IN&limit=5000`)
+      .then((r) => r.json())
+      .then((rows: any[]) => {
+        const names = Array.from(new Set((Array.isArray(rows) ? rows : []).map((item) => String(item?.name || '').trim()).filter(Boolean)));
+        if (names.length > 0) setCityOptions(names);
+      })
+      .catch(() => setCityOptions(FALLBACK_CITIES));
   }, []);
 
   useEffect(() => {
@@ -382,7 +393,7 @@ export default function Home() {
             <View style={s.cityPickerSheet}>
               <View style={s.cityPickerHandle} />
               <Text style={s.cityPickerTitle}>Select City</Text>
-              {CITIES.map((c) => (
+              {cityOptions.map((c) => (
                 <TouchableOpacity
                   key={c}
                   style={[s.cityRow, city === c && s.cityRowActive]}
@@ -546,16 +557,41 @@ function WellnessServicesSection({ services }: { services: any[] }) {
           const img = firstImage(svc.imageUrl, svc.image, svc.images, svc.partner?.photos, svc.partner?.coverPhoto) || DEFAULT_WELLNESS_SERVICE_IMAGE;
           const category = svc.category || svc.partner?.serviceType || 'Wellness';
           const price = Number(svc.price || svc.minPrice || 0);
+          const serviceId = svc.id || svc._id || '';
+          const partnerId = svc.partnerId || svc.partner?.id || svc.partner?._id || '';
+          const duration = svc.durationMinutes || svc.durationMin || svc.duration || 45;
+          const serviceName = svc.name || svc.title || 'Wellness Service';
+          const openService = () => {
+            if (serviceId) {
+              router.push({
+                pathname: '/wellness/book-service',
+                params: {
+                  serviceId,
+                  partnerId,
+                  serviceName,
+                  price: String(price),
+                  originalPrice: String(svc.originalPrice || svc.mrp || ''),
+                  duration: String(duration),
+                },
+              } as any);
+              return;
+            }
+            if (partnerId) {
+              router.push({ pathname: '/wellness/[id]', params: { id: partnerId } } as any);
+              return;
+            }
+            router.push('/wellness' as any);
+          };
           return (
-            <TouchableOpacity key={svc.id} style={s.wellnessCard} activeOpacity={0.88} onPress={() => router.push('/wellness' as any)}>
+            <TouchableOpacity key={serviceId || partnerId || serviceName} style={s.wellnessCard} activeOpacity={0.88} onPress={openService}>
               <ImageBackground source={{ uri: img }} style={s.wellnessImg} imageStyle={{ borderRadius: radius.xl }}>
                 <View style={s.wellnessDark} />
                 <View style={s.wellnessBadge}>
                   <Text style={s.wellnessBadgeText}>{category}</Text>
                 </View>
                 <View style={s.wellnessBottom}>
-                  <Text style={s.wellnessName} numberOfLines={2}>{svc.name || svc.title || 'Wellness Service'}</Text>
-                  <Text style={s.wellnessMeta}>{svc.durationMinutes || svc.durationMin || svc.duration || 45} min</Text>
+                  <Text style={s.wellnessName} numberOfLines={2}>{serviceName}</Text>
+                  <Text style={s.wellnessMeta}>{duration} min</Text>
                   {price > 0 && <Text style={s.wellnessPrice}>From Rs {price.toLocaleString('en-IN')}</Text>}
                 </View>
               </ImageBackground>

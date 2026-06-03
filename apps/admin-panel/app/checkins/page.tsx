@@ -68,9 +68,9 @@ export default function CheckinsPage() {
         user: c.user?.name ?? c.user ?? '--',
         gym: c.gym?.name ?? c.gym ?? '--',
         gymId: c.gymId ?? c.gym?.id,
-        checkedInAt: c.checkedInAt ?? c.createdAt ?? '',
+        checkedInAt: c.checkedInAt ?? c.checkinTime ?? c.createdAt ?? '',
         method: c.method ?? 'QR',
-        status: c.status ?? 'valid',
+        status: c.status === 'success' ? 'valid' : (c.status ?? 'valid'),
         planType: c.subscription?.planType ?? c.planType ?? '--',
       }));
       setCheckins(mapped);
@@ -100,8 +100,8 @@ export default function CheckinsPage() {
       <div className="grid grid-cols-3 gap-4 mb-8">
         {[
           { label: 'Total Check-ins', value: total, icon: Activity, color: 'var(--accent)' },
-          { label: 'Valid', value: checkins.filter(c => c.status === 'valid').length, icon: CheckCircle, color: 'var(--accent)' },
-          { label: 'Flagged / Failed', value: checkins.filter(c => c.status !== 'valid').length, icon: Calendar, color: '#FF3C3C' },
+          { label: 'Valid', value: checkins.filter(c => c.status === 'valid' || c.status === 'success').length, icon: CheckCircle, color: 'var(--accent)' },
+          { label: 'Flagged / Failed', value: checkins.filter(c => c.status !== 'valid' && c.status !== 'success').length, icon: Calendar, color: '#FF3C3C' },
         ].map((s) => {
           const Icon = s.icon;
           return (
@@ -201,7 +201,7 @@ export default function CheckinsPage() {
                       </span>
                     </td>
                     <td>
-                      <span className={c.status === 'valid' ? 'badge-active' : 'badge-danger'}>
+                      <span className={c.status === 'valid' || c.status === 'success' ? 'badge-active' : 'badge-danger'}>
                         {c.status}
                       </span>
                     </td>

@@ -213,7 +213,7 @@ export default function StorePage() {
           : [
               { label: 'Total Products', value: stats.totalProducts },
               { label: 'Active Orders', value: stats.activeOrders },
-              { label: 'Total Revenue', value: `₹${(stats.totalRevenue / 100).toLocaleString()}` },
+              { label: 'Total Revenue', value: `Rs ${stats.totalRevenue.toLocaleString('en-IN')}` },
               { label: 'Low Stock Items', value: stats.lowStock },
             ].map((s) => (
               <div key={s.label} className="card stat-glow p-5">

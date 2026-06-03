@@ -4,6 +4,7 @@ import Shell from '../../components/Shell';
 import { api } from '../../lib/api';
 import { useEffect, useState } from 'react';
 import { Settings, Bell, Shield, Edit2, Check, AlertTriangle, Eye, EyeOff, MapPin, Navigation } from 'lucide-react';
+import LocationFields from '../../components/LocationFields';
 
 function parseGymCoordinates(latValue: string, lngValue: string) {
   const latText = latValue.trim();
@@ -108,6 +109,8 @@ export default function SettingsPage() {
   const [gymId, setGymId] = useState('');
 
   // General Info state
+  const [country, setCountry] = useState('India');
+  const [state, setState] = useState('');
   const [city, setCity] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -122,6 +125,8 @@ export default function SettingsPage() {
   const [editingContact, setEditingContact] = useState(false);
 
   // Temp buffers for cancel
+  const [tempCountry, setTempCountry] = useState('India');
+  const [tempState, setTempState] = useState('');
   const [tempCity, setTempCity] = useState('');
   const [tempEmail, setTempEmail] = useState('');
   const [tempPhone, setTempPhone] = useState('');
@@ -148,6 +153,8 @@ export default function SettingsPage() {
         const data = res?.data ?? res;
         setGymId(data._id || data.id || '');
         setGymName(data.name ?? 'My Gym');
+        setCountry(data.country ?? 'India');
+        setState(data.state ?? '');
         setCity(data.city ?? '');
         setContactEmail(data.contactEmail ?? '');
         setContactPhone(data.contactPhone ?? '');
@@ -172,6 +179,8 @@ export default function SettingsPage() {
   }
 
   function startEditContact() {
+    setTempCountry(country);
+    setTempState(state);
     setTempCity(city);
     setTempEmail(contactEmail);
     setTempPhone(contactPhone);
@@ -179,6 +188,8 @@ export default function SettingsPage() {
   }
 
   function cancelContact() {
+    setCountry(tempCountry);
+    setState(tempState);
     setCity(tempCity);
     setContactEmail(tempEmail);
     setContactPhone(tempPhone);
@@ -189,6 +200,8 @@ export default function SettingsPage() {
     try {
       const endpoint = gymId ? `/gyms/${gymId}` : '/gyms/my-gym';
       await api.put(endpoint, {
+        country,
+        state,
         city,
         contactEmail,
         contactPhone,
@@ -329,17 +342,35 @@ export default function SettingsPage() {
               <SkeletonField />
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label style={labelStyle}>City</label>
-                <input
-                  className="glass-input w-full"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  readOnly={!editingContact}
-                  style={!editingContact ? { opacity: 0.7 } : {}}
+            <div className="space-y-3">
+              {editingContact ? (
+                <LocationFields
+                  value={{ country, state, city }}
+                  onChange={(location) => {
+                    if (location.country !== undefined) setCountry(location.country);
+                    if (location.state !== undefined) setState(location.state);
+                    if (location.city !== undefined) setCity(location.city);
+                  }}
+                  inputClassName="glass-input w-full"
+                  gridClassName="grid grid-cols-1 md:grid-cols-3 gap-3"
                 />
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label style={labelStyle}>Country</label>
+                    <input className="glass-input w-full" value={country} readOnly style={{ opacity: 0.7 }} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>State</label>
+                    <input className="glass-input w-full" value={state} readOnly style={{ opacity: 0.7 }} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>City</label>
+                    <input className="glass-input w-full" value={city} readOnly style={{ opacity: 0.7 }} />
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label style={labelStyle}>Contact Email</label>
                 <input
@@ -359,6 +390,7 @@ export default function SettingsPage() {
                   readOnly={!editingContact}
                   style={!editingContact ? { opacity: 0.7 } : {}}
                 />
+              </div>
               </div>
             </div>
           )}

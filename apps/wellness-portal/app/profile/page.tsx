@@ -4,10 +4,13 @@ import Shell from '../../components/Shell';
 import { api, getPartnerId, getUser } from '../../lib/api';
 import { useToast } from '../../components/Toast';
 import { Save } from 'lucide-react';
+import LocationFields from '../../components/LocationFields';
 
 type WellnessPartner = {
   id: string;
   name?: string;
+  country?: string;
+  state?: string;
   city?: string;
   area?: string;
   address?: string;
@@ -27,6 +30,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: '',
+    country: 'India',
+    state: '',
     city: '',
     area: '',
     address: '',
@@ -67,6 +72,8 @@ export default function ProfilePage() {
             : [];
         setForm({
           name: data.name || '',
+          country: data.country || 'India',
+          state: data.state || '',
           city: data.city || '',
           area: data.area || '',
           address: data.address || '',
@@ -92,6 +99,8 @@ export default function ProfilePage() {
     try {
       const updated = await api.put<WellnessPartner>(savePath, {
         name: form.name,
+        country: form.country,
+        state: form.state,
         city: form.city,
         area: form.area,
         address: form.address,
@@ -147,28 +156,24 @@ export default function ProfilePage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Company Name</label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Your wellness brand name"
-                  className="glass-input w-full"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>City</label>
-                <input
-                  type="text"
-                  value={form.city}
-                  onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-                  placeholder="e.g. Mumbai"
-                  className="glass-input w-full"
-                />
-              </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Company Name</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Your wellness brand name"
+                className="glass-input w-full"
+              />
             </div>
+
+            <LocationFields
+              value={{ country: form.country, state: form.state, city: form.city }}
+              onChange={(location) => setForm((f) => ({ ...f, ...location }))}
+              requiredCity
+              inputClassName="glass-input w-full"
+              gridClassName="grid grid-cols-1 md:grid-cols-3 gap-4"
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div>

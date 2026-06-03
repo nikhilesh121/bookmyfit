@@ -55,7 +55,7 @@ export default function EmployeesPage() {
   const activeEmployees = employees.filter((employee: any) => !employee.status || employee.status === 'active').length;
   const assignedSeats = Number(account?.assignedSeats ?? activeEmployees);
   const availableSeats = Math.max(0, totalSeats - Math.max(assignedSeats, activeEmployees));
-  const canUseSeats = Boolean(account?.isActive) && ['active', 'trial'].includes(String(account?.billingStatus || 'active'));
+  const canUseSeats = Boolean(account?.isActive) && ['active', 'trial'].includes(String(account?.billingStatus || 'pending_payment'));
   const depts = ['All', ...Array.from(new Set(employees.map((e: any) => e.department).filter(Boolean)))];
 
   const addEmployee = async () => {
@@ -125,7 +125,7 @@ export default function EmployeesPage() {
 
   const exportCsv = () => {
     const rows = [['Name', 'Email', 'Phone', 'Employee Code', 'Department', 'Plan', 'Status']];
-    filtered.forEach((e: any) => rows.push([e.name || '', e.email || '', e.phone || '', e.employeeCode || '', e.department || '', e.plan || 'Corporate Multi-Gym', e.status || 'active']));
+    filtered.forEach((e: any) => rows.push([e.name || '', e.email || '', e.phone || '', e.employeeCode || '', e.department || '', e.plan || '', e.status || 'active']));
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -181,7 +181,7 @@ export default function EmployeesPage() {
                     <td style={{ color: 'var(--t2)' }}>{e.phone || 'Missing'}</td>
                     <td style={{ color: 'var(--t2)' }}>{e.email || '--'}</td>
                     <td>{e.department || '--'}</td>
-                    <td><span className="accent-pill">{e.plan || 'Corporate Multi-Gym'}</span></td>
+                    <td><span className="accent-pill">{e.plan || '--'}</span></td>
                     <td><span className={isActive ? 'badge-active' : 'badge-danger'}>{isActive ? 'Active' : e.status || 'Suspended'}</span></td>
                     <td className="flex gap-2 flex-wrap">
                       <button className="btn btn-ghost text-xs py-1 px-3" onClick={() => setEditing(e)}><Pencil size={12} /> Edit</button>

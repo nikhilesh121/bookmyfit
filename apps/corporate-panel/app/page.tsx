@@ -42,8 +42,10 @@ export default function CorporateDashboard() {
   const activeEmps = employees.filter((e: any) => e.status === 'active').length;
   const assigned = Number(corporate?.assignedSeats ?? activeEmps);
   const available = Math.max(0, totalSeats - assigned);
-  const perSeat = Number(corporate?.pricePerSeat || 999);
-  const monthlyCost = `Rs ${(totalSeats * perSeat).toLocaleString('en-IN')}`;
+  const rawPricePerSeat = corporate?.pricePerSeat;
+  const hasSeatPrice = rawPricePerSeat !== null && rawPricePerSeat !== undefined && Number(rawPricePerSeat) > 0;
+  const perSeat = hasSeatPrice ? Number(rawPricePerSeat) : 0;
+  const monthlyCost = hasSeatPrice ? `Rs ${(totalSeats * perSeat).toLocaleString('en-IN')}` : 'Not set';
 
   const recentCheckins = checkins.slice(0, 5);
 
@@ -51,7 +53,7 @@ export default function CorporateDashboard() {
     { label: 'Total Seats', value: loading ? '…' : String(totalSeats), icon: Users },
     { label: 'Assigned', value: loading ? '…' : String(assigned), icon: CheckCircle },
     { label: 'Available', value: loading ? '…' : String(available), icon: TrendingUp },
-    { label: 'Monthly Cost', value: loading ? '…' : monthlyCost, icon: Briefcase },
+    { label: 'Monthly Seat Bill', value: loading ? '…' : monthlyCost, icon: Briefcase },
   ];
 
   const utilPct = totalSeats > 0 ? Math.round((assigned / totalSeats) * 100) : 0;

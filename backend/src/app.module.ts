@@ -22,6 +22,7 @@ import { MiscModule } from './modules/misc/misc.module';
 import { SlotsModule } from './modules/slots/slots.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { EmailModule } from './modules/email/email.module';
+import { LocationsModule } from './modules/locations/locations.module';
 import { GymScheduleEntity } from './database/entities/gym-schedule.entity';
 import { SessionTypeEntity } from './database/entities/session-type.entity';
 import { SessionScheduleEntity } from './database/entities/session-schedule.entity';
@@ -90,6 +91,7 @@ import { WellnessPartnerEntity, WellnessServiceEntity } from './database/entitie
     SlotsModule,
     SessionsModule,
     EmailModule,
+    LocationsModule,
     HealthModule,
   ],
 })

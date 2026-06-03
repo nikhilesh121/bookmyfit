@@ -296,7 +296,7 @@ export class AuthService {
 
   async registerGym(data: {
     email: string; password: string; name: string;
-    gymName: string; city: string; area: string; address: string; phone?: string; categories?: string[];
+    gymName: string; country?: string; state?: string; city: string; area: string; address: string; phone?: string; categories?: string[];
   }) {
     const email = String(data.email || '').trim().toLowerCase();
     const phone = data.phone ? String(data.phone).trim() : undefined;
@@ -327,7 +327,11 @@ export class AuthService {
         );
         const gym = await gyms.save(
           gyms.create({
-            name: data.gymName, city: data.city, area: data.area,
+            name: data.gymName,
+            country: String(data.country || 'India').trim() || 'India',
+            state: String(data.state || '').trim() || null,
+            city: data.city,
+            area: data.area,
             address: data.address,
             categories,
             lat: 0,
@@ -363,8 +367,8 @@ export class AuthService {
         companyName: data.companyName, email: data.email,
         billingContact: data.billingContact, planType: 'multigym',
         totalSeats: requestedSeats, assignedSeats: 0, adminUserId: user.id, isActive: false,
-        pricePerSeat: 999,
-        billingStatus: requestedSeats > 0 ? 'pending_payment' : 'active',
+        pricePerSeat: 0,
+        billingStatus: 'pending_payment',
       }),
     );
     // Fire-and-forget welcome email

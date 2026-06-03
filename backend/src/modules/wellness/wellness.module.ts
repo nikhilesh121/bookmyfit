@@ -64,7 +64,7 @@ class WellnessService {
 
   private partnerPatch(data: any, existing?: WellnessPartnerEntity) {
     const patch: any = {};
-    ['name', 'city', 'area', 'address', 'status', 'distanceLabel'].forEach((key) => {
+    ['name', 'country', 'state', 'city', 'area', 'address', 'status', 'distanceLabel'].forEach((key) => {
       if (data[key] !== undefined) patch[key] = String(data[key] ?? '').trim();
     });
     ['discountPercent', 'rating', 'reviewCount', 'commissionRate', 'lat', 'lng'].forEach((key) => {
@@ -147,11 +147,13 @@ class WellnessService {
     );
   }
 
-  async listPartners(filter: { city?: string; serviceType?: string } = {}, page: any = 1, limit: any = 20) {
+  async listPartners(filter: { country?: string; state?: string; city?: string; serviceType?: string } = {}, page: any = 1, limit: any = 20) {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
     const qb = this.partners.createQueryBuilder('p')
       .where("p.status = 'active'");
-    if (filter.city) qb.andWhere('p.city = :city', { city: filter.city });
+    if (filter.country) qb.andWhere('LOWER(COALESCE(p.country, :defaultCountry)) = LOWER(:country)', { defaultCountry: 'India', country: filter.country });
+    if (filter.state) qb.andWhere('LOWER(COALESCE(p.state, \'\')) = LOWER(:state)', { state: filter.state });
+    if (filter.city) qb.andWhere('LOWER(p.city) = LOWER(:city)', { city: filter.city });
     this.applyPartnerTypeFilter(qb, filter.serviceType);
     const [data, total] = await qb.orderBy('p.rating', 'DESC').skip(skip).take(take).getManyAndCount();
     return paginatedResponse(data.map((partner) => this.partnerResponse(partner)), total, p, l);
@@ -299,14 +301,16 @@ class WellnessService {
     return `(6371 * acos(LEAST(1, GREATEST(-1, cos(radians(:lat)) * cos(radians(${alias}.lat)) * cos(radians(${alias}.lng) - radians(:lng)) + sin(radians(:lat)) * sin(radians(${alias}.lat))))))`;
   }
 
-  async listPartnersWithMinPrice(filter: { city?: string; serviceType?: string; lat?: any; lng?: any; sort?: string; radiusKm?: any } = {}, page: any = 1, limit: any = 20) {
+  async listPartnersWithMinPrice(filter: { country?: string; state?: string; city?: string; serviceType?: string; lat?: any; lng?: any; sort?: string; radiusKm?: any } = {}, page: any = 1, limit: any = 20) {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
     const coords = this.validLatLng(filter.lat, filter.lng);
     const radiusKm = this.validRadius(filter.radiusKm);
     const distanceSql = this.distanceSql('p');
     const qb = this.partners.createQueryBuilder('p')
       .where("p.status = 'active'");
-    if (filter.city) qb.andWhere('p.city = :city', { city: filter.city });
+    if (filter.country) qb.andWhere('LOWER(COALESCE(p.country, :defaultCountry)) = LOWER(:country)', { defaultCountry: 'India', country: filter.country });
+    if (filter.state) qb.andWhere('LOWER(COALESCE(p.state, \'\')) = LOWER(:state)', { state: filter.state });
+    if (filter.city) qb.andWhere('LOWER(p.city) = LOWER(:city)', { city: filter.city });
     this.applyPartnerTypeFilter(qb, filter.serviceType);
     if (coords) {
       qb.andWhere('p.lat IS NOT NULL')
@@ -549,6 +553,8 @@ class WellnessController {
 
   @Get('partners')
   partners(
+    @Query('country') country?: string,
+    @Query('state') state?: string,
     @Query('city') city?: string,
     @Query('serviceType') type?: string,
     @Query('lat') lat?: string,
@@ -558,7 +564,7 @@ class WellnessController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.svc.listPartnersWithMinPrice({ city, serviceType: type, lat, lng, sort, radiusKm }, +page, +limit);
+    return this.svc.listPartnersWithMinPrice({ country, state, city, serviceType: type, lat, lng, sort, radiusKm }, +page, +limit);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

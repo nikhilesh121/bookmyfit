@@ -21,6 +21,8 @@ class GymRegisterDto {
   @IsString() @MinLength(6) password: string;
   @IsString() @IsNotEmpty() name: string;
   @IsString() @IsNotEmpty() gymName: string;
+  @IsOptional() @IsString() country?: string;
+  @IsOptional() @IsString() state?: string;
   @IsString() @IsNotEmpty() city: string;
   @IsString() @IsNotEmpty() area: string;
   @IsString() @IsNotEmpty() address: string;

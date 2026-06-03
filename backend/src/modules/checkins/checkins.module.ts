@@ -59,15 +59,45 @@ class CheckinsService {
     });
   }
 
-  async listByGym(gymId: string, page: any = 1, limit: any = 20) {
+  private async listFiltered(filters: { gymId?: string; date?: string; planType?: string; status?: string } = {}, page: any = 1, limit: any = 20) {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
-    const [data, total] = await this.repo.findAndCount({ where: { gymId, status: 'success' }, order: { checkinTime: 'DESC' }, skip, take });
-    return paginatedResponse(await this.enrichWithAmounts(data, gymId), total, p, l);
+    const qb = this.repo
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.user', 'user')
+      .leftJoinAndSelect('c.gym', 'gym')
+      .orderBy('c."checkinTime"', 'DESC')
+      .skip(skip)
+      .take(take);
+
+    if (filters.gymId) qb.andWhere('c."gymId" = :gymId', { gymId: filters.gymId });
+    if (filters.date && /^\d{4}-\d{2}-\d{2}$/.test(filters.date)) {
+      const from = new Date(`${filters.date}T00:00:00.000`);
+      const to = new Date(`${filters.date}T23:59:59.999`);
+      qb.andWhere('c."checkinTime" BETWEEN :from AND :to', { from, to });
+    }
+    if (filters.status) {
+      if (filters.status === 'valid' || filters.status === 'success') {
+        qb.andWhere('c.status = :status', { status: 'success' });
+      } else if (filters.status === 'flagged') {
+        qb.andWhere('c.status != :status', { status: 'success' });
+      } else {
+        qb.andWhere('c.status = :status', { status: filters.status });
+      }
+    }
+    if (filters.planType) {
+      qb.innerJoin(SubscriptionEntity, 'sub', 'sub.id = c."subscriptionId"')
+        .andWhere('sub."planType" = :planType', { planType: filters.planType });
+    }
+
+    const [data, total] = await qb.getManyAndCount();
+    return paginatedResponse(await this.enrichWithAmounts(data, filters.gymId), total, p, l);
   }
-  async listAll(page: any = 1, limit: any = 20) {
-    const { skip, take, page: p, limit: l } = paginate(page, limit);
-    const [data, total] = await this.repo.findAndCount({ order: { checkinTime: 'DESC' }, skip, take });
-    return paginatedResponse(data, total, p, l);
+
+  async listByGym(gymId: string, page: any = 1, limit: any = 20, filters: { date?: string; planType?: string; status?: string } = {}) {
+    return this.listFiltered({ ...filters, gymId }, page, limit);
+  }
+  async listAll(page: any = 1, limit: any = 20, filters: { gymId?: string; date?: string; planType?: string; status?: string } = {}) {
+    return this.listFiltered(filters, page, limit);
   }
   async listByUser(userId: string, page: any = 1, limit: any = 20) {
     const { skip, take, page: p, limit: l } = paginate(page, limit);
@@ -251,12 +281,21 @@ class CheckinsController {
   }
 
   @Get() @Roles('super_admin', 'gym_owner', 'gym_staff')
-  async list(@Req() req: any, @Query('gymId') gymId?: string, @Query('page') page = 1, @Query('limit') limit = 20) {
+  async list(
+    @Req() req: any,
+    @Query('gymId') gymId?: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('date') date?: string,
+    @Query('planType') planType?: string,
+    @Query('status') status?: string,
+  ) {
+    const filters = { date, planType, status };
     if (req.user?.role === 'super_admin') {
-      return gymId ? this.svc.listByGym(gymId, +page, +limit) : this.svc.listAll(+page, +limit);
+      return gymId ? this.svc.listByGym(gymId, +page, +limit, filters) : this.svc.listAll(+page, +limit, { ...filters, gymId });
     }
     const resolvedGymId = await this.svc.gymIdForScanner(req.user, gymId);
-    return this.svc.listByGym(resolvedGymId, +page, +limit);
+    return this.svc.listByGym(resolvedGymId, +page, +limit, filters);
   }
 
   @Get('stats') @Roles('super_admin', 'gym_owner', 'gym_staff')

@@ -76,7 +76,7 @@ export default function CorporateSignup() {
 
         <h1 className="serif text-2xl font-bold mb-1">Register your company</h1>
         <p className="text-sm mb-6" style={{ color: 'var(--t2)' }}>
-          Give your team multi-gym access at ₹999/employee/month.
+          Give your team multi-gym access with pricing configured after BookMyFit approval.
         </p>
 
         {error && <div className="text-sm mb-4 p-3 rounded-lg" style={{ color: '#FF6B6B', background: 'rgba(255,100,100,0.08)', border: '1px solid rgba(255,100,100,0.2)' }}>{error}</div>}
@@ -119,9 +119,9 @@ export default function CorporateSignup() {
           {/* Pricing info card */}
           <div style={{ background: 'rgba(61,255,84,0.05)', border: '1px solid rgba(61,255,84,0.15)', borderRadius: 12, padding: '14px 16px' }}>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>Corporate Plan</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>₹999 <span style={{ fontSize: 13, fontWeight: 400, color: 'rgba(255,255,255,0.5)' }}>/ employee / month</span></div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>Admin configured <span style={{ fontSize: 13, fontWeight: 400, color: 'rgba(255,255,255,0.5)' }}>/ employee / month</span></div>
             <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-              {['Unlimited multi-gym access for every employee', 'Automated QR check-in at 1000+ gyms', 'HR dashboard with usage analytics', 'Per-employee billing, cancel anytime'].map((item) => (
+              {['Approved multi-gym access for every employee', 'Automated QR check-in at partner gyms', 'HR dashboard with usage analytics', 'Monthly per-seat billing after approval'].map((item) => (
                 <li key={item} style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
                   <span style={{ color: 'var(--accent)' }}>✓</span> {item}
                 </li>

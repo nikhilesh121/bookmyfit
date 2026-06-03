@@ -1,18 +1,18 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import LocationFields from '../../components/LocationFields';
 
 const RAW_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
 const API = RAW_API.replace(/\/api\/v1\/?$/i, '').replace(/\/$/, '');
 
-const CITIES = ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Pune', 'Kolkata', 'Ahmedabad', 'Jaipur', 'Surat', 'Other'];
 type CategoryOption = { id: string; name: string };
 
 export default function GymSignup() {
   const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({
     name: '', email: '', phone: '', password: '', confirmPassword: '',
-    gymName: '', city: CITIES[0], area: '', address: '', categories: [] as string[],
+    gymName: '', country: 'India', state: '', city: '', area: '', address: '', categories: [] as string[],
   });
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -70,7 +70,7 @@ export default function GymSignup() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name, email: form.email, phone: form.phone, password: form.password,
-          gymName: form.gymName, city: form.city, area: form.area, address: form.address,
+          gymName: form.gymName, country: form.country, state: form.state, city: form.city, area: form.area, address: form.address,
           categories: form.categories,
         }),
       });
@@ -169,13 +169,15 @@ export default function GymSignup() {
               <label style={labelStyle}>Gym Name</label>
               <input style={inputStyle} value={form.gymName} onChange={set('gymName')} placeholder="e.g. Iron Republic Gym" required />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>City</label>
-                <select style={inputStyle} value={form.city} onChange={set('city')}>
-                  {CITIES.map((c) => <option key={c} style={{ background: '#111' }}>{c}</option>)}
-                </select>
-              </div>
+            <LocationFields
+              value={{ country: form.country, state: form.state, city: form.city }}
+              onChange={(location) => setForm((f) => ({ ...f, ...location }))}
+              requiredCity
+              inputStyle={inputStyle}
+              labelStyle={labelStyle}
+              gridClassName="grid grid-cols-1 gap-3"
+            />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
               <div>
                 <label style={labelStyle}>Area / Locality</label>
                 <input style={inputStyle} value={form.area} onChange={set('area')} placeholder="e.g. Andheri West" required />

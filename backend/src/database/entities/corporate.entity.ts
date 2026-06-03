@@ -27,10 +27,10 @@ export class CorporateAccountEntity {
   @Column({ length: 255, nullable: true })
   billingContact: string;
 
-  @Column({ type: 'int', default: 999 })
+  @Column({ type: 'int', default: 0 })
   pricePerSeat: number;
 
-  @Column({ length: 30, default: 'active' })
+  @Column({ length: 30, default: 'pending_payment' })
   billingStatus: CorporateBillingStatus;
 
   @Column({ type: 'int', default: 0 })

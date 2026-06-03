@@ -27,7 +27,8 @@ export default function AnalyticsPage() {
   // Dept engagement from checkins
   const deptMap: Record<string, number> = {};
   checkins.forEach((c: any) => {
-    const d = c.user?.department || c.department || 'Unknown';
+    const d = c.user?.department || c.department;
+    if (!d) return;
     deptMap[d] = (deptMap[d] || 0) + 1;
   });
   const maxDeptCount = Math.max(...Object.values(deptMap), 1);
@@ -44,7 +45,7 @@ export default function AnalyticsPage() {
   }));
   const maxMonthly = Math.max(...monthTrend.map((m) => m.active), 1);
 
-  const totalRevenue = analytics?.totalRevenue || 0;
+  const totalRevenue = analytics?.monthlySeatBilling ?? analytics?.totalRevenue ?? 0;
   const activeSubscribers = analytics?.activeSubscribers || analytics?.totalActiveSubscriptions || 0;
   const newSignups = analytics?.newSignups || analytics?.newUsersThisMonth || 0;
   const topDept = deptStats[0]?.dept || '—';
@@ -53,7 +54,7 @@ export default function AnalyticsPage() {
     <Shell title="Department Analytics">
       <div className="grid grid-cols-4 gap-4 mb-8">
         {[
-          { label: 'Total Revenue', value: loading ? '…' : `₹${Number(totalRevenue).toLocaleString('en-IN')}` },
+          { label: 'Monthly Seat Billing', value: loading ? '…' : `₹${Number(totalRevenue).toLocaleString('en-IN')}` },
           { label: 'Active Subscribers', value: loading ? '…' : String(activeSubscribers) },
           { label: 'New Signups', value: loading ? '…' : String(newSignups) },
           { label: 'Top Department', value: loading ? '…' : topDept },
@@ -90,7 +91,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="glass p-6">
-          <h3 className="serif text-lg mb-4">Month-over-Month Revenue</h3>
+          <h3 className="serif text-lg mb-4">Month-over-Month Activity</h3>
           {loading ? (
             <p className="text-sm" style={{ color: 'var(--t2)' }}>Loading…</p>
           ) : monthTrend.length === 0 ? (
@@ -117,7 +118,7 @@ export default function AnalyticsPage() {
         <h3 className="serif text-lg mb-4">Platform Summary</h3>
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: 'Total Revenue', value: `₹${Number(totalRevenue).toLocaleString('en-IN')}` },
+            { label: 'Monthly Seat Billing', value: `₹${Number(totalRevenue).toLocaleString('en-IN')}` },
             { label: 'Active Subscribers', value: String(activeSubscribers) },
             { label: 'New Users This Month', value: String(newSignups) },
           ].map((s) => (

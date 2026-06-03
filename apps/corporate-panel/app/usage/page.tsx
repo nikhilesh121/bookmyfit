@@ -50,7 +50,8 @@ export default function UsagePage() {
   const deptStats = useMemo(() => {
     const map: Record<string, number> = {};
     filtered.forEach((c: any) => {
-      const dept = c.user?.department || c.department || 'Unknown';
+      const dept = c.user?.department || c.department;
+      if (!dept) return;
       map[dept] = (map[dept] || 0) + 1;
     });
     const max = Math.max(...Object.values(map), 1);

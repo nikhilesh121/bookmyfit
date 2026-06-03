@@ -7,6 +7,8 @@ export class WellnessPartnerEntity {
   @Column({ length: 50, default: 'spa' }) serviceType: string; // legacy primary type
   @Column({ type: 'text', array: true, default: [] }) serviceTypes: string[];
   @Column({ length: 100 }) city: string;
+  @Column({ length: 100, nullable: true, default: 'India' }) country?: string;
+  @Column({ length: 100, nullable: true }) state?: string;
   @Column({ length: 100 }) area: string;
   @Column({ type: 'text' }) address: string;
   @Column({ type: 'double precision', default: 0 }) lat: number;
