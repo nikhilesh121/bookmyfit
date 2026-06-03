@@ -18,8 +18,6 @@ const DEFAULT_STEPS: KycStep[] = [
   { id: 'gst_certificate', title: 'GST Certificate', description: 'GST number and certificate URL', status: 'pending' },
   { id: 'identity_document', title: 'Owner Identity Proof', description: 'Owner ID details and document URL', status: 'pending' },
   { id: 'bank_details', title: 'Bank Account Details', description: 'Account, IFSC, bank name, and proof URL', status: 'pending' },
-  { id: 'gym_photos', title: 'Gym Photos', description: 'Exterior, interior, and equipment photos', status: 'pending' },
-  { id: 'trainer_certs', title: 'Trainer Certificates', description: 'Trainer certificate details and URL', status: 'pending' },
 ];
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {

@@ -55,6 +55,7 @@ function StatusBadge({ status }: { status: string }) {
     pending: 'badge-pending',
     suspended: 'badge-danger',
     inactive: 'badge-danger',
+    deactivated: 'badge-danger',
     rejected: 'badge-danger',
   };
   return <span className={cls[status] || 'badge-pending'}>{status}</span>;
@@ -143,7 +144,7 @@ export default function GymsPage() {
     setGyms((prev) => prev.map((g) => g.id === id ? { ...g, ...patch } : g));
   };
 
-  const changeStatus = async (gym: Gym, action: 'approve' | 'activate' | 'suspend' | 'deactivate') => {
+  const changeStatus = async (gym: Gym, action: 'activate' | 'suspend' | 'deactivate') => {
     try {
       const updated = await api.post<Gym>(`/gyms/${gym.id}/${action}`);
       patchLocal(gym.id, { status: updated?.status || (action === 'deactivate' ? 'inactive' : action === 'suspend' ? 'suspended' : 'active') });
@@ -192,7 +193,7 @@ export default function GymsPage() {
     active: gyms.filter((g) => g.status === 'active').length,
     pending: gyms.filter((g) => g.status === 'pending').length,
     suspended: gyms.filter((g) => g.status === 'suspended').length,
-    inactive: gyms.filter((g) => g.status === 'inactive').length,
+    inactive: gyms.filter((g) => g.status === 'inactive' || g.status === 'deactivated').length,
   };
 
   return (
@@ -258,8 +259,9 @@ export default function GymsPage() {
                 ? <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--t2)', padding: '40px 0' }}>No gyms found</td></tr>
                 : gyms.map((g) => {
                   const locationReady = hasValidGymLocation(g);
-                  const locationTitle = locationReady ? undefined : 'Set valid coordinates before approval or activation';
+                  const locationTitle = locationReady ? undefined : 'Set valid coordinates before activation';
                   const disabledStyle = locationReady ? {} : { opacity: 0.45, cursor: 'not-allowed' };
+                  const showActivate = ['inactive', 'deactivated', 'suspended'].includes(String(g.status || '').toLowerCase());
                   return (
                   <tr key={g.id}>
                     <td className="font-semibold" style={{ color: '#fff' }}>{g.name}</td>
@@ -274,10 +276,9 @@ export default function GymsPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <button onClick={() => setSelectedGym(g)} className="btn btn-ghost text-xs" style={{ padding: '4px 10px', fontSize: 11 }}><Eye size={12} /> View</button>
                         <button onClick={() => openEdit(g)} className="btn btn-ghost text-xs" style={{ padding: '4px 10px', fontSize: 11 }}><Edit3 size={12} /> Edit</button>
-                        {g.status === 'pending' && <button onClick={() => changeStatus(g, 'approve')} disabled={!locationReady} title={locationTitle} className="btn btn-primary text-xs" style={{ padding: '4px 10px', fontSize: 11, ...disabledStyle }}>Approve</button>}
-                        {g.status !== 'active' && <button onClick={() => changeStatus(g, 'activate')} disabled={!locationReady} title={locationTitle} className="btn text-xs" style={{ padding: '4px 10px', fontSize: 11, background: 'rgba(61,255,84,0.15)', color: 'var(--accent)', border: '1px solid rgba(61,255,84,0.3)', ...disabledStyle }}><Power size={12} /> Activate</button>}
+                        {showActivate && <button onClick={() => changeStatus(g, 'activate')} disabled={!locationReady} title={locationTitle} className="btn text-xs" style={{ padding: '4px 10px', fontSize: 11, background: 'rgba(61,255,84,0.15)', color: 'var(--accent)', border: '1px solid rgba(61,255,84,0.3)', ...disabledStyle }}><Power size={12} /> Activate</button>}
                         {g.status === 'active' && <button onClick={() => changeStatus(g, 'suspend')} className="btn text-xs" style={{ padding: '4px 10px', fontSize: 11, background: 'rgba(255,180,0,0.15)', color: '#FFB400', border: '1px solid rgba(255,180,0,0.3)' }}>Suspend</button>}
-                        {g.status !== 'inactive' && <button onClick={() => changeStatus(g, 'deactivate')} className="btn text-xs" style={{ padding: '4px 10px', fontSize: 11, background: 'rgba(255,60,60,0.15)', color: '#FF3C3C', border: '1px solid rgba(255,60,60,0.3)' }}>Deactivate</button>}
+                        {g.status !== 'inactive' && g.status !== 'deactivated' && <button onClick={() => changeStatus(g, 'deactivate')} className="btn text-xs" style={{ padding: '4px 10px', fontSize: 11, background: 'rgba(255,60,60,0.15)', color: '#FF3C3C', border: '1px solid rgba(255,60,60,0.3)' }}>Deactivate</button>}
                       </div>
                     </td>
                   </tr>

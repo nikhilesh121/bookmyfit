@@ -13,6 +13,7 @@ const PLAN_FEATURES = {
 };
 
 type ServiceKey = 'day_pass' | 'same_gym' | 'wellness' | 'personal_training';
+type PassImageKey = 'day_pass' | 'same_gym' | 'multi_gym';
 type CommissionMode = 'percent' | 'fixed';
 type CommissionSetting = { useGlobal: boolean; mode: CommissionMode; value: number };
 type GlobalCommission = { mode: CommissionMode; value: number };
@@ -69,6 +70,7 @@ export default function PlansPage() {
   const [saving, setSaving] = useState(false);
   const [loadedFromApi, setLoadedFromApi] = useState(false);
   const [prices, setPrices] = useState({ day_pass: 149, same_gym: 599, multi_gym: 1499, multi_gym_visit_payout: 50 });
+  const [passImages, setPassImages] = useState<Record<PassImageKey, string>>({ day_pass: '', same_gym: '', multi_gym: '' });
   const [globalCommission, setGlobalCommission] = useState<GlobalCommission>({ mode: 'percent', value: 0 });
   const [commissions, setCommissions] = useState<Record<ServiceKey, CommissionSetting>>(DEFAULT_SERVICE_COMMISSIONS);
 
@@ -81,6 +83,11 @@ export default function PlansPage() {
           same_gym: data?.same_gym?.basePrice || 599,
           multi_gym: data?.multi_gym?.basePrice || 1499,
           multi_gym_visit_payout: data?.multi_gym?.visitPayout ?? 50,
+        });
+        setPassImages({
+          day_pass: data?.day_pass?.imageUrl || '',
+          same_gym: data?.same_gym?.imageUrl || '',
+          multi_gym: data?.multi_gym?.imageUrl || '',
         });
         setGlobalCommission(normalizeGlobal(data?.globalCommission));
         setCommissions({
@@ -104,6 +111,26 @@ export default function PlansPage() {
     }));
   };
 
+  const updatePassImage = (key: PassImageKey, value: string) => {
+    setPassImages((current) => ({ ...current, [key]: value }));
+  };
+
+  const handlePassImageUpload = (key: PassImageKey, file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast('Please upload an image file', 'error');
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      toast('Pass image must be 4 MB or smaller', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => updatePassImage(key, String(reader.result || ''));
+    reader.onerror = () => toast('Could not read selected image', 'error');
+    reader.readAsDataURL(file);
+  };
+
   const save = async () => {
     if (!loadedFromApi) {
       toast('Live plan settings are not loaded yet. Please refresh before saving.', 'error');
@@ -113,9 +140,9 @@ export default function PlansPage() {
     try {
       await api.put('/subscriptions/multigym-config', {
         globalCommission,
-        day_pass: { basePrice: prices.day_pass, commission: commissions.day_pass },
-        same_gym: { commission: commissions.same_gym },
-        multi_gym: { basePrice: prices.multi_gym, visitPayout: prices.multi_gym_visit_payout },
+        day_pass: { basePrice: prices.day_pass, imageUrl: passImages.day_pass, commission: commissions.day_pass },
+        same_gym: { imageUrl: passImages.same_gym, commission: commissions.same_gym },
+        multi_gym: { basePrice: prices.multi_gym, visitPayout: prices.multi_gym_visit_payout, imageUrl: passImages.multi_gym },
         wellness: { commission: commissions.wellness },
         personal_training: { commission: commissions.personal_training },
       });
@@ -191,6 +218,15 @@ export default function PlansPage() {
                       </span>
                     ))}
                   </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '86px minmax(0, 1fr)', gap: 12, alignItems: 'center', marginTop: 16 }}>
+                    <div style={{ width: 86, height: 58, borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)' }}>
+                      {passImages.multi_gym ? <img src={passImages.multi_gym} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                    </div>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <input className="glass-input" value={passImages.multi_gym} onChange={(e) => updatePassImage('multi_gym', e.target.value)} placeholder="Multi Gym pass image URL" />
+                      <input type="file" accept="image/*" onChange={(e) => handlePassImageUpload('multi_gym', e.target.files?.[0] || null)} style={{ fontSize: 12, color: 'var(--t2)' }} />
+                    </div>
+                  </div>
                 </div>
                 <div style={{ minWidth: 260, display: 'grid', gap: 14 }}>
                   <div>
@@ -236,6 +272,7 @@ export default function PlansPage() {
               const base = row.key === 'day_pass' ? prices.day_pass : row.exampleBase;
               const extra = addOn(base, current);
               const total = base + extra;
+              const passImageKey = row.key === 'day_pass' || row.key === 'same_gym' ? row.key : null;
               return (
                 <div key={row.key} className="glass" style={{ padding: 22, borderRadius: 16, borderLeft: `3px solid ${row.color}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -252,6 +289,17 @@ export default function PlansPage() {
                           </span>
                         ))}
                       </div>
+                      {passImageKey && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '86px minmax(0, 1fr)', gap: 12, alignItems: 'center', marginTop: 16 }}>
+                          <div style={{ width: 86, height: 58, borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)' }}>
+                            {passImages[passImageKey] ? <img src={passImages[passImageKey]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                          </div>
+                          <div style={{ display: 'grid', gap: 8 }}>
+                            <input className="glass-input" value={passImages[passImageKey]} onChange={(e) => updatePassImage(passImageKey, e.target.value)} placeholder={`${row.name} image URL`} />
+                            <input type="file" accept="image/*" onChange={(e) => handlePassImageUpload(passImageKey, e.target.files?.[0] || null)} style={{ fontSize: 12, color: 'var(--t2)' }} />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {row.key === 'day_pass' && (

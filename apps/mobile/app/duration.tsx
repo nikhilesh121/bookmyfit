@@ -55,8 +55,8 @@ function monthsLabel(months: number) {
 
 export default function Duration() {
   const insets = useSafeAreaInsets();
-  const { planId, planName, gymId, gymName, basePrice, isDayPass: isDayPassParam, gymPlansJson } = useLocalSearchParams<{
-    planId: string; planName: string; gymId?: string; gymName?: string; basePrice?: string; isDayPass?: string; gymPlansJson?: string;
+  const { planId, planName, gymId, gymName, basePrice, planImage, isDayPass: isDayPassParam, gymPlansJson } = useLocalSearchParams<{
+    planId: string; planName: string; gymId?: string; gymName?: string; basePrice?: string; planImage?: string; isDayPass?: string; gymPlansJson?: string;
   }>();
 
   const routeBase = Number(basePrice);
@@ -224,6 +224,7 @@ export default function Duration() {
         gymName: gymName || '',
         durationMonths: String(dur.months),
         totalAmount: String(total),
+        planImage: planImage || '',
         ptAddon: allowsTrainerAddon && ptAddon && !dur.isDayPass ? 'true' : 'false',
         ptDurationMonths: String(allowsTrainerAddon && ptAddon && !dur.isDayPass ? ptDurationMonths : 0),
         ptTrainerId: allowsTrainerAddon && ptAddon && !dur.isDayPass ? selectedTrainerId : '',

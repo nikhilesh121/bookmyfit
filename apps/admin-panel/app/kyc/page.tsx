@@ -21,7 +21,7 @@ type Gym = {
   commissionRate?: number;
   kycStatus?: string;
   kycReviewNote?: string;
-  kycDocuments?: Array<{ type: string; name: string; url?: string; fields?: Record<string, any>; uploadedAt?: string; status?: string; reviewNote?: string; reviewedAt?: string }>;
+  kycDocuments?: Array<{ type: string; name: string; url?: string; fields?: Record<string, any>; uploadedAt?: string; status?: string; reviewNote?: string; reviewedAt?: string; fileName?: string; mimeType?: string }>;
 };
 
 type FilterTab = 'pending' | 'approved' | 'rejected' | 'all';
@@ -64,11 +64,21 @@ function hasValidGymLocation(gym: Pick<Gym, 'lat' | 'lng'>) {
 const REQUIRED_KYC_TYPES = [
   ['business_registration', 'Business Registration'],
   ['gst_certificate', 'GST Certificate'],
-  ['bank_details', 'Bank Details'],
   ['identity_document', 'Owner Identity Document'],
-  ['gym_photos', 'Gym Photos'],
-  ['trainer_certs', 'Trainer Certificates'],
+  ['bank_details', 'Bank Details'],
 ] as const;
+
+function fieldLabel(key: string) {
+  return String(key || '')
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+}
+
+function isLinkValue(value: any) {
+  return /^(https?:\/\/|data:)/i.test(String(value || '').trim());
+}
 
 function missingKycDetails(gym: Gym, requireApproved = false) {
   const docs = new Map((gym.kycDocuments || []).map((doc) => [doc.type, doc]));
@@ -339,11 +349,31 @@ export default function KYCPage() {
                                         <div style={{ color: '#fff', fontWeight: 700 }}>{doc.name}</div>
                                         <StatusBadge status={doc.status || 'in_review'} />
                                       </div>
-                                      {doc.url && <a href={doc.url} target="_blank" style={{ color: 'var(--accent)', fontSize: 12 }}>Open document</a>}
+                                      {doc.url && (
+                                        <a
+                                          href={doc.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          style={{ color: 'var(--accent)', fontSize: 12, display: 'inline-flex', marginBottom: 8, fontWeight: 700 }}
+                                        >
+                                          Open {doc.fileName || 'document'}
+                                        </a>
+                                      )}
                                       {doc.fields && Object.entries(doc.fields).map(([key, value]) => (
-                                        <div key={key} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12, marginTop: 4 }}>
-                                          <span style={{ color: 'var(--t3)' }}>{key}</span>
+                                        <div key={key} style={{ display: 'grid', gridTemplateColumns: '150px minmax(0, 1fr)', gap: 12, fontSize: 12, marginTop: 6, alignItems: 'start' }}>
+                                          <span style={{ color: 'var(--t3)' }}>{fieldLabel(key)}</span>
+                                          {isLinkValue(value) ? (
+                                            <a
+                                              href={String(value)}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              style={{ color: 'var(--accent)', minWidth: 0, overflowWrap: 'anywhere' }}
+                                            >
+                                              Open link
+                                            </a>
+                                          ) : (
                                           <span style={{ color: 'var(--t2)', textAlign: 'right', wordBreak: 'break-word' }}>{String(value || '—')}</span>
+                                          )}
                                         </div>
                                       ))}
                                       {doc.reviewNote && (

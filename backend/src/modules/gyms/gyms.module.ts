@@ -481,7 +481,7 @@ class GymsService {
   }
 
   private requiredKycTypes() {
-    return Object.keys(this.kycSchemas);
+    return ['business_registration', 'gst_certificate', 'identity_document', 'bank_details'];
   }
 
   private areRequiredKycDocsSubmitted(docs: any[] = []) {
@@ -1590,21 +1590,31 @@ class GymsService {
     return this.get(id);
   }
 
-  async submitKycDocument(gymId: string, doc: { name?: string; url?: string; type: string; fields?: Record<string, any> }, user: any) {
+  async submitKycDocument(gymId: string, doc: { name?: string; url?: string; type: string; fields?: Record<string, any>; fileName?: string; mimeType?: string }, user: any) {
     const gym = await this.assertGymAccess(gymId, user);
     if (!gym) throw new NotFoundException('Gym not found');
     const schema = this.kycSchemas[doc.type];
     if (!schema) throw new BadRequestException('Invalid KYC type');
     const fields = doc.fields || {};
     for (const field of schema.fields) {
-      if (field.required && !String(fields[field.key] ?? '').trim()) {
+      const hasUploadedDocument = field.type === 'url' && String(doc.url || '').trim();
+      if (field.required && !hasUploadedDocument && !String(fields[field.key] ?? '').trim()) {
         throw new BadRequestException(`${field.label} is required`);
       }
     }
     const docs = gym.kycDocuments || [];
     const url = doc.url || fields.documentUrl || fields.cancelledChequeUrl || fields.exteriorPhotoUrl || fields.certificateUrl;
     const name = doc.name || schema.label;
-    const nextDoc = { type: doc.type, name, url, fields, status: 'in_review' as const, uploadedAt: new Date().toISOString() };
+    const nextDoc = {
+      type: doc.type,
+      name,
+      url,
+      fields,
+      fileName: doc.fileName || null,
+      mimeType: doc.mimeType || null,
+      status: 'in_review' as const,
+      uploadedAt: new Date().toISOString(),
+    };
     const existingIndex = docs.findIndex((d: any) => d.type === doc.type);
     const existingDoc = existingIndex >= 0 ? docs[existingIndex] : null;
     if (existingDoc && existingDoc.status !== 'rejected') {

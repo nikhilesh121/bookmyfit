@@ -13,15 +13,18 @@ export const DEFAULT_PLATFORM_PRICING_CONFIG: any = {
   globalCommission: { mode: 'percent', value: 0 },
   day_pass: {
     basePrice: 149,
+    imageUrl: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=900&q=80',
     commission: { useGlobal: true, mode: 'percent', value: 0 },
   },
   same_gym: {
+    imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=900&q=80',
     commission: { useGlobal: true, mode: 'percent', value: 0 },
   },
   multi_gym: {
     name: 'Multi Gym Pass',
     subtitle: 'Unlimited access to every partner gym',
     basePrice: 1499,
+    imageUrl: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=900&q=80',
     visitPayout: 50,
     gymLimit: null,
     features: ['Unlimited gyms, unlimited visits', 'QR Check-in', 'Priority support', 'All gym tiers', 'PT session add-on eligible'],
@@ -49,6 +52,13 @@ export function normalizeServiceCommission(value: any, global: CommissionConfig)
     mode: useGlobal ? global.mode : base.mode,
     value: useGlobal ? global.value : base.value,
   };
+}
+
+function normalizeImageUrl(value: any, fallback = '') {
+  const url = String(value || '').trim();
+  if (!url) return fallback;
+  const maxLength = url.startsWith('data:image/') ? 6_000_000 : 1000;
+  return url.slice(0, maxLength);
 }
 
 export function effectiveCommission(setting: any, global: CommissionConfig): CommissionConfig {
@@ -90,7 +100,10 @@ export function normalizePlatformPricingConfig(value: any) {
   };
 
   normalized.day_pass.basePrice = Math.max(1, Math.round(Number(normalized.day_pass.basePrice) || defaults.day_pass.basePrice));
+  normalized.day_pass.imageUrl = normalizeImageUrl(normalized.day_pass.imageUrl, defaults.day_pass.imageUrl);
+  normalized.same_gym.imageUrl = normalizeImageUrl(normalized.same_gym.imageUrl, defaults.same_gym.imageUrl);
   normalized.multi_gym.basePrice = Math.max(1, Math.round(Number(normalized.multi_gym.basePrice) || defaults.multi_gym.basePrice));
+  normalized.multi_gym.imageUrl = normalizeImageUrl(normalized.multi_gym.imageUrl, defaults.multi_gym.imageUrl);
   const visitPayout = Number(normalized.multi_gym.visitPayout);
   normalized.multi_gym.visitPayout = Number.isFinite(visitPayout) && visitPayout >= 0
     ? Math.round(visitPayout)

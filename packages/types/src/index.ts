@@ -99,6 +99,7 @@ export interface SubscriptionPlan {
   name: string;
   description: string;
   basePrice: number;
+  imageUrl?: string;
   features: string[];
   maxGyms?: number;
   visitLimit?: number;

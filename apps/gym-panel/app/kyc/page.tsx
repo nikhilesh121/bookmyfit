@@ -10,8 +10,6 @@ const KYC_STEPS = [
   { type: 'gst_certificate', label: 'GST Certificate' },
   { type: 'identity_document', label: 'Owner Identity Document' },
   { type: 'bank_details', label: 'Bank Details' },
-  { type: 'gym_photos', label: 'Gym Photos' },
-  { type: 'trainer_certs', label: 'Trainer Certificates' },
 ];
 
 const KYC_FIELDS: Record<string, { key: string; label: string; type?: string; required?: boolean }[]> = {
@@ -39,20 +37,11 @@ const KYC_FIELDS: Record<string, { key: string; label: string; type?: string; re
     { key: 'ifsc', label: 'IFSC code', required: true },
     { key: 'cancelledChequeUrl', label: 'Cancelled cheque/passbook URL', type: 'url', required: true },
   ],
-  gym_photos: [
-    { key: 'exteriorPhotoUrl', label: 'Exterior photo URL', type: 'url', required: true },
-    { key: 'interiorPhotoUrl', label: 'Interior photo URL', type: 'url', required: true },
-    { key: 'equipmentPhotoUrl', label: 'Equipment photo URL', type: 'url' },
-  ],
-  trainer_certs: [
-    { key: 'trainerName', label: 'Trainer name', required: true },
-    { key: 'certificateName', label: 'Certificate name', required: true },
-    { key: 'certificateUrl', label: 'Certificate URL', type: 'url', required: true },
-  ],
 };
 
-type KycDoc = { name: string; url?: string; type: string; fields?: Record<string, string>; uploadedAt: string; status?: string; reviewNote?: string };
+type KycDoc = { name: string; url?: string; type: string; fields?: Record<string, string>; uploadedAt: string; status?: string; reviewNote?: string; fileName?: string; mimeType?: string };
 type KycData = { kycStatus: string; kycDocuments: KycDoc[] };
+type DocumentUpload = { url: string; fileName: string; mimeType: string } | null;
 
 const STATUS_COLORS: Record<string, string> = {
   not_started: 'rgba(255,255,255,0.3)',
@@ -98,6 +87,7 @@ export default function KycPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<{ type: string; fields: Record<string, string> }>({ type: KYC_STEPS[0].type, fields: {} });
+  const [documentUpload, setDocumentUpload] = useState<DocumentUpload>(null);
 
   const fetchKyc = async (id: string) => {
     const data = await api.get<KycData>(`/gyms/${id}/kyc`);
@@ -150,26 +140,61 @@ export default function KycPage() {
       return;
     }
     const schema = KYC_FIELDS[form.type] || [];
-    const missing = schema.find((f) => f.required && !String(form.fields[f.key] || '').trim());
+    const missing = schema.find((f) => f.required && !(f.type === 'url' && documentUpload?.url) && !String(form.fields[f.key] || '').trim());
     if (missing) {
-      toast(`${missing.label} is required`, 'error');
+      toast(missing.type === 'url' ? `${missing.label} is required. Paste a URL or upload a PDF/image.` : `${missing.label} is required`, 'error');
       return;
+    }
+    const urlField = schema.find((f) => f.type === 'url');
+    const fields = { ...form.fields };
+    if (documentUpload?.url && urlField && !String(fields[urlField.key] || '').trim()) {
+      fields[urlField.key] = documentUpload.fileName || 'Uploaded document';
     }
     setSubmitting(true);
     try {
       await api.post(`/gyms/${gymId}/kyc-documents`, {
         type: form.type,
         name: KYC_STEPS.find((s) => s.type === form.type)?.label || 'KYC Submission',
-        fields: form.fields,
+        fields,
+        url: documentUpload?.url || form.fields.documentUrl || form.fields.cancelledChequeUrl,
+        fileName: documentUpload?.fileName,
+        mimeType: documentUpload?.mimeType,
       });
       await fetchKyc(gymId);
       toast('Document submitted successfully!', 'success');
       setForm((prev) => ({ type: prev.type, fields: {} }));
+      setDocumentUpload(null);
     } catch (err: any) {
       toast(err.message || 'Failed to submit document', 'error');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleFilePick = (file: File | null) => {
+    if (!file) {
+      setDocumentUpload(null);
+      return;
+    }
+    const allowed = file.type === 'application/pdf' || file.type.startsWith('image/');
+    if (!allowed) {
+      toast('Upload a PDF or image file only', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast('KYC file must be 5 MB or smaller', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setDocumentUpload({
+        url: String(reader.result || ''),
+        fileName: file.name,
+        mimeType: file.type,
+      });
+    };
+    reader.onerror = () => toast('Could not read the selected file', 'error');
+    reader.readAsDataURL(file);
   };
 
   const submittedCount = KYC_STEPS.filter((s) => getStepStatus(s.type) !== 'pending').length;
@@ -259,7 +284,10 @@ export default function KycPage() {
                 <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>Document Type</label>
                 <select
                   value={form.type}
-                  onChange={(e) => setForm({ type: e.target.value, fields: {} })}
+                  onChange={(e) => {
+                    setForm({ type: e.target.value, fields: {} });
+                    setDocumentUpload(null);
+                  }}
                   style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '10px 14px', color: '#fff', fontSize: 13, outline: 'none' }}
                 >
                   {KYC_STEPS.map((s) => {
@@ -287,7 +315,7 @@ export default function KycPage() {
               {(KYC_FIELDS[form.type] || []).map((field) => (
                 <div key={field.key}>
                   <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>
-                    {field.label}{field.required ? ' *' : ''}
+                    {field.label}{field.type === 'url' ? ' (URL or upload below)' : ''}{field.required ? ' *' : ''}
                   </label>
                   <input
                     type={field.type || 'text'}
@@ -298,6 +326,25 @@ export default function KycPage() {
                   />
                 </div>
               ))}
+              <div style={{ background: 'rgba(255,255,255,0.035)', border: '1px dashed rgba(61,255,84,0.32)', borderRadius: 12, padding: 14 }}>
+                <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.65)', marginBottom: 8, fontWeight: 600 }}>
+                  Upload PDF/Image instead of document URL
+                </label>
+                <input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  onChange={(e) => handleFilePick(e.target.files?.[0] || null)}
+                  style={{ width: '100%', color: 'rgba(255,255,255,0.75)', fontSize: 12 }}
+                />
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', marginTop: 8 }}>
+                  Accepted: PDF, PNG, JPG, WebP. Maximum size: 5 MB.
+                </div>
+                {documentUpload && (
+                  <div style={{ marginTop: 10, fontSize: 12, color: '#3DFF54', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <FileText size={12} /> {documentUpload.fileName}
+                  </div>
+                )}
+              </div>
               <button
                 type="submit"
                 disabled={submitting || selectedStepLocked}

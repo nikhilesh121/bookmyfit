@@ -50,10 +50,10 @@ function money(value: number) {
 export default function Order() {
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 34);
-  const { planId, planName, gymId, gymName, durationMonths, totalAmount, ptAddon, ptDurationMonths, ptTrainerId, ptTrainerName, ptMonthlyPrice, ptTotal: ptTotalParam, maxGyms, isDayPass: isDayPassParam, gymPlanId } =
+  const { planId, planName, gymId, gymName, durationMonths, totalAmount, planImage, ptAddon, ptDurationMonths, ptTrainerId, ptTrainerName, ptMonthlyPrice, ptTotal: ptTotalParam, maxGyms, isDayPass: isDayPassParam, gymPlanId } =
     useLocalSearchParams<{
       planId: string; planName: string; gymId?: string; gymName?: string;
-      durationMonths: string; totalAmount: string; ptAddon?: string; ptDurationMonths?: string; ptTrainerId?: string; ptTrainerName?: string; ptMonthlyPrice?: string; ptTotal?: string; maxGyms?: string; isDayPass?: string; gymPlanId?: string;
+      durationMonths: string; totalAmount: string; planImage?: string; ptAddon?: string; ptDurationMonths?: string; ptTrainerId?: string; ptTrainerName?: string; ptMonthlyPrice?: string; ptTotal?: string; maxGyms?: string; isDayPass?: string; gymPlanId?: string;
     }>();
 
   const isDayPassRoute = isDayPassParam === 'true' || planId === 'day_pass';
@@ -233,7 +233,7 @@ export default function Order() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[s.scroll, { paddingBottom: 24 }]}>
         {/* Plan card */}
         <ImageBackground
-          source={{ uri: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=70' }}
+          source={{ uri: planImage || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=70' }}
           style={s.planCard}
           imageStyle={{ borderRadius: radius.xl, opacity: 0.3 }}
         >

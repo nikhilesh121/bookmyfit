@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { Alert, ScrollView, View, Text, TouchableOpacity, StyleSheet, Dimensions, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
@@ -206,6 +206,7 @@ export default function PlansScreen() {
           price: dayPrice && !gymPriceLoading ? formatPrice(dayPrice) : ((plansLoading || gymPriceLoading) ? 'Loading...' : (gymId ? 'Unavailable' : 'Select gym')),
           priceUnit: '/ day',
           priceNumber: gymPriceLoading ? null : dayPrice,
+          img: serverPlans?.day_pass?.imageUrl || plan.img,
           features: serverPlans?.day_pass?.features || plan.features,
         };
       }
@@ -216,6 +217,7 @@ export default function PlansScreen() {
           price: sameMonthly && !gymPriceLoading ? formatPrice(sameMonthly) : ((plansLoading || gymPriceLoading) ? 'Loading...' : (gymId ? 'Not set' : 'Select gym')),
           priceUnit: '/ month',
           priceNumber: gymPriceLoading ? null : sameMonthly,
+          img: serverPlans?.same_gym?.imageUrl || plan.img,
           tagline: sameGymUnavailable ? 'This gym has not added membership plans yet' : plan.tagline,
           features: activeGymPlans.length
             ? (serverPlans?.same_gym?.features || plan.features)
@@ -233,6 +235,7 @@ export default function PlansScreen() {
         price: multiMonthly ? formatPrice(multiMonthly) : (plansLoading ? 'Loading...' : 'Unavailable'),
         priceUnit: '/ month',
         priceNumber: multiMonthly,
+        img: serverPlans?.multi_gym?.imageUrl || plan.img,
         features: serverPlans?.multi_gym?.features || plan.features,
       };
     });
@@ -282,6 +285,7 @@ export default function PlansScreen() {
         gymId: gymId || '',
         gymName: selectedGymName,
         basePrice: String(plan.priceNumber),
+        planImage: plan.img || '',
         isDayPass: plan.id === 'day_pass' ? 'true' : 'false',
         gymPlansJson: sameGymPlanPayload.length ? JSON.stringify(sameGymPlanPayload) : '',
       },
@@ -369,9 +373,11 @@ export default function PlansScreen() {
               )}
             </View>
 
-            <View style={[s.cardImage, { backgroundColor: plan.bg }]}>
-              <IconDumbbell size={34} color={plan.accent} />
-            </View>
+            <ImageBackground source={{ uri: plan.img }} style={s.cardImage} imageStyle={s.cardImageAsset}>
+              <View style={[s.cardImageShade, { backgroundColor: plan.bg }]}>
+                <IconDumbbell size={34} color={plan.accent} />
+              </View>
+            </ImageBackground>
 
             {/* Features */}
             <View style={s.featuresSection}>
@@ -540,7 +546,9 @@ const s = StyleSheet.create({
   },
   badgeText: { fontFamily: fonts.sansBold, fontSize: 10 },
 
-  cardImage: { width: '100%', height: 112, alignItems: 'center', justifyContent: 'center' },
+  cardImage: { width: '100%', height: 112, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  cardImageAsset: { opacity: 0.56 },
+  cardImageShade: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
 
   featuresSection: { padding: 16, gap: 10 },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
