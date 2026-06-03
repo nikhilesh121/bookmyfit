@@ -106,6 +106,12 @@ function minutesOf(time: string): number {
   return h * 60 + m;
 }
 
+function hhmmFromMinutes(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 function isHHMMTime(time: any): time is string {
   return typeof time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
 }
@@ -140,6 +146,7 @@ function dayOfWeekFromDate(dateStr: string): number {
 // â”€â”€â”€ Service â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const CHECKIN_GRACE_AFTER_MINUTES = 30;
 
 function normalizeCatalogName(value: any): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -1057,12 +1064,19 @@ export class SessionsService {
   async markNotAttended() {
     const today = todayIST();
     const nowTime = nowTimeIST();
+    const graceCutoffMinutes = minutesOf(nowTime) - CHECKIN_GRACE_AFTER_MINUTES;
+    const graceCutoffTime = graceCutoffMinutes >= 0 ? hhmmFromMinutes(graceCutoffMinutes) : null;
 
     const expired = await this.bookingRepo
       .createQueryBuilder('b')
       .innerJoin(SessionSlotEntity, 's', 'b."slotId" = s.id')
       .where("b.status = 'confirmed'")
-      .andWhere('(b."slotDate" < :today OR (b."slotDate" = :today AND s."endTime" < :nowTime))', { today, nowTime })
+      .andWhere(
+        graceCutoffTime
+          ? '(b."slotDate" < :today OR (b."slotDate" = :today AND s."endTime" < :graceCutoffTime))'
+          : 'b."slotDate" < :today',
+        { today, graceCutoffTime },
+      )
       .select('b')
       .getMany();
 

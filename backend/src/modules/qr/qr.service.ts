@@ -132,6 +132,15 @@ export class QrService {
     return { token, expiresIn: QR_EXPIRY_SECONDS, expiresAt: new Date(Date.now() + QR_EXPIRY_SECONDS * 1000).toISOString() };
   }
 
+  decodeQrGymId(qrToken: string) {
+    try {
+      const payload: any = this.jwt.decode(qrToken);
+      return typeof payload?.gym === 'string' && payload.gym ? payload.gym : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Gym panel scanner calls this with the QR token */
   async validateQr(qrToken: string, gymId: string) {
     // 1. Verify JWT signature + expiry
@@ -298,7 +307,7 @@ export class QrService {
 
   /** Gym staff fallback: enter the booking reference / booking ID printed in the app. */
   async validateManualCode(code: string, gymId: string) {
-    const clean = String(code || '').trim();
+    const clean = String(code || '').trim().replace(/^#+/, '').trim();
     if (!clean) throw new BadRequestException('Booking ID is required');
 
     const candidates = await this.sessionBookings.createQueryBuilder('b')

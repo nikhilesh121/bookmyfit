@@ -59,7 +59,10 @@ export class QrController {
   @Roles('gym_owner', 'gym_staff', 'super_admin')
   @ApiOperation({ summary: 'Validate a QR token (gym panel scanner)' })
   async validate(@Req() req: any, @Body() dto: ValidateQrDto) {
-    const gymId = await this.scannerGymId(req, dto.gymId);
+    const inferredGymId = req.user?.role === 'super_admin' && !dto.gymId
+      ? this.qr.decodeQrGymId(dto.qrToken)
+      : null;
+    const gymId = await this.scannerGymId(req, dto.gymId || inferredGymId || undefined);
     return this.qr.validateQr(dto.qrToken, gymId);
   }
 

@@ -37,10 +37,9 @@ export default function ScannerPage() {
   const [validating, setValidating] = useState(false);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const scanLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scannerContainerRef = useRef<HTMLDivElement>(null);
+  const html5ScannerRef = useRef<any>(null);
+  const scannerRunRef = useRef(0);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pausedRef = useRef(false);
   const validateTokenRef = useRef<(token?: string) => void>(() => {});
@@ -65,68 +64,73 @@ export default function ScannerPage() {
     }
   }, [gymId]);
 
-  const startScanLoop = useCallback(() => {
-    if (!('BarcodeDetector' in window)) {
-      setCameraError('This browser cannot scan QR codes automatically. Use the manual code below.');
-      setMode('manual');
-      return;
+  const stopCamera = useCallback(async () => {
+    scannerRunRef.current += 1;
+    const scanner = html5ScannerRef.current;
+    html5ScannerRef.current = null;
+    if (scanner) {
+      try {
+        if (scanner.isScanning) await scanner.stop();
+      } catch { /* scanner may already be stopped */ }
+      try {
+        await scanner.clear();
+      } catch { /* clear is best-effort */ }
     }
-    if (scanLoopRef.current) clearInterval(scanLoopRef.current);
-    scanLoopRef.current = setInterval(() => {
-      if (pausedRef.current) return;
-      if (!videoRef.current || !canvasRef.current) return;
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
-      detector.detect(canvas).then((codes: any[]) => {
-        if (codes.length > 0 && !pausedRef.current) {
-          pausedRef.current = true;
-          validateTokenRef.current(codes[0].rawValue as string);
-        }
-      }).catch(() => {
-        setCameraError('Could not read camera frames. Use the manual code below.');
-        setMode('manual');
-      });
-    }, 400);
+    pausedRef.current = false;
+    setScanning(false);
   }, []);
 
   const startCamera = useCallback(async () => {
     setCameraError(null);
     pausedRef.current = false;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-        setScanning(true);
-        startScanLoop();
-      }
-    } catch {
-      setCameraError('Camera access denied. Use manual input below.');
-      setMode('manual');
-    }
-  }, [startScanLoop]);
+    await stopCamera();
 
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
+    if (!scannerContainerRef.current) return;
+    const runId = ++scannerRunRef.current;
+    const scannerId = 'gym-panel-qr-reader';
+
+    try {
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
+      if (runId !== scannerRunRef.current) return;
+
+      const scanner = new Html5Qrcode(scannerId, {
+        verbose: false,
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      });
+      html5ScannerRef.current = scanner;
+      await scanner.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: { width: 220, height: 220 },
+          aspectRatio: 1,
+        },
+        (decodedText: string) => {
+          if (!decodedText || pausedRef.current) return;
+          pausedRef.current = true;
+          try { scanner.pause(true); } catch { /* pause is best-effort */ }
+          validateTokenRef.current(decodedText);
+        },
+        () => {},
+      );
+      if (runId !== scannerRunRef.current) {
+        try { await scanner.stop(); } catch { /* */ }
+        try { await scanner.clear(); } catch { /* */ }
+        return;
+      }
+      setScanning(true);
+    } catch (err: any) {
+      if (runId !== scannerRunRef.current) return;
+      setCameraError(err?.message ? `Camera scanner failed: ${err.message}` : 'Camera access denied or unavailable. Use manual input below.');
+      setMode('manual');
+      setScanning(false);
     }
-    if (scanLoopRef.current) { clearInterval(scanLoopRef.current); scanLoopRef.current = null; }
-    setScanning(false);
-  }, []);
+  }, [stopCamera]);
 
   useEffect(() => {
-    if (mode === 'camera') startCamera();
-    else stopCamera();
-    return () => stopCamera();
+    if (mode === 'camera') void startCamera();
+    else void stopCamera();
+    return () => { void stopCamera(); };
   }, [mode, startCamera, stopCamera]);
 
   /** Show result for 5s, record attendance, then auto-resume */
@@ -149,6 +153,7 @@ export default function ScannerPage() {
         setResult(null);
         setCountdown(0);
         pausedRef.current = false; // resume camera scan
+        try { html5ScannerRef.current?.resume?.(); } catch { /* scanner may already be running */ }
       }
     }, 1000);
   }, []);
@@ -158,15 +163,12 @@ export default function ScannerPage() {
     if (!t) return;
 
     const activeGymId = await resolveGymId();
-    if (!activeGymId) {
-      showResultAndResume({ ok: false, message: 'Gym profile could not be loaded. Please log in with a gym account linked to a gym.' });
-      return;
-    }
 
     if (!isQrToken(t)) {
       setValidating(true);
       try {
-        const scanRes = await api.post<any>('/qr/validate-manual', { code: t, gymId: activeGymId });
+        const payload = activeGymId ? { code: t, gymId: activeGymId } : { code: t };
+        const scanRes = await api.post<any>('/qr/validate-manual', payload);
         const planType = scanRes?.planType || 'Manual Check-in';
         const gymEarns = scanRes?.gymEarns != null
           ? Number(scanRes.gymEarns)
@@ -196,7 +198,8 @@ export default function ScannerPage() {
 
     setValidating(true);
     try {
-      const scanRes = await api.post<any>('/qr/validate', { qrToken: t, gymId: activeGymId });
+      const payload = activeGymId ? { qrToken: t, gymId: activeGymId } : { qrToken: t };
+      const scanRes = await api.post<any>('/qr/validate', payload);
       if (scanRes?.success === false) {
         showResultAndResume({ ok: false, message: scanRes.message || 'Check-in denied' });
       } else {
@@ -260,9 +263,8 @@ export default function ScannerPage() {
           {mode === 'camera' && (
             <div className="glass overflow-hidden" style={{ borderRadius: 18 }}>
               <div style={{ position: 'relative', background: '#000', minHeight: 300 }}>
-                <video ref={videoRef} playsInline muted
-                  style={{ width: '100%', display: scanning ? 'block' : 'none', maxHeight: 380, objectFit: 'cover' }} />
-                <canvas ref={canvasRef} style={{ display: 'none' }} />
+                <div id="gym-panel-qr-reader" ref={scannerContainerRef}
+                  style={{ width: '100%', display: 'block', visibility: scanning ? 'visible' : 'hidden', minHeight: 300 }} />
 
                 {!scanning && !cameraError && (
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
@@ -325,7 +327,7 @@ export default function ScannerPage() {
                 <span style={{ fontSize: 12, color: 'var(--t2)' }}>
                   {result ? `Resuming in ${countdown}s…` : scanning ? 'Point at QR code — scanning continuously' : 'Camera off'}
                 </span>
-                <button onClick={scanning ? stopCamera : startCamera} className="btn btn-ghost text-xs">
+                <button onClick={() => { if (scanning) void stopCamera(); else void startCamera(); }} className="btn btn-ghost text-xs">
                   {scanning ? 'Stop' : 'Start Camera'}
                 </button>
               </div>
