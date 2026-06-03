@@ -10,6 +10,7 @@ type BookingStatus = 'confirmed' | 'attended' | 'not_attended' | 'cancelled';
 
 type Booking = {
   id: string;
+  gymId?: string;
   slotDate: string;
   status: BookingStatus;
   bookingRef: string;
@@ -18,19 +19,13 @@ type Booking = {
   slot?: { startTime: string; endTime: string; date: string };
   sessionType?: { name: string; color: string; kind: string };
   gym?: { name: string; id: string };
-};
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
-  confirmed:    { label: 'Confirmed',    color: '#00D46A', emoji: '✅' },
-  attended:     { label: 'Attended',     color: '#00D4FF', emoji: '🏋️' },
-  not_attended: { label: 'Missed',       color: '#FF6B6B', emoji: '😔' },
-  cancelled:    { label: 'Cancelled',    color: 'rgba(255,255,255,0.3)', emoji: '❌' },
+  subscription?: { planType?: string; startDate?: string; endDate?: string };
 };
 
 const FILTERS = ['All', 'Upcoming', 'Attended', 'Missed'] as const;
 type Filter = typeof FILTERS[number];
 
-const CLEAN_STATUS_CONFIG: Record<BookingStatus, { label: string; color: string }> = {
+const STATUS_CONFIG: Record<BookingStatus, { label: string; color: string }> = {
   confirmed: { label: 'Confirmed', color: '#00D46A' },
   attended: { label: 'Attended', color: '#00D4FF' },
   not_attended: { label: 'Not Attended', color: '#FFB400' },
@@ -43,6 +38,22 @@ function normalizeBookingStatus(value: any): BookingStatus {
   if (status === 'not_attended' || status === 'missed') return 'not_attended';
   if (status === 'cancelled' || status === 'canceled') return 'cancelled';
   return 'confirmed';
+}
+
+function todayISTValue() {
+  return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().split('T')[0];
+}
+
+function dateValue(value: any) {
+  return String(value || '').slice(0, 10);
+}
+
+function displayDate(value: any) {
+  const raw = dateValue(value);
+  if (!raw) return '-';
+  const date = new Date(`${raw}T12:00:00Z`);
+  if (!Number.isFinite(date.getTime())) return raw;
+  return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 export default function MyBookings() {
@@ -64,10 +75,10 @@ export default function MyBookings() {
     }
   }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
-  const filtered = bookings.filter((b) => {
-    const status = normalizeBookingStatus(b.status);
+  const filtered = bookings.filter((booking) => {
+    const status = normalizeBookingStatus(booking.status);
     if (filter === 'All') return true;
     if (filter === 'Upcoming') return status === 'confirmed';
     if (filter === 'Attended') return status === 'attended';
@@ -85,9 +96,21 @@ export default function MyBookings() {
     }
   };
 
+  const canRescheduleDayPass = (booking: Booking, status: BookingStatus) => {
+    if (status !== 'cancelled' && status !== 'not_attended') return false;
+    if (booking.subscription?.planType !== 'day_pass') return false;
+    const validUntil = dateValue(booking.subscription?.endDate || booking.slotDate);
+    return !!(booking.gym?.id || booking.gymId) && validUntil >= todayISTValue();
+  };
+
+  const rescheduleBooking = (booking: Booking) => {
+    const targetGymId = booking.gym?.id || booking.gymId;
+    if (!targetGymId) return;
+    router.push({ pathname: '/slots', params: { gymId: targetGymId } } as any);
+  };
+
   return (
     <SafeAreaView style={s.root}>
-      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity style={s.back} onPress={() => router.back()}>
           <IconArrowLeft size={18} color="#fff" />
@@ -96,11 +119,14 @@ export default function MyBookings() {
         <View style={{ width: 38 }} />
       </View>
 
-      {/* Filters */}
       <View style={s.filterRow}>
-        {FILTERS.map((f) => (
-          <TouchableOpacity key={f} style={[s.filterBtn, filter === f && s.filterBtnActive]} onPress={() => setFilter(f)}>
-            <Text style={[s.filterText, filter === f && s.filterTextActive]}>{f}</Text>
+        {FILTERS.map((item) => (
+          <TouchableOpacity
+            key={item}
+            style={[s.filterBtn, filter === item && s.filterBtnActive]}
+            onPress={() => setFilter(item)}
+          >
+            <Text style={[s.filterText, filter === item && s.filterTextActive]}>{item}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -111,36 +137,33 @@ export default function MyBookings() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.accent} />}
       >
         {loading ? (
-          <View style={s.empty}><Text style={s.emptyText}>Loading bookings…</Text></View>
+          <View style={s.empty}><Text style={s.emptyText}>Loading bookings...</Text></View>
         ) : filtered.length === 0 ? (
           <View style={s.empty}>
-            <Text style={{ fontSize: 40, marginBottom: 12 }}>📅</Text>
-            <Text style={s.emptyTitle}>No {filter !== 'All' ? filter.toLowerCase() + ' ' : ''}bookings</Text>
+            <Text style={s.emptyTitle}>No {filter !== 'All' ? `${filter.toLowerCase()} ` : ''}bookings</Text>
             <Text style={s.emptyText}>Browse gyms and book a session to get started.</Text>
             <TouchableOpacity style={s.exploreBtn} onPress={() => router.push('/(tabs)/explore' as any)}>
               <Text style={s.exploreBtnText}>Explore Gyms</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          filtered.map((b) => {
-            const status = normalizeBookingStatus(b.status);
-            const cfg = CLEAN_STATUS_CONFIG[status] || CLEAN_STATUS_CONFIG.confirmed;
-            const gymName = b.gym?.name || 'Gym';
-            const sessionName = b.sessionType?.name || 'Gym Workout';
-            const sessionColor = b.sessionType?.color || colors.accent;
-            const date = b.slotDate
-              ? new Date(b.slotDate + 'T12:00:00Z').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
-              : '—';
-            const time = b.slot ? `${b.slot.startTime} – ${b.slot.endTime}` : '—';
-            const canCancel = status === 'confirmed' && b.slotDate >= new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().split('T')[0];
+          filtered.map((booking) => {
+            const status = normalizeBookingStatus(booking.status);
+            const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.confirmed;
+            const gymName = booking.gym?.name || 'Gym';
+            const sessionName = booking.sessionType?.name || 'Gym Workout';
+            const sessionColor = booking.sessionType?.color || colors.accent;
+            const date = displayDate(booking.slotDate);
+            const time = booking.slot ? `${booking.slot.startTime} - ${booking.slot.endTime}` : '-';
+            const canCancel = status === 'confirmed' && dateValue(booking.slotDate) >= todayISTValue();
+            const canReschedule = canRescheduleDayPass(booking, status);
 
             return (
-              <View key={b.id} style={[s.card, { borderColor: `${sessionColor}22` }]}>
-                {/* Top row: session type + status */}
+              <View key={booking.id} style={[s.card, { borderColor: `${sessionColor}22` }]}>
                 <View style={s.cardTop}>
                   <View style={[s.typeDot, { backgroundColor: sessionColor }]} />
-                  <Text style={[s.sessionName, { color: sessionColor }]}>{sessionName}</Text>
-                  {b.isAutoGenerated && (
+                  <Text style={[s.sessionName, { color: sessionColor }]} numberOfLines={1}>{sessionName}</Text>
+                  {booking.isAutoGenerated && (
                     <View style={s.autoBadge}><Text style={s.autoBadgeText}>WALK-IN</Text></View>
                   )}
                   <View style={[s.statusBadge, { borderColor: `${cfg.color}44`, backgroundColor: `${cfg.color}15` }]}>
@@ -148,21 +171,27 @@ export default function MyBookings() {
                   </View>
                 </View>
 
-                {/* Gym name */}
                 <Text style={s.gymName}>{gymName}</Text>
 
-                {/* Date / Time / Ref row */}
                 <View style={s.infoRow}>
-                  <Text style={s.infoItem}>📅 {date}</Text>
-                  <Text style={s.infoItem}>🕐 {time}</Text>
-                  <Text style={[s.infoItem, { color: colors.accent, fontFamily: fonts.sansBold, letterSpacing: 1.5 }]}>#{b.bookingRef}</Text>
+                  <Text style={s.infoItem}>Date: {date}</Text>
+                  <Text style={s.infoItem}>Time: {time}</Text>
+                  <Text style={[s.infoItem, s.bookingRef]}>#{booking.bookingRef || booking.id?.slice(0, 8)}</Text>
                 </View>
 
-                {/* Cancel button for upcoming */}
-                {canCancel && (
-                  <TouchableOpacity style={s.cancelBtn} onPress={() => cancelBooking(b.id)}>
-                    <Text style={s.cancelBtnText}>Cancel Booking</Text>
-                  </TouchableOpacity>
+                {(canCancel || canReschedule) && (
+                  <View style={s.actionRow}>
+                    {canCancel && (
+                      <TouchableOpacity style={s.cancelBtn} onPress={() => cancelBooking(booking.id)}>
+                        <Text style={s.cancelBtnText}>Cancel Booking</Text>
+                      </TouchableOpacity>
+                    )}
+                    {canReschedule && (
+                      <TouchableOpacity style={s.rescheduleBtn} onPress={() => rescheduleBooking(booking)}>
+                        <Text style={s.rescheduleBtnText}>Choose New Time</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 )}
               </View>
             );
@@ -215,11 +244,18 @@ const s = StyleSheet.create({
   gymName: { fontFamily: fonts.serif, fontSize: 17, color: '#fff', marginBottom: 10 },
   infoRow: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
   infoItem: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
+  bookingRef: { color: colors.accent, fontFamily: fonts.sansBold, letterSpacing: 1.5 },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, flexWrap: 'wrap' },
   cancelBtn: {
-    marginTop: 12, paddingVertical: 8, borderRadius: 20, alignItems: 'center',
+    flexGrow: 1, paddingVertical: 8, borderRadius: 20, alignItems: 'center',
     backgroundColor: 'rgba(255,107,107,0.08)', borderWidth: 1, borderColor: 'rgba(255,107,107,0.2)',
   },
   cancelBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#FF6B6B' },
+  rescheduleBtn: {
+    flexGrow: 1, paddingVertical: 8, borderRadius: 20, alignItems: 'center',
+    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+  },
+  rescheduleBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
   empty: { alignItems: 'center', paddingTop: 80 },
   emptyTitle: { fontFamily: fonts.serif, fontSize: 22, color: '#fff', marginBottom: 8 },
   emptyText: { fontFamily: fonts.sans, fontSize: 14, color: colors.t2, textAlign: 'center', marginBottom: 24 },

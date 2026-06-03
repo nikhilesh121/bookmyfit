@@ -181,23 +181,28 @@ export const subscriptionsApi = {
     durationMonths: number;
     amountOverride?: number;
     isDayPass?: boolean;
+    dayPassDate?: string;
+    dayPassSlotId?: string;
     ptAddon?: boolean;
     ptDurationMonths?: number;
     ptTrainerId?: string;
     couponCode?: string;
   }) => api.post('/subscriptions/purchase', body),
   /** Legacy alias used in order.tsx - maps planId to planType */
-  createOrder: (body: { planId: string; gymId?: string; gymPlanId?: string; durationMonths: number; couponCode?: string; ptAddon?: boolean; ptDurationMonths?: number; ptTrainerId?: string; totalAmount?: number; isDayPass?: boolean }) => {
+  createOrder: (body: { planId: string; gymId?: string; gymPlanId?: string; durationMonths: number; couponCode?: string; ptAddon?: boolean; ptDurationMonths?: number; ptTrainerId?: string; totalAmount?: number; isDayPass?: boolean; dayPassDate?: string; dayPassSlotId?: string }) => {
     const planType = body.planId === 'multi_gym' ? 'multi_gym' : body.planId === 'day_pass' ? 'day_pass' : 'same_gym';
+    const allowPtAddon = planType === 'same_gym';
     return api.post('/subscriptions/purchase', {
       planType,
       gymId: (planType === 'same_gym' || planType === 'day_pass') ? body.gymId : undefined,
       gymPlanId: planType === 'same_gym' ? body.gymPlanId : undefined,
       durationMonths: body.isDayPass || planType === 'day_pass' ? 0 : body.durationMonths,
       couponCode: body.couponCode,
-      ptAddon: body.ptAddon,
-      ptDurationMonths: body.ptDurationMonths,
-      ptTrainerId: body.ptTrainerId,
+      dayPassDate: planType === 'day_pass' ? body.dayPassDate : undefined,
+      dayPassSlotId: planType === 'day_pass' ? body.dayPassSlotId : undefined,
+      ptAddon: allowPtAddon ? body.ptAddon : false,
+      ptDurationMonths: allowPtAddon ? body.ptDurationMonths : 0,
+      ptTrainerId: allowPtAddon ? body.ptTrainerId : undefined,
     });
   },
   /** @deprecated — do not call /payments/webhook from mobile; it is a server-to-server Cashfree webhook */

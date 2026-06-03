@@ -299,15 +299,22 @@ export class AuthService {
     gymName: string; country?: string; state?: string; city: string; area: string; address: string; phone?: string; categories?: string[];
   }) {
     const email = String(data.email || '').trim().toLowerCase();
-    const phone = data.phone ? String(data.phone).trim() : undefined;
+    const phone = data.phone ? normalizePhone(String(data.phone)) : undefined;
+    if (data.phone && phone?.length !== 10) throw new BadRequestException('Enter a valid 10-digit mobile number');
     const existingEmail = await this.users
       .createQueryBuilder('user')
       .where('LOWER(user.email) = LOWER(:email)', { email })
       .getOne();
     if (existingEmail) throw new BadRequestException('An account with this email already exists');
+    let ownerLoginPhone: string | undefined = phone;
     if (phone) {
       const existingPhone = await this.users.findOne({ where: { phone } });
-      if (existingPhone) throw new BadRequestException('An account with this phone number already exists');
+      if (existingPhone) {
+        if (existingPhone.role !== 'end_user') {
+          throw new BadRequestException('An account with this phone number already exists');
+        }
+        ownerLoginPhone = undefined;
+      }
     }
     const activeCategories = await this.categoriesRepo.find({ where: { isActive: true } });
     if (activeCategories.length === 0) {
@@ -323,7 +330,7 @@ export class AuthService {
         const users = manager.getRepository(UserEntity);
         const gyms = manager.getRepository(GymEntity);
         const user = await users.save(
-          users.create({ email, name: data.name, phone, passwordHash, role: 'gym_owner', isActive: true }),
+          users.create({ email, name: data.name, phone: ownerLoginPhone, passwordHash, role: 'gym_owner', isActive: true }),
         );
         const gym = await gyms.save(
           gyms.create({
@@ -333,6 +340,8 @@ export class AuthService {
             city: data.city,
             area: data.area,
             address: data.address,
+            contactPhone: phone || null,
+            contactEmail: email,
             categories,
             lat: 0,
             lng: 0,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -31,6 +31,7 @@ export default function OtpScreen() {
   const [devOtp, setDevOtp] = useState(initialDevOtp);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const autoVerifyCodeRef = useRef('');
 
   useEffect(() => {
     if (resendSeconds <= 0) return;
@@ -80,6 +81,18 @@ export default function OtpScreen() {
     }
   };
 
+  useEffect(() => {
+    if (code.length !== 6 || loading || resendLoading) return undefined;
+    if (!isExistingUser && !name.trim()) return undefined;
+    if (autoVerifyCodeRef.current === code) return undefined;
+
+    autoVerifyCodeRef.current = code;
+    const timer = setTimeout(() => {
+      verify();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [code, name, isExistingUser, loading, resendLoading]);
+
   const resendOtp = async () => {
     if (loading || resendLoading || resendSeconds > 0) return;
     setError('');
@@ -88,6 +101,7 @@ export default function OtpScreen() {
     try {
       const data = await authApi.sendOtp(phone) as any;
       setCode('');
+      autoVerifyCodeRef.current = '';
       setDevOtp(data?.devOtp || '');
       setResendSeconds(RESEND_WAIT_SECONDS);
       setNotice(`A new OTP has been sent to +91 ${phone}.`);
@@ -146,9 +160,14 @@ export default function OtpScreen() {
                 style={[s.input, { letterSpacing: 10, fontFamily: fonts.sansBold, fontSize: 20, textAlign: 'center' }]}
                 placeholder="------" placeholderTextColor={colors.t3}
                 keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                autoComplete={Platform.OS === 'android' ? 'sms-otp' : 'one-time-code'}
+                importantForAutofill="yes"
                 value={code}
                 onChangeText={(value) => {
-                  setCode(value.replace(/\D/g, '').slice(0, 6));
+                  const nextCode = value.replace(/\D/g, '').slice(0, 6);
+                  if (nextCode.length < 6) autoVerifyCodeRef.current = '';
+                  setCode(nextCode);
                   if (error) setError('');
                 }}
                 maxLength={6}
@@ -213,7 +232,7 @@ const s = StyleSheet.create({
   },
   top: { marginTop: 36 },
   kicker: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 12 },
-  title: { fontFamily: fonts.serifBlack, fontSize: 36, color: '#fff', letterSpacing: -1.5, lineHeight: 40 },
+  title: { fontFamily: fonts.serifBlack, fontSize: 36, color: '#fff', letterSpacing: 0, lineHeight: 40 },
   titleAccent: { fontFamily: fonts.serifItalic, color: colors.accent, fontSize: 36 },
   sub: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2, marginTop: 14, lineHeight: 19 },
   form: { marginTop: 36, flex: 1 },

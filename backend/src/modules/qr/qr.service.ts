@@ -27,6 +27,12 @@ function isPastDateOnly(endDate: string | Date) {
   return iso < new Date().toISOString().slice(0, 10);
 }
 
+function subscriptionCoversDate(sub: SubscriptionEntity, date: string) {
+  const start = String(sub.startDate || '').slice(0, 10);
+  const end = String(sub.endDate || '').slice(0, 10);
+  return (!start || start <= date) && (!end || end >= date);
+}
+
 function nowISTParts() {
   const d = new Date(Date.now() + 5.5 * 3600 * 1000);
   return {
@@ -113,6 +119,7 @@ export class QrService {
     if (!sub) throw new BadRequestException('Subscription not found');
     if (sub.status !== 'active') throw new BadRequestException('Subscription is not active');
     if (isPastDateOnly(sub.endDate)) throw new BadRequestException('Subscription has expired');
+    if (!subscriptionCoversDate(sub, todayIST())) throw new BadRequestException('Subscription is not valid today');
 
     const jti = uuidv4();
     const payload = {
@@ -218,6 +225,10 @@ export class QrService {
     if (!sub || sub.userId !== userId || sub.status !== 'active' || isPastDateOnly(sub.endDate)) {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'No active subscription');
       throw new UnauthorizedException('Subscription not active');
+    }
+    if (booking && !subscriptionCoversDate(sub, booking.slotDate)) {
+      await this.logFailure(qrToken, gymId, 'failed_invalid', 'Subscription not valid for booking date');
+      throw new UnauthorizedException('Subscription is not valid for this booking date');
     }
     const coveredGyms = sub.gymIds || [];
     if (sub.planType === 'same_gym' && !coveredGyms.includes(gymId)) {
@@ -337,6 +348,9 @@ export class QrService {
       : null;
     if (!sub || sub.userId !== booking.userId || sub.status !== 'active' || isPastDateOnly(sub.endDate)) {
       throw new UnauthorizedException('Subscription not active');
+    }
+    if (!subscriptionCoversDate(sub, booking.slotDate)) {
+      throw new UnauthorizedException('Subscription is not valid for this booking date');
     }
 
     const coveredGyms = sub.gymIds || [];

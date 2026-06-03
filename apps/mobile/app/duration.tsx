@@ -62,6 +62,7 @@ export default function Duration() {
   const routeBase = Number(basePrice);
   const monthlyBase = Number.isFinite(routeBase) && routeBase > 0 ? routeBase : null;
   const isPlanDayPass = planId === 'day_pass' || isDayPassParam === 'true';
+  const allowsTrainerAddon = planId === 'same_gym' && !isPlanDayPass;
   const gymPlanOptions = useMemo(() => {
     if (!gymPlansJson || planId !== 'same_gym') return [];
     try {
@@ -147,7 +148,7 @@ export default function Duration() {
   const ptMonthlyCheckoutPrice = ptMonthlyPrice
     ? (applyPassCommission(ptMonthlyPrice, serverPlans?.personal_training?.commission) || ptMonthlyPrice)
     : 0;
-  const ptBaseCost = !dur.isDayPass && ptAddon && selectedTrainer ? ptMonthlyPrice * ptDurationMonths : 0;
+  const ptBaseCost = allowsTrainerAddon && !dur.isDayPass && ptAddon && selectedTrainer ? ptMonthlyPrice * ptDurationMonths : 0;
   const ptCost = ptBaseCost ? (applyPassCommission(ptBaseCost, serverPlans?.personal_training?.commission) || ptBaseCost) : 0;
   const subtotal = base + ptCost;
   const total = subtotal;
@@ -179,7 +180,7 @@ export default function Duration() {
 
   useEffect(() => {
     let active = true;
-    if (!gymId || isPlanDayPass) {
+    if (!gymId || !allowsTrainerAddon) {
       setTrainers([]);
       setSelectedTrainerId('');
       setPtAddon(false);
@@ -207,7 +208,7 @@ export default function Duration() {
       });
 
     return () => { active = false; };
-  }, [gymId, isPlanDayPass]);
+  }, [gymId, allowsTrainerAddon]);
 
   const handleCheckout = () => {
     if (DURATIONS.length === 0 || dur.price <= 0) {
@@ -223,12 +224,12 @@ export default function Duration() {
         gymName: gymName || '',
         durationMonths: String(dur.months),
         totalAmount: String(total),
-        ptAddon: ptAddon && !dur.isDayPass ? 'true' : 'false',
-        ptDurationMonths: String(ptAddon && !dur.isDayPass ? ptDurationMonths : 0),
-        ptTrainerId: ptAddon && !dur.isDayPass ? selectedTrainerId : '',
-        ptTrainerName: ptAddon && !dur.isDayPass ? (selectedTrainer?.name || '') : '',
-        ptMonthlyPrice: ptAddon && !dur.isDayPass ? String(ptMonthlyCheckoutPrice) : '',
-        ptTotal: ptAddon && !dur.isDayPass ? String(ptCost) : '',
+        ptAddon: allowsTrainerAddon && ptAddon && !dur.isDayPass ? 'true' : 'false',
+        ptDurationMonths: String(allowsTrainerAddon && ptAddon && !dur.isDayPass ? ptDurationMonths : 0),
+        ptTrainerId: allowsTrainerAddon && ptAddon && !dur.isDayPass ? selectedTrainerId : '',
+        ptTrainerName: allowsTrainerAddon && ptAddon && !dur.isDayPass ? (selectedTrainer?.name || '') : '',
+        ptMonthlyPrice: allowsTrainerAddon && ptAddon && !dur.isDayPass ? String(ptMonthlyCheckoutPrice) : '',
+        ptTotal: allowsTrainerAddon && ptAddon && !dur.isDayPass ? String(ptCost) : '',
         isDayPass: dur.isDayPass ? 'true' : 'false',
         gymPlanId: dur.gymPlanId || '',
       },
@@ -303,7 +304,7 @@ export default function Duration() {
             );
           })}
 
-          {!dur.isDayPass && (
+          {allowsTrainerAddon && !dur.isDayPass && (
             <View style={s.ptCard}>
               <View style={s.ptHeaderRow}>
                 <View style={s.ptLeft}>
@@ -392,7 +393,7 @@ export default function Duration() {
               <Text style={s.breakLabel} numberOfLines={1}>{dur.label}</Text>
               <Text style={s.breakVal}>{money(base)}</Text>
             </View>
-            {ptAddon && !dur.isDayPass && (
+            {allowsTrainerAddon && ptAddon && !dur.isDayPass && (
               <View style={s.breakRow}>
                 <Text style={s.breakLabel} numberOfLines={1}>PT Add-on ({selectedTrainer?.name || ptDurationMonths + ' mo'})</Text>
                 <Text style={s.breakVal}>{money(ptCost)}</Text>

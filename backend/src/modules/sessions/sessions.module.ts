@@ -252,6 +252,7 @@ export class SessionsService {
       .where('sub."userId" = :userId', { userId })
       .andWhere('sub.status = :status', { status: 'active' })
       .andWhere('sub."endDate" >= CURRENT_DATE')
+      .andWhere('sub."startDate" <= CURRENT_DATE')
       .andWhere('(sub."planType" = :multiGym OR CAST(:gymId AS uuid) = ANY(sub."gymIds"))', { multiGym: 'multi_gym', gymId })
       .orderBy(`CASE WHEN CAST(:gymId AS uuid) = ANY(sub."gymIds") THEN 0 ELSE 1 END`, 'ASC')
       .addOrderBy('sub."createdAt"', 'DESC')
@@ -260,7 +261,7 @@ export class SessionsService {
 
   private async dailyBookingLimitForSubscription(sub: SubscriptionEntity | null, gymId: string): Promise<number | null> {
     if (!sub) return 1;
-    if (sub.planType === 'day_pass') return null;
+    if (sub.planType === 'day_pass') return 1;
     if (sub.planType === 'multi_gym') return 1;
     if (sub.planType === 'same_gym') {
       const plan = sub.gymPlanId
@@ -269,6 +270,12 @@ export class SessionsService {
       return Math.max(1, Math.floor(Number(plan?.sessionsPerDay) || 1));
     }
     return 1;
+  }
+
+  private subscriptionCoversDate(sub: SubscriptionEntity, date: string) {
+    const start = String(sub.startDate || '').slice(0, 10);
+    const end = String(sub.endDate || '').slice(0, 10);
+    return (!start || start <= date) && (!end || end >= date);
   }
 
   private async dailyBookingCountForSubscription(userId: string, gymId: string, date: string, sub: SubscriptionEntity | null): Promise<number> {
@@ -670,6 +677,11 @@ export class SessionsService {
     if (sub.status !== 'active' || String(sub.endDate) < today) {
       throw new BadRequestException('No active subscription found. Please subscribe first.');
     }
+    if (!this.subscriptionCoversDate(sub, slot.date)) {
+      throw new BadRequestException(sub.planType === 'day_pass'
+        ? 'Your 1-Day Pass is valid only for its selected visit date.'
+        : 'Your subscription is not valid for this slot date.');
+    }
 
     // Validate planType against the gym being booked
     const subGymIds: string[] = (sub.gymIds as any) || [];
@@ -684,7 +696,7 @@ export class SessionsService {
     }
     // multi_gym: valid at any gym â€” no gym check needed
 
-    // Daily session lock â€” day_pass is exempt (can book multiple passes per day)
+    // Daily session lock: cancelled/missed bookings do not block a new time, attended bookings do.
     let booking = await this.bookingRepo.findOne({ where: { slotId: slot.id, userId } as any });
     if (booking && this.dailyBlockingStatuses.includes(booking.status)) {
       throw new ConflictException('You already have this slot booked.');
@@ -856,19 +868,7 @@ export class SessionsService {
 
   async myBookings(userId: string) {
     const bookings = await this.bookingRepo.find({ where: { userId } as any, order: { bookedAt: 'DESC' }, take: 50 });
-    if (bookings.length === 0) return [];
-    const slotIds = bookings.map((b) => b.slotId);
-    const slots = await this.slotRepo.createQueryBuilder('s').whereInIds(slotIds).getMany();
-    const gymIds = [...new Set(slots.map((s) => s.gymId))];
-    const typeIds = [...new Set(slots.map((s) => s.sessionTypeId))];
-    const [gyms, types] = await Promise.all([
-      gymIds.length ? this.gymRepo.createQueryBuilder('g').whereInIds(gymIds).getMany() : [],
-      typeIds.length ? this.typeRepo.createQueryBuilder('t').whereInIds(typeIds).getMany() : [],
-    ]);
-    return bookings.map((b) => {
-      const slot = slots.find((s) => s.id === b.slotId);
-      return { ...b, slot, sessionType: slot ? types.find((t) => t.id === slot.sessionTypeId) : null, gym: slot ? gyms.find((g) => g.id === slot.gymId) : null };
-    });
+    return this.enrichBookings(bookings);
   }
 
   // â”€â”€ QR Check-in â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -952,6 +952,7 @@ export class SessionsService {
       .where('sub."userId" = :userId', { userId })
       .andWhere('sub.status = :status', { status: 'active' })
       .andWhere('sub."endDate" >= CURRENT_DATE')
+      .andWhere('sub."startDate" <= CURRENT_DATE')
       .andWhere('(sub."planType" = :multiGym OR CAST(:gymId AS uuid) = ANY(sub."gymIds"))', { multiGym: 'multi_gym', gymId })
       .orderBy(`CASE WHEN CAST(:gymId AS uuid) = ANY(sub."gymIds") THEN 0 ELSE 1 END`, 'ASC')
       .addOrderBy('sub."createdAt"', 'DESC')

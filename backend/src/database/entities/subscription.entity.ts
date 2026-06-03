@@ -51,6 +51,19 @@ export class SubscriptionEntity {
   @Column({ length: 255, nullable: true })
   gymPlanId: string;
 
+  /** For day passes: selected visit date and slot captured during checkout */
+  @Column({ type: 'date', nullable: true })
+  scheduledVisitDate: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  scheduledSlotId: string | null;
+
+  @Column({ length: 5, nullable: true })
+  scheduledStartTime: string | null;
+
+  @Column({ length: 5, nullable: true })
+  scheduledEndTime: string | null;
+
   @Column({ type: 'uuid', nullable: true })
   corporateId: string;
 

@@ -628,11 +628,10 @@ export default function GymDetail() {
 
               {/* Quick stats */}
               <View style={s.statsRow}>
-                {[
-                  { icon: IconClock, label: hours, sub: 'Opening Hours' },
-                  ...(breakHours ? [{ icon: IconClock, label: breakHours, sub: 'Break Time' }] : []),
-                  { icon: IconDumbbell, label: '200+', sub: 'Equipment' },
-                ].map((st) => (
+                  {[
+                    { icon: IconClock, label: hours, sub: 'Opening Hours' },
+                    ...(breakHours ? [{ icon: IconClock, label: breakHours, sub: 'Break Time' }] : []),
+                  ].map((st) => (
                   <View key={st.sub} style={s.statCard}>
                     <st.icon size={16} color={colors.accent} />
                     <View>
@@ -809,34 +808,6 @@ export default function GymDetail() {
               {/* About Tab */}
               {activeTab === 'About' && (
                 <>
-                  {/* Location Map */}
-                  <Text style={s.sectionTitle}>Location</Text>
-                  <View style={s.mapCard}>
-                    {gymLat && gymLng ? (
-                      <>
-                        <WebView
-                          style={{ flex: 1, borderRadius: radius.lg }}
-                          source={{ uri: `https://www.openstreetmap.org/export/embed.html?bbox=${gymLng - 0.01},${gymLat - 0.008},${gymLng + 0.01},${gymLat + 0.008}&layer=mapnik&marker=${gymLat},${gymLng}` }}
-                          scrollEnabled={false}
-                          javaScriptEnabled
-                          domStorageEnabled
-                        />
-                        <TouchableOpacity style={s.mapDirOverlay} onPress={getDirections} activeOpacity={0.85}>
-                          <IconPin size={13} color="#060606" />
-                          <Text style={s.mapDirOverlayText}>Get Directions</Text>
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <View style={s.mapPlaceholder}>
-                        <IconPin size={28} color={colors.accent} />
-                        <Text style={s.mapAddressText}>{address}</Text>
-                        <TouchableOpacity style={s.mapDirBtn} onPress={getDirections}>
-                          <Text style={s.mapDirBtnText}>Get Directions ›</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-
                   <Text style={s.sectionTitle}>Gym Details</Text>
                   <View style={s.glassCard}>
                     <View style={s.detailRow}>
@@ -852,93 +823,17 @@ export default function GymDetail() {
                         <Text style={s.detailLabel}>Break Time</Text>
                         <Text style={s.detailValue}>{breakHours}</Text>
                       </View>
-                    ) : null}
-                    <View style={s.detailRow}>
-                      <Text style={s.detailLabel}>Phone</Text>
-                      <Text style={s.detailValue}>{contactPhone || 'Not added yet'}</Text>
-                    </View>
-                    <View style={s.detailRow}>
-                      <Text style={s.detailLabel}>Email</Text>
-                      <Text style={s.detailValue}>{contactEmail || 'Not added yet'}</Text>
-                    </View>
+                    ) : (
+                      <View style={s.detailRow}>
+                        <Text style={s.detailLabel}>Break Time</Text>
+                        <Text style={s.detailValue}>Not added yet</Text>
+                      </View>
+                    )}
                     <View style={[s.detailRow, { marginBottom: 0 }]}>
-                      <Text style={s.detailLabel}>Website</Text>
-                      <Text style={s.detailValue}>{website || 'Not added yet'}</Text>
+                      <Text style={s.detailLabel}>Description</Text>
+                      <Text style={s.detailValue}>{description || 'Not added yet'}</Text>
                     </View>
                   </View>
-
-                  {description ? (
-                    <>
-                      <Text style={s.sectionTitle}>Description</Text>
-                      <View style={s.glassCard}>
-                        <Text style={s.body}>{description}</Text>
-                      </View>
-                    </>
-                  ) : null}
-
-                  {(galleryImages.length > 0 || profileVideos.length > 0) && (
-                    <>
-                      <Text style={s.sectionTitle}>Photos & Videos</Text>
-                      {galleryImages.length > 0 && (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} decelerationRate="fast" contentContainerStyle={{ gap: 10, paddingRight: 4 }}>
-                          {galleryImages.map((url, index) => (
-                            <ImageBackground key={`${url}-${index}`} source={{ uri: url || DEFAULT_GYM_IMAGE }} style={s.mediaImageCard} imageStyle={{ borderRadius: radius.lg }}>
-                              <View style={s.mediaCountBadge}>
-                                <Text style={s.mediaCountText}>{index + 1}/{galleryImages.length}</Text>
-                              </View>
-                            </ImageBackground>
-                          ))}
-                        </ScrollView>
-                      )}
-                      {profileVideos.length > 0 && (
-                        <View style={{ gap: 8, marginTop: galleryImages.length > 0 ? 12 : 0 }}>
-                          {profileVideos.map((url, index) => (
-                            <TouchableOpacity key={url} style={s.videoRow} onPress={() => Linking.openURL(url)} activeOpacity={0.85}>
-                              <View style={s.videoPlay}>
-                                <Text style={s.videoPlayText}>Play</Text>
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={s.videoTitle}>Gym video {index + 1}</Text>
-                                <Text style={s.videoUrl} numberOfLines={1}>{url}</Text>
-                              </View>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                    </>
-                  )}
-
-                  <Text style={s.sectionTitle}>Amenities</Text>
-                  {amenityItems.length > 0 ? (
-                      <View style={s.amenityWrap}>
-                        {amenityItems.map((a: any) => (
-                          <View key={a.name} style={s.amenityPill}>
-                            <View style={s.amenityIconBox}>
-                              <AmenityIcon label={a.name} iconUrl={a.iconUrl} />
-                            </View>
-                            <Text style={s.amenityText} numberOfLines={2}>{a.name}</Text>
-                          </View>
-                        ))}
-                      </View>
-                  ) : (
-                    <View style={s.glassCard}>
-                      <Text style={[s.body, { color: colors.t2 }]}>No amenities added by this gym yet.</Text>
-                    </View>
-                  )}
-
-                  {categoryItems.length > 0 && (
-                    <>
-                      <Text style={s.sectionTitle}>Categories</Text>
-                      <View style={s.amenityWrap}>
-                        {categoryItems.map((c: any) => (
-                          <View key={c.name} style={s.categoryPill}>
-                            <AmenityIcon label={c.name} iconUrl={c.iconUrl} />
-                            <Text style={s.categoryText}>{c.name}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </>
-                  )}
                 </>
               )}
 

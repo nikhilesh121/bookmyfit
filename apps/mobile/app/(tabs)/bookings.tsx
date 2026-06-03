@@ -21,6 +21,7 @@ type GymBooking = {
   gym?: { id?: string; name?: string };
   gymId?: string;
   gymName?: string;
+  subscription?: { planType?: string; startDate?: string; endDate?: string };
 };
 
 function toList(res: any) {
@@ -70,6 +71,14 @@ function getBookingDate(booking: GymBooking) {
 function getStatusLabel(status?: string) {
   const clean = String(status || 'confirmed').replace(/_/g, ' ');
   return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
+
+function todayISTValue() {
+  return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().split('T')[0];
+}
+
+function dateValue(value?: string) {
+  return String(value || '').slice(0, 10);
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -174,6 +183,20 @@ export default function BookingsTab() {
     ]);
   }
 
+  function canRescheduleDayPass(booking: GymBooking, status: string) {
+    const normalized = String(status || '').toLowerCase();
+    if (normalized !== 'cancelled' && normalized !== 'not_attended' && normalized !== 'missed') return false;
+    if (booking.subscription?.planType !== 'day_pass') return false;
+    const validUntil = dateValue(booking.subscription?.endDate || booking.slotDate);
+    return !!(booking.gym?.id || booking.gymId) && validUntil >= todayISTValue();
+  }
+
+  function handleRescheduleGym(booking: GymBooking) {
+    const targetGymId = booking.gym?.id || booking.gymId;
+    if (!targetGymId) return;
+    router.push({ pathname: '/slots', params: { gymId: targetGymId } } as any);
+  }
+
   async function handleViewInvoice(bookingId: string) {
     try {
       const inv: any = await api.get(`/wellness/bookings/${bookingId}/invoice`);
@@ -271,6 +294,7 @@ export default function BookingsTab() {
                   const time = formatTimeRange(booking.slot?.startTime, booking.slot?.endTime);
                   const canCancel = status === 'confirmed';
                   const canShowQr = isActiveQrBooking(booking);
+                  const canReschedule = canRescheduleDayPass(booking, status);
 
                   return (
                     <View key={bookingId || `${gymName}-${booking.bookedAt}`} style={[s.bookingCard, { borderColor: `${sessionColor}30` }]}>
@@ -306,6 +330,11 @@ export default function BookingsTab() {
                           {canCancel ? (
                             <TouchableOpacity style={s.cancelBtn} onPress={() => handleCancelGym(booking)}>
                               <Text style={s.cancelBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                          {canReschedule ? (
+                            <TouchableOpacity style={s.rescheduleBtn} onPress={() => handleRescheduleGym(booking)}>
+                              <Text style={s.rescheduleBtnText}>Choose New Time</Text>
                             </TouchableOpacity>
                           ) : null}
                         </View>
@@ -448,6 +477,12 @@ const s = StyleSheet.create({
     borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7,
   },
   cancelBtnText: { fontFamily: fonts.sansMedium ?? fonts.sans, fontSize: 12, color: 'rgba(255,100,100,0.9)' },
+  rescheduleBtn: {
+    borderWidth: 1, borderColor: colors.accentBorder,
+    borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7,
+    backgroundColor: colors.accentSoft,
+  },
+  rescheduleBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
 
   wellnessCard: {
     backgroundColor: colors.glass, borderRadius: radius.xl,

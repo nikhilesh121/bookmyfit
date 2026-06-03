@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ActivityIndicator, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
@@ -52,10 +52,13 @@ export default function Login() {
     <AuroraBackground>
       <SafeAreaView style={s.container}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.keyboard}>
-          {/* Brand mark */}
-          <View style={s.brandRow}>
-            <View style={s.brandDot} />
-            <Text style={s.brandName}>BookMyFit</Text>
+          <View style={s.brandHero}>
+            <Image source={require('../assets/logo-brand.png')} style={s.brandLogo} resizeMode="contain" />
+            <View style={s.brandPills}>
+              <View style={s.brandPill}><Text style={s.brandPillText}>Gyms</Text></View>
+              <View style={s.brandPill}><Text style={s.brandPillText}>Wellness</Text></View>
+              <View style={s.brandPill}><Text style={s.brandPillText}>Passes</Text></View>
+            </View>
           </View>
 
           <View style={s.top}>
@@ -79,6 +82,11 @@ export default function Login() {
                 placeholder="98765 43210"
                 placeholderTextColor={colors.t3}
                 keyboardType="phone-pad"
+                inputMode="tel"
+                autoComplete="tel"
+                importantForAutofill={Platform.OS === 'android' ? 'yes' : 'auto'}
+                selectionColor={colors.accent}
+                cursorColor={Platform.OS === 'android' ? colors.accent : undefined}
                 value={phone}
                 onChangeText={(value) => {
                   setPhone(value.replace(/\D/g, '').slice(0, 10));
@@ -129,12 +137,29 @@ export default function Login() {
 const s = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 24 },
   keyboard: { flex: 1, minHeight: 0 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
-  brandDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent },
-  brandName: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.t2, letterSpacing: 1 },
-  top: { marginTop: 48 },
+  brandHero: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: radius.xl,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    borderWidth: 1,
+    borderColor: colors.borderGlass,
+  },
+  brandLogo: { width: '100%', height: 58 },
+  brandPills: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  brandPill: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+  },
+  brandPillText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent },
+  top: { marginTop: 34 },
   kicker: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 12 },
-  title: { fontFamily: fonts.serifBlack, fontSize: 40, color: '#fff', letterSpacing: -1.5, lineHeight: 44 },
+  title: { fontFamily: fonts.serifBlack, fontSize: 40, color: '#fff', letterSpacing: 0, lineHeight: 44 },
   titleAccent: { fontFamily: fonts.serifItalic, color: colors.accent, fontSize: 40 },
   sub: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2, marginTop: 16, lineHeight: 20 },
   form: { marginTop: 44 },

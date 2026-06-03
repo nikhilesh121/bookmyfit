@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   TextInput, Alert, ActivityIndicator, ImageBackground,
@@ -6,14 +6,45 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
-import { IconArrowLeft, IconCheck, IconLock, IconTag } from '../components/Icons';
-import { subscriptionsApi, couponsApi } from '../lib/api';
+import { IconArrowLeft, IconCalendar, IconCheck, IconClock, IconLock, IconTag } from '../components/Icons';
+import { api, subscriptionsApi, couponsApi } from '../lib/api';
 
 function formatDateLabel(value: any) {
   if (!value) return '';
   const date = new Date(String(value));
   if (!Number.isFinite(date.getTime())) return '';
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatDateValue(date: Date) {
+  return date.toISOString().split('T')[0];
+}
+
+function getNextVisitDates() {
+  return Array.from({ length: 8 }).map((_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() + index);
+    return date;
+  });
+}
+
+function formatClockTime(value: any) {
+  if (!value) return '';
+  const match = String(value).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return String(value);
+  const hour = Number(match[1]);
+  const minute = match[2];
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return String(value);
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`;
+}
+
+function formatClockRange(start?: any, end?: any) {
+  if (!start || !end) return 'Select time';
+  return `${formatClockTime(start)} - ${formatClockTime(end)}`;
+}
+
+function money(value: number) {
+  return `Rs ${Math.round(value || 0).toLocaleString('en-IN')}`;
 }
 
 export default function Order() {
@@ -25,22 +56,28 @@ export default function Order() {
       durationMonths: string; totalAmount: string; ptAddon?: string; ptDurationMonths?: string; ptTrainerId?: string; ptTrainerName?: string; ptMonthlyPrice?: string; ptTotal?: string; maxGyms?: string; isDayPass?: string; gymPlanId?: string;
     }>();
 
-  const hasPt = ptAddon === 'true';
   const isDayPassRoute = isDayPassParam === 'true' || planId === 'day_pass';
+  const isMultigym = planId === 'multi_gym';
+  const hasPt = ptAddon === 'true' && !isMultigym;
   const months = Number(durationMonths) || 1;
   const ptMonths = Math.max(1, Number(ptDurationMonths) || 1);
   const ptTotal = hasPt ? (Number(ptTotalParam) || ((Number(ptMonthlyPrice) || 0) * ptMonths)) : 0;
   const total = Number(totalAmount) || 0;
   const planBase = Math.max(0, total - ptTotal);
-  const isMultigym = planId === 'multi_gym';
   const selectedGymName = gymName || (isMultigym ? 'Any gym on BookMyFit' : 'Selected Gym');
+  const visitDates = useMemo(() => getNextVisitDates(), []);
 
   const [coupon, setCoupon] = useState('');
   const [discount, setDiscount] = useState(0);
   const [couponApplied, setCouponApplied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedGyms, setSelectedGyms] = useState<string[]>([]);
+  const [dayPassDate, setDayPassDate] = useState(formatDateValue(visitDates[0]));
+  const [dayPassSlots, setDayPassSlots] = useState<any[]>([]);
+  const [dayPassSlotsLoading, setDayPassSlotsLoading] = useState(false);
+  const [selectedDayPassSlotId, setSelectedDayPassSlotId] = useState('');
   const gymLimit = isMultigym ? (Number(maxGyms) || 999) : 1;
+  const selectedDayPassSlot = dayPassSlots.find((slot) => String(slot.id || slot._id) === selectedDayPassSlotId) || null;
 
   const toggleGym = (id: string) => {
     setSelectedGyms((prev) => {
@@ -68,7 +105,35 @@ export default function Order() {
 
   const finalTotal = Math.max(1, total - discount);
 
+  useEffect(() => {
+    if (!isDayPassRoute || !gymId) return;
+    let active = true;
+    setDayPassSlotsLoading(true);
+    setSelectedDayPassSlotId('');
+    api.get(`/sessions/slots/${gymId}?date=${dayPassDate}`)
+      .then((data: any) => {
+        if (!active) return;
+        const list = Array.isArray(data) ? data : data?.slots || data?.data || [];
+        const available = list.filter((slot: any) => !slot.isFull && Number(slot.bookedCount || 0) < Number(slot.maxCapacity || 999));
+        setDayPassSlots(available);
+        setSelectedDayPassSlotId(String(available[0]?.id || available[0]?._id || ''));
+      })
+      .catch(() => {
+        if (!active) return;
+        setDayPassSlots([]);
+        setSelectedDayPassSlotId('');
+      })
+      .finally(() => {
+        if (active) setDayPassSlotsLoading(false);
+      });
+    return () => { active = false; };
+  }, [isDayPassRoute, gymId, dayPassDate]);
+
   const handlePay = async () => {
+    if (isDayPassRoute && (!dayPassDate || !selectedDayPassSlotId)) {
+      Alert.alert('Select visit time', 'Choose the date and time you want to visit before buying this 1-Day Pass.');
+      return;
+    }
     setLoading(true);
     try {
       const result: any = await subscriptionsApi.createOrder({
@@ -82,6 +147,8 @@ export default function Order() {
         couponCode: couponApplied ? coupon : undefined,
         totalAmount: finalTotal,
         isDayPass: isDayPassRoute,
+        dayPassDate: isDayPassRoute ? dayPassDate : undefined,
+        dayPassSlotId: isDayPassRoute ? selectedDayPassSlotId : undefined,
       });
 
       // New API returns { subscription, payment }
@@ -92,7 +159,7 @@ export default function Order() {
       const sessionId = paymentInfo?.paymentSessionId || result?.paymentSessionId;
       const cashfreeMode = paymentInfo?.cashfreeMode || paymentInfo?.cashfreeEnv || result?.cashfreeMode || '';
       const cashfreeBaseUrl = paymentInfo?.cashfreeBaseUrl || result?.cashfreeBaseUrl || '';
-      const validUntil = formatDateLabel(subRecord?.endDate)
+      const validUntil = formatDateLabel(subRecord?.endDate || (isDayPassRoute ? dayPassDate : null))
         || new Date(Date.now() + Math.max(months, 1) * 30 * 24 * 3600 * 1000)
           .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
       const paidAmount = String(subRecord?.amountPaid ?? finalTotal);
@@ -173,12 +240,16 @@ export default function Order() {
           <View style={s.planCardOverlay}>
             <View style={s.planBadge}>
               <Text style={s.planBadgeText}>
-                {isDayPassRoute ? '🌶️ DAY PASS' : `${durationMonths} MONTH${Number(durationMonths) > 1 ? 'S' : ''}`}
+                {isDayPassRoute ? 'DAY PASS' : `${durationMonths} MONTH${Number(durationMonths) > 1 ? 'S' : ''}`}
               </Text>
             </View>
             <Text style={s.planName}>{planName || 'Standard Plan'}</Text>
             <Text style={s.planGym}>
-              {isMultigym ? 'Any gym in our network - no restrictions' : (gymId ? selectedGymName : 'Gym Access')}
+              {isDayPassRoute
+                ? `Single visit at ${selectedGymName}`
+                : isMultigym
+                  ? 'Any gym in our network - no trainer add-on needed'
+                  : (gymId ? selectedGymName : 'Gym Access')}
             </Text>
           </View>
         </ImageBackground>
@@ -188,8 +259,81 @@ export default function Order() {
           <View style={[s.card, { borderColor: colors.accentBorder }]}>
             <Text style={[s.sectionLabel, { marginBottom: 6 }]}>Multi-Gym Access Included</Text>
             <Text style={s.rowLabel}>
-              With this plan you can check in at <Text style={{ color: colors.accent, fontFamily: fonts.sansMedium }}>any BookMyFit gym</Text>. No pre-selection needed — just browse gyms, generate your QR, and walk in.
+              With this plan you can check in at <Text style={{ color: colors.accent, fontFamily: fonts.sansMedium }}>any BookMyFit gym</Text>. No personal trainer add-on is needed for multi-gym access.
             </Text>
+          </View>
+        )}
+
+        {/* Day-pass schedule */}
+        {isDayPassRoute && (
+          <View style={[s.card, { borderColor: colors.accentBorder }]}>
+            <View style={s.cardTitleRow}>
+              <IconCalendar size={14} color={colors.accent} />
+              <Text style={[s.sectionLabel, { marginBottom: 0 }]}>Visit Schedule</Text>
+            </View>
+            <Text style={s.scheduleHint}>Your 1-Day Pass works only on this visit date. If you miss the slot, cancel or rebook another slot before the pass date ends.</Text>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dateChips}>
+              {visitDates.map((date, index) => {
+                const value = formatDateValue(date);
+                const active = value === dayPassDate;
+                return (
+                  <TouchableOpacity
+                    key={value}
+                    style={[s.dateChip, active && s.dateChipActive]}
+                    onPress={() => setDayPassDate(value)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[s.dateChipDay, active && s.dateChipDayActive]}>
+                      {index === 0 ? 'Today' : date.toLocaleDateString('en-IN', { weekday: 'short' })}
+                    </Text>
+                    <Text style={[s.dateChipDate, active && s.dateChipDateActive]}>
+                      {date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {dayPassSlotsLoading ? (
+              <View style={s.slotLoadingRow}>
+                <ActivityIndicator size="small" color={colors.accent} />
+                <Text style={s.slotLoadingText}>Loading available times...</Text>
+              </View>
+            ) : dayPassSlots.length === 0 ? (
+              <View style={s.emptySlotCard}>
+                <Text style={s.emptySlotTitle}>No slots available</Text>
+                <Text style={s.emptySlotText}>Choose another date or ask the gym to update their operating hours.</Text>
+              </View>
+            ) : (
+              <View style={s.slotGrid}>
+                {dayPassSlots.map((slot) => {
+                  const slotId = String(slot.id || slot._id);
+                  const active = slotId === selectedDayPassSlotId;
+                  const sessionName = slot.sessionType?.name || 'Gym Workout';
+                  return (
+                    <TouchableOpacity
+                      key={slotId}
+                      style={[s.slotChip, active && s.slotChipActive]}
+                      onPress={() => setSelectedDayPassSlotId(slotId)}
+                      activeOpacity={0.85}
+                    >
+                      <IconClock size={12} color={active ? colors.accent : colors.t2} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[s.slotChipTime, active && s.slotChipTimeActive]} numberOfLines={1}>{formatClockRange(slot.startTime, slot.endTime)}</Text>
+                        <Text style={s.slotChipSub} numberOfLines={1}>{sessionName}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {selectedDayPassSlot ? (
+              <Text style={s.selectedScheduleText}>
+                Selected: {formatDateLabel(dayPassDate)} at {formatClockRange(selectedDayPassSlot.startTime, selectedDayPassSlot.endTime)}
+              </Text>
+            ) : null}
           </View>
         )}
 
@@ -199,25 +343,25 @@ export default function Order() {
 
           <View style={s.row}>
             <Text style={s.rowLabel}>Plan Price</Text>
-            <Text style={s.rowVal}>₹{planBase.toLocaleString('en-IN')}</Text>
+            <Text style={s.rowVal}>{money(planBase)}</Text>
           </View>
           {hasPt && (
             <View style={s.row}>
               <Text style={s.rowLabel}>PT Add-on ({ptTrainerName || `${ptMonths} mo`})</Text>
-              <Text style={s.rowVal}>Rs {ptTotal.toLocaleString('en-IN')}</Text>
+              <Text style={s.rowVal}>{money(ptTotal)}</Text>
             </View>
           )}
           <Text style={s.taxIncludedText}>All displayed prices are inclusive of GST.</Text>
           {couponApplied && (
             <View style={s.row}>
               <Text style={[s.rowLabel, { color: colors.accent }]}>Discount ({coupon.toUpperCase()})</Text>
-              <Text style={[s.rowVal, { color: colors.accent }]}>-₹{discount.toLocaleString('en-IN')}</Text>
+              <Text style={[s.rowVal, { color: colors.accent }]}>-{money(discount)}</Text>
             </View>
           )}
           <View style={s.divider} />
           <View style={s.row}>
             <Text style={s.totalLabel}>Total Payable</Text>
-            <Text style={s.totalVal}>₹{finalTotal.toLocaleString('en-IN')}</Text>
+            <Text style={s.totalVal}>{money(finalTotal)}</Text>
           </View>
         </View>
 
@@ -249,7 +393,7 @@ export default function Order() {
         {/* Security badge */}
         <View style={s.securedRow}>
           <IconLock size={12} color={colors.t2} />
-          <Text style={s.securedText}>Secured by Cashfree · 256-bit SSL encryption</Text>
+          <Text style={s.securedText}>Secured by Cashfree - 256-bit SSL encryption</Text>
         </View>
 
         <View style={{ height: 8 }} />
@@ -260,7 +404,7 @@ export default function Order() {
         <TouchableOpacity style={s.payBtn} onPress={handlePay} disabled={loading}>
           {loading
             ? <ActivityIndicator color="#060606" />
-            : <Text style={s.payBtnText}>Pay ₹{finalTotal.toLocaleString('en-IN')}</Text>
+            : <Text style={s.payBtnText}>Pay {money(finalTotal)}</Text>
           }
         </TouchableOpacity>
       </View>
@@ -304,6 +448,52 @@ const s = StyleSheet.create({
     fontSize: 10, letterSpacing: 3, textTransform: 'uppercase',
     color: colors.accent, fontFamily: fonts.sansBold, marginBottom: 14,
   },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  scheduleHint: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, lineHeight: 18, marginBottom: 14 },
+  dateChips: { gap: 8, paddingRight: 4, marginBottom: 14 },
+  dateChip: {
+    minWidth: 76,
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    backgroundColor: colors.glass,
+    borderWidth: 1,
+    borderColor: colors.borderGlass,
+  },
+  dateChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  dateChipDay: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.t2, textTransform: 'uppercase' },
+  dateChipDayActive: { color: colors.accent },
+  dateChipDate: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.t, marginTop: 3 },
+  dateChipDateActive: { color: '#fff' },
+  slotLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
+  slotLoadingText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
+  emptySlotCard: {
+    padding: 14,
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: colors.borderGlass,
+  },
+  emptySlotTitle: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff', marginBottom: 4 },
+  emptySlotText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, lineHeight: 18 },
+  slotGrid: { gap: 8 },
+  slotChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    backgroundColor: colors.glass,
+    borderWidth: 1,
+    borderColor: colors.borderGlass,
+  },
+  slotChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accentBorder },
+  slotChipTime: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  slotChipTimeActive: { color: colors.accent },
+  slotChipSub: { fontFamily: fonts.sans, fontSize: 10, color: colors.t2, marginTop: 2 },
+  selectedScheduleText: { fontFamily: fonts.sansMedium, fontSize: 12, color: colors.accent, lineHeight: 18, marginTop: 12 },
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   rowLabel: { fontFamily: fonts.sans, fontSize: 14, color: colors.t2 },
   rowVal: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.t },

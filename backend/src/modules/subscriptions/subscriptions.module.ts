@@ -12,9 +12,11 @@ import { AppConfigEntity } from '../../database/entities/app-config.entity';
 import { CouponEntity } from '../../database/entities/misc.entity';
 import { GymEntity, GymPlanEntity, MultiGymNetworkEntity } from '../../database/entities/gym.entity';
 import { TrainerEntity, TrainerBookingEntity } from '../../database/entities/trainer.entity';
+import { SessionSlotEntity } from '../../database/entities/session-slot.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
+import { SessionsModule, SessionsService } from '../sessions/sessions.module';
 import {
   DEFAULT_PLATFORM_PRICING_CONFIG,
   PLATFORM_PRICING_CONFIG_KEY,
@@ -36,7 +38,9 @@ class SubscriptionsService {
     @InjectRepository(MultiGymNetworkEntity) private readonly networkRepo: Repository<MultiGymNetworkEntity>,
     @InjectRepository(TrainerEntity) private readonly trainerRepo: Repository<TrainerEntity>,
     @InjectRepository(TrainerBookingEntity) private readonly trainerBookings: Repository<TrainerBookingEntity>,
+    @InjectRepository(SessionSlotEntity) private readonly slotRepo: Repository<SessionSlotEntity>,
     private readonly cashfree: CashfreeService,
+    private readonly sessions: SessionsService,
   ) {}
 
   private async platformPricingConfig() {
@@ -46,6 +50,29 @@ class SubscriptionsService {
 
   private amountWithCheckoutCommission(baseAmount: number, planType: 'day_pass' | 'same_gym', config: any) {
     return applyCheckoutCommission(baseAmount, serviceCommission(config, planType));
+  }
+
+  private todayIST() {
+    return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+
+  private nowTimeIST() {
+    const d = new Date(Date.now() + 5.5 * 3600 * 1000);
+    return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+  }
+
+  private isDateString(value: any): value is string {
+    return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  }
+
+  private async ensureScheduledDayPassBooking(sub: SubscriptionEntity) {
+    if (sub.planType !== 'day_pass' || sub.status !== 'active' || !sub.scheduledSlotId) return null;
+    try {
+      return await this.sessions.bookSlot(sub.userId, { slotId: sub.scheduledSlotId, subscriptionId: sub.id });
+    } catch (err: any) {
+      if (/already|booked/i.test(String(err?.message || ''))) return null;
+      return null;
+    }
   }
 
   async getMultigymConfig() {
@@ -83,7 +110,7 @@ class SubscriptionsService {
         basePrice: pricing.day_pass?.basePrice || 149,
         commission: pricing.day_pass?.commission,
         commissionSetting: pricing.day_pass?.commissionSetting,
-        features: ['Single visit', 'Any partner gym', 'Valid for 24 hours', 'No commitment'],
+        features: ['Single visit', 'Selected gym', 'Valid on selected date', 'No commitment'],
       },
       same_gym: {
         planType: 'same_gym',
@@ -234,6 +261,10 @@ class SubscriptionsService {
       .addSelect('s."amountPaid"', 'amountPaid')
       .addSelect('s."gymIds"', 'gymIds')
       .addSelect('s."gymPlanId"', 'gymPlanId')
+      .addSelect('s."scheduledVisitDate"', 'scheduledVisitDate')
+      .addSelect('s."scheduledSlotId"', 'scheduledSlotId')
+      .addSelect('s."scheduledStartTime"', 'scheduledStartTime')
+      .addSelect('s."scheduledEndTime"', 'scheduledEndTime')
       .addSelect('s."razorpayOrderId"', 'razorpayOrderId')
       .addSelect('s."createdAt"', 'createdAt')
       .where('s."userId" = :userId', { userId })
@@ -300,6 +331,8 @@ class SubscriptionsService {
     gymPlanId?: string;
     amountOverride?: number;
     isDayPass?: boolean;
+    dayPassDate?: string;
+    dayPassSlotId?: string;
     ptAddon?: boolean;
     ptDurationMonths?: number;
     ptTrainerId?: string;
@@ -310,6 +343,10 @@ class SubscriptionsService {
     let gymIds: string[] = [];
     let gymPlanId: string | undefined;
     let durationMonths = dto.planType === 'day_pass' ? 0 : (dto.durationMonths || 1);
+    let scheduledVisitDate: string | null = null;
+    let scheduledSlotId: string | null = null;
+    let scheduledStartTime: string | null = null;
+    let scheduledEndTime: string | null = null;
     const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
     if (dto.planType === 'same_gym') {
@@ -346,6 +383,9 @@ class SubscriptionsService {
     } else if (dto.planType === 'day_pass') {
       if (!dto.gymId) throw new BadRequestException('Select a gym before buying a 1-Day Pass');
       if (!uuidRe.test(dto.gymId)) throw new BadRequestException('Invalid gymId format');
+      if (!this.isDateString(dto.dayPassDate)) throw new BadRequestException('Select the visit date for your 1-Day Pass');
+      if (!dto.dayPassSlotId || !uuidRe.test(dto.dayPassSlotId)) throw new BadRequestException('Select a valid visit time for your 1-Day Pass');
+      if (dto.dayPassDate < this.todayIST()) throw new BadRequestException('Select today or a future date for your 1-Day Pass');
       gymIds = [dto.gymId];
       const gym = await this.gymRepo.createQueryBuilder('g')
         .select('g.id', 'id')
@@ -358,13 +398,32 @@ class SubscriptionsService {
       if (!this.hasPublicGymLocation(gym)) throw new BadRequestException('Gym is not available for booking');
       await this.cancelPendingGymPasses(userId, dto.gymId);
       await this.assertNoActiveGymPass(userId, dto.gymId);
+
+      const slot = await this.slotRepo.findOne({ where: { id: dto.dayPassSlotId } });
+      if (!slot || slot.gymId !== dto.gymId || slot.date !== dto.dayPassDate) {
+        throw new BadRequestException('Selected visit slot is not available for this gym and date');
+      }
+      if (slot.status !== 'scheduled') throw new BadRequestException('Selected visit slot is not available');
+      if (slot.bookedCount >= slot.maxCapacity) throw new BadRequestException('Selected visit slot is full');
+      if (slot.date === this.todayIST() && slot.startTime <= this.nowTimeIST()) {
+        throw new BadRequestException('Selected visit slot has already started');
+      }
+
+      scheduledVisitDate = slot.date;
+      scheduledSlotId = slot.id;
+      scheduledStartTime = slot.startTime;
+      scheduledEndTime = slot.endTime;
       amount = this.amountWithCheckoutCommission(Number(gym.dayPassPrice || config.day_pass?.basePrice || 149), 'day_pass', config);
     } else {
       throw new BadRequestException('Invalid planType. Use day_pass, same_gym, or multi_gym');
     }
 
     let ptBooking: TrainerBookingEntity | null = null;
-    if (dto.ptAddon && dto.planType !== 'day_pass') {
+    if (dto.ptAddon && dto.planType === 'multi_gym') {
+      throw new BadRequestException('Personal trainer add-on is not available for Multi Gym Pass');
+    }
+
+    if (dto.ptAddon && dto.planType === 'same_gym') {
       const ptMonths = Math.max(1, Math.min(durationMonths || 1, Math.round(Number(dto.ptDurationMonths) || durationMonths || 1)));
       if (!dto.ptTrainerId) throw new BadRequestException('Select a trainer for the personal trainer add-on');
       const trainer = await this.trainerRepo.findOne({ where: { id: dto.ptTrainerId, isActive: true } });
@@ -397,10 +456,14 @@ class SubscriptionsService {
 
     const startDate = new Date();
     const endDate = new Date();
+    let startDateStr = startDate.toISOString().slice(0, 10);
+    let endDateStr = endDate.toISOString().slice(0, 10);
     if (dto.planType === 'day_pass') {
-      endDate.setDate(endDate.getDate() + 1);
+      startDateStr = scheduledVisitDate || this.todayIST();
+      endDateStr = startDateStr;
     } else {
       endDate.setMonth(endDate.getMonth() + durationMonths);
+      endDateStr = endDate.toISOString().slice(0, 10);
     }
     const cfOrderId = `SUB_${uuid().slice(0, 18)}`;
 
@@ -410,12 +473,16 @@ class SubscriptionsService {
       userId,
       planType: dto.planType,
       durationMonths,
-      startDate: startDate.toISOString().slice(0, 10),
-      endDate: endDate.toISOString().slice(0, 10),
+      startDate: startDateStr,
+      endDate: endDateStr,
       status: 'pending', // becomes 'active' after payment webhook or verify
       amountPaid: amount,
       gymIds,
       gymPlanId,
+      scheduledVisitDate,
+      scheduledSlotId,
+      scheduledStartTime,
+      scheduledEndTime,
       razorpayOrderId: cfOrderId,
     } as any);
     const sub = (await this.repo.save(entity as any)) as SubscriptionEntity;
@@ -437,6 +504,8 @@ class SubscriptionsService {
         ptAddon: String(!!dto.ptAddon),
         ptDurationMonths: String(dto.ptDurationMonths || 0),
         ptTrainerId: dto.ptTrainerId || '',
+        dayPassDate: scheduledVisitDate || '',
+        dayPassSlotId: scheduledSlotId || '',
       },
     });
 
@@ -450,6 +519,7 @@ class SubscriptionsService {
       await this.repo.update(sub.id, { status: 'active' });
       if (ptBooking) await this.trainerBookings.update(ptBooking.id, { status: 'confirmed' });
       sub.status = 'active';
+      await this.ensureScheduledDayPassBooking(sub);
     }
 
     return { subscription: sub, payment };
@@ -461,7 +531,8 @@ class SubscriptionsService {
     if (!sub) throw new NotFoundException('Subscription not found');
     if (sub.status === 'active') {
       if (sub.razorpayOrderId) await this.trainerBookings.update({ cashfreeOrderId: sub.razorpayOrderId }, { status: 'confirmed' });
-      return { success: true, subscription: sub };
+      const scheduledBooking = await this.ensureScheduledDayPassBooking(sub);
+      return { success: true, subscription: sub, scheduledBooking };
     }
 
     if ((sub.planType === 'same_gym' || sub.planType === 'day_pass') && sub.gymIds?.[0]) {
@@ -475,7 +546,8 @@ class SubscriptionsService {
       await this.repo.update(subId, { status: 'active' });
       if (sub.razorpayOrderId) await this.trainerBookings.update({ cashfreeOrderId: sub.razorpayOrderId }, { status: 'confirmed' });
       sub.status = 'active';
-      return { success: true, subscription: sub };
+      const scheduledBooking = await this.ensureScheduledDayPassBooking(sub);
+      return { success: true, subscription: sub, scheduledBooking };
     }
 
     // Prod: fetch Cashfree order status
@@ -488,6 +560,7 @@ class SubscriptionsService {
       await this.trainerBookings.update({ cashfreeOrderId: sub.razorpayOrderId }, { status: 'confirmed' });
       sub.status = 'active';
       sub.razorpayPaymentId = payment.paymentId || sub.razorpayPaymentId;
+      await this.ensureScheduledDayPassBooking(sub);
     } else if (['FAILED', 'CANCELLED', 'USER_DROPPED', 'EXPIRED'].includes(String(payment.orderStatus || '').toUpperCase())) {
       await this.repo.update(subId, { status: 'cancelled' as any });
       await this.trainerBookings.update({ cashfreeOrderId: sub.razorpayOrderId }, { status: 'cancelled' });
@@ -509,6 +582,10 @@ class SubscriptionsService {
       .addSelect('s."amountPaid"', 'amountPaid')
       .addSelect('s."gymIds"', 'gymIds')
       .addSelect('s."gymPlanId"', 'gymPlanId')
+      .addSelect('s."scheduledVisitDate"', 'scheduledVisitDate')
+      .addSelect('s."scheduledSlotId"', 'scheduledSlotId')
+      .addSelect('s."scheduledStartTime"', 'scheduledStartTime')
+      .addSelect('s."scheduledEndTime"', 'scheduledEndTime')
       .addSelect('s."razorpayOrderId"', 'cashfreeOrderId')
       .addSelect('s."razorpayPaymentId"', 'cashfreePaymentId')
       .addSelect('s."createdAt"', 'createdAt')
@@ -793,7 +870,7 @@ class SubscriptionsController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SubscriptionEntity, UserEntity, AppConfigEntity, CouponEntity, GymEntity, GymPlanEntity, MultiGymNetworkEntity, TrainerEntity, TrainerBookingEntity]), PaymentsModule],
+  imports: [TypeOrmModule.forFeature([SubscriptionEntity, UserEntity, AppConfigEntity, CouponEntity, GymEntity, GymPlanEntity, MultiGymNetworkEntity, TrainerEntity, TrainerBookingEntity, SessionSlotEntity]), PaymentsModule, SessionsModule],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsService],
   exports: [SubscriptionsService],
