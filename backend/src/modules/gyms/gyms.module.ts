@@ -1,6 +1,10 @@
-import { Module, Controller, Get, Post, Put, Patch, Param, Body, Query, Injectable, UseGuards, Req, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Patch, Param, Body, Query, Injectable, UseGuards, Req, NotFoundException, ForbiddenException, BadRequestException, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, Brackets, In } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { mkdir, writeFile } from 'fs/promises';
+import { extname, join } from 'path';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import { GymEntity, GymPlanEntity, GymStatus } from '../../database/entities/gym.entity';
@@ -482,6 +486,35 @@ class GymsService {
 
   private requiredKycTypes() {
     return ['business_registration', 'gst_certificate', 'identity_document', 'bank_details'];
+  }
+
+  private uploadRoot() {
+    return process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
+  }
+
+  private publicApiBase() {
+    const fallback = process.env.NODE_ENV === 'production'
+      ? 'https://bookmyfit.in/api/v1'
+      : `http://localhost:${process.env.PORT || 3003}/api/v1`;
+    const raw = (process.env.PUBLIC_API_BASE_URL || process.env.API_PUBLIC_URL || process.env.NEXT_PUBLIC_API_URL || fallback)
+      .replace(/\/$/, '');
+    return /\/api\/v1$/i.test(raw) ? raw : `${raw}/api/v1`;
+  }
+
+  private uploadUrl(relativePath: string) {
+    const base = this.publicApiBase().replace(/\/uploads\/?$/i, '').replace(/\/$/, '');
+    const path = relativePath.replace(/\\/g, '/').replace(/^\/+/, '');
+    return `${base}/uploads/${path}`;
+  }
+
+  private kycFileExtension(file: any) {
+    const byMime: Record<string, string> = {
+      'application/pdf': '.pdf',
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+    };
+    return byMime[file?.mimetype] || extname(String(file?.originalname || '')).toLowerCase() || '.bin';
   }
 
   private areRequiredKycDocsSubmitted(docs: any[] = []) {
@@ -1628,6 +1661,41 @@ class GymsService {
     return { success: true, documents: docs };
   }
 
+  async uploadKycDocumentFile(gymId: string, type: string, file: any, user: any) {
+    const gym = await this.assertGymAccess(gymId, user);
+    if (!gym) throw new NotFoundException('Gym not found');
+    if (!this.kycSchemas[type]) throw new BadRequestException('Invalid KYC type');
+    if (!file?.buffer?.length) throw new BadRequestException('KYC file is required');
+
+    const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+    if (!allowedTypes.has(file.mimetype)) {
+      throw new BadRequestException('Upload a PDF, PNG, JPG, or WebP file only');
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      throw new BadRequestException('KYC file must be 5 MB or smaller');
+    }
+
+    const docs = gym.kycDocuments || [];
+    const existingDoc = docs.find((doc: any) => doc.type === type);
+    if (existingDoc && existingDoc.status !== 'rejected') {
+      throw new BadRequestException('This KYC document is already submitted or approved');
+    }
+
+    const relativeDir = join('kyc', gymId, type);
+    const targetDir = join(this.uploadRoot(), relativeDir);
+    await mkdir(targetDir, { recursive: true });
+    const fileName = `${Date.now()}-${randomUUID()}${this.kycFileExtension(file)}`;
+    await writeFile(join(targetDir, fileName), file.buffer);
+
+    const relativePath = join(relativeDir, fileName).replace(/\\/g, '/');
+    return {
+      url: this.uploadUrl(relativePath),
+      fileName: file.originalname || fileName,
+      mimeType: file.mimetype,
+      size: file.size,
+    };
+  }
+
   async getKycStatus(gymId: string) {
     const row = await this.safeGymQuery('g', true).where('g.id = :id', { id: gymId }).getRawOne();
     const gym = await this.attachSchedule(row) as any;
@@ -1806,6 +1874,14 @@ class GymsController {
 
   @Post(':id/kyc-documents') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
   submitKyc(@Param('id') id: string, @Body() body: any, @Req() req: any) { return this.svc.submitKycDocument(id, body, req.user); }
+
+  @Post(':id/kyc-documents/:type/upload')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('gym_owner', 'gym_staff')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  uploadKyc(@Param('id') id: string, @Param('type') type: string, @UploadedFile() file: any, @Req() req: any) {
+    return this.svc.uploadKycDocumentFile(id, type, file, req.user);
+  }
 
   @Patch(':id/kyc-documents/:type/review') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
   reviewKyc(@Param('id') id: string, @Param('type') type: string, @Body() body: any, @Req() req: any) {

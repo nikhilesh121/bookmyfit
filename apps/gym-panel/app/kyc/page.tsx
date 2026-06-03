@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Shell from '../../components/Shell';
 import { useToast } from '../../components/Toast';
-import { api } from '../../lib/api';
+import { api, API_BASE, TOKEN_KEY } from '../../lib/api';
 import { CheckCircle, Clock, AlertCircle, Upload, FileText } from 'lucide-react';
 
 const KYC_STEPS = [
@@ -41,7 +41,7 @@ const KYC_FIELDS: Record<string, { key: string; label: string; type?: string; re
 
 type KycDoc = { name: string; url?: string; type: string; fields?: Record<string, string>; uploadedAt: string; status?: string; reviewNote?: string; fileName?: string; mimeType?: string };
 type KycData = { kycStatus: string; kycDocuments: KycDoc[] };
-type DocumentUpload = { url: string; fileName: string; mimeType: string } | null;
+type DocumentUpload = { file: File; fileName: string; mimeType: string } | null;
 
 const STATUS_COLORS: Record<string, string> = {
   not_started: 'rgba(255,255,255,0.3)',
@@ -132,6 +132,27 @@ export default function KycPage() {
     if (next) setForm({ type: next.type, fields: {} });
   }, [kycData, form.type]);
 
+  const uploadSelectedDocument = async () => {
+    if (!gymId || !documentUpload?.file) return null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+    const body = new FormData();
+    body.append('file', documentUpload.file);
+    const res = await fetch(`${API_BASE}/gyms/${gymId}/kyc-documents/${form.type}/upload`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body,
+    });
+    const raw = await res.text().catch(() => '');
+    const parsed = raw ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : null;
+    if (!res.ok) {
+      const message = Array.isArray(parsed?.message)
+        ? parsed.message.join(', ')
+        : parsed?.message || raw || res.statusText || 'Failed to upload document';
+      throw new Error(message);
+    }
+    return parsed as { url: string; fileName: string; mimeType: string; size?: number };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gymId) return;
@@ -140,25 +161,26 @@ export default function KycPage() {
       return;
     }
     const schema = KYC_FIELDS[form.type] || [];
-    const missing = schema.find((f) => f.required && !(f.type === 'url' && documentUpload?.url) && !String(form.fields[f.key] || '').trim());
+    const missing = schema.find((f) => f.required && !(f.type === 'url' && documentUpload?.file) && !String(form.fields[f.key] || '').trim());
     if (missing) {
       toast(missing.type === 'url' ? `${missing.label} is required. Paste a URL or upload a PDF/image.` : `${missing.label} is required`, 'error');
       return;
     }
     const urlField = schema.find((f) => f.type === 'url');
     const fields = { ...form.fields };
-    if (documentUpload?.url && urlField && !String(fields[urlField.key] || '').trim()) {
-      fields[urlField.key] = documentUpload.fileName || 'Uploaded document';
-    }
     setSubmitting(true);
     try {
+      const uploadedDocument = await uploadSelectedDocument();
+      if (uploadedDocument?.url && urlField && !String(fields[urlField.key] || '').trim()) {
+        fields[urlField.key] = uploadedDocument.url;
+      }
       await api.post(`/gyms/${gymId}/kyc-documents`, {
         type: form.type,
         name: KYC_STEPS.find((s) => s.type === form.type)?.label || 'KYC Submission',
         fields,
-        url: documentUpload?.url || form.fields.documentUrl || form.fields.cancelledChequeUrl,
-        fileName: documentUpload?.fileName,
-        mimeType: documentUpload?.mimeType,
+        url: uploadedDocument?.url || form.fields.documentUrl || form.fields.cancelledChequeUrl,
+        fileName: uploadedDocument?.fileName || documentUpload?.fileName,
+        mimeType: uploadedDocument?.mimeType || documentUpload?.mimeType,
       });
       await fetchKyc(gymId);
       toast('Document submitted successfully!', 'success');
@@ -185,16 +207,11 @@ export default function KycPage() {
       toast('KYC file must be 5 MB or smaller', 'error');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setDocumentUpload({
-        url: String(reader.result || ''),
-        fileName: file.name,
-        mimeType: file.type,
-      });
-    };
-    reader.onerror = () => toast('Could not read the selected file', 'error');
-    reader.readAsDataURL(file);
+    setDocumentUpload({
+      file,
+      fileName: file.name,
+      mimeType: file.type,
+    });
   };
 
   const submittedCount = KYC_STEPS.filter((s) => getStepStatus(s.type) !== 'pending').length;

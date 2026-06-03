@@ -1,6 +1,7 @@
 const RAW_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
 const BASE = RAW_BASE.replace(/\/api\/v1\/?$/i, '').replace(/\/$/, '');
-const TOKEN_KEY = 'bmf_gym_token';
+export const API_BASE = `${BASE}/api/v1`;
+export const TOKEN_KEY = 'bmf_gym_token';
 
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -14,7 +15,7 @@ function redirectToLogin() {
 
 async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${BASE}/api/v1${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
