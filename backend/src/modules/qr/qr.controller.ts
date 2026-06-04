@@ -21,6 +21,9 @@ class ValidateManualDto {
   @IsString() code: string;
   @IsOptional() @IsUUID() gymId?: string;
 }
+class ValidateGymQrDto {
+  @IsString() gymToken: string;
+}
 
 @ApiTags('QR Check-in')
 @ApiBearerAuth()
@@ -73,6 +76,21 @@ export class QrController {
   async validateManual(@Req() req: any, @Body() dto: ValidateManualDto) {
     const gymId = await this.scannerGymId(req, dto.gymId);
     return this.qr.validateManualCode(dto.code, gymId);
+  }
+
+  @Get('gym-code')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('gym_owner', 'gym_staff', 'super_admin')
+  @ApiOperation({ summary: 'Get the fixed gym QR token for member self check-in' })
+  async gymCode(@Req() req: any, @Query('gymId') requestedGymId?: string) {
+    const gymId = await this.scannerGymId(req, requestedGymId);
+    return this.qr.getFixedGymQr(gymId);
+  }
+
+  @Post('validate-gym')
+  @ApiOperation({ summary: 'Member scans a fixed gym QR and checks in' })
+  validateGym(@Req() req: any, @Body() dto: ValidateGymQrDto) {
+    return this.qr.validateGymQr(dto.gymToken, req.user.userId);
   }
 
   @Get('history')

@@ -121,7 +121,7 @@ class SubscriptionsService {
         imageUrl: pricing.same_gym?.imageUrl,
         commission: pricing.same_gym?.commission,
         commissionSetting: pricing.same_gym?.commissionSetting,
-        features: ['Unlimited visits', 'One gym of your choice', 'Monthly subscription', 'Slot booking'],
+        features: ['Unlimited visits', 'One gym of your choice', 'Monthly subscription', 'No slot booking needed'],
         note: 'Same-gym memberships are priced by each gym. Select a gym to see active plans.',
         requiresGymPlan: true,
       },

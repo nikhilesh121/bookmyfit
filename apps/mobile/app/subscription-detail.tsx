@@ -109,6 +109,7 @@ export default function SubscriptionDetail() {
   const gymIds = Array.isArray(sub2.gymIds) ? sub2.gymIds : [];
   const actionGymId = sub2.gym?.id || sub2.gymId || gymIds[0] || '';
   const shouldBrowseGyms = planType === 'multi_gym' || !actionGymId;
+  const isSameGym = planType === 'same_gym';
 
   return (
     <AuroraBackground variant="premium">
@@ -179,11 +180,12 @@ export default function SubscriptionDetail() {
             style={s.actionBtn}
             onPress={() => {
               if (shouldBrowseGyms) router.push('/gyms' as any);
+              else if (isSameGym) router.push({ pathname: '/qr', params: { subscriptionId: subId, gymId: actionGymId, gymName } } as any);
               else router.push({ pathname: '/slots', params: { gymId: actionGymId } } as any);
             }}
           >
             <IconCalendar size={16} color="#000" />
-            <Text style={s.actionBtnText}>{shouldBrowseGyms ? 'Browse Gyms' : 'Book a Slot'}</Text>
+            <Text style={s.actionBtnText}>{shouldBrowseGyms ? 'Browse Gyms' : isSameGym ? 'Show Membership QR' : 'Book a Slot'}</Text>
           </TouchableOpacity>
         )}
 

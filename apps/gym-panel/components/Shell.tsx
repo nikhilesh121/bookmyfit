@@ -11,6 +11,7 @@ const NAV = [
   { group: 'Main', items: [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/scanner', label: 'Check-in Scanner', icon: QrCode },
+    { href: '/gym-qr', label: 'Gym QR', icon: QrCode },
     { href: '/checkins', label: 'Check-in Records', icon: Activity },
     { href: '/sessions', label: 'Sessions', icon: Calendar },
     { href: '/members', label: 'Members', icon: Users },

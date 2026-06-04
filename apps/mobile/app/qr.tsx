@@ -6,7 +6,13 @@ import QRCode from 'react-native-qrcode-svg';
 import AuroraBackground from '../components/AuroraBackground';
 import { IconArrowLeft, IconClock } from '../components/Icons';
 import { colors, fonts, radius } from '../theme/brand';
-import { qrApi } from '../lib/api';
+import { gymsApi, qrApi, subscriptionsApi } from '../lib/api';
+import {
+  isActiveSubscription,
+  normalizeSubscriptionList,
+  subscriptionGymIds,
+  subscriptionPlanType,
+} from '../lib/subscriptionAccess';
 
 // HH:MM:SS reverse countdown
 function formatLong(totalSeconds: number): string {
@@ -74,26 +80,32 @@ function firstManualCode(...values: Array<string | null | undefined>) {
   return '';
 }
 
-type QrMode = 'loading' | 'slot' | 'empty' | 'checked_in';
+type QrMode = 'loading' | 'slot' | 'membership' | 'membership_select' | 'empty' | 'checked_in';
 
 export default function QrScreen() {
   const params = useLocalSearchParams<{
     token?: string; expiresAt?: string; gymId?: string; gymName?: string; bookedAt?: string;
-    bookingId?: string; bookingRef?: string; manualCode?: string;
+    bookingId?: string; bookingRef?: string; manualCode?: string; subscriptionId?: string; planType?: string;
   }>();
   const routeToken = textParam(params.token);
   const routeExpiresAt = textParam(params.expiresAt);
   const routeBookedAt = textParam(params.bookedAt);
   const routeGymName = textParam(params.gymName);
+  const routeGymId = textParam(params.gymId);
   const routeBookingId = textParam(params.bookingId);
   const routeBookingRef = textParam(params.bookingRef);
   const routeManualCode = textParam(params.manualCode);
+  const routeSubscriptionId = textParam(params.subscriptionId);
 
   const [mode, setMode] = useState<QrMode>('loading');
   const [token, setToken] = useState<string | null>(routeToken || null);
   const [expiresAt, setExpiresAt] = useState<string | null>(routeExpiresAt || null);
   const [bookedAt, setBookedAt] = useState<string | null>(routeBookedAt || null);
   const [gymName, setGymName] = useState<string>(routeGymName);
+  const [activeGymId, setActiveGymId] = useState<string>(routeGymId);
+  const [activeSubscriptionId, setActiveSubscriptionId] = useState<string>(routeSubscriptionId);
+  const [membershipOptions, setMembershipOptions] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [manualCode, setManualCode] = useState<string>(
     firstManualCode(routeManualCode, routeBookingRef, routeBookingId, decodeManualCodeFromToken(routeToken)),
   );
@@ -108,6 +120,8 @@ export default function QrScreen() {
     setExpiresAt(bookingQr?.expiresAt || null);
     setBookedAt(bookingQr?.bookedAt || null);
     setGymName(bookingQr?.gymName || '');
+    setActiveGymId(bookingQr?.gymId || '');
+    setActiveSubscriptionId('');
     setManualCode(firstManualCode(
       bookingQr?.manualCode,
       bookingQr?.bookingRef,
@@ -116,12 +130,72 @@ export default function QrScreen() {
     ));
   };
 
+  const applyMembershipQr = (data: any, fallbackSub?: any) => {
+    const nextToken = data?.token || '';
+    const gymIds = subscriptionGymIds(fallbackSub || {});
+    setToken(nextToken);
+    setExpiresAt(data?.expiresAt || null);
+    setBookedAt(new Date().toISOString());
+    setGymName(data?.gymName || fallbackSub?.gymName || fallbackSub?.gym?.name || routeGymName || 'Subscribed Gym');
+    setActiveGymId(data?.gymId || gymIds[0] || routeGymId || '');
+    setActiveSubscriptionId(data?.subscriptionId || fallbackSub?.id || fallbackSub?._id || routeSubscriptionId || '');
+    setManualCode(firstManualCode(data?.manualCode, decodeManualCodeFromToken(nextToken)));
+  };
+
+  const generateMembershipQr = async (subscriptionId: string, fallbackSub?: any) => {
+    if (!subscriptionId) return;
+    setRefreshing(true);
+    try {
+      const data: any = await qrApi.generate(subscriptionId);
+      applyMembershipQr(data, fallbackSub);
+      setMode('membership');
+    } catch {
+      setMode('empty');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const loadMembershipOptions = async () => {
+    const response: any = await subscriptionsApi.mySubscriptions();
+    const sameGymSubs = normalizeSubscriptionList(response)
+      .filter((sub) => isActiveSubscription(sub) && subscriptionPlanType(sub) === 'same_gym' && subscriptionGymIds(sub).length > 0);
+
+    const enriched = await Promise.all(sameGymSubs.map(async (sub) => {
+      const gymId = subscriptionGymIds(sub)[0];
+      if (sub?.gymName || sub?.gym?.name) return sub;
+      try {
+        const gym: any = await gymsApi.getById(gymId);
+        const g = gym?.gym || gym;
+        return { ...sub, gymName: g?.name || sub?.gymName || 'Subscribed Gym' };
+      } catch {
+        return { ...sub, gymName: sub?.gymName || 'Subscribed Gym' };
+      }
+    }));
+
+    setMembershipOptions(enriched);
+    if (enriched.length === 1) {
+      const only = enriched[0];
+      await generateMembershipQr(only.id || only._id, only);
+      return;
+    }
+    if (enriched.length > 1) {
+      setMode('membership_select');
+      return;
+    }
+    setMode('empty');
+  };
+
   // ── Bootstrap: QR is ONLY shown when a slot/session is actively booked ─────────
   useEffect(() => {
     if (routeToken && routeExpiresAt) {
       // QR passed via navigation params (e.g. right after booking a slot)
       setManualCode(firstManualCode(routeManualCode, routeBookingRef, routeBookingId, decodeManualCodeFromToken(routeToken)));
       setMode('slot');
+      return;
+    }
+    if (routeSubscriptionId) {
+      generateMembershipQr(routeSubscriptionId);
       return;
     }
     (async () => {
@@ -141,13 +215,17 @@ export default function QrScreen() {
 
       // No active slot booking → show empty state.
       // Subscriptions alone do NOT generate a QR — user must book a slot first.
-      setMode('empty');
+      try {
+        await loadMembershipOptions();
+      } catch {
+        setMode('empty');
+      }
     })();
-  }, [routeToken, routeExpiresAt, routeManualCode, routeBookingRef, routeBookingId]);
+  }, [routeToken, routeExpiresAt, routeManualCode, routeBookingRef, routeBookingId, routeSubscriptionId]);
 
   // ── Reverse timer: counts from now down to expiresAt (= bookedAt + 2 hours) ───
   useEffect(() => {
-    if (mode !== 'slot' || !expiresAt) return;
+    if ((mode !== 'slot' && mode !== 'membership') || !expiresAt) return;
     const tick = () => {
       const diff = Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000));
       setSecondsLeft(diff);
@@ -195,7 +273,7 @@ export default function QrScreen() {
     };
   }, []);
 
-  const isExpired = mode === 'slot' && secondsLeft <= 0 && expiresAt !== null;
+  const isExpired = (mode === 'slot' || mode === 'membership') && secondsLeft <= 0 && expiresAt !== null;
   const visibleManualCode = firstManualCode(manualCode, decodeManualCodeFromToken(token));
   const isLowTime = secondsLeft > 0 && secondsLeft < 600; // < 10 min → red
 
@@ -214,6 +292,46 @@ export default function QrScreen() {
   }
 
   // ── No booked slot ────────────────────────────────────────────────────────────
+  if (mode === 'membership_select') {
+    return (
+      <AuroraBackground>
+        <SafeAreaView style={s.root}>
+          <View style={s.header}>
+            <TouchableOpacity style={s.back} onPress={() => router.back()}>
+              <IconArrowLeft size={18} color="#fff" />
+            </TouchableOpacity>
+            <Text style={s.title}>Select Gym Pass</Text>
+            <View style={{ width: 38 }} />
+          </View>
+          <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+            <Text style={[s.emptyTitle, { marginBottom: 8 }]}>Choose the gym you are visiting</Text>
+            <Text style={[s.emptySub, { marginBottom: 16 }]}>Each Single Gym Pass has its own QR and manual verification code.</Text>
+            {membershipOptions.map((sub) => {
+              const subId = sub?.id || sub?._id || '';
+              const gymIds = subscriptionGymIds(sub);
+              const label = sub?.gymName || sub?.gym?.name || `Gym ${gymIds[0]?.slice(0, 6) || ''}`;
+              return (
+                <TouchableOpacity
+                  key={subId}
+                  style={s.membershipCard}
+                  activeOpacity={0.86}
+                  onPress={() => generateMembershipQr(subId, sub)}
+                  disabled={refreshing}
+                >
+                  <Text style={s.membershipName}>{label}</Text>
+                  <Text style={s.membershipMeta}>Single Gym Pass</Text>
+                </TouchableOpacity>
+              );
+            })}
+            <TouchableOpacity style={[s.bookBtn, { marginTop: 8 }]} onPress={() => router.push('/scan-gym' as any)}>
+              <Text style={s.bookBtnText}>Scan Gym QR Instead</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </AuroraBackground>
+    );
+  }
+
   if (mode === 'empty' || mode === 'checked_in') {
     return (
       <AuroraBackground>
@@ -231,21 +349,21 @@ export default function QrScreen() {
                 ? <Text style={s.checkedIcon}>✓</Text>
                 : <IconClock size={32} color={colors.t2} />}
             </View>
-            <Text style={s.emptyTitle}>{mode === 'checked_in' ? 'Check-In Recorded' : 'No Booked Session'}</Text>
+            <Text style={s.emptyTitle}>{mode === 'checked_in' ? 'Check-In Recorded' : 'No Active Check-In'}</Text>
             <Text style={s.emptySub}>
               {mode === 'checked_in'
                 ? 'Your gym check-in has been marked successfully. This QR is now closed and cannot be used again.'
-                : 'Book a slot at a gym first. Your check-in QR will appear here once you have an active booking.'}
+                : 'Single Gym members can show a membership QR here. Multi Gym and 1-Day Pass members need an active booking before check-in.'}
             </Text>
             {mode === 'checked_in' && gymName ? <Text style={s.checkedGym}>{gymName}</Text> : null}
             <TouchableOpacity style={s.bookBtn} onPress={() => router.push((mode === 'checked_in' ? '/(tabs)/bookings' : '/gyms') as any)}>
-              <Text style={s.bookBtnText}>{mode === 'checked_in' ? 'View My Bookings' : 'Browse Gyms & Book Slot'}</Text>
+              <Text style={s.bookBtnText}>{mode === 'checked_in' ? 'View My Bookings' : 'Browse Gyms'}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.bookBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderGlass, marginTop: 8 }]}
-              onPress={() => router.push((mode === 'checked_in' ? '/gyms' : '/plans') as any)}
+              onPress={() => router.push((mode === 'checked_in' ? '/gyms' : '/scan-gym') as any)}
             >
-              <Text style={[s.bookBtnText, { color: colors.t }]}>{mode === 'checked_in' ? 'Book Another Slot' : 'View Plans'}</Text>
+              <Text style={[s.bookBtnText, { color: colors.t }]}>{mode === 'checked_in' ? 'Book Another Slot' : 'Scan Gym QR'}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -262,7 +380,7 @@ export default function QrScreen() {
           <TouchableOpacity style={s.back} onPress={() => router.back()}>
             <IconArrowLeft size={18} color="#fff" />
           </TouchableOpacity>
-          <Text style={s.title}>Session QR</Text>
+          <Text style={s.title}>{mode === 'membership' ? 'Membership QR' : 'Session QR'}</Text>
           <View style={{ width: 38 }} />
         </View>
 
@@ -280,7 +398,7 @@ export default function QrScreen() {
           {/* Booking timestamps */}
           {bookedAt && expiresAt && (
             <Text style={s.bookingInfo}>
-              Booked {formatDateTime(bookedAt)} · Valid till {formatDateTime(expiresAt)}
+              {mode === 'membership' ? 'Generated' : 'Booked'} {formatDateTime(bookedAt)} - Valid till {formatDateTime(expiresAt)}
             </Text>
           )}
 
@@ -295,8 +413,8 @@ export default function QrScreen() {
               <QRCode
                 value={token}
                 size={220}
-                color={isExpired ? '#444' : '#fff'}
-                backgroundColor="transparent"
+                color={isExpired ? '#444' : '#000'}
+                backgroundColor="#fff"
               />
             ) : (
               <View style={{ width: 220, height: 220, alignItems: 'center', justifyContent: 'center' }}>
@@ -330,14 +448,16 @@ export default function QrScreen() {
           )}
 
           <Text style={s.notice}>
-            Show this QR to the gym staff. If scanning fails, share the manual code below the QR.
+            {mode === 'membership'
+              ? 'Show this QR to the gym staff when you visit your subscribed gym. If scanning fails, share the manual code.'
+              : 'Show this QR to the gym staff. If scanning fails, share the manual code below the QR.'}
           </Text>
 
           {/* Steps */}
           <View style={s.steps}>
             {[
-              'Walk into your booked gym',
-              'Show this QR to the gym staff',
+              mode === 'membership' ? 'Walk into your subscribed gym' : 'Walk into your booked gym',
+              mode === 'membership' ? 'Show this membership QR to the gym staff' : 'Show this QR to the gym staff',
               'Staff scans the QR or enters the manual code',
             ].map((step, i) => (
               <View key={i} style={s.step}>
@@ -348,8 +468,13 @@ export default function QrScreen() {
           </View>
 
           {isExpired && (
-            <TouchableOpacity style={s.bookBtn} onPress={() => router.push('/gyms' as any)}>
-              <Text style={s.bookBtnText}>Book Another Slot</Text>
+            <TouchableOpacity
+              style={s.bookBtn}
+              onPress={() => mode === 'membership' && activeSubscriptionId
+                ? generateMembershipQr(activeSubscriptionId)
+                : router.push('/gyms' as any)}
+            >
+              <Text style={s.bookBtnText}>{mode === 'membership' ? 'Refresh QR' : 'Book Another Slot'}</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -380,6 +505,17 @@ const s = StyleSheet.create({
     fontFamily: fonts.sans, fontSize: 12, color: colors.t2,
     marginBottom: 20, textAlign: 'center',
   },
+  membershipCard: {
+    width: '100%',
+    backgroundColor: colors.glass,
+    borderWidth: 1,
+    borderColor: colors.borderGlass,
+    borderRadius: radius.lg,
+    padding: 16,
+    marginBottom: 10,
+  },
+  membershipName: { fontFamily: fonts.sansBold, fontSize: 15, color: '#fff' },
+  membershipMeta: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2, marginTop: 4 },
   manualBox: {
     width: '100%',
     backgroundColor: 'rgba(204,255,0,0.08)',

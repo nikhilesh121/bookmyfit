@@ -55,6 +55,11 @@ function memberCode(userId?: string | null) {
   return id ? `BMF-${id.slice(0, 10)}` : 'BMF-UNKNOWN';
 }
 
+function subscriptionCode(subscriptionId?: string | null) {
+  const id = String(subscriptionId || '').replace(/-/g, '').toUpperCase();
+  return id ? `BMF-${id.slice(0, 10)}` : '';
+}
+
 function memberName(user?: UserEntity | null, userId?: string | null) {
   const name = String(user?.name || '').trim();
   if (/\b[6-9]\d{9}\b/.test(name)) {
@@ -105,12 +110,103 @@ export class QrService {
     return row?.gymId || null;
   }
 
+  private async existingDailyCheckinAtGym(userId: string, gymId: string, today: string) {
+    const dailyKey = `checkin:daily:${userId}:${today}:${gymId}`;
+    const redisHit = await this.redis.get(dailyKey);
+    if (redisHit) return true;
+
+    const { start, end } = this.istDayRangeUtc(today);
+    const count = await this.checkins.count({
+      where: { userId, gymId, status: 'success', checkinTime: Between(start, end) },
+    });
+    if (count > 0) await this.redis.set(dailyKey, '1', 'EX', 24 * 60 * 60);
+    return count > 0;
+  }
+
+  private async ensureDailyCheckinAllowed(userId: string, gymId: string, today: string, planType?: string | null) {
+    if (planType === 'same_gym') {
+      const checkedInHere = await this.existingDailyCheckinAtGym(userId, gymId, today);
+      if (checkedInHere) throw new ConflictException('Already checked in at this gym today');
+      return;
+    }
+
+    const existingCheckinGymId = await this.existingDailyCheckinGymId(userId, today);
+    if (existingCheckinGymId) {
+      throw new ConflictException(existingCheckinGymId === gymId
+        ? 'Already checked in at this gym today'
+        : 'Already checked in at another gym today');
+    }
+  }
+
+  private async lockDailyCheckin(userId: string, gymId: string, today: string, planType?: string | null) {
+    await this.redis.set(`checkin:daily:${userId}:${today}`, gymId, 'EX', 24 * 60 * 60);
+    if (planType === 'same_gym') {
+      await this.redis.set(`checkin:daily:${userId}:${today}:${gymId}`, '1', 'EX', 24 * 60 * 60);
+    }
+  }
+
   private async multiGymVisitPayout(gym: GymEntity | any) {
     const override = Number(gym?.ratePerDay);
     if (Number.isFinite(override) && override > 0) return override;
     const row = await this.configs.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } });
     const config = normalizePlatformPricingConfig(row?.value);
     return Math.max(0, Number(config.multi_gym?.visitPayout) || 0);
+  }
+
+  private async findManualMembershipSubscription(code: string, gymId: string) {
+    const compact = String(code || '')
+      .trim()
+      .replace(/^#+/, '')
+      .replace(/^BMF[-_]?/i, '')
+      .replace(/[^a-fA-F0-9]/g, '')
+      .toLowerCase();
+    if (compact.length < 6) return null;
+    const today = todayIST();
+    return this.subs.createQueryBuilder('sub')
+      .where('sub."planType" = :planType', { planType: 'same_gym' })
+      .andWhere('sub.status = :status', { status: 'active' })
+      .andWhere('sub."startDate" <= :today', { today })
+      .andWhere('sub."endDate" >= :today', { today })
+      .andWhere('CAST(:gymId AS uuid) = ANY(sub."gymIds")', { gymId })
+      .andWhere("LOWER(REPLACE(sub.id::text, '-', '')) LIKE :prefix", { prefix: `${compact}%` })
+      .orderBy('sub."createdAt"', 'DESC')
+      .getOne();
+  }
+
+  private fixedGymQrToken(gymId: string) {
+    return this.jwt.sign({ type: 'gym_fixed', gym: gymId }, { noTimestamp: true });
+  }
+
+  async getFixedGymQr(gymId: string) {
+    const gym = await this.gyms.findOne({ where: { id: gymId } });
+    if (!gym) throw new NotFoundException('Gym not found');
+    return {
+      gymId: gym.id,
+      gymName: gym.name,
+      token: this.fixedGymQrToken(gym.id),
+      type: 'gym_fixed',
+      message: 'Fixed gym QR for member self check-in',
+    };
+  }
+
+  private async activeBookingForUserAtGymNow(userId: string, gymId: string) {
+    const now = nowISTParts();
+    const candidates = await this.sessionBookings.createQueryBuilder('b')
+      .innerJoin(SessionSlotEntity, 's', 'b."slotId" = s.id')
+      .where('b."userId" = :userId AND b."gymId" = :gymId AND b."slotDate" = :today', { userId, gymId, today: now.date })
+      .andWhere("b.status = 'confirmed'")
+      .orderBy('b."bookedAt"', 'DESC')
+      .select('b')
+      .getMany();
+
+    for (const booking of candidates) {
+      const slot = await this.sessionSlots.findOne({ where: { id: booking.slotId } });
+      if (!slot) continue;
+      const start = minutesOf(slot.startTime) - CHECKIN_GRACE_BEFORE_MINUTES;
+      const end = minutesOf(slot.endTime) + CHECKIN_GRACE_AFTER_MINUTES;
+      if (slot.date === now.date && now.minutes >= start && now.minutes <= end) return booking;
+    }
+    return null;
   }
 
   /** Mobile app calls this to generate a short-lived QR token */
@@ -120,16 +216,35 @@ export class QrService {
     if (sub.status !== 'active') throw new BadRequestException('Subscription is not active');
     if (isPastDateOnly(sub.endDate)) throw new BadRequestException('Subscription has expired');
     if (!subscriptionCoversDate(sub, todayIST())) throw new BadRequestException('Subscription is not valid today');
+    if (sub.planType !== 'same_gym') {
+      throw new BadRequestException('Book a slot first for Multi Gym and 1-Day Pass check-ins');
+    }
+    const gymId = sub.gymIds?.[0];
+    if (!gymId) throw new BadRequestException('This subscription is not linked to a gym');
+    const gym = await this.gyms.findOne({ where: { id: gymId } });
+    if (!gym || gym.status !== 'active') throw new BadRequestException('Gym not available');
 
     const jti = uuidv4();
     const payload = {
       sub: userId,
       sid: subscriptionId,
+      gym: gymId,
       jti,
+      type: 'membership',
+      ref: subscriptionCode(subscriptionId),
       iat: Math.floor(Date.now() / 1000),
     };
     const token = this.jwt.sign(payload, { expiresIn: `${QR_EXPIRY_SECONDS}s` });
-    return { token, expiresIn: QR_EXPIRY_SECONDS, expiresAt: new Date(Date.now() + QR_EXPIRY_SECONDS * 1000).toISOString() };
+    return {
+      token,
+      expiresIn: QR_EXPIRY_SECONDS,
+      expiresAt: new Date(Date.now() + QR_EXPIRY_SECONDS * 1000).toISOString(),
+      gymId,
+      gymName: gym.name,
+      subscriptionId,
+      planType: sub.planType,
+      manualCode: subscriptionCode(subscriptionId),
+    };
   }
 
   decodeQrGymId(qrToken: string) {
@@ -154,12 +269,22 @@ export class QrService {
 
     const { sub: userId, sid: subscriptionId, jti } = payload;
     const isBookingQr = payload.type === 'booking' || !!payload.bid;
+    const isMembershipQr = payload.type === 'membership';
 
     // 2. Idempotency: has this JTI been used?
+    if (!jti) {
+      await this.logFailure(qrToken, gymId, 'failed_invalid', 'QR missing token id');
+      throw new UnauthorizedException('QR code is invalid');
+    }
     const alreadyUsed = await this.redis.exists(`qr:used:${jti}`);
     if (alreadyUsed) {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'Duplicate QR');
       throw new ConflictException('QR already used');
+    }
+
+    if (isMembershipQr && payload.gym !== gymId) {
+      await this.logFailure(qrToken, gymId, 'failed_invalid', 'Membership QR is for another gym');
+      throw new UnauthorizedException('This membership QR is for another gym');
     }
 
     let bookingQr: BookingQrEntity | null = null;
@@ -218,18 +343,7 @@ export class QrService {
       }
     }
 
-    // 3. Daily lock: has user already checked in today?
-    const today = todayIST();
-    const dailyKey = `checkin:daily:${userId}:${today}`;
-    const existingCheckinGymId = await this.existingDailyCheckinGymId(userId, today);
-    if (existingCheckinGymId) {
-      await this.logFailure(qrToken, gymId, 'failed_daily_limit', `Already checked in at ${existingCheckinGymId}`);
-      throw new ConflictException(existingCheckinGymId === gymId
-        ? 'Already checked in at this gym today'
-        : 'Already checked in at another gym today');
-    }
-
-    // 4. Validate subscription + plan allows this gym
+    // 3. Validate subscription + plan allows this gym
     const sub = await this.subs.findOne({ where: { id: subscriptionId } });
     if (!sub || sub.userId !== userId || sub.status !== 'active' || isPastDateOnly(sub.endDate)) {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'No active subscription');
@@ -244,9 +358,26 @@ export class QrService {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'Gym not in plan');
       throw new UnauthorizedException('This plan does not cover this gym');
     }
+    if (sub.planType === 'same_gym' && isBookingQr) {
+      await this.logFailure(qrToken, gymId, 'failed_invalid', 'Same gym QR should not use slot booking');
+      throw new BadRequestException('Single Gym Pass does not require slot booking. Use membership check-in QR.');
+    }
     if (sub.planType === 'day_pass' && coveredGyms.length > 0 && !coveredGyms.includes(gymId)) {
       await this.logFailure(qrToken, gymId, 'failed_invalid', 'Day pass is for a different gym');
       throw new UnauthorizedException('This day pass does not cover this gym');
+    }
+    if (sub.planType !== 'same_gym' && !isBookingQr) {
+      await this.logFailure(qrToken, gymId, 'failed_invalid', 'Booking required for multi/day QR');
+      throw new BadRequestException('Book a slot before checking in with this pass');
+    }
+
+    // 4. Daily lock: same-gym members are locked per gym; booked passes remain locked per day.
+    const today = todayIST();
+    try {
+      await this.ensureDailyCheckinAllowed(userId, gymId, today, sub.planType);
+    } catch (err: any) {
+      await this.logFailure(qrToken, gymId, 'failed_daily_limit', err?.message || 'Daily check-in limit reached');
+      throw err;
     }
 
     const gym = await this.gyms.findOne({ where: { id: gymId } });
@@ -258,7 +389,7 @@ export class QrService {
     // 5. Mark used + daily lock
     const ttl = payload.exp ? Math.max(60, payload.exp - Math.floor(Date.now() / 1000)) : 60;
     await this.redis.set(`qr:used:${jti}`, '1', 'EX', ttl);
-    await this.redis.set(dailyKey, gymId, 'EX', 24 * 60 * 60);
+    await this.lockDailyCheckin(userId, gymId, today, sub.planType);
     if (bookingQr) {
       const update = await this.bookingQrs
         .createQueryBuilder()
@@ -316,7 +447,43 @@ export class QrService {
       .orderBy('b."bookedAt"', 'DESC')
       .take(10)
       .getMany();
-    if (candidates.length === 0) throw new NotFoundException('Booking not found for this gym');
+    if (candidates.length === 0) {
+      const membershipSub = await this.findManualMembershipSubscription(clean, gymId);
+      if (!membershipSub) throw new NotFoundException('Booking or membership code not found for this gym');
+
+      const gym = await this.gyms.findOne({ where: { id: gymId } });
+      if (!gym || gym.status !== 'active') throw new BadRequestException('Gym not available');
+      const today = todayIST();
+      await this.ensureDailyCheckinAllowed(membershipSub.userId, gymId, today, membershipSub.planType);
+      await this.lockDailyCheckin(membershipSub.userId, gymId, today, membershipSub.planType);
+
+      const qrToken = `MANUAL_MEMBERSHIP_${membershipSub.id}_${Date.now()}`;
+      const checkin = await this.checkins.save(
+        this.checkins.create({
+          userId: membershipSub.userId,
+          gymId,
+          subscriptionId: membershipSub.id,
+          qrToken,
+          status: 'success',
+        }),
+      );
+      const user = await this.users.findOne({ where: { id: membershipSub.userId } });
+      this.checkVelocityFraud(membershipSub.userId, gymId, gym.name);
+
+      return {
+        success: true,
+        manual: true,
+        membership: true,
+        checkinId: checkin.id,
+        user: { id: membershipSub.userId, memberCode: memberCode(membershipSub.userId), name: memberName(user, membershipSub.userId) },
+        gym: { id: gym.id, name: gym.name },
+        planType: membershipSub.planType,
+        gymEarns: 0,
+        adminEarns: 0,
+        checkinTime: checkin.checkinTime,
+        message: 'Membership check-in recorded',
+      };
+    }
 
     const now = nowISTParts();
     let booking: SessionBookingEntity | null = null;
@@ -374,13 +541,7 @@ export class QrService {
     if (!gym || gym.status !== 'active') throw new BadRequestException('Gym not available');
 
     const today = todayIST();
-    const dailyKey = `checkin:daily:${booking.userId}:${today}`;
-    const existingCheckinGymId = await this.existingDailyCheckinGymId(booking.userId, today);
-    if (existingCheckinGymId) {
-      throw new ConflictException(existingCheckinGymId === gymId
-        ? 'Already checked in at this gym today'
-        : 'Already checked in at another gym today');
-    }
+    await this.ensureDailyCheckinAllowed(booking.userId, gymId, today, sub.planType);
 
     const update = await this.sessionBookings
       .createQueryBuilder()
@@ -399,7 +560,7 @@ export class QrService {
       .andWhere('"gymId" = :gymId', { gymId })
       .andWhere('"usedAt" IS NULL')
       .execute();
-    await this.redis.set(dailyKey, gymId, 'EX', 24 * 60 * 60);
+    await this.lockDailyCheckin(booking.userId, gymId, today, sub.planType);
 
     const qrToken = `MANUAL_${booking.id}_${Date.now()}`;
     const checkin = await this.checkins.save(
@@ -429,6 +590,131 @@ export class QrService {
       adminEarns,
       checkinTime: checkin.checkinTime,
       message: 'Manual check-in recorded',
+    };
+  }
+
+  /** Member scans the gym's fixed QR. Same-gym passes check in directly; multi/day passes require an active booking window. */
+  async validateGymQr(gymToken: string, userId: string) {
+    let payload: any;
+    try {
+      payload = this.jwt.verify(gymToken);
+    } catch (err: any) {
+      throw new UnauthorizedException('Gym QR code is invalid');
+    }
+
+    const gymId = typeof payload?.gym === 'string' ? payload.gym : '';
+    if (payload?.type !== 'gym_fixed' || !gymId) {
+      throw new UnauthorizedException('This is not a valid gym check-in QR');
+    }
+
+    const gym = await this.gyms.findOne({ where: { id: gymId } });
+    if (!gym || gym.status !== 'active') throw new BadRequestException('Gym not available');
+
+    const today = todayIST();
+    const directSub = await this.subs.createQueryBuilder('sub')
+      .where('sub."userId" = :userId', { userId })
+      .andWhere('sub."planType" = :planType', { planType: 'same_gym' })
+      .andWhere('sub.status = :status', { status: 'active' })
+      .andWhere('sub."startDate" <= :today', { today })
+      .andWhere('sub."endDate" >= :today', { today })
+      .andWhere('CAST(:gymId AS uuid) = ANY(sub."gymIds")', { gymId })
+      .orderBy('sub."createdAt"', 'DESC')
+      .getOne();
+
+    if (directSub) {
+      await this.ensureDailyCheckinAllowed(userId, gymId, today, directSub.planType);
+      await this.lockDailyCheckin(userId, gymId, today, directSub.planType);
+      const checkin = await this.checkins.save(
+        this.checkins.create({
+          userId,
+          gymId,
+          subscriptionId: directSub.id,
+          qrToken: `GYM_FIXED_MEMBERSHIP_${gymId}_${userId}_${Date.now()}`,
+          status: 'success',
+        }),
+      );
+      const user = await this.users.findOne({ where: { id: userId } });
+      this.checkVelocityFraud(userId, gymId, gym.name);
+      return {
+        success: true,
+        source: 'gym_qr',
+        checkinId: checkin.id,
+        user: { id: userId, memberCode: memberCode(userId), name: memberName(user, userId) },
+        gym: { id: gym.id, name: gym.name },
+        planType: directSub.planType,
+        gymEarns: 0,
+        adminEarns: 0,
+        checkinTime: checkin.checkinTime,
+        message: 'Membership check-in recorded',
+      };
+    }
+
+    const booking = await this.activeBookingForUserAtGymNow(userId, gymId);
+    if (!booking) {
+      throw new BadRequestException('Book a slot first for Multi Gym or 1-Day Pass check-in');
+    }
+
+    const sub = booking.subscriptionId ? await this.subs.findOne({ where: { id: booking.subscriptionId } }) : null;
+    if (!sub || sub.userId !== userId || sub.status !== 'active' || isPastDateOnly(sub.endDate)) {
+      throw new UnauthorizedException('Subscription not active');
+    }
+    if (!subscriptionCoversDate(sub, booking.slotDate)) {
+      throw new UnauthorizedException('Subscription is not valid for this booking date');
+    }
+    if (sub.planType === 'day_pass' && Array.isArray(sub.gymIds) && sub.gymIds.length > 0 && !sub.gymIds.includes(gymId)) {
+      throw new UnauthorizedException('This day pass does not cover this gym');
+    }
+    if (sub.planType === 'same_gym') {
+      throw new BadRequestException('Single Gym Pass does not require slot booking. Use membership check-in QR.');
+    }
+
+    await this.ensureDailyCheckinAllowed(userId, gymId, today, sub.planType);
+    const update = await this.sessionBookings
+      .createQueryBuilder()
+      .update(SessionBookingEntity)
+      .set({ status: 'attended' as any, checkinAt: new Date() })
+      .where('id = :id', { id: booking.id })
+      .andWhere('status = :status', { status: 'confirmed' })
+      .execute();
+    if (!update.affected) throw new ConflictException('This booking is already checked in');
+    await this.bookingQrs
+      .createQueryBuilder()
+      .update(BookingQrEntity)
+      .set({ usedAt: new Date() })
+      .where('"slotBookingId" = :bookingId', { bookingId: booking.id })
+      .andWhere('"userId" = :userId', { userId })
+      .andWhere('"gymId" = :gymId', { gymId })
+      .andWhere('"usedAt" IS NULL')
+      .execute();
+    await this.lockDailyCheckin(userId, gymId, today, sub.planType);
+
+    const checkin = await this.checkins.save(
+      this.checkins.create({
+        userId,
+        gymId,
+        subscriptionId: sub.id,
+        qrToken: `GYM_FIXED_BOOKING_${gymId}_${booking.id}_${Date.now()}`,
+        status: 'success',
+      }),
+    );
+    const user = await this.users.findOne({ where: { id: userId } });
+    const ratePerDay = await this.multiGymVisitPayout(gym);
+    const { gymEarns, adminEarns } = this.visitSplit(ratePerDay, sub.planType);
+    this.checkVelocityFraud(userId, gymId, gym.name);
+
+    return {
+      success: true,
+      source: 'gym_qr',
+      checkinId: checkin.id,
+      bookingId: booking.id,
+      bookingRef: booking.bookingRef,
+      user: { id: userId, memberCode: memberCode(userId), name: memberName(user, userId) },
+      gym: { id: gym.id, name: gym.name },
+      planType: sub.planType,
+      gymEarns,
+      adminEarns,
+      checkinTime: checkin.checkinTime,
+      message: 'Booking check-in recorded',
     };
   }
 

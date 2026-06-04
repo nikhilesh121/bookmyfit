@@ -467,6 +467,10 @@ export default function GymDetail() {
       router.push({ pathname: '/plans', params: { gymId: id, gymName: name } } as any);
       return;
     }
+    if (activePlanType === 'same_gym') {
+      router.push({ pathname: '/qr', params: { subscriptionId: subscriptionId || '', gymId: id, gymName: name } } as any);
+      return;
+    }
     setBookingLoading(slotId);
     try {
       const res: any = await api.post('/sessions/book', { slotId, subscriptionId: activeSub?.id || activeSub?._id });
@@ -942,10 +946,12 @@ export default function GymDetail() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={s.cta}
-                onPress={() => router.push({ pathname: '/slots', params: { gymId: id } } as any)}
+                onPress={() => activePlanType === 'same_gym'
+                  ? router.push({ pathname: '/qr', params: { subscriptionId: subscriptionId || '', gymId: id, gymName: name } } as any)
+                  : router.push({ pathname: '/slots', params: { gymId: id } } as any)}
                 activeOpacity={0.9}
               >
-                <Text style={s.ctaText}>Book a Slot</Text>
+                <Text style={s.ctaText}>{activePlanType === 'same_gym' ? 'Show QR' : 'Book a Slot'}</Text>
                 <IconArrowRight size={16} color="#000" />
               </TouchableOpacity>
             </>

@@ -9,7 +9,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconCalendar, IconClock, IconArrowLeft, IconCheck, IconUsers } from '../components/Icons';
 import { api, subscriptionsApi } from '../lib/api';
-import { getActiveSubscriptionAccess, normalizeSubscriptionList } from '../lib/subscriptionAccess';
+import { getActiveSubscriptionAccess, normalizeSubscriptionList, subscriptionPlanType } from '../lib/subscriptionAccess';
 
 const ALL_SESSION_TYPE = { id: 'all', name: 'All', color: colors.accent };
 
@@ -75,6 +75,7 @@ export default function SlotsScreen() {
   const [sessionTypes, setSessionTypes] = useState<any[]>([ALL_SESSION_TYPE]);
   const [activeType, setActiveType] = useState('all');
   const [activeSub, setActiveSub] = useState<any>(null);
+  const activePlanType = subscriptionPlanType(activeSub);
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -153,6 +154,10 @@ export default function SlotsScreen() {
       ]);
       return;
     }
+    if (activePlanType === 'same_gym') {
+      router.replace({ pathname: '/qr', params: { subscriptionId: activeSub?.id || activeSub?._id || '', gymId: gymId || '' } } as any);
+      return;
+    }
     setBookingId(slotId);
     try {
       const res: any = await api.post('/sessions/book', { slotId, subscriptionId: activeSub?.id || activeSub?._id });
@@ -212,6 +217,19 @@ export default function SlotsScreen() {
           </TouchableOpacity>
           <Text style={s.title}>Book a Slot</Text>
         </View>
+
+        {activePlanType === 'same_gym' && (
+          <View style={s.singleGymNotice}>
+            <Text style={s.singleGymTitle}>No booking needed for this pass</Text>
+            <Text style={s.singleGymText}>Use your membership QR when you visit this gym. We will track the check-in from the scanner.</Text>
+            <TouchableOpacity
+              style={s.singleGymBtn}
+              onPress={() => router.replace({ pathname: '/qr', params: { subscriptionId: activeSub?.id || activeSub?._id || '', gymId: gymId || '' } } as any)}
+            >
+              <Text style={s.singleGymBtnText}>Show Membership QR</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Date picker */}
         <View style={s.sectionHeader}>
@@ -389,6 +407,18 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   title: { fontFamily: fonts.serif, fontSize: 24, color: '#fff', letterSpacing: -0.5 },
+  singleGymNotice: {
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    borderRadius: radius.xl,
+    padding: 14,
+    marginBottom: 18,
+  },
+  singleGymTitle: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.accent },
+  singleGymText: { fontFamily: fonts.sans, fontSize: 12, color: colors.t, lineHeight: 18, marginTop: 4 },
+  singleGymBtn: { marginTop: 12, height: 44, borderRadius: radius.pill, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  singleGymBtnText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#000' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   sectionTitle: { fontFamily: fonts.serif, fontSize: 18, color: '#fff', letterSpacing: -0.3 },
   dayChip: {

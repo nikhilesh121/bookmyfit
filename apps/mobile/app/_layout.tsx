@@ -140,6 +140,7 @@ export default function RootLayout() {
         <Stack.Screen name="(gym-portal)" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="gym/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="qr" options={{ headerShown: false }} />
+        <Stack.Screen name="scan-gym" options={{ headerShown: false }} />
         <Stack.Screen name="plans" options={{ headerShown: false }} />
         <Stack.Screen name="history" options={{ headerShown: false }} />
         <Stack.Screen name="notifications" options={{ headerShown: false }} />

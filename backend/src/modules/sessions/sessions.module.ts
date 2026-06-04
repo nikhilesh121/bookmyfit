@@ -696,6 +696,7 @@ export class SessionsService {
       if (!subGymIds.includes(slot.gymId)) {
         throw new BadRequestException('Your Same Gym Pass is only valid for the gym you subscribed to.');
       }
+      throw new BadRequestException('Single Gym Pass members do not need slot booking. Use the check-in QR when you visit the gym.');
     } else if (sub.planType === 'day_pass') {
       if (subGymIds.length > 0 && !subGymIds.includes(slot.gymId)) {
         throw new BadRequestException('Your 1-Day Pass is for a different gym.');
@@ -716,9 +717,6 @@ export class SessionsService {
         const limitLabel = dailyBookingLimit === 1 ? '1 session' : `${dailyBookingLimit} sessions`;
         if (sub.planType === 'multi_gym') {
           throw new ConflictException(`Your Multi Gym Pass allows ${limitLabel} per day across all gyms. You have already reached the limit for this day.`);
-        }
-        if (sub.planType === 'same_gym') {
-          throw new ConflictException(`Your Same Gym Pass allows ${limitLabel} per day at this gym. You have already reached the limit for this day.`);
         }
         throw new ConflictException(`Your subscription allows ${limitLabel} per day. You have already reached the limit for this day.`);
       }
@@ -890,8 +888,14 @@ export class SessionsService {
     });
     if (bookings.length === 0) return { active: false };
 
-    const bookingIds = bookings.map((b) => b.id);
-    const slotIds = [...new Set(bookings.map((b) => b.slotId))];
+    const subIdsForBookings = [...new Set(bookings.map((b) => b.subscriptionId).filter(Boolean))];
+    const bookingSubs = subIdsForBookings.length ? await this.subRepo.createQueryBuilder('sub').whereInIds(subIdsForBookings).getMany() : [];
+    const subById = new Map(bookingSubs.map((sub) => [sub.id, sub]));
+    const bookablePassBookings = bookings.filter((booking) => subById.get(booking.subscriptionId)?.planType !== 'same_gym');
+    if (bookablePassBookings.length === 0) return { active: false };
+
+    const bookingIds = bookablePassBookings.map((b) => b.id);
+    const slotIds = [...new Set(bookablePassBookings.map((b) => b.slotId))];
     const [slots, qrs] = await Promise.all([
       slotIds.length ? this.slotRepo.createQueryBuilder('s').whereInIds(slotIds).getMany() : [],
       this.qrRepo.createQueryBuilder('q')
@@ -899,10 +903,10 @@ export class SessionsService {
         .orderBy('q."createdAt"', 'DESC')
         .getMany(),
     ]);
-    const gymIds = [...new Set(bookings.map((b) => b.gymId))];
+    const gymIds = [...new Set(bookablePassBookings.map((b) => b.gymId))];
     const gyms = gymIds.length ? await this.gymRepo.createQueryBuilder('g').whereInIds(gymIds).getMany() : [];
 
-    const rows = bookings.map((booking) => ({
+    const rows = bookablePassBookings.map((booking) => ({
       booking,
       slot: slots.find((s) => s.id === booking.slotId),
       gym: gyms.find((g) => g.id === booking.gymId),
