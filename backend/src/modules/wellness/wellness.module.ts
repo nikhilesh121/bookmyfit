@@ -329,6 +329,9 @@ export class WellnessService {
       }
     }
     const rows = await qb.orderBy('s.price', 'ASC').getMany();
+    await this.withLiveRatings(
+      rows.map((row: any) => row.partner).filter(Boolean) as WellnessPartnerEntity[],
+    );
     return this.withCheckoutPrices(rows);
   }
 
@@ -360,10 +363,14 @@ export class WellnessService {
   }
 
   async listAdminServices() {
-    return this.services.createQueryBuilder('s')
+    const rows = await this.services.createQueryBuilder('s')
       .leftJoinAndMapOne('s.partner', WellnessPartnerEntity, 'p', 's."partnerId" = p.id')
       .orderBy('s.name', 'ASC')
       .getMany();
+    await this.withLiveRatings(
+      rows.map((row: any) => row.partner).filter(Boolean) as WellnessPartnerEntity[],
+    );
+    return rows;
   }
 
   private validLatLng(lat: any, lng: any) {
