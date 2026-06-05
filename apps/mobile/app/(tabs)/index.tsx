@@ -10,7 +10,7 @@ import {
   IconBell, IconPin, IconStar, IconChevronDown,
   IconBolt, IconShield, IconHeadphones, IconPercent,
 } from '../../components/Icons';
-import { API_BASE, appStorage, gymsApi, subscriptionsApi } from '../../lib/api';
+import { API_BASE, appStorage, gymsApi, subscriptionsApi, wellnessApi } from '../../lib/api';
 import { getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../../lib/location';
 import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList } from '../../lib/subscriptionAccess';
 import { applyPassCommission, positiveNumber } from '../../lib/passPricing';
@@ -236,8 +236,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/v1/wellness/services/all`)
-      .then((r) => r.json())
+    wellnessApi.allServices()
       .then((data: any) => setWellnessServices(listFrom(data, ['services']).slice(0, 8)))
       .catch(() => setWellnessServices([]));
   }, []);
@@ -559,25 +558,18 @@ function WellnessServicesSection({ services }: { services: any[] }) {
           const price = Number(svc.price || svc.minPrice || 0);
           const serviceId = svc.id || svc._id || '';
           const partnerId = svc.partnerId || svc.partner?.id || svc.partner?._id || '';
-          const duration = svc.durationMinutes || svc.durationMin || svc.duration || 45;
+          const duration = Number(svc.durationMinutes || svc.durationMin || svc.duration || 0);
           const serviceName = svc.name || svc.title || 'Wellness Service';
+          const partnerName = svc.partner?.name || svc.partnerName || '';
           const openService = () => {
-            if (serviceId) {
+            if (partnerId) {
               router.push({
-                pathname: '/wellness/book-service',
+                pathname: '/wellness/[id]',
                 params: {
-                  serviceId,
-                  partnerId,
-                  serviceName,
-                  price: String(price),
-                  originalPrice: String(svc.originalPrice || svc.mrp || ''),
-                  duration: String(duration),
+                  id: partnerId,
+                  focusServiceId: serviceId,
                 },
               } as any);
-              return;
-            }
-            if (partnerId) {
-              router.push({ pathname: '/wellness/[id]', params: { id: partnerId } } as any);
               return;
             }
             router.push('/wellness' as any);
@@ -591,7 +583,8 @@ function WellnessServicesSection({ services }: { services: any[] }) {
                 </View>
                 <View style={s.wellnessBottom}>
                   <Text style={s.wellnessName} numberOfLines={2}>{serviceName}</Text>
-                  <Text style={s.wellnessMeta}>{duration} min</Text>
+                  {!!partnerName && <Text style={s.wellnessPartner} numberOfLines={1}>{partnerName}</Text>}
+                  {duration > 0 && <Text style={s.wellnessMeta}>{duration} min</Text>}
                   {price > 0 && <Text style={s.wellnessPrice}>From Rs {price.toLocaleString('en-IN')}</Text>}
                 </View>
               </ImageBackground>
@@ -938,6 +931,7 @@ const s = StyleSheet.create({
   wellnessBadgeText: { fontFamily: fonts.sansBold, fontSize: 9, color: colors.accent, textTransform: 'uppercase', letterSpacing: 0.5 },
   wellnessBottom: { padding: 12, gap: 3 },
   wellnessName: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', lineHeight: 18 },
+  wellnessPartner: { fontFamily: fonts.sansMedium, fontSize: 10, color: colors.accent },
   wellnessMeta: { fontFamily: fonts.sans, fontSize: 10, color: 'rgba(255,255,255,0.68)' },
   wellnessPrice: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent, marginTop: 2 },
 

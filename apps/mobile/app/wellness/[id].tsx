@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet,
   Image, ImageBackground, ActivityIndicator, Share,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconArrowLeft, IconStar, IconPin, IconClock, IconShare } from '../../components/Icons';
-import { api } from '../../lib/api';
+import { wellnessApi } from '../../lib/api';
 import { wellnessPartnerImage, wellnessServiceImage } from '../../lib/imageFallbacks';
 
 type Partner = {
@@ -23,6 +23,12 @@ type Service = {
   originalPrice?: number | null; durationMinutes: number; imageUrl?: string; category?: string;
 };
 
+type Review = {
+  id?: string; _id?: string; stars?: number; rating?: number;
+  review?: string; comment?: string; text?: string; createdAt?: string; date?: string;
+  name?: string; userName?: string; user?: { name?: string };
+};
+
 function groupByCategory(services: Service[]): Record<string, Service[]> {
   return services.reduce((acc, svc) => {
     const cat = svc.category || 'General';
@@ -32,29 +38,69 @@ function groupByCategory(services: Service[]): Record<string, Service[]> {
   }, {} as Record<string, Service[]>);
 }
 
+function normalizeReviews(data: any): Review[] {
+  const list = Array.isArray(data)
+    ? data
+    : data?.ratings || data?.reviews || data?.items || data?.results || data?.data || [];
+  return Array.isArray(list) ? list : [];
+}
+
 export default function WellnessDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, focusServiceId } = useLocalSearchParams<{ id: string; focusServiceId?: string }>();
   const insets = useSafeAreaInsets();
   const [partner, setPartner] = useState<Partner | null>(null);
   const [services, setServices] = useState<Service[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [servicesError, setServicesError] = useState('');
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState('');
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     setError('');
+    setServicesError('');
     Promise.all([
-      api.get(`/wellness/partners/${id}`).catch((e) => {
+      wellnessApi.get(id).catch((e) => {
         setError(e?.message || 'Could not load wellness partner.');
         return null;
       }),
-      api.get(`/wellness/partners/${id}/services`).catch(() => []),
+      wellnessApi.services(id).catch((e) => {
+        setServicesError(e?.message || 'Could not load services.');
+        return [];
+      }),
     ]).then(([pRes, svcs]) => {
       setPartner(pRes?.partner || pRes || null);
-      setServices(Array.isArray(svcs) ? svcs : (svcs?.data || []));
+      const loadedServices = Array.isArray(svcs) ? svcs : (svcs?.data || []);
+      setServices(
+        focusServiceId
+          ? [...loadedServices].sort((a, b) => (String(b.id) === String(focusServiceId) ? 1 : 0) - (String(a.id) === String(focusServiceId) ? 1 : 0))
+          : loadedServices,
+      );
     }).finally(() => setLoading(false));
-  }, [id]);
+  }, [id, focusServiceId]);
+
+  useFocusEffect(useCallback(() => {
+    if (!id) return undefined;
+    let alive = true;
+    setReviewsLoading(true);
+    setReviewsError('');
+    wellnessApi.reviews(id)
+      .then((data: any) => {
+        if (alive) setReviews(normalizeReviews(data));
+      })
+      .catch((e: any) => {
+        if (!alive) return;
+        setReviews([]);
+        setReviewsError(e?.message || 'Could not load reviews.');
+      })
+      .finally(() => {
+        if (alive) setReviewsLoading(false);
+      });
+    return () => { alive = false; };
+  }, [id]));
 
   const handleShare = async () => {
     try {
@@ -153,7 +199,7 @@ export default function WellnessDetailScreen() {
           <Text style={s.sectionTitle}>Services</Text>
           {services.length === 0 ? (
             <View style={s.emptyCard}>
-              <Text style={s.emptyText}>No services are configured for this partner yet.</Text>
+              <Text style={s.emptyText}>{servicesError || 'No services are configured for this partner yet.'}</Text>
             </View>
           ) : Object.entries(grouped).map(([category, catServices]) => (
             <View key={category}>
@@ -186,6 +232,8 @@ export default function WellnessDetailScreen() {
                           params: {
                             serviceId: svc.id,
                             partnerId: id,
+                            partnerName: partner.name,
+                            partnerAddress: partner.address || [partner.area, partner.city].filter(Boolean).join(', '),
                             serviceName: svc.name,
                             price: String(svc.price),
                             originalPrice: svc.originalPrice ?? '',
@@ -201,6 +249,61 @@ export default function WellnessDetailScreen() {
               })}
             </View>
           ))}
+        </View>
+
+        <View style={s.section}>
+          <View style={s.reviewsTitleRow}>
+            <Text style={[s.sectionTitle, { marginBottom: 0 }]}>Reviews</Text>
+            <TouchableOpacity
+              style={s.rateBtn}
+              activeOpacity={0.88}
+              onPress={() => router.push({
+                pathname: '/review',
+                params: {
+                  wellnessPartnerId: id,
+                  wellnessPartnerName: partner.name,
+                  wellnessImage: heroUri,
+                },
+              } as any)}
+            >
+              <IconStar size={13} color="#060606" />
+              <Text style={s.rateBtnText}>Rate</Text>
+            </TouchableOpacity>
+          </View>
+          {reviewsLoading ? (
+            <ActivityIndicator color={colors.accent} style={{ marginVertical: 18 }} />
+          ) : reviews.length === 0 ? (
+            <View style={s.emptyCard}>
+              <Text style={s.emptyText}>{reviewsError || 'No reviews yet. Be the first to review this partner.'}</Text>
+            </View>
+          ) : reviews.map((review, index) => {
+            const reviewName = review.user?.name || review.name || review.userName || 'Member';
+            const reviewRating = Math.min(5, Math.max(0, Number(review.stars || review.rating || 0)));
+            const reviewText = review.review || review.comment || review.text || '';
+            const reviewDate = review.createdAt
+              ? new Date(review.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+              : review.date || '';
+            return (
+              <View key={review.id || review._id || index} style={s.reviewCard}>
+                <View style={s.reviewHeader}>
+                  <View style={s.reviewAvatar}>
+                    <Text style={s.reviewInitial}>{reviewName.charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.reviewName}>{reviewName}</Text>
+                    {!!reviewDate && <Text style={s.reviewDate}>{reviewDate}</Text>}
+                  </View>
+                  {reviewRating > 0 && (
+                    <View style={s.reviewRating}>
+                      <IconStar size={11} color={colors.star} />
+                      <Text style={s.reviewRatingText}>{reviewRating.toFixed(1)}</Text>
+                    </View>
+                  )}
+                </View>
+                {!!reviewText && <Text style={s.reviewText}>{reviewText}</Text>}
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -234,6 +337,18 @@ const s = StyleSheet.create({
   emptyCard: { padding: 16, borderRadius: radius.lg, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass },
   emptyTitle: { fontFamily: fonts.serif, fontSize: 22, color: '#fff', textAlign: 'center', marginBottom: 8 },
   emptyText: { fontFamily: fonts.sans, fontSize: 14, color: colors.t2, textAlign: 'center', lineHeight: 20 },
+  reviewsTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  rateBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8 },
+  rateBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
+  reviewCard: { padding: 14, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginBottom: 10 },
+  reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  reviewAvatar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder },
+  reviewInitial: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.accent },
+  reviewName: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  reviewDate: { fontFamily: fonts.sans, fontSize: 10, color: colors.t3, marginTop: 2 },
+  reviewRating: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.glass, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 5 },
+  reviewRatingText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.star },
+  reviewText: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 20, color: colors.t2, marginTop: 10 },
   svcCard: { flexDirection: 'row', gap: 12, padding: 12, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, marginBottom: 12, minHeight: 134 },
   svcImg: { width: 86, height: 104, borderRadius: radius.md, backgroundColor: colors.bg },
   svcBody: { flex: 1 },

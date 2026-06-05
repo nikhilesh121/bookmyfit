@@ -137,15 +137,25 @@ export default function GymDashboard() {
           </View>
         </View>
 
-        {/* CTA */}
-        <TouchableOpacity
-          style={s.scanCta}
-          activeOpacity={0.85}
-          onPress={() => router.push('/(gym-portal)/scan')}
-        >
-          <IconQR size={22} color="#000" />
-          <Text style={s.scanCtaText}>Scan Member QR</Text>
-        </TouchableOpacity>
+        {/* Check-in actions */}
+        <View style={s.checkinActions}>
+          <TouchableOpacity
+            style={s.scanCta}
+            activeOpacity={0.85}
+            onPress={() => router.push({ pathname: '/(gym-portal)/scan', params: { mode: 'scan' } } as any)}
+          >
+            <IconQR size={21} color="#000" />
+            <Text style={s.scanCtaText}>Scan Member</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.showQrCta}
+            activeOpacity={0.85}
+            onPress={() => router.push({ pathname: '/(gym-portal)/scan', params: { mode: 'show' } } as any)}
+          >
+            <IconQR size={21} color={colors.accent} />
+            <Text style={s.showQrCtaText}>Show Gym QR</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Recent Check-ins */}
         <Text style={s.sectionTitle}>Recent Check-ins</Text>
@@ -239,13 +249,21 @@ const s = StyleSheet.create({
   statValue: { fontFamily: fonts.serifBlack, fontSize: 32, color: colors.text },
   statLabel: { fontFamily: fonts.sans, fontSize: 11, color: colors.t, textAlign: 'center' },
 
+  checkinActions: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xxl },
   scanCta: {
+    flex: 1,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
     backgroundColor: colors.accent,
-    borderRadius: radius.pill, height: 56,
-    marginBottom: spacing.xxl,
+    borderRadius: radius.md, minHeight: 56, paddingHorizontal: spacing.sm,
   },
-  scanCtaText: { fontFamily: fonts.sansBold, fontSize: 16, color: '#000' },
+  scanCtaText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#000', textAlign: 'center' },
+  showQrCta: {
+    flex: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+    borderRadius: radius.md, minHeight: 56, paddingHorizontal: spacing.sm,
+  },
+  showQrCtaText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent, textAlign: 'center' },
 
   sectionTitle: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.t, marginBottom: spacing.md, letterSpacing: 0.8 },
 

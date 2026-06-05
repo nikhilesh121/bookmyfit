@@ -6,7 +6,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconRefresh, IconFileText, IconCalendar, IconDumbbell, IconBolt } from '../components/Icons';
 import { subscriptionsApi } from '../lib/api';
-import { subscriptionPlanType } from '../lib/subscriptionAccess';
+import { normalizeSubscriptionList, subscriptionPlanType } from '../lib/subscriptionAccess';
 import { DEFAULT_GYM_IMAGE, firstImage } from '../lib/imageFallbacks';
 
 function calcProgress(startDate: string, endDate: string) {
@@ -45,7 +45,7 @@ export default function SubscriptionDetail() {
   useEffect(() => {
     subscriptionsApi.mySubscriptions()
       .then((data: any) => {
-        const list: any[] = Array.isArray(data) ? data : data?.subscriptions || data?.data || [];
+        const list = normalizeSubscriptionList(data);
         const found = list.find((s: any) => (s.id || s._id) === subscriptionId);
         setSub(found || null);
       })

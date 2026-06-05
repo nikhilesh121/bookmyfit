@@ -160,7 +160,7 @@ export class QrService {
       .replace(/^BMF[-_]?/i, '')
       .replace(/[^a-fA-F0-9]/g, '')
       .toLowerCase();
-    if (compact.length < 6) return null;
+    if (compact.length !== 10) return null;
     const today = todayIST();
     return this.subs.createQueryBuilder('sub')
       .where('sub."planType" = :planType', { planType: 'same_gym' })
@@ -611,6 +611,7 @@ export class QrService {
     if (!gym || gym.status !== 'active') throw new BadRequestException('Gym not available');
 
     const today = todayIST();
+    const booking = await this.activeBookingForUserAtGymNow(userId, gymId);
     const directSub = await this.subs.createQueryBuilder('sub')
       .where('sub."userId" = :userId', { userId })
       .andWhere('sub."planType" = :planType', { planType: 'same_gym' })
@@ -620,8 +621,28 @@ export class QrService {
       .andWhere('CAST(:gymId AS uuid) = ANY(sub."gymIds")', { gymId })
       .orderBy('sub."createdAt"', 'DESC')
       .getOne();
+    const bookingSub = booking?.subscriptionId
+      ? await this.subs.findOne({ where: { id: booking.subscriptionId } })
+      : null;
+    const validBookedVisit = Boolean(
+      booking
+      && bookingSub
+      && bookingSub.userId === userId
+      && bookingSub.status === 'active'
+      && !isPastDateOnly(bookingSub.endDate)
+      && subscriptionCoversDate(bookingSub, booking.slotDate)
+      && bookingSub.planType !== 'same_gym'
+      && (
+        bookingSub.planType !== 'day_pass'
+        || !Array.isArray(bookingSub.gymIds)
+        || bookingSub.gymIds.length === 0
+        || bookingSub.gymIds.includes(gymId)
+      )
+    );
 
-    if (directSub) {
+    // Match the user-QR path: an active booked visit takes precedence over a
+    // same-gym membership so attendance and multi-gym payouts use the booking.
+    if (directSub && !validBookedVisit) {
       await this.ensureDailyCheckinAllowed(userId, gymId, today, directSub.planType);
       await this.lockDailyCheckin(userId, gymId, today, directSub.planType);
       const checkin = await this.checkins.save(
@@ -649,24 +670,11 @@ export class QrService {
       };
     }
 
-    const booking = await this.activeBookingForUserAtGymNow(userId, gymId);
-    if (!booking) {
+    if (!booking || !validBookedVisit) {
       throw new BadRequestException('Book a slot first for Multi Gym or 1-Day Pass check-in');
     }
 
-    const sub = booking.subscriptionId ? await this.subs.findOne({ where: { id: booking.subscriptionId } }) : null;
-    if (!sub || sub.userId !== userId || sub.status !== 'active' || isPastDateOnly(sub.endDate)) {
-      throw new UnauthorizedException('Subscription not active');
-    }
-    if (!subscriptionCoversDate(sub, booking.slotDate)) {
-      throw new UnauthorizedException('Subscription is not valid for this booking date');
-    }
-    if (sub.planType === 'day_pass' && Array.isArray(sub.gymIds) && sub.gymIds.length > 0 && !sub.gymIds.includes(gymId)) {
-      throw new UnauthorizedException('This day pass does not cover this gym');
-    }
-    if (sub.planType === 'same_gym') {
-      throw new BadRequestException('Single Gym Pass does not require slot booking. Use membership check-in QR.');
-    }
+    const sub = bookingSub!;
 
     await this.ensureDailyCheckinAllowed(userId, gymId, today, sub.planType);
     const update = await this.sessionBookings

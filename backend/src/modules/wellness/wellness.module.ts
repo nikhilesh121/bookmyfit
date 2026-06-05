@@ -1,11 +1,12 @@
 import { Module, Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Injectable, UseGuards, Req, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import { IsString, IsDateString, IsOptional } from 'class-validator';
 import { WellnessPartnerEntity, WellnessServiceEntity, WellnessBookingEntity } from '../../database/entities/wellness.entity';
+import { RatingEntity } from '../../database/entities/misc.entity';
 import { AppConfigEntity } from '../../database/entities/app-config.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { CashfreeService } from '../payments/cashfree.service';
@@ -16,17 +17,20 @@ import { Roles } from '../../common/guards/roles.decorator';
 import { v4 as uuid } from 'uuid';
 import { PLATFORM_PRICING_CONFIG_KEY, applyCheckoutCommission, commissionAmount, serviceCommission } from '../../common/commission-config';
 
-class BookWellnessDto {
+export class BookWellnessDto {
   @IsDateString() bookingDate: string;
   @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() specialRequest?: string;
+  @IsOptional() @IsString() note?: string;
 }
 
 @Injectable()
-class WellnessService {
+export class WellnessService {
   constructor(
     @InjectRepository(WellnessPartnerEntity) private readonly partners: Repository<WellnessPartnerEntity>,
     @InjectRepository(WellnessServiceEntity) private readonly services: Repository<WellnessServiceEntity>,
     @InjectRepository(WellnessBookingEntity) private readonly bookings: Repository<WellnessBookingEntity>,
+    @InjectRepository(RatingEntity) private readonly ratings: Repository<RatingEntity>,
     @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
     @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
     private readonly cashfree: CashfreeService,
@@ -62,12 +66,58 @@ class WellnessService {
     };
   }
 
+  private async withLiveRatings<T extends WellnessPartnerEntity>(partners: T[]): Promise<T[]> {
+    if (!partners.length) return partners;
+    const partnerIds = [...new Set(partners.map((partner) => partner.id).filter(Boolean))];
+    const rows = await this.ratings
+      .createQueryBuilder('r')
+      .select('r."wellnessPartnerId"', 'partnerId')
+      .addSelect('AVG(r.stars)', 'rating')
+      .addSelect('COUNT(*)', 'reviewCount')
+      .where('r.status = :status', { status: 'approved' })
+      .andWhere('r."wellnessPartnerId" IN (:...partnerIds)', { partnerIds })
+      .groupBy('r."wellnessPartnerId"')
+      .getRawMany();
+    const liveByPartnerId = new Map(rows.map((row: any) => {
+      const reviewCount = Number(row.reviewCount || 0);
+      const rating = reviewCount > 0 ? Math.round(Number(row.rating || 0) * 10) / 10 : 0;
+      return [row.partnerId, { rating, reviewCount }];
+    }));
+    partners.forEach((partner) => {
+      const live = liveByPartnerId.get(partner.id) || { rating: 0, reviewCount: 0 };
+      partner.rating = live.rating;
+      partner.reviewCount = live.reviewCount;
+    });
+    return partners;
+  }
+
+  private parseFutureBookingDate(value: any) {
+    const bookingDate = new Date(value);
+    if (!value || Number.isNaN(bookingDate.getTime())) {
+      throw new BadRequestException('bookingDate must be a valid date');
+    }
+    if (bookingDate.getTime() <= Date.now()) {
+      throw new BadRequestException('bookingDate must be in the future');
+    }
+    return bookingDate;
+  }
+
+  private normalizeSpecialRequest(value: any) {
+    const specialRequest = String(value ?? '').trim();
+    return specialRequest || null;
+  }
+
+  private bookingRequestResponse(booking: Pick<WellnessBookingEntity, 'specialRequest'>) {
+    const specialRequest = this.normalizeSpecialRequest(booking?.specialRequest);
+    return { specialRequest, note: specialRequest };
+  }
+
   private partnerPatch(data: any, existing?: WellnessPartnerEntity) {
     const patch: any = {};
     ['name', 'country', 'state', 'city', 'area', 'address', 'status', 'distanceLabel'].forEach((key) => {
       if (data[key] !== undefined) patch[key] = String(data[key] ?? '').trim();
     });
-    ['discountPercent', 'rating', 'reviewCount', 'commissionRate', 'lat', 'lng'].forEach((key) => {
+    ['discountPercent', 'commissionRate', 'lat', 'lng'].forEach((key) => {
       if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
         const value = Number(data[key]);
         if (Number.isFinite(value)) patch[key] = value;
@@ -91,6 +141,18 @@ class WellnessService {
       if (patch.lng === undefined) patch.lng = 0;
     }
     return patch;
+  }
+
+  private ownerPartnerInput(data: Partial<WellnessPartnerEntity>) {
+    const allowed = [
+      'name', 'country', 'state', 'city', 'area', 'address',
+      'photos', 'serviceTypes', 'serviceType', 'lat', 'lng',
+    ];
+    return Object.fromEntries(
+      allowed
+        .filter((key) => (data as any)?.[key] !== undefined)
+        .map((key) => [key, (data as any)[key]]),
+    );
   }
 
   private async resolveOwnerId(data: any, existing?: WellnessPartnerEntity) {
@@ -156,24 +218,28 @@ class WellnessService {
     if (filter.city) qb.andWhere('LOWER(p.city) = LOWER(:city)', { city: filter.city });
     this.applyPartnerTypeFilter(qb, filter.serviceType);
     const [data, total] = await qb.orderBy('p.rating', 'DESC').skip(skip).take(take).getManyAndCount();
-    return paginatedResponse(data.map((partner) => this.partnerResponse(partner)), total, p, l);
+    const rated = await this.withLiveRatings(data);
+    return paginatedResponse(rated.map((partner) => this.partnerResponse(partner)), total, p, l);
   }
   async createPartner(data: Partial<WellnessPartnerEntity> & { ownerEmail?: string; ownerPassword?: string; ownerName?: string }) {
     const patch = this.partnerPatch(data);
     const ownerId = await this.resolveOwnerId(data);
     if (ownerId) patch.ownerId = ownerId;
-    const partner = await this.partners.save(this.partners.create(patch));
-    return this.partnerResponse(partner);
+    const partner = await this.partners.save(this.partners.create(patch as Partial<WellnessPartnerEntity>));
+    const [ratedPartner] = await this.withLiveRatings([partner]);
+    return this.partnerResponse(ratedPartner);
   }
   async getPartner(id: string) {
     const partner = await this.partners.findOne({ where: { id } });
     if (!partner) throw new NotFoundException('Wellness partner not found');
-    return this.partnerResponse(partner);
+    const [ratedPartner] = await this.withLiveRatings([partner]);
+    return this.partnerResponse(ratedPartner);
   }
   async getPartnerForOwner(ownerId: string) {
     const partner = await this.partners.findOne({ where: { ownerId }, order: { createdAt: 'ASC' } as any });
     if (!partner) throw new NotFoundException('No wellness partner profile is linked to this login');
-    return this.partnerResponse(partner);
+    const [ratedPartner] = await this.withLiveRatings([partner]);
+    return this.partnerResponse(ratedPartner);
   }
   async updatePartner(id: string, data: Partial<WellnessPartnerEntity> & { ownerEmail?: string; ownerPassword?: string; ownerName?: string }) {
     const existing = await this.partners.findOne({ where: { id } });
@@ -183,12 +249,13 @@ class WellnessService {
       patch.ownerId = await this.resolveOwnerId(data, existing);
     }
     const saved = await this.partners.save({ ...existing, ...patch });
-    return this.partnerResponse(saved);
+    const [ratedPartner] = await this.withLiveRatings([saved]);
+    return this.partnerResponse(ratedPartner);
   }
   async updatePartnerForOwner(ownerId: string, data: Partial<WellnessPartnerEntity>) {
     const existing = await this.partners.findOne({ where: { ownerId } });
     if (!existing) throw new NotFoundException('No wellness partner profile is linked to this login');
-    return this.updatePartner(existing.id, data);
+    return this.updatePartner(existing.id, this.ownerPartnerInput(data));
   }
   async deletePartner(id: string) {
     await this.partners.update(id, { status: 'inactive' } as any);
@@ -212,12 +279,27 @@ class WellnessService {
       approvalStatus: data.approvalStatus || defaults.approvalStatus || 'approved',
     };
   }
+
+  private validateServiceData(data: Partial<WellnessServiceEntity> & { duration?: number }) {
+    if (!String(data.name || '').trim()) throw new BadRequestException('Service name is required');
+    if (!String(data.partnerId || '').trim()) throw new BadRequestException('Wellness partner is required');
+    if (!Number.isFinite(Number(data.price)) || Number(data.price) <= 0) {
+      throw new BadRequestException('Service price must be greater than zero');
+    }
+    if (!Number.isFinite(Number(data.durationMinutes ?? data.duration)) || Number(data.durationMinutes ?? data.duration) <= 0) {
+      throw new BadRequestException('Service duration must be greater than zero');
+    }
+  }
+
   listServicesOf(partnerId: string) {
     return this.services
       .find({ where: { partnerId, isActive: true, approvalStatus: 'approved' } as any })
       .then((rows) => this.withCheckoutPrices(rows));
   }
-  createService(data: Partial<WellnessServiceEntity>) {
+  async createService(data: Partial<WellnessServiceEntity>) {
+    this.validateServiceData(data);
+    const partner = await this.partners.findOne({ where: { id: String(data.partnerId) } });
+    if (!partner) throw new NotFoundException('Wellness partner not found');
     const normalized = this.normalizeServiceData(data, { approvalStatus: 'approved', isActive: true } as any);
     return this.services.save(this.services.create(normalized));
   }
@@ -267,7 +349,8 @@ class WellnessService {
 
   async listAdminPartners() {
     const [partners] = await this.partners.findAndCount({ order: { createdAt: 'DESC' } });
-    const result = await Promise.all(partners.map(async (partner) => {
+    const ratedPartners = await this.withLiveRatings(partners);
+    const result = await Promise.all(ratedPartners.map(async (partner) => {
       const svcs = await this.services.find({ where: { partnerId: partner.id } });
       const active = svcs.filter((s) => s.isActive && (s as any).approvalStatus === 'approved');
       const minPrice = active.length ? Math.min(...active.map(s => Number(s.price))) : null;
@@ -276,7 +359,7 @@ class WellnessService {
     return result;
   }
 
-  listAdminServices() {
+  async listAdminServices() {
     return this.services.createQueryBuilder('s')
       .leftJoinAndMapOne('s.partner', WellnessPartnerEntity, 'p', 's."partnerId" = p.id')
       .orderBy('s.name', 'ASC')
@@ -348,7 +431,8 @@ class WellnessService {
       const distance = Number(row.distanceKm);
       if (id && Number.isFinite(distance)) distanceById.set(id, distance);
     });
-    const result = await Promise.all(partners.map(async (partner) => {
+    const ratedPartners = await this.withLiveRatings(partners);
+    const result = await Promise.all(ratedPartners.map(async (partner) => {
       const svcs = await this.services.find({ where: { partnerId: partner.id, isActive: true } });
       const priced = await this.withCheckoutPrices(svcs as any[]);
       const minPrice = priced.length ? Math.min(...priced.map(s => Number((s as any).price))) : null;
@@ -363,11 +447,16 @@ class WellnessService {
     return paginatedResponse(result, total, p, l);
   }
 
-  async book(userId: string, serviceId: string, bookingDate: string, phone: string) {
+  async book(userId: string, serviceId: string, bookingDate: string, phone: string, specialRequest?: string) {
+    const scheduledAt = this.parseFutureBookingDate(bookingDate);
     const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRe.test(serviceId)) throw new NotFoundException('Service not found');
-    const service = await this.services.findOne({ where: { id: serviceId } });
+    const service = await this.services.findOne({
+      where: { id: serviceId, isActive: true, approvalStatus: 'approved' },
+    });
     if (!service) throw new NotFoundException('Service not found');
+    const partner = await this.partners.findOne({ where: { id: service.partnerId, status: 'active' } });
+    if (!partner) throw new NotFoundException('Wellness partner not found');
     const configRow = await this.configRepo.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } });
     const baseAmount = Number(service.price);
     const centralCommission = serviceCommission(configRow?.value, 'wellness');
@@ -377,14 +466,14 @@ class WellnessService {
     const orderId = `WL_${uuid().slice(0, 18)}`;
     const booking = await this.bookings.save(this.bookings.create({
       userId, partnerId: service.partnerId, serviceId,
-      bookingDate: new Date(bookingDate), amount, platformCommission,
+      bookingDate: scheduledAt, specialRequest: this.normalizeSpecialRequest(specialRequest), amount, platformCommission,
       status: 'pending', cashfreeOrderId: orderId,
     }));
     const payment = await this.cashfree.createOrder({
       orderId, amount, customerId: userId, customerPhone: phone,
       notes: { kind: 'wellness', bookingId: booking.id },
     });
-    return { booking, payment };
+    return { booking: { ...booking, ...this.bookingRequestResponse(booking) }, payment };
   }
 
   async myBookings(userId: string) {
@@ -395,6 +484,7 @@ class WellnessService {
       return {
         id: b.id, status: b.status, bookingDate: b.bookingDate, amount: b.amount,
         cashfreeOrderId: b.cashfreeOrderId, invoiceNumber: (b as any).invoiceNumber,
+        ...this.bookingRequestResponse(b),
         service: service ? { id: service.id, name: service.name, durationMinutes: service.durationMinutes, imageUrl: service.imageUrl } : null,
         partner: partner ? {
           id: partner.id,
@@ -409,52 +499,95 @@ class WellnessService {
     }));
   }
 
-  async confirmBooking(bookingId: string) {
-    const b = await this.bookings.findOne({ where: { id: bookingId } });
-    if (!b) throw new Error('Booking not found');
-    b.status = 'confirmed';
-    await this.bookings.save(b);
-    return b;
+  async confirmBooking(bookingId: string, userId: string) {
+    const b = await this.bookings.findOne({ where: { id: bookingId, userId } });
+    if (!b) throw new NotFoundException('Booking not found');
+    if (b.status !== 'confirmed') {
+      throw new BadRequestException('Payment has not been confirmed for this booking');
+    }
+    return { ...b, ...this.bookingRequestResponse(b) };
   }
 
   /** Bookings for a specific partner (used by wellness portal) */
   async partnerBookings(partnerId: string) {
     const bks = await this.bookings.find({ where: { partnerId }, order: { bookingDate: 'DESC' } });
-    return Promise.all(bks.map(async (b) => {
-      const service = b.serviceId ? await this.services.findOne({ where: { id: b.serviceId } }) : null;
-      return { ...b, serviceName: service?.name, scheduledAt: b.bookingDate };
-    }));
+    const serviceIds = [...new Set(bks.map((booking) => booking.serviceId).filter(Boolean))];
+    const userIds = [...new Set(bks.map((booking) => booking.userId).filter(Boolean))];
+    const [services, users] = await Promise.all([
+      serviceIds.length ? this.services.findBy({ id: In(serviceIds) }) : Promise.resolve([]),
+      userIds.length ? this.users.findBy({ id: In(userIds) }) : Promise.resolve([]),
+    ]);
+    const servicesById = new Map(services.map((service) => [service.id, service]));
+    const usersById = new Map(users.map((user) => [user.id, user]));
+    return bks.map((booking) => {
+      const service = servicesById.get(booking.serviceId);
+      const user = usersById.get(booking.userId);
+      return {
+        ...booking,
+        ...this.bookingRequestResponse(booking),
+        serviceName: service?.name || null,
+        scheduledAt: booking.bookingDate,
+        userName: user?.name || null,
+        userEmail: user?.email || null,
+        userPhone: user?.phone || null,
+        user: user ? { id: user.id, name: user.name, email: user.email, phone: user.phone } : null,
+      };
+    });
   }
 
   async updateBookingStatus(partnerId: string, bookingId: string, status: string) {
     const b = await this.bookings.findOne({ where: { id: bookingId, partnerId } });
-    if (!b) throw new Error('Booking not found');
-    await this.bookings.update(bookingId, { status } as any);
-    return { ...b, status };
+    if (!b) throw new NotFoundException('Booking not found');
+    const nextStatus = String(status || '').trim().toLowerCase();
+    const allowedTransitions: Record<string, string[]> = {
+      pending: ['cancelled'],
+      confirmed: ['completed', 'cancelled'],
+      completed: [],
+      cancelled: [],
+    };
+    if (!allowedTransitions[b.status]?.includes(nextStatus)) {
+      throw new BadRequestException(`Cannot change booking status from ${b.status} to ${nextStatus || 'empty'}`);
+    }
+    await this.bookings.update(bookingId, { status: nextStatus } as any);
+    return { ...b, status: nextStatus, ...this.bookingRequestResponse(b) };
   }
 
   /** Services scoped to a partner (used by wellness portal) */
   partnerServices(partnerId: string) { return this.services.find({ where: { partnerId } }); }
 
   async createPartnerService(partnerId: string, data: Partial<WellnessServiceEntity>) {
+    this.validateServiceData({ ...data, partnerId });
     const normalized = this.normalizeServiceData(data, {
       partnerId,
       isActive: false,
       approvalStatus: 'pending',
     } as any);
-    return this.services.save(this.services.create(normalized));
+    return this.services.save(this.services.create({
+      ...normalized,
+      partnerId,
+      isActive: false,
+      approvalStatus: 'pending',
+    }));
   }
 
   async updatePartnerService(partnerId: string, serviceId: string, data: Partial<WellnessServiceEntity>) {
     const svc = await this.services.findOne({ where: { id: serviceId, partnerId } });
-    if (!svc) throw new Error('Service not found');
+    if (!svc) throw new NotFoundException('Service not found');
+    this.validateServiceData({ ...svc, ...data, partnerId });
     const normalized = this.normalizeServiceData(data, {
       ...svc,
       isActive: false,
       approvalStatus: 'pending',
       reviewNote: null,
     } as any);
-    return this.services.save({ ...svc, ...normalized, partnerId });
+    return this.services.save({
+      ...svc,
+      ...normalized,
+      partnerId,
+      isActive: false,
+      approvalStatus: 'pending',
+      reviewNote: null,
+    });
   }
 
   async deletePartnerService(partnerId: string, serviceId: string) {
@@ -515,6 +648,7 @@ class WellnessService {
         id: b.id, status: b.status, bookingDate: b.bookingDate,
         amount: b.amount, platformCommission: b.platformCommission,
         net: Number(b.amount || 0) - Number(b.platformCommission || 0),
+        ...this.bookingRequestResponse(b),
       })),
     };
   }
@@ -533,6 +667,7 @@ class WellnessService {
     return {
       invoiceNumber: (b as any).invoiceNumber, bookingDate: b.bookingDate,
       amount: b.amount, status: b.status, cashfreeOrderId: b.cashfreeOrderId,
+      ...this.bookingRequestResponse(b),
       service: service ? { name: service.name, durationMinutes: service.durationMinutes } : null,
       partner: partner ? { name: partner.name, address: partner.address, city: partner.city } : null,
       issuedAt: new Date(),
@@ -610,6 +745,7 @@ class WellnessController {
     if (req.user.role === 'wellness_partner') {
       const partner = await this.svc.getPartner(id);
       if (partner.ownerId !== req.user.userId) throw new ForbiddenException('Cannot update another wellness partner');
+      return this.svc.updatePartnerForOwner(req.user.userId, b);
     }
     return this.svc.updatePartner(id, b);
   }
@@ -645,7 +781,7 @@ class WellnessController {
   @UseGuards(JwtAuthGuard)
   @Post('services/:id/book')
   book(@Param('id') id: string, @Body() b: BookWellnessDto, @Req() req: any) {
-    return this.svc.book(req.user.userId, id, b.bookingDate, b.phone || req.user.phone || '');
+    return this.svc.book(req.user.userId, id, b.bookingDate, b.phone || req.user.phone || '', b.specialRequest ?? b.note);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -656,8 +792,8 @@ class WellnessController {
 
   @UseGuards(JwtAuthGuard)
   @Post('bookings/:id/confirm')
-  confirmBooking(@Param('id') id: string) {
-    return this.svc.confirmBooking(id);
+  confirmBooking(@Param('id') id: string, @Req() req: any) {
+    return this.svc.confirmBooking(id, req.user.userId);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -726,7 +862,7 @@ class WellnessController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([WellnessPartnerEntity, WellnessServiceEntity, WellnessBookingEntity, AppConfigEntity, UserEntity]), PaymentsModule],
+  imports: [TypeOrmModule.forFeature([WellnessPartnerEntity, WellnessServiceEntity, WellnessBookingEntity, RatingEntity, AppConfigEntity, UserEntity]), PaymentsModule],
   controllers: [WellnessController],
   providers: [WellnessService],
 })

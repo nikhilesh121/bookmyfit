@@ -146,6 +146,7 @@ function dayOfWeekFromDate(dateStr: string): number {
 // â”€â”€â”€ Service â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const CHECKIN_GRACE_BEFORE_MINUTES = 15;
 const CHECKIN_GRACE_AFTER_MINUTES = 30;
 
 function normalizeCatalogName(value: any): string {
@@ -913,12 +914,12 @@ export class SessionsService {
       qr: qrs.find((q) => q.slotBookingId === booking.id),
     }));
 
-    const active = rows.find(({ booking, qr }) => (
-      booking.status === 'confirmed' &&
-      !!qr &&
-      !qr.usedAt &&
-      new Date(qr.expiresAt) > now
-    ));
+    const active = rows.find(({ booking, slot, qr }) => {
+      if (booking.status !== 'confirmed' || !slot || !qr || qr.usedAt || new Date(qr.expiresAt) <= now) return false;
+      const opensAt = dateTimeInIST(slot.date, slot.startTime);
+      opensAt.setMinutes(opensAt.getMinutes() - CHECKIN_GRACE_BEFORE_MINUTES);
+      return opensAt <= now;
+    });
     if (active) return this.activeBookingResponse(active, true);
 
     const checkedIn = rows.find(({ booking }) => (

@@ -253,7 +253,10 @@ export class SeedService implements OnApplicationBootstrap {
       if (!owner) return;
       const partner = await this.wellnessPartners.findOne({ where: { ownerId: owner.id } as any });
       if (partner) return;
-      const firstPartner = await this.wellnessPartners.findOne({ order: { createdAt: 'ASC' } as any });
+      const [firstPartner] = await this.wellnessPartners.find({
+        order: { createdAt: 'ASC' } as any,
+        take: 1,
+      });
       if (firstPartner) {
         await this.wellnessPartners.update(firstPartner.id, { ownerId: owner.id } as any);
         this.log.log(`Linked wellness owner ${owner.email} to ${firstPartner.name}`);
@@ -265,11 +268,11 @@ export class SeedService implements OnApplicationBootstrap {
     }
 
     const partners = [
-      { name: 'Serenity Spa & Wellness', serviceType: 'spa', city: 'Bhubaneswar', area: 'Saheed Nagar', address: 'Plot 42, Saheed Nagar, Bhubaneswar 751007', lat: 20.2888, lng: 85.8480, rating: 4.8, reviewCount: 142, commissionRate: 30, status: 'active', photos: ['https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=900&q=80'], discountPercent: 20 },
-      { name: 'Royal Bliss Spa', serviceType: 'spa', city: 'Bhubaneswar', area: 'Nayapalli', address: 'Nayapalli Main Road, Bhubaneswar 751015', lat: 20.2820, lng: 85.8276, rating: 4.6, reviewCount: 98, commissionRate: 30, status: 'active', photos: ['https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=900&q=80'], discountPercent: 0 },
-      { name: 'Zen Wellness Club', serviceType: 'spa', city: 'Bhubaneswar', area: 'Jaydev Vihar', address: 'Jaydev Vihar, Bhubaneswar 751013', lat: 20.3006, lng: 85.8290, rating: 4.7, reviewCount: 211, commissionRate: 30, status: 'active', photos: ['https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=900&q=80'], discountPercent: 15 },
-      { name: 'ZenTouch Home Spa', serviceType: 'home', city: 'Bhubaneswar', area: 'Saheed Nagar', address: 'Serves Bhubaneswar area', lat: 20.2888, lng: 85.8480, rating: 4.7, reviewCount: 86, commissionRate: 25, status: 'active', photos: ['https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=900&q=80'], discountPercent: 10 },
-      { name: 'BlissAt Home Wellness', serviceType: 'home', city: 'Bhubaneswar', area: 'Nayapalli', address: 'Serves Bhubaneswar area', lat: 20.2820, lng: 85.8276, rating: 4.5, reviewCount: 64, commissionRate: 25, status: 'active', photos: ['https://images.unsplash.com/photo-1610337673044-720471f83677?w=900&q=80'], discountPercent: 0 },
+      { name: 'Serenity Spa & Wellness', serviceType: 'spa', city: 'Bhubaneswar', area: 'Saheed Nagar', address: 'Plot 42, Saheed Nagar, Bhubaneswar 751007', lat: 20.2888, lng: 85.8480, rating: 0, reviewCount: 0, commissionRate: 30, status: 'active', photos: ['https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=900&q=80'], discountPercent: 20 },
+      { name: 'Royal Bliss Spa', serviceType: 'spa', city: 'Bhubaneswar', area: 'Nayapalli', address: 'Nayapalli Main Road, Bhubaneswar 751015', lat: 20.2820, lng: 85.8276, rating: 0, reviewCount: 0, commissionRate: 30, status: 'active', photos: ['https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=900&q=80'], discountPercent: 0 },
+      { name: 'Zen Wellness Club', serviceType: 'spa', city: 'Bhubaneswar', area: 'Jaydev Vihar', address: 'Jaydev Vihar, Bhubaneswar 751013', lat: 20.3006, lng: 85.8290, rating: 0, reviewCount: 0, commissionRate: 30, status: 'active', photos: ['https://images.unsplash.com/photo-1519824145371-296894a0daa9?w=900&q=80'], discountPercent: 15 },
+      { name: 'ZenTouch Home Spa', serviceType: 'home', city: 'Bhubaneswar', area: 'Saheed Nagar', address: 'Serves Bhubaneswar area', lat: 20.2888, lng: 85.8480, rating: 0, reviewCount: 0, commissionRate: 25, status: 'active', photos: ['https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=900&q=80'], discountPercent: 10 },
+      { name: 'BlissAt Home Wellness', serviceType: 'home', city: 'Bhubaneswar', area: 'Nayapalli', address: 'Serves Bhubaneswar area', lat: 20.2820, lng: 85.8276, rating: 0, reviewCount: 0, commissionRate: 25, status: 'active', photos: ['https://images.unsplash.com/photo-1610337673044-720471f83677?w=900&q=80'], discountPercent: 0 },
     ];
 
     const saved = await this.wellnessPartners.save(this.wellnessPartners.create(partners as any));

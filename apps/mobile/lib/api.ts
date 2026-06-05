@@ -99,9 +99,9 @@ async function request<T = any>(path: string, init: RequestInit = {}, retryOnUna
       const d = JSON.parse(body);
       if (d?.message) errMsg = d.message;
     } catch {}
-    const isQrValidation = path === '/qr/validate' || path === '/qr/validate-manual';
+    const isQrValidation = path === '/qr/validate' || path === '/qr/validate-manual' || path === '/qr/validate-gym';
     const refreshToken = await getRefreshToken();
-    if (!path.startsWith('/auth/') && !isQrValidation && retryOnUnauthorized && refreshToken) {
+    if (!path.startsWith('/auth/') && retryOnUnauthorized && refreshToken) {
       try {
         const refreshed: any = await request('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }, false);
         if (refreshed?.accessToken && refreshed?.refreshToken) {
@@ -221,12 +221,15 @@ export const qrApi = {
   /** Generate a 30-second membership check-in QR (subscription-based, no slot needed) */
   generate: (subscriptionId: string) =>
     api.post('/qr/generate', { subscriptionId }),
-  validate: (qrToken: string, gymId: string) =>
-    api.post('/qr/validate', { qrToken, gymId }),
-  validateManual: (code: string, gymId: string) =>
-    api.post('/qr/validate-manual', { code, gymId }),
+  validate: (qrToken: string, gymId?: string) =>
+    api.post('/qr/validate', { qrToken, ...(gymId ? { gymId } : {}) }),
+  validateManual: (code: string, gymId?: string) =>
+    api.post('/qr/validate-manual', { code, ...(gymId ? { gymId } : {}) }),
   validateGym: (gymToken: string) =>
     api.post('/qr/validate-gym', { gymToken }),
+  gymCode: (gymId?: string) =>
+    api.get(`/qr/gym-code${gymId ? `?gymId=${encodeURIComponent(gymId)}` : ''}`),
+  history: (limit = 10) => api.get(`/qr/history?limit=${limit}`),
 };
 
 export const checkinApi = {
@@ -255,7 +258,7 @@ export const miscApi = {
   notifications: () => api.get('/notifications'),
   markNotificationRead: (id: string) => api.post(`/notifications/${id}/read`),
   videos: () => api.get('/videos'),
-  submitReview: (body: { targetType: 'gym' | 'trainer'; targetId: string; userId: string; stars: number; review?: string }) =>
+  submitReview: (body: { targetType: 'gym' | 'trainer' | 'wellness'; targetId: string; userId?: string; stars: number; review?: string }) =>
     api.post('/ratings', body),
 };
 
@@ -285,11 +288,19 @@ export const wellnessApi = {
       .join('&') : '';
     return api.get(`/wellness/partners${q}`);
   },
+  get: (partnerId: string) => api.get(`/wellness/partners/${partnerId}`),
+  allServices: (category?: string) =>
+    api.get(`/wellness/services/all${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   services: (partnerId: string) => api.get(`/wellness/partners/${partnerId}/services`),
-  book: (body: { serviceId: string; bookingDate: string; phone?: string }) => {
+  reviews: (partnerId: string) => api.get(`/ratings/wellness/${partnerId}`),
+  submitReview: (partnerId: string, body: { stars: number; review?: string }) =>
+    api.post('/ratings', { targetType: 'wellness', targetId: partnerId, ...body }),
+  book: (body: { serviceId: string; bookingDate: string; phone?: string; specialRequest?: string }) => {
     const { serviceId, ...rest } = body;
     return api.post(`/wellness/services/${serviceId}/book`, rest);
   },
+  myBookings: () => api.get('/wellness/bookings/my'),
+  invoice: (bookingId: string) => api.get(`/wellness/bookings/${bookingId}/invoice`),
 };
 
 export const slotsApi = {

@@ -317,7 +317,7 @@ export default function GymListingPage() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>Gyms Near You</Text>
-          <Text style={s.headerSub}>{activeSort === 'distance' && userLocation ? `${filtered.length}+ best nearby gyms` : `${filtered.length}+ gyms available`}</Text>
+          <Text style={s.headerSub}>Best nearby gyms</Text>
         </View>
       </View>
 

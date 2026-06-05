@@ -9,7 +9,16 @@ import Pagination from '../../components/Pagination';
 type Rating = {
   id: string;
   userId: string;
-  targetId: string;
+  targetId?: string | null;
+  targetType?: 'gym' | 'trainer' | 'wellness' | string | null;
+  targetName?: string | null;
+  gymId?: string | null;
+  gymName?: string | null;
+  trainerId?: string | null;
+  trainerName?: string | null;
+  wellnessPartnerId?: string | null;
+  wellnessPartnerName?: string | null;
+  target?: { id?: string | null; name?: string | null } | null;
   stars: number;
   review: string;
   createdAt: string;
@@ -43,6 +52,37 @@ function SkeletonCard() {
       <div style={{ height: 12, borderRadius: 6, background: 'rgba(255,255,255,0.06)', width: '40%' }} />
     </div>
   );
+}
+
+function ratingTarget(rating: Rating) {
+  const type = rating.targetType
+    || (rating.gymId ? 'gym' : null)
+    || (rating.trainerId ? 'trainer' : null)
+    || (rating.wellnessPartnerId ? 'wellness' : null);
+  const id = rating.targetId
+    || rating.target?.id
+    || rating.gymId
+    || rating.trainerId
+    || rating.wellnessPartnerId
+    || null;
+  const name = rating.targetName
+    || rating.target?.name
+    || rating.gymName
+    || rating.trainerName
+    || rating.wellnessPartnerName
+    || null;
+  const label = type === 'gym'
+    ? 'Gym'
+    : type === 'trainer'
+      ? 'Trainer'
+      : type === 'wellness'
+        ? 'Wellness Partner'
+        : 'Target';
+
+  return {
+    label,
+    display: name || (id ? `${id.slice(0, 12)}...` : 'Unavailable'),
+  };
 }
 
 export default function RatingsPage() {
@@ -185,7 +225,7 @@ export default function RatingsPage() {
                   )}
                   <div className="flex items-center gap-4" style={{ fontSize: 11, color: 'var(--t3)' }}>
                     <span>User: <span style={{ color: 'var(--t2)', fontFamily: 'monospace' }}>{r.userId?.slice(0, 12)}…</span></span>
-                    <span>Gym: <span style={{ color: 'var(--t2)', fontFamily: 'monospace' }}>{r.targetId?.slice(0, 12)}…</span></span>
+                    <span>{ratingTarget(r).label}: <span style={{ color: 'var(--t2)' }}>{ratingTarget(r).display}</span></span>
                   </div>
                 </div>
                 {tab === 'pending' && (

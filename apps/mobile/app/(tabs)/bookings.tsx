@@ -3,8 +3,8 @@ import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
 import { colors, fonts, radius, spacing } from '../../theme/brand';
-import { IconCalendar, IconQR, IconClock, IconPin, IconReceipt } from '../../components/Icons';
-import { qrApi, api } from '../../lib/api';
+import { IconCalendar, IconQR, IconClock, IconPin, IconReceipt, IconStar } from '../../components/Icons';
+import { qrApi, api, wellnessApi } from '../../lib/api';
 
 type GymBooking = {
   id?: string;
@@ -123,8 +123,8 @@ export default function BookingsTab() {
 
   function loadWellnessBookings() {
     setWellnessLoading(true);
-    return api.get('/wellness/bookings/my')
-      .then((res: any) => setWellnessBookings(Array.isArray(res) ? res : []))
+    return wellnessApi.myBookings()
+      .then((res: any) => setWellnessBookings(toList(res)))
       .catch(() => setWellnessBookings([]))
       .finally(() => setWellnessLoading(false));
   }
@@ -199,7 +199,7 @@ export default function BookingsTab() {
 
   async function handleViewInvoice(bookingId: string) {
     try {
-      const inv: any = await api.get(`/wellness/bookings/${bookingId}/invoice`);
+      const inv: any = await wellnessApi.invoice(bookingId);
       Alert.alert(
         `Invoice ${inv.invoiceNumber}`,
         `Service: ${inv.service?.name || '-'}\n` +
@@ -212,6 +212,22 @@ export default function BookingsTab() {
     } catch {
       Alert.alert('Invoice', 'Could not load invoice. Please try again.');
     }
+  }
+
+  function handleRateWellness(booking: any) {
+    const partnerId = booking.partner?.id || booking.partnerId;
+    if (!partnerId) {
+      Alert.alert('Review unavailable', 'This booking is not linked to a wellness partner.');
+      return;
+    }
+    router.push({
+      pathname: '/review',
+      params: {
+        wellnessPartnerId: partnerId,
+        wellnessPartnerName: booking.partner?.name || 'Wellness Partner',
+        wellnessImage: booking.partner?.photos?.[0] || '',
+      },
+    } as any);
   }
 
   const secsLeft = activeBooking
@@ -276,7 +292,7 @@ export default function BookingsTab() {
                 <View style={s.emptyIcon}><IconCalendar size={32} color={colors.t2} /></View>
                 <Text style={s.emptyTitle}>No Gym Sessions</Text>
                 <Text style={s.emptySub}>Book a gym slot to see your session history here.</Text>
-                <TouchableOpacity style={s.browseBtn} onPress={() => router.push('/(tabs)/explore' as any)}>
+                <TouchableOpacity style={s.browseBtn} onPress={() => router.push('/gyms' as any)}>
                   <Text style={s.browseBtnText}>Browse Gyms</Text>
                 </TouchableOpacity>
               </View>
@@ -353,14 +369,16 @@ export default function BookingsTab() {
               <View style={s.emptyIcon}><IconPin size={32} color={colors.t2} /></View>
               <Text style={s.emptyTitle}>No Wellness Bookings</Text>
               <Text style={s.emptySub}>Book a spa session or home service to see it here.</Text>
-              <TouchableOpacity style={s.browseBtn} onPress={() => router.push('/(tabs)/explore' as any)}>
+              <TouchableOpacity style={s.browseBtn} onPress={() => router.push('/wellness' as any)}>
                 <Text style={s.browseBtnText}>Explore Wellness</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={{ gap: 12 }}>
               {wellnessBookings.map((b) => {
-                const statusColor = STATUS_COLORS[b.status] || colors.t2;
+                const status = String(b.status || 'pending').toLowerCase();
+                const statusColor = STATUS_COLORS[status] || colors.t2;
+                const canRate = ['confirmed', 'completed', 'paid'].includes(status) && !!(b.partner?.id || b.partnerId);
                 return (
                   <View key={b.id} style={s.wellnessCard}>
                     <View style={s.wellnessCardTop}>
@@ -370,7 +388,7 @@ export default function BookingsTab() {
                       </View>
                       <View style={[s.statusBadge, { borderColor: statusColor + '50', backgroundColor: statusColor + '15' }]}>
                         <Text style={[s.statusBadgeText, { color: statusColor }]}>
-                          {getStatusLabel(b.status || 'pending')}
+                          {getStatusLabel(status)}
                         </Text>
                       </View>
                     </View>
@@ -390,13 +408,21 @@ export default function BookingsTab() {
 
                     <View style={s.wellnessFooter}>
                       <Text style={s.wellnessAmount}>Rs {Number(b.amount || 0).toLocaleString()}</Text>
-                      <TouchableOpacity
-                        style={s.invoiceBtn}
-                        onPress={() => handleViewInvoice(b.id)}
-                      >
-                        <IconReceipt size={13} color={colors.accent} />
-                        <Text style={s.invoiceBtnText}>Invoice</Text>
-                      </TouchableOpacity>
+                      <View style={s.wellnessActions}>
+                        {canRate ? (
+                          <TouchableOpacity style={s.rateBtn} onPress={() => handleRateWellness(b)}>
+                            <IconStar size={13} color="#060606" />
+                            <Text style={s.rateBtnText}>Rate</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                        <TouchableOpacity
+                          style={s.invoiceBtn}
+                          onPress={() => handleViewInvoice(b.id)}
+                        >
+                          <IconReceipt size={13} color={colors.accent} />
+                          <Text style={s.invoiceBtnText}>Invoice</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                 );
@@ -430,7 +456,6 @@ const s = StyleSheet.create({
   centre: { paddingTop: 60, alignItems: 'center' },
   list: { gap: 12 },
   sectionTitle: { fontFamily: fonts.serif, fontSize: 17, color: '#fff', marginTop: 4 },
-
   activeCard: {
     backgroundColor: 'rgba(0,212,106,0.06)', borderRadius: radius.xl,
     borderWidth: 1, borderColor: 'rgba(0,212,106,0.25)', padding: 20, gap: 10,
@@ -502,6 +527,13 @@ const s = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12,
   },
   wellnessAmount: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
+  wellnessActions: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  rateBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: colors.accent, borderRadius: radius.pill,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  rateBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
   invoiceBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     borderWidth: 1, borderColor: colors.accentBorder, borderRadius: radius.pill,

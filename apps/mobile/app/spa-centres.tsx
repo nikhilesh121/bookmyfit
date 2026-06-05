@@ -89,7 +89,7 @@ export default function SpaCentresScreen() {
         </TouchableOpacity>
         <View style={s.headerText}>
           <Text style={s.title}>Spa Centres Near You</Text>
-          <Text style={s.subtitle}>{gpsActive ? `${filtered.length}+ best nearby partners` : `${filtered.length}+ verified wellness partners`}</Text>
+          <Text style={s.subtitle}>{gpsActive ? `${filtered.length}+ best nearby partners` : `${filtered.length}+ available wellness partners`}</Text>
         </View>
         <View style={{ width: 38 }} />
       </View>

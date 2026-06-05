@@ -43,7 +43,7 @@ export default function GymPortalLayout() {
       <Tabs.Screen
         name="scan"
         options={{
-          title: 'Scan QR',
+          title: 'Check-in QR',
           tabBarIcon: ({ color }) => <IconQR size={20} color={color} />,
         }}
       />

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ScrollView, View, Text, TouchableOpacity, StyleSheet,
   TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
@@ -7,7 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius, spacing } from '../../theme/brand';
 import { IconArrowLeft, IconClock, IconCalendar } from '../../components/Icons';
-import { api, getUser } from '../../lib/api';
+import { getUser, wellnessApi } from '../../lib/api';
 
 // ─── Time slot groups ─────────────────────────────────────────────────────────
 const TIME_GROUPS = [
@@ -15,6 +15,13 @@ const TIME_GROUPS = [
   { label: 'Afternoon', slots: ['12:00', '13:00', '14:00', '15:00'] },
   { label: 'Evening', slots: ['16:00', '17:00', '18:00', '19:00'] },
 ];
+
+function slotIsPast(day: Date, slot: string) {
+  const [hour, minute] = slot.split(':').map(Number);
+  const value = new Date(day);
+  value.setHours(hour, minute, 0, 0);
+  return value.getTime() <= Date.now();
+}
 
 // Generate next 14 days
 function getNext14Days() {
@@ -38,9 +45,9 @@ function getNext14Days() {
 export default function BookServiceScreen() {
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 34);
-  const { serviceId, partnerId, serviceName, price, originalPrice, duration } =
+  const { serviceId, partnerId, partnerName, partnerAddress, serviceName, price, originalPrice, duration } =
     useLocalSearchParams<{
-      serviceId: string; partnerId: string; serviceName: string;
+      serviceId: string; partnerId: string; partnerName?: string; partnerAddress?: string; serviceName: string;
       price: string; originalPrice: string; duration: string;
     }>();
 
@@ -49,15 +56,34 @@ export default function BookServiceScreen() {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
+  const [partnerDetails, setPartnerDetails] = useState<{ name: string; address: string }>({ name: '', address: '' });
 
   const priceNum = Number(price) || 0;
   const origPriceNum = originalPrice ? Number(originalPrice) : null;
   const hasDiscount = origPriceNum != null && origPriceNum > priceNum;
   const discPct = hasDiscount ? Math.round(100 - (priceNum / origPriceNum!) * 100) : 0;
+  const displayPartnerName = partnerName || partnerDetails.name;
+  const displayPartnerAddress = partnerAddress || partnerDetails.address;
+
+  useEffect(() => {
+    let alive = true;
+    if (!partnerId || (partnerName && partnerAddress)) return () => { alive = false; };
+    wellnessApi.get(partnerId)
+      .then((res: any) => {
+        if (!alive) return;
+        const partner = res?.partner || res || {};
+        setPartnerDetails({
+          name: partner.name || '',
+          address: partner.address || [partner.area, partner.city].filter(Boolean).join(', '),
+        });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [partnerId, partnerName, partnerAddress]);
 
   const handleBook = async () => {
     if (!selectedSlot) {
-      Alert.alert('Select Time', 'Please select a time slot to continue.');
+      Alert.alert('Select Time', 'Please select your preferred appointment time to continue.');
       return;
     }
     setLoading(true);
@@ -73,9 +99,11 @@ export default function BookServiceScreen() {
       selectedDate.setHours(hour, minute, 0, 0);
       const bookingDate = selectedDate.toISOString();
 
-      const result = await api.post(`/wellness/services/${serviceId}/book`, {
+      const result = await wellnessApi.book({
+        serviceId,
         bookingDate,
         phone: user.phone || '',
+        specialRequest: note.trim() || undefined,
       });
 
       const { payment, booking } = result as any;
@@ -121,6 +149,12 @@ export default function BookServiceScreen() {
         >
           {/* Service Summary Card */}
           <View style={s.summaryCard}>
+            {(displayPartnerName || displayPartnerAddress) ? (
+              <View style={s.partnerContext}>
+                {!!displayPartnerName && <Text style={s.partnerName} numberOfLines={1}>{displayPartnerName}</Text>}
+                {!!displayPartnerAddress && <Text style={s.partnerAddress} numberOfLines={2}>{displayPartnerAddress}</Text>}
+              </View>
+            ) : null}
             <View style={s.summaryRow}>
               <Text style={s.summaryName}>{serviceName}</Text>
               <View style={s.durBadge}>
@@ -145,14 +179,17 @@ export default function BookServiceScreen() {
           <View style={s.sectionContainer}>
             <View style={s.sectionHeader}>
               <IconCalendar size={16} color={colors.accent} />
-              <Text style={s.sectionTitle}>Select Date</Text>
+              <Text style={s.sectionTitle}>Preferred Date</Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dateScroll}>
               {days.map((d, idx) => (
                 <TouchableOpacity
                   key={idx}
                   style={[s.datePill, selectedDayIdx === idx && s.datePillActive]}
-                  onPress={() => setSelectedDayIdx(idx)}
+                  onPress={() => {
+                    setSelectedDayIdx(idx);
+                    if (selectedSlot && slotIsPast(d.date, selectedSlot)) setSelectedSlot(null);
+                  }}
                 >
                   <Text style={[s.dateDayName, selectedDayIdx === idx && s.dateDayNameActive]}>
                     {d.dayName}
@@ -169,23 +206,27 @@ export default function BookServiceScreen() {
           <View style={s.sectionContainer}>
             <View style={s.sectionHeader}>
               <IconClock size={16} color={colors.accent} />
-              <Text style={s.sectionTitle}>Select Time</Text>
+              <Text style={s.sectionTitle}>Preferred Appointment Time</Text>
             </View>
             {TIME_GROUPS.map(group => (
               <View key={group.label}>
                 <Text style={s.slotGroupLabel}>{group.label}</Text>
                 <View style={s.slotGrid}>
-                  {group.slots.map(slot => (
-                    <TouchableOpacity
-                      key={slot}
-                      style={[s.slotChip, selectedSlot === slot && s.slotChipActive]}
-                      onPress={() => setSelectedSlot(slot)}
-                    >
-                      <Text style={[s.slotText, selectedSlot === slot && s.slotTextActive]}>
-                        {slot}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {group.slots.map(slot => {
+                    const unavailable = slotIsPast(days[selectedDayIdx].date, slot);
+                    return (
+                      <TouchableOpacity
+                        key={slot}
+                        style={[s.slotChip, unavailable && s.slotChipDisabled, selectedSlot === slot && s.slotChipActive]}
+                        disabled={unavailable}
+                        onPress={() => setSelectedSlot(slot)}
+                      >
+                        <Text style={[s.slotText, unavailable && s.slotTextDisabled, selectedSlot === slot && s.slotTextActive]}>
+                          {slot}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
             ))}
@@ -249,6 +290,14 @@ const s = StyleSheet.create({
     backgroundColor: colors.glass, borderRadius: radius.xl,
     borderWidth: 1, borderColor: colors.borderGlass, padding: spacing.xl,
   },
+  partnerContext: {
+    paddingBottom: 12,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  partnerName: { fontFamily: fonts.sansBold, fontSize: 14, color: colors.accent, marginBottom: 4 },
+  partnerAddress: { fontFamily: fonts.sans, fontSize: 12, lineHeight: 17, color: colors.t2 },
   summaryRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 },
   summaryName: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff', flex: 1, marginRight: 8 },
   durBadge: {
@@ -288,8 +337,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   slotChipActive: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+  slotChipDisabled: { opacity: 0.35 },
   slotText: { fontFamily: fonts.sansMedium ?? fonts.sans, fontSize: 14, color: colors.t },
   slotTextActive: { color: colors.accent, fontFamily: fonts.sansBold },
+  slotTextDisabled: { color: colors.t3 },
 
   noteInput: {
     backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,

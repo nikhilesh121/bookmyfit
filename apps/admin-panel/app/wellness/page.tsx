@@ -132,8 +132,6 @@ export default function WellnessPage() {
       photos: partnerForm.photos ? partnerForm.photos.split(',').map(s => s.trim()).filter(Boolean) : [],
       ...(partnerForm.ownerEmail.trim() ? { ownerEmail: partnerForm.ownerEmail.trim() } : {}),
       ...(partnerForm.ownerPassword.trim() ? { ownerPassword: partnerForm.ownerPassword.trim() } : {}),
-      rating: editingPartner?.rating || 0,
-      reviewCount: editingPartner?.reviewCount || 0,
       ...(editingPartner && Number.isFinite(Number(editingPartner.lat)) ? { lat: Number(editingPartner.lat) } : {}),
       ...(editingPartner && Number.isFinite(Number(editingPartner.lng)) ? { lng: Number(editingPartner.lng) } : {}),
     };

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { colors, fonts, radius } from '../../theme/brand';
-import { IconRefresh, IconDumbbell, IconCalendar, IconArrowRight } from '../../components/Icons';
+import { IconRefresh, IconDumbbell, IconCalendar, IconArrowRight, IconQR } from '../../components/Icons';
 import { subscriptionsApi } from '../../lib/api';
 import AuroraBackground from '../../components/AuroraBackground';
 import { isActiveSubscription } from '../../lib/subscriptionAccess';
@@ -103,7 +103,7 @@ function subTime(value: any) {
 
 function currentSubscriptions(list: any[]) {
   return list
-    .filter(isActiveSubscription)
+    .filter((sub) => isActiveSubscription(sub))
     .sort((a, b) => subTime(b.endDate || b.createdAt) - subTime(a.endDate || a.createdAt));
 }
 
@@ -137,9 +137,9 @@ export default function Subscriptions() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     loadSubscriptions();
-  }, [loadSubscriptions]);
+  }, [loadSubscriptions]));
 
   return (
     <AuroraBackground variant="premium">
@@ -232,6 +232,8 @@ export default function Subscriptions() {
                 e.stopPropagation();
                 if (planType === 'multi_gym') {
                   router.push('/gyms' as any);
+                } else if (planType === 'same_gym') {
+                  router.push({ pathname: '/qr', params: { subscriptionId: subId, gymId: firstGymId, gymName: gymDisplayName } } as any);
                 } else if (firstGymId) {
                   router.push({ pathname: '/slots', params: { gymId: firstGymId } } as any);
                 } else {
@@ -327,9 +329,11 @@ export default function Subscriptions() {
                           style={[s.actionBtn, { backgroundColor: planColor }]}
                           onPress={handleBookSlot}
                         >
-                          <IconCalendar size={13} color="#060606" />
+                          {planType === 'same_gym'
+                            ? <IconQR size={13} color="#060606" />
+                            : <IconCalendar size={13} color="#060606" />}
                           <Text style={[s.actionBtnText, { color: '#060606' }]}>
-                            {planType === 'multi_gym' ? 'Find a Gym' : 'Book Slot'}
+                            {planType === 'multi_gym' ? 'Find a Gym' : planType === 'same_gym' ? 'Check In' : 'Book Slot'}
                           </Text>
                         </TouchableOpacity>
 

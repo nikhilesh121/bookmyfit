@@ -37,6 +37,7 @@ export class RatingsService {
     @InjectRepository(GymEntity) private readonly gyms: Repository<GymEntity>,
     @InjectRepository(TrainerEntity) private readonly trainers: Repository<TrainerEntity>,
     @InjectRepository(WellnessPartnerEntity) private readonly wellnessPartners: Repository<WellnessPartnerEntity>,
+    @InjectRepository(WellnessBookingEntity) private readonly wellnessBookings: Repository<WellnessBookingEntity>,
   ) {}
   private targetFromRating(rating: RatingEntity) {
     if (rating.gymId) return { targetType: 'gym', targetId: rating.gymId };
@@ -59,6 +60,35 @@ export class RatingsService {
   private ratingResponse(rating: RatingEntity) {
     const target = this.targetFromRating(rating);
     return { ...rating, ...target };
+  }
+
+  private async enrichAdminRatings(ratings: RatingEntity[]) {
+    const responses = ratings.map((rating) => this.ratingResponse(rating));
+    const gymIds = [...new Set(ratings.map((rating) => rating.gymId).filter(Boolean))];
+    const trainerIds = [...new Set(ratings.map((rating) => rating.trainerId).filter(Boolean))];
+    const wellnessPartnerIds = [...new Set(ratings.map((rating) => rating.wellnessPartnerId).filter(Boolean))];
+    const [gyms, trainers, wellnessPartners] = await Promise.all([
+      gymIds.length ? this.gyms.findBy({ id: In(gymIds) }) : Promise.resolve([]),
+      trainerIds.length ? this.trainers.findBy({ id: In(trainerIds) }) : Promise.resolve([]),
+      wellnessPartnerIds.length ? this.wellnessPartners.findBy({ id: In(wellnessPartnerIds) }) : Promise.resolve([]),
+    ]);
+    const namesByTarget = new Map<string, string>([
+      ...gyms.map((target) => [`gym:${target.id}`, target.name] as [string, string]),
+      ...trainers.map((target) => [`trainer:${target.id}`, target.name] as [string, string]),
+      ...wellnessPartners.map((target) => [`wellness:${target.id}`, target.name] as [string, string]),
+    ]);
+    return responses.map((rating) => {
+      const targetName = rating.targetType && rating.targetId
+        ? namesByTarget.get(`${rating.targetType}:${rating.targetId}`) || null
+        : null;
+      return {
+        ...rating,
+        targetName,
+        target: rating.targetType && rating.targetId
+          ? { type: rating.targetType, id: rating.targetId, name: targetName }
+          : null,
+      };
+    });
   }
 
   private async aggregateFor(column: 'gymId' | 'trainerId' | 'wellnessPartnerId', targetId: string) {
@@ -125,6 +155,17 @@ export class RatingsService {
     return checkinCount > 0 || activeDirectPassCount > 0;
   }
 
+  private async canUserRateWellness(userId: string, partnerId: string) {
+    const eligibleBookingCount = await this.wellnessBookings.count({
+      where: {
+        userId,
+        partnerId,
+        status: In(['confirmed', 'completed', 'paid']),
+      },
+    });
+    return eligibleBookingCount > 0;
+  }
+
   async submit(userId: string, targetType: 'gym' | 'trainer' | 'wellness', targetId: string, stars: number, review?: string, status: 'pending' | 'approved' | 'rejected' = 'pending') {
     const normalizedStars = Number(stars);
     if (!userId) throw new BadRequestException('userId is required');
@@ -136,6 +177,11 @@ export class RatingsService {
     if (targetType === 'gym') {
       const canRate = await this.canUserRateGym(userId, targetId);
       if (!canRate) throw new BadRequestException('You need an active pass for this gym or a completed check-in to rate it');
+      if (status === 'pending') finalStatus = 'approved';
+    }
+    if (targetType === 'wellness') {
+      const canRate = await this.canUserRateWellness(userId, targetId);
+      if (!canRate) throw new BadRequestException('You need a confirmed or completed booking with this wellness partner to rate it');
       if (status === 'pending') finalStatus = 'approved';
     }
     const ratingWhere = { userId, ...(target as any) } as any;
@@ -169,12 +215,12 @@ export class RatingsService {
   }
   async listPending() {
     const rows = await this.repo.find({ where: { status: 'pending' }, order: { createdAt: 'DESC' } });
-    return rows.map((rating) => this.ratingResponse(rating));
+    return this.enrichAdminRatings(rows);
   }
   async listByStatus(status?: string) {
     const where: any = status ? { status } : {};
     const rows = await this.repo.find({ where, order: { createdAt: 'DESC' } });
-    return rows.map((rating) => this.ratingResponse(rating));
+    return this.enrichAdminRatings(rows);
   }
   async listForGym(gymId: string) {
     const rows = await this.repo
@@ -203,6 +249,39 @@ export class RatingsService {
       createdAt: rating.createdAt,
       targetType: 'gym',
       targetId: rating.gymId,
+      user: {
+        memberCode: this.memberCode(rating.userId),
+        name: this.publicMemberName(rating.userName, rating.userId),
+      },
+    }));
+  }
+  async listForWellness(partnerId: string) {
+    const rows = await this.repo
+      .createQueryBuilder('r')
+      .leftJoin(UserEntity, 'u', 'u.id = r."userId"')
+      .where('r."wellnessPartnerId" = :partnerId', { partnerId })
+      .andWhere('r.status = :status', { status: 'approved' })
+      .orderBy('r.createdAt', 'DESC')
+      .select([
+        'r.id AS id',
+        'r."userId" AS "userId"',
+        'r."wellnessPartnerId" AS "wellnessPartnerId"',
+        'r.stars AS stars',
+        'r.review AS review',
+        'r.status AS status',
+        'r.createdAt AS "createdAt"',
+        'u.name AS "userName"',
+      ])
+      .getRawMany();
+    return rows.map((rating) => ({
+      id: rating.id,
+      wellnessPartnerId: rating.wellnessPartnerId,
+      stars: Number(rating.stars),
+      review: rating.review,
+      status: rating.status,
+      createdAt: rating.createdAt,
+      targetType: 'wellness',
+      targetId: rating.wellnessPartnerId,
       user: {
         memberCode: this.memberCode(rating.userId),
         name: this.publicMemberName(rating.userName, rating.userId),
@@ -626,6 +705,7 @@ class RatingsController {
   @Get('pending') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
   pending() { return this.svc.listPending(); }
   @Get('gym/:gymId') forGym(@Param('gymId') gymId: string) { return this.svc.listForGym(gymId); }
+  @Get('wellness/:partnerId') forWellness(@Param('partnerId') partnerId: string) { return this.svc.listForWellness(partnerId); }
   /** Admin list with optional ?status=pending|approved|rejected filter */
   @Get() @UseGuards(JwtAuthGuard, RolesGuard) @Roles('super_admin')
   list(@Query('status') status?: string) { return this.svc.listByStatus(status); }

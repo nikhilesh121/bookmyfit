@@ -8,19 +8,28 @@ import AuroraBackground from '../components/AuroraBackground';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconStar, IconCheck } from '../components/Icons';
-import { miscApi, getUser } from '../lib/api';
+import { miscApi, wellnessApi } from '../lib/api';
+import { wellnessPartnerImage } from '../lib/imageFallbacks';
 
 const MAX_CHARS = 500;
 
 export default function Review() {
-  const { gymId, gymName, trainerId, trainerName } =
+  const { gymId, gymName, trainerId, trainerName, wellnessPartnerId, wellnessPartnerName, wellnessImage } =
     useLocalSearchParams<{
       gymId?: string; gymName?: string;
       trainerId?: string; trainerName?: string;
+      wellnessPartnerId?: string; wellnessPartnerName?: string; wellnessImage?: string;
     }>();
 
-  const subject = trainerName || gymName || 'BookMyFit Gym';
+  const subject = wellnessPartnerName || trainerName || gymName || 'BookMyFit';
+  const isWellness = !!wellnessPartnerId;
   const isGym = !!gymId;
+  const subjectType = isWellness ? 'WELLNESS PARTNER' : isGym ? 'GYM' : 'TRAINER';
+  const subjectImage = isWellness
+    ? wellnessPartnerImage({ imageUrl: wellnessImage })
+    : isGym
+      ? 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=70'
+      : 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=600&q=70';
 
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
@@ -28,21 +37,22 @@ export default function Review() {
 
   const handleSubmit = async () => {
     if (rating === 0) return;
-    const targetId = (isGym ? gymId : trainerId) || '';
+    const targetId = (isWellness ? wellnessPartnerId : isGym ? gymId : trainerId) || '';
     if (!targetId) {
-      Alert.alert('Review unavailable', 'Please open the gym or trainer again and try submitting your review.');
+      Alert.alert('Review unavailable', 'Please open the provider again and try submitting your review.');
       return;
     }
     setLoading(true);
     try {
-      const user = await getUser();
-      const res: any = await miscApi.submitReview({
-        targetType: isGym ? 'gym' : 'trainer',
-        targetId,
-        userId: user?.id || user?._id || '',
-        stars: rating,
-        review: text.trim() || undefined,
-      });
+      const review = text.trim() || undefined;
+      const res: any = isWellness
+        ? await wellnessApi.submitReview(targetId, { stars: rating, review })
+        : await miscApi.submitReview({
+            targetType: isGym ? 'gym' : 'trainer',
+            targetId,
+            stars: rating,
+            review,
+          });
       const published = String(res?.status || '').toLowerCase() === 'approved';
       Alert.alert(
         published ? 'Review Published!' : 'Review Submitted',
@@ -72,16 +82,12 @@ export default function Review() {
 
       {/* Subject card */}
       <ImageBackground
-        source={{
-          uri: isGym
-            ? 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=70'
-            : 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=600&q=70',
-        }}
+        source={{ uri: subjectImage }}
         style={s.subjectCard}
         imageStyle={{ borderRadius: radius.xl, opacity: 0.35 }}
       >
         <View style={s.subjectOverlay}>
-          <Text style={s.subjectKicker}>{isGym ? 'GYM' : 'TRAINER'}</Text>
+          <Text style={s.subjectKicker}>{subjectType}</Text>
           <Text style={s.subjectName}>{subject}</Text>
         </View>
       </ImageBackground>

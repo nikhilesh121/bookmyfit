@@ -12,8 +12,9 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import QRCode from 'react-native-qrcode-svg';
 import { gymStaffApi, qrApi } from '../../lib/api';
 import { colors, fonts, radius, spacing } from '../../theme/brand';
 import { IconQR, IconCheck, IconClose, IconRefresh } from '../../components/Icons';
@@ -34,6 +35,8 @@ type ValidationResult = {
 };
 
 export default function ScanScreen() {
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const [mode, setMode] = useState<'scan' | 'show'>(params.mode === 'show' ? 'show' : 'scan');
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ValidationResult | null>(null);
@@ -41,6 +44,9 @@ export default function ScanScreen() {
   const [scanned, setScanned] = useState(false);
   const [gymId, setGymId] = useState<string | null>(null);
   const [gymLoading, setGymLoading] = useState(false);
+  const [gymQr, setGymQr] = useState<{ token: string; gymName?: string } | null>(null);
+  const [gymQrError, setGymQrError] = useState('');
+  const [gymQrLoading, setGymQrLoading] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -79,28 +85,49 @@ export default function ScanScreen() {
     }
   }, []);
 
+  const loadGymQr = useCallback(async () => {
+    setGymQrLoading(true);
+    setGymQrError('');
+    try {
+      const data: any = await qrApi.gymCode();
+      if (!data?.token) throw new Error('Gym QR token was not returned.');
+      setGymQr({ token: data.token, gymName: data.gymName });
+    } catch (err: any) {
+      setGymQr(null);
+      setGymQrError(err?.message || 'Could not load the gym QR.');
+    } finally {
+      setGymQrLoading(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
+      const requestedMode = params.mode === 'show' ? 'show' : 'scan';
+      setMode(requestedMode);
       startPulse();
       loadGymId();
-    }, [startPulse, loadGymId])
+      if (requestedMode === 'show') loadGymQr();
+    }, [params.mode, startPulse, loadGymId, loadGymQr])
   );
+
+  const selectMode = (nextMode: 'scan' | 'show') => {
+    setMode(nextMode);
+    setCameraActive(false);
+    setResult(null);
+    if (nextMode === 'show' && !gymQr) loadGymQr();
+  };
 
   const handleValidate = async (tokenOverride?: string) => {
     const trimmed = (tokenOverride ?? token).trim();
     if (!trimmed) return;
 
     const activeGymId = gymId || await loadGymId();
-    if (!activeGymId) {
-      showResult({ success: false, errorMessage: 'Gym profile could not be loaded.', reason: 'Please log in with a gym account that is linked to a gym, then try again.' });
-      return;
-    }
 
     if (!isQrToken(trimmed)) {
       setLoading(true);
       setResult(null);
       try {
-        const data = await qrApi.validateManual(trimmed, activeGymId);
+        const data = await qrApi.validateManual(trimmed, activeGymId || undefined);
         showResult({
           success: true,
           memberName: data.user?.name ?? (data.user?.id ? `Member ${String(data.user.id).slice(0, 8)}` : 'Member'),
@@ -125,7 +152,7 @@ export default function ScanScreen() {
     setResult(null);
 
     try {
-      const data = await qrApi.validate(trimmed, activeGymId);
+      const data = await qrApi.validate(trimmed, activeGymId || undefined);
       if (data?.success === false) {
         showResult({
           success: false,
@@ -184,128 +211,173 @@ export default function ScanScreen() {
     <SafeAreaView style={s.safe} edges={['top', 'left', 'right']}>
       <ScrollView ref={scrollRef} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <Text style={s.title}>Scan QR</Text>
-        <Text style={s.subtitle}>{gymLoading && !gymId ? 'Loading gym profile...' : 'Validate member access tokens'}</Text>
+        <Text style={s.title}>Check-in QR</Text>
+        <Text style={s.subtitle}>
+          {mode === 'scan' ? 'Scan a member pass or enter its manual code' : 'Members can scan this fixed QR to check in'}
+        </Text>
 
-        {/* Camera / scan frame area */}
-        {cameraActive ? (
-          <View style={s.cameraContainer}>
-            <CameraView
-              style={s.camera}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={handleBarcodeScanned}
-            >
-              <View style={s.cameraOverlay}>
-                <View style={[s.corner, s.cornerTL]} />
-                <View style={[s.corner, s.cornerTR]} />
-                <View style={[s.corner, s.cornerBL]} />
-                <View style={[s.corner, s.cornerBR]} />
-              </View>
-            </CameraView>
-            <TouchableOpacity style={s.cancelCameraBtn} onPress={() => setCameraActive(false)}>
-              <Text style={s.cancelCameraText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={s.frameContainer}>
-            <TouchableOpacity style={s.frame} activeOpacity={0.85} onPress={handleOpenCamera}>
-              <View style={[s.corner, s.cornerTL]} />
-              <View style={[s.corner, s.cornerTR]} />
-              <View style={[s.corner, s.cornerBL]} />
-              <View style={[s.corner, s.cornerBR]} />
-              <Animated.View style={[s.framePulse, { opacity: pulseAnim }]} />
-              <IconQR size={52} color={colors.accent} />
-              <Text style={s.tapToScanText}>Tap to scan</Text>
-            </TouchableOpacity>
-            <Text style={s.frameHint}>Tap frame to scan, or enter the manual code below</Text>
-          </View>
-        )}
-
-        {/* Token input */}
-        <View style={s.inputContainer}>
-          <TextInput
-            style={s.input}
-            value={token}
-            onChangeText={setToken}
-            placeholder="Manual code below QR, booking ref, booking ID, or QR token"
-            placeholderTextColor={colors.t3}
-            multiline={false}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            onSubmitEditing={() => handleValidate()}
-          />
+        <View style={s.modeSwitch}>
+          <TouchableOpacity style={[s.modeButton, mode === 'scan' && s.modeButtonActive]} onPress={() => selectMode('scan')}>
+            <Text style={[s.modeButtonText, mode === 'scan' && s.modeButtonTextActive]}>Scan Member</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.modeButton, mode === 'show' && s.modeButtonActive]} onPress={() => selectMode('show')}>
+            <Text style={[s.modeButtonText, mode === 'show' && s.modeButtonTextActive]}>Show Gym QR</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Validate button */}
-        {!result && (
-          <TouchableOpacity
-            style={[s.validateBtn, (!token.trim() || loading) && s.validateBtnDisabled]}
-            onPress={() => handleValidate()}
-            disabled={!token.trim() || loading || gymLoading}
-            activeOpacity={0.85}
-          >
-            {loading
-              ? <ActivityIndicator color="#000" />
-              : <Text style={s.validateBtnText}>Validate Token</Text>
-            }
-          </TouchableOpacity>
-        )}
-
-        {/* Result card */}
-        {result && (
-          <View style={[s.resultCard, result.success ? s.resultCardSuccess : s.resultCardFailed]}>
-            <View style={s.resultHeader}>
-              <View style={[s.resultIcon, result.success ? s.resultIconSuccess : s.resultIconFailed]}>
-                {result.success
-                  ? <IconCheck size={20} color="#000" />
-                  : <IconClose size={20} color="#fff" />
-                }
+        {mode === 'show' ? (
+          <View style={s.gymQrCard}>
+            {gymQrLoading ? (
+              <View style={s.gymQrLoading}>
+                <ActivityIndicator size="large" color={colors.accent} />
+                <Text style={s.gymQrHint}>Loading your fixed gym QR...</Text>
               </View>
-              <Text style={[s.resultTitle, result.success ? s.resultTitleSuccess : s.resultTitleFailed]}>
-                {result.success ? 'Access Granted' : 'Access Denied'}
-              </Text>
-            </View>
-
-            {result.success ? (
-              <View style={s.resultDetails}>
-                <View style={s.resultRow}>
-                  <Text style={s.resultLabel}>Member</Text>
-                  <Text style={s.resultValue}>{result.memberName}</Text>
+            ) : gymQr?.token ? (
+              <>
+                <Text style={s.gymQrName}>{gymQr.gymName || 'Your Gym'}</Text>
+                <View style={s.gymQrCanvas}>
+                  <QRCode value={gymQr.token} size={238} backgroundColor="#ffffff" color="#080808" />
                 </View>
-                <View style={s.resultDivider} />
-                <View style={s.resultRow}>
-                  <Text style={s.resultLabel}>Plan</Text>
-                  <Text style={s.resultValue}>{result.planType}</Text>
-                </View>
-                {result.bookingRef && (
-                  <>
-                    <View style={s.resultDivider} />
-                    <View style={s.resultRow}>
-                      <Text style={s.resultLabel}>Manual ID</Text>
-                      <Text style={s.resultValue}>#{result.bookingRef}</Text>
-                    </View>
-                  </>
-                )}
-                <View style={s.resultDivider} />
-                <View style={s.resultRow}>
-                  <Text style={s.resultLabel}>Check-in Time</Text>
-                  <Text style={s.resultValue}>{result.checkinTime}</Text>
-                </View>
+                <Text style={s.gymQrTitle}>Member self check-in</Text>
+                <Text style={s.gymQrHint}>
+                  Keep this QR at reception. Single Gym members check in directly; Multi Gym and Day Pass members need an active booking.
+                </Text>
+                <TouchableOpacity style={s.refreshQrBtn} onPress={loadGymQr}>
+                  <IconRefresh size={16} color={colors.accent} />
+                  <Text style={s.refreshQrText}>Refresh QR</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={s.gymQrLoading}>
+                <IconClose size={28} color={colors.error} />
+                <Text style={s.errorMessage}>{gymQrError || 'Could not load the gym QR.'}</Text>
+                <TouchableOpacity style={s.refreshQrBtn} onPress={loadGymQr}>
+                  <IconRefresh size={16} color={colors.accent} />
+                  <Text style={s.refreshQrText}>Try Again</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ) : (
+          <>
+            {/* Camera / scan frame area */}
+            {cameraActive ? (
+              <View style={s.cameraContainer}>
+                <CameraView
+                  style={s.camera}
+                  facing="back"
+                  barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                  onBarcodeScanned={handleBarcodeScanned}
+                >
+                  <View style={s.cameraOverlay}>
+                    <View style={[s.corner, s.cornerTL]} />
+                    <View style={[s.corner, s.cornerTR]} />
+                    <View style={[s.corner, s.cornerBL]} />
+                    <View style={[s.corner, s.cornerBR]} />
+                  </View>
+                </CameraView>
+                <TouchableOpacity style={s.cancelCameraBtn} onPress={() => setCameraActive(false)}>
+                  <Text style={s.cancelCameraText}>Cancel</Text>
+                </TouchableOpacity>
               </View>
             ) : (
-              <View style={s.resultDetails}>
-                <Text style={s.errorMessage}>{result.errorMessage}</Text>
-                {result.reason && <Text style={s.errorReason}>{result.reason}</Text>}
+              <View style={s.frameContainer}>
+                <TouchableOpacity style={s.frame} activeOpacity={0.85} onPress={handleOpenCamera}>
+                  <View style={[s.corner, s.cornerTL]} />
+                  <View style={[s.corner, s.cornerTR]} />
+                  <View style={[s.corner, s.cornerBL]} />
+                  <View style={[s.corner, s.cornerBR]} />
+                  <Animated.View style={[s.framePulse, { opacity: pulseAnim }]} />
+                  <IconQR size={52} color={colors.accent} />
+                  <Text style={s.tapToScanText}>Tap to scan</Text>
+                </TouchableOpacity>
+                <Text style={s.frameHint}>Tap frame to scan, or enter the manual code below</Text>
               </View>
             )}
 
-            <TouchableOpacity style={s.scanAnotherBtn} onPress={handleReset} activeOpacity={0.8}>
-              <IconRefresh size={16} color={colors.accent} />
-              <Text style={s.scanAnotherText}>Scan Another</Text>
-            </TouchableOpacity>
-          </View>
+            <View style={s.inputContainer}>
+              <TextInput
+                style={s.input}
+                value={token}
+                onChangeText={setToken}
+                placeholder="Manual code below QR, booking ref, booking ID, or QR token"
+                placeholderTextColor={colors.t3}
+                multiline={false}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={() => handleValidate()}
+              />
+            </View>
+
+            {!result && (
+              <TouchableOpacity
+                style={[s.validateBtn, (!token.trim() || loading) && s.validateBtnDisabled]}
+                onPress={() => handleValidate()}
+                disabled={!token.trim() || loading || gymLoading}
+                activeOpacity={0.85}
+              >
+                {loading
+                  ? <ActivityIndicator color="#000" />
+                  : <Text style={s.validateBtnText}>Validate Token</Text>
+                }
+              </TouchableOpacity>
+            )}
+
+            {result && (
+              <View style={[s.resultCard, result.success ? s.resultCardSuccess : s.resultCardFailed]}>
+                <View style={s.resultHeader}>
+                  <View style={[s.resultIcon, result.success ? s.resultIconSuccess : s.resultIconFailed]}>
+                    {result.success
+                      ? <IconCheck size={20} color="#000" />
+                      : <IconClose size={20} color="#fff" />
+                    }
+                  </View>
+                  <Text style={[s.resultTitle, result.success ? s.resultTitleSuccess : s.resultTitleFailed]}>
+                    {result.success ? 'Access Granted' : 'Access Denied'}
+                  </Text>
+                </View>
+
+                {result.success ? (
+                  <View style={s.resultDetails}>
+                    <View style={s.resultRow}>
+                      <Text style={s.resultLabel}>Member</Text>
+                      <Text style={s.resultValue}>{result.memberName}</Text>
+                    </View>
+                    <View style={s.resultDivider} />
+                    <View style={s.resultRow}>
+                      <Text style={s.resultLabel}>Plan</Text>
+                      <Text style={s.resultValue}>{result.planType}</Text>
+                    </View>
+                    {result.bookingRef && (
+                      <>
+                        <View style={s.resultDivider} />
+                        <View style={s.resultRow}>
+                          <Text style={s.resultLabel}>Manual ID</Text>
+                          <Text style={s.resultValue}>#{result.bookingRef}</Text>
+                        </View>
+                      </>
+                    )}
+                    <View style={s.resultDivider} />
+                    <View style={s.resultRow}>
+                      <Text style={s.resultLabel}>Check-in Time</Text>
+                      <Text style={s.resultValue}>{result.checkinTime}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={s.resultDetails}>
+                    <Text style={s.errorMessage}>{result.errorMessage}</Text>
+                    {result.reason && <Text style={s.errorReason}>{result.reason}</Text>}
+                  </View>
+                )}
+
+                <TouchableOpacity style={s.scanAnotherBtn} onPress={handleReset} activeOpacity={0.8}>
+                  <IconRefresh size={16} color={colors.accent} />
+                  <Text style={s.scanAnotherText}>Scan Another</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -321,7 +393,31 @@ const s = StyleSheet.create({
   content: { paddingHorizontal: spacing.xl, paddingBottom: 16, paddingTop: spacing.lg },
 
   title: { fontFamily: fonts.serif, fontSize: 28, color: colors.text, marginBottom: 4 },
-  subtitle: { fontFamily: fonts.sans, fontSize: 14, color: colors.t, marginBottom: spacing.xxl },
+  subtitle: { fontFamily: fonts.sans, fontSize: 14, color: colors.t, marginBottom: spacing.lg },
+  modeSwitch: {
+    flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.border, padding: 4, marginBottom: spacing.xxl,
+  },
+  modeButton: { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  modeButtonActive: { backgroundColor: colors.accent },
+  modeButtonText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.t2 },
+  modeButtonTextActive: { color: '#060606' },
+
+  gymQrCard: {
+    alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.accentBorder, padding: spacing.xl,
+  },
+  gymQrLoading: { minHeight: 360, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+  gymQrName: { fontFamily: fonts.serif, fontSize: 22, color: colors.text, marginBottom: spacing.lg, textAlign: 'center' },
+  gymQrCanvas: { backgroundColor: '#fff', padding: 14, borderRadius: radius.md, marginBottom: spacing.lg },
+  gymQrTitle: { fontFamily: fonts.sansBold, fontSize: 16, color: colors.accent, marginBottom: spacing.xs },
+  gymQrHint: { fontFamily: fonts.sans, fontSize: 12, lineHeight: 19, color: colors.t2, textAlign: 'center', maxWidth: 290 },
+  refreshQrBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+    borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSoft,
+    borderRadius: radius.pill, paddingHorizontal: 20, paddingVertical: 10, marginTop: spacing.lg,
+  },
+  refreshQrText: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent },
 
   frameContainer: { alignItems: 'center', marginBottom: spacing.xxl },
   frame: {

@@ -33,7 +33,11 @@ export default function ServicesPage() {
   const partnerId = getPartnerId();
 
   const load = async () => {
-    if (!partnerId) return;
+    if (!partnerId) {
+      setLoading(false);
+      toast('No wellness partner profile is linked to this login', 'error');
+      return;
+    }
     setLoading(true);
     try {
       const data = await api.get<Service[]>(`/wellness/${partnerId}/services`);

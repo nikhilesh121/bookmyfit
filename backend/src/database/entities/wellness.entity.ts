@@ -47,6 +47,7 @@ export class WellnessBookingEntity {
   @Index() @Column({ type: 'uuid' }) partnerId: string;
   @Column({ type: 'uuid' }) serviceId: string;
   @Column({ type: 'timestamptz' }) bookingDate: Date;
+  @Column({ type: 'text', nullable: true }) specialRequest: string;
   @Column({ type: 'numeric', precision: 10, scale: 2 }) amount: number;
   @Column({ type: 'numeric', precision: 10, scale: 2 }) platformCommission: number;
   @Column({ length: 20, default: 'confirmed' }) status: string;

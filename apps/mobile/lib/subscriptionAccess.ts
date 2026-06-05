@@ -9,6 +9,10 @@ export function normalizeSubscriptionList(data: any): any[] {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.subscriptions)) return data.subscriptions;
   if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.data?.items)) return data.data.items;
+  if (Array.isArray(data?.results)) return data.results;
+  if (Array.isArray(data?.data?.results)) return data.data.results;
   return [];
 }
 
@@ -22,9 +26,22 @@ function endOfDayMs(value: any): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-export function isActiveSubscription(sub: any, now = Date.now()) {
+function startOfDayMs(value: any): number | null {
+  if (!value) return null;
+  const text = String(value);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(text)
+    ? new Date(`${text}T00:00:00.000`)
+    : new Date(text);
+  const ms = date.getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+export function isActiveSubscription(sub: any) {
+  const now = Date.now();
   const status = String(sub?.status || '').toLowerCase();
   if (status && status !== 'active') return false;
+  const startMs = startOfDayMs(sub?.startDate || sub?.validFrom);
+  if (startMs != null && startMs > now) return false;
   const endMs = endOfDayMs(sub?.endDate || sub?.validUntil);
   return endMs == null || endMs >= now;
 }

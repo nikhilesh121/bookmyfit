@@ -8,9 +8,9 @@ import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import {
   IconArrowLeft, IconStar, IconPin, IconHeart, IconChevronRight,
-  IconShield, IconCheck, IconBuilding, IconHeadphones, IconBolt,
+  IconShield, IconBuilding,
 } from '../components/Icons';
-import { API_BASE as API, wellnessApi } from '../lib/api';
+import { wellnessApi } from '../lib/api';
 import { distanceLabel, getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../lib/location';
 import {
   wellnessPartnerImage,
@@ -37,7 +37,7 @@ const HERO_SLIDES = [
     kicker: 'PROFESSIONAL CARE',
     title: 'Expert Therapists',
     titleAccent: 'Near You',
-    subtitle: 'Certified professionals, premium products, peaceful spaces',
+    subtitle: 'Explore wellness services from partners near you.',
   },
 ];
 
@@ -49,7 +49,7 @@ type ApiPartner = {
 };
 type ApiService = {
   id: string; name: string; durationMinutes: number; price: number;
-  imageUrl?: string; partnerId: string;
+  imageUrl?: string; partnerId: string; category?: string; partner?: Partial<ApiPartner>;
 };
 
 export default function WellnessScreen() {
@@ -72,7 +72,7 @@ export default function WellnessScreen() {
         const coords = await getNearbyCoords({ forceRefresh: true, timeoutMs: 3500 });
         const [pRes, sRes] = await Promise.all([
           wellnessApi.list({ page: 1, limit: 50, ...nearbyQueryParams(coords) }).catch(() => null),
-          fetch(`${API}/api/v1/wellness/services/all`).then(r => r.json()).catch(() => null),
+          wellnessApi.allServices().catch(() => null),
         ]);
         if (!alive) return;
         const pts = pRes?.data || pRes;
@@ -108,7 +108,7 @@ export default function WellnessScreen() {
 
   // Get min price for a partner from services
   const getMinPrice = (partnerId: string): number | null => {
-    const partnerServices = services.filter(s => String(s.partnerId) === String(partnerId));
+    const partnerServices = services.filter(s => String(s.partnerId || s.partner?.id || '') === String(partnerId));
     if (partnerServices.length === 0) return null;
     const prices = partnerServices.map(s => Number(s.price)).filter(price => Number.isFinite(price) && price > 0);
     return prices.length ? Math.min(...prices) : null;
@@ -123,17 +123,25 @@ export default function WellnessScreen() {
 
   const displayPartners: ApiPartner[] = partners;
   const displayServices: ApiService[] = services;
-  const filteredServices = displayServices;
+  const partnerById = new Map(displayPartners.map((partner) => [String(partner.id), partner]));
+  const partnerNameById = new Map(displayPartners.map((partner) => [String(partner.id), partner.name]));
+  const matchesActiveFilter = (partner?: Partial<ApiPartner>) => {
+    if (activeFilter === 'all') return true;
+    if (!partner) return false;
+    const types = (partner.serviceTypes?.length ? partner.serviceTypes : [partner.serviceType])
+      .filter(Boolean)
+      .map(type => String(type).toLowerCase());
+    if (activeFilter === 'home') return types.some(type => type === 'home' || type.includes('home'));
+    return types.some(type => type !== 'home' && !type.includes('home'));
+  };
+  const filteredServices = displayServices.filter((service) => {
+    const partnerId = String(service.partnerId || service.partner?.id || '');
+    return matchesActiveFilter(service.partner || partnerById.get(partnerId));
+  });
 
   const partnersByType = activeFilter === 'all'
     ? displayPartners
-    : displayPartners.filter(p => {
-        const types = (p.serviceTypes?.length ? p.serviceTypes : [p.serviceType])
-          .filter(Boolean)
-          .map(t => String(t).toLowerCase());
-        if (activeFilter === 'home') return types.some(type => type === 'home' || type.includes('home'));
-        return types.some(type => type !== 'home' && !type.includes('home'));
-      });
+    : displayPartners.filter(matchesActiveFilter);
   const filteredPartners = [...partnersByType].sort(nearbyBestSort);
   const partnerSectionTitle = activeFilter === 'home'
     ? 'Top Home Services Near You'
@@ -142,13 +150,14 @@ export default function WellnessScreen() {
       : 'Top Wellness Partners Near You';
   const partnerSeeAllRoute = activeFilter === 'home' ? '/home-services' : '/spa-centres';
 
-  // Partner tags based on service type
   const getPartnerTags = (partner: ApiPartner) => {
-    const type = (partner.serviceTypes?.[0] || partner.serviceType || 'spa').toLowerCase();
-    if (type === 'physio') return ['Physiotherapy', 'Rehab', 'Sports'];
-    if (type === 'massage') return ['Massage', 'Relaxation', 'Deep Tissue'];
-    if (type === 'home') return ['Home Service', 'At-Home', 'Private'];
-    return ['Spa', 'Relaxation', 'Luxury'];
+    const serviceCategories = services
+      .filter(service => String(service.partnerId || service.partner?.id || '') === String(partner.id))
+      .map(service => service.category)
+      .filter((category): category is string => !!category?.trim());
+    const partnerTypes = (partner.serviceTypes?.length ? partner.serviceTypes : [partner.serviceType])
+      .filter((type): type is string => !!type?.trim());
+    return Array.from(new Set([...serviceCategories, ...partnerTypes]));
   };
 
   return (
@@ -234,9 +243,9 @@ export default function WellnessScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Popular Spa Services */}
+        {/* Available wellness services */}
         <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>Popular Spa Services</Text>
+          <Text style={s.sectionTitle}>Available Wellness Services</Text>
           <TouchableOpacity onPress={() => router.push('/spa-centres' as any)}><Text style={s.seeAll}>See all</Text></TouchableOpacity>
         </View>
         <FlatList
@@ -247,22 +256,21 @@ export default function WellnessScreen() {
           contentContainerStyle={s.servicesScroll}
           renderItem={({ item: svc }) => {
             const imgUri = wellnessServiceImage(svc);
-            const duration = Number(svc.durationMinutes || (svc as any).duration || 45);
+            const duration = Number(svc.durationMinutes || (svc as any).duration || 0);
             const price = Number(svc.price || 0);
+            const partnerId = String(svc.partnerId || (svc as any).partner?.id || (svc as any).partner?._id || '');
+            const partnerName = (svc as any).partner?.name || partnerNameById.get(partnerId) || '';
             return (
               <TouchableOpacity
                 style={s.svcCard}
                 activeOpacity={0.85}
                 onPress={() => {
-                  if (svc.partnerId) {
+                  if (partnerId) {
                     router.push({
-                      pathname: '/wellness/book-service',
+                      pathname: '/wellness/[id]',
                       params: {
-                        serviceId: svc.id,
-                        partnerId: svc.partnerId,
-                        serviceName: svc.name,
-                        price: String(price),
-                        duration: String(duration),
+                        id: partnerId,
+                        focusServiceId: svc.id,
                       },
                     } as any);
                   } else {
@@ -273,7 +281,10 @@ export default function WellnessScreen() {
                 <Image source={{ uri: imgUri }} style={s.svcImage} />
                 <View style={s.svcInfo}>
                   <Text style={s.svcName} numberOfLines={1}>{svc.name}</Text>
-                  <Text style={s.svcMeta} numberOfLines={1}>{duration} Min | {price > 0 ? `Rs ${price.toLocaleString('en-IN')}` : 'Price not added'}</Text>
+                  {!!partnerName && <Text style={s.svcPartner} numberOfLines={1}>{partnerName}</Text>}
+                  <Text style={s.svcMeta} numberOfLines={1}>
+                    {[duration > 0 ? `${duration} Min` : '', price > 0 ? `Rs ${price.toLocaleString('en-IN')}` : 'Price not added'].filter(Boolean).join(' | ')}
+                  </Text>
                 </View>
               </TouchableOpacity>
             );
@@ -399,27 +410,6 @@ export default function WellnessScreen() {
           })
         )}
 
-        {/* Trust Strip */}
-        <View style={s.trustStrip}>
-          {[
-            { icon: 'shield', label: 'Verified Spa Partners' },
-            { icon: 'check', label: 'Trained & Certified' },
-            { icon: 'shield', label: 'Hygienic & Safe' },
-            { icon: 'bolt', label: 'Easy Booking' },
-            { icon: 'headphones', label: '24/7 Support' },
-          ].map((item, i) => (
-            <View key={i} style={s.trustItem}>
-              <View style={s.trustIconBox}>
-                {item.icon === 'shield' && <IconShield size={12} color={colors.accent} />}
-                {item.icon === 'check' && <IconCheck size={12} color={colors.accent} />}
-                {item.icon === 'bolt' && <IconBolt size={12} color={colors.accent} />}
-                {item.icon === 'headphones' && <IconHeadphones size={12} color={colors.accent} />}
-              </View>
-              <Text style={s.trustLabel}>{item.label}</Text>
-            </View>
-          ))}
-        </View>
-
         <View style={{ height: 8 }} />
       </ScrollView>
     </SafeAreaView>
@@ -508,6 +498,7 @@ const s = StyleSheet.create({
   svcImage: { width: 130, height: 110, resizeMode: 'cover' },
   svcInfo: { padding: 8 },
   svcName: { fontFamily: fonts.sansBold, fontSize: 12, color: '#fff', marginBottom: 3 },
+  svcPartner: { fontFamily: fonts.sansMedium, fontSize: 10, color: colors.accent, marginBottom: 2 },
   svcMeta: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },
   emptyState: {
     marginHorizontal: 16, marginBottom: 16, padding: 18, alignItems: 'center',
@@ -580,18 +571,4 @@ const s = StyleSheet.create({
   },
   viewBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
 
-  // Trust strip
-  trustStrip: {
-    flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, marginTop: 24,
-    backgroundColor: 'rgba(255,255,255,0.03)', marginHorizontal: 16,
-    borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
-    padding: 16, gap: 10, justifyContent: 'space-around',
-  },
-  trustItem: { alignItems: 'center', gap: 6, width: '18%' },
-  trustIconBox: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(0,212,106,0.1)', borderWidth: 1, borderColor: 'rgba(0,212,106,0.2)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  trustLabel: { fontFamily: fonts.sans, fontSize: 9, color: colors.t2, textAlign: 'center' },
 });
