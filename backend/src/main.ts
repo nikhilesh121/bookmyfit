@@ -48,6 +48,9 @@ function getAllowedOrigins(): Set<string> {
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
+  const bodyLimit = process.env.BODY_LIMIT || process.env.JSON_BODY_LIMIT || '32mb';
+  app.useBodyParser('json', { limit: bodyLimit });
+  app.useBodyParser('urlencoded', { extended: true, limit: bodyLimit });
   const allowedOrigins = getAllowedOrigins();
 
   app.enableCors({

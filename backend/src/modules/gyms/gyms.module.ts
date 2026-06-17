@@ -144,8 +144,10 @@ class GymsService {
     if (!row) return null;
     const openingTime = row.openingTime || '06:00';
     const closingTime = row.closingTime || '22:00';
-    const photos = Array.isArray(row.photos) ? row.photos.filter(Boolean) : [];
-    const videos = Array.isArray(row.videos) ? row.videos.filter(Boolean) : [];
+    const photos = this.normalizeStringList(row.photos) || [];
+    const videos = this.normalizeStringList(row.videos) || [];
+    const amenities = this.normalizeNameList(row.amenities) || [];
+    const categories = this.normalizeNameList(row.categories) || [];
     const coverPhoto = row.coverPhoto || photos[0] || null;
     const ratingCount = Number(row.ratingCount || 0);
     const rating = ratingCount > 0 ? Math.round(Number(row.rating || 0) * 10) / 10 : 0;
@@ -164,6 +166,8 @@ class GymsService {
       photos,
       images: photos.length > 0 ? photos : (coverPhoto ? [coverPhoto] : []),
       videos,
+      amenities,
+      categories,
       phone: row.contactPhone ?? null,
       email: row.contactEmail ?? null,
       openingHours: `${openingTime} - ${closingTime}`,
@@ -234,8 +238,8 @@ class GymsService {
   private async attachMasterDetails(row: any, options: { publicView?: boolean } = {}) {
     const normalized = await this.attachSchedule(row, options);
     if (!normalized) return normalized;
-    const amenityNames = Array.isArray(normalized.amenities) ? normalized.amenities.filter(Boolean) : [];
-    const categoryNames = Array.isArray(normalized.categories) ? normalized.categories.filter(Boolean) : [];
+    const amenityNames = this.normalizeNameList(normalized.amenities) || [];
+    const categoryNames = this.normalizeNameList(normalized.categories) || [];
     const [amenities, categories]: [AmenityEntity[], CategoryEntity[]] = await Promise.all([
       amenityNames.length ? this.amenities.find({ where: { isActive: true, status: 'approved' } }) : [],
       categoryNames.length ? this.categoriesRepo.find({ where: { isActive: true } }) : [],
@@ -261,13 +265,51 @@ class GymsService {
     return Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
   }
 
+  private listItems(value: any): any[] | undefined {
+    if (value === undefined) return undefined;
+    if (value === null) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value !== 'string') return [];
+
+    const text = value.trim();
+    if (!text) return [];
+
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+
+    if (/^(https?:|data:|file:)/i.test(text)) return [text];
+
+    if (text.startsWith('{') && text.endsWith('}')) {
+      const inner = text.slice(1, -1);
+      if (!inner.trim()) return [];
+      const matches = inner.match(/"((?:\\.|[^"\\])*)"|[^,]+/g) || [];
+      return matches.map((item) => item.trim().replace(/^"|"$/g, '').replace(/\\"/g, '"').replace(/\\\\/g, '\\'));
+    }
+
+    return text.split(',');
+  }
+
   private normalizeStringList(value: any): string[] | undefined {
     if (value === undefined) return undefined;
-    const rawItems = Array.isArray(value) ? value : (typeof value === 'string' ? value.split(',') : []);
+    const rawItems = this.listItems(value) || [];
     const cleaned = rawItems
       .map((item) => {
         if (typeof item === 'string') return item.trim();
         return String(item?.url ?? item?.uri ?? item?.src ?? item?.path ?? '').trim();
+      })
+      .filter(Boolean);
+    return [...new Set(cleaned)];
+  }
+
+  private normalizeNameList(value: any): string[] | undefined {
+    if (value === undefined) return undefined;
+    const rawItems = this.listItems(value) || [];
+    const cleaned = rawItems
+      .map((item) => {
+        if (typeof item === 'string') return item.trim();
+        return String(item?.name ?? item?.label ?? item?.title ?? item?.value ?? '').trim();
       })
       .filter(Boolean);
     return [...new Set(cleaned)];
@@ -319,8 +361,8 @@ class GymsService {
       coverPhoto,
       photos,
       videos,
-      amenities: Array.isArray(raw.amenities) ? raw.amenities : undefined,
-      categories: Array.isArray(raw.categories) ? raw.categories : undefined,
+      amenities: this.normalizeNameList(raw.amenities),
+      categories: this.normalizeNameList(raw.categories),
       openingTime: raw.openingTime,
       closingTime: raw.closingTime,
       breakStartTime: raw.breakStartTime === '' ? null : raw.breakStartTime,
@@ -410,12 +452,13 @@ class GymsService {
     return this.safeGymQuery(alias).where(`${alias}.id = :id`, { id: gym.id }).getRawOne();
   }
 
-  private async canonicalCategories(names: any[] | undefined) {
-    if (!Array.isArray(names)) return undefined;
+  private async canonicalCategories(names: any[] | string | undefined) {
+    const requestedNames = this.normalizeNameList(names);
+    if (requestedNames === undefined) return undefined;
     const active = await this.categoriesRepo.find({ where: { isActive: true } });
     const byName = new Map(active.map((category) => [normalizeCatalogName(category.name), category.name.trim()]));
-    const normalized = [...new Set(names.map((name) => byName.get(normalizeCatalogName(name))).filter(Boolean) as string[])];
-    if (names.length > 0 && normalized.length === 0) {
+    const normalized = [...new Set(requestedNames.map((name) => byName.get(normalizeCatalogName(name))).filter(Boolean) as string[])];
+    if (requestedNames.length > 0 && normalized.length === 0) {
       throw new BadRequestException('Select valid workout categories created by admin');
     }
     return normalized;
@@ -1512,7 +1555,8 @@ class GymsService {
     if (!gym) throw new NotFoundException('Gym not found');
     const active = await this.amenities.find({ where: { isActive: true, status: 'approved' } });
     const byName = new Map(active.map((a) => [a.name.trim().toLowerCase(), a.name.trim()]));
-    const normalized = [...new Set((names || []).map((n) => byName.get(String(n).trim().toLowerCase())).filter(Boolean) as string[])];
+    const requestedNames = this.normalizeNameList(names) || [];
+    const normalized = [...new Set(requestedNames.map((n) => byName.get(String(n).trim().toLowerCase())).filter(Boolean) as string[])];
     await this.repo.update(gym.id, { amenities: normalized });
     return { success: true, amenities: normalized };
   }
@@ -1696,6 +1740,34 @@ class GymsService {
     };
   }
 
+  async uploadProfilePhotoFile(gymId: string, file: any, user: any) {
+    const gym = await this.assertGymAccess(gymId, user);
+    if (!gym) throw new NotFoundException('Gym not found');
+    if (!file?.buffer?.length) throw new BadRequestException('Profile image is required');
+
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    if (!allowedTypes.has(file.mimetype)) {
+      throw new BadRequestException('Upload a JPG, PNG, or WebP image only');
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      throw new BadRequestException('Profile image must be 2 MB or smaller');
+    }
+
+    const relativeDir = join('gyms', gym.id, 'profile');
+    const targetDir = join(this.uploadRoot(), relativeDir);
+    await mkdir(targetDir, { recursive: true });
+    const fileName = `${Date.now()}-${randomUUID()}${this.kycFileExtension(file)}`;
+    await writeFile(join(targetDir, fileName), file.buffer);
+
+    const relativePath = join(relativeDir, fileName).replace(/\\/g, '/');
+    return {
+      url: this.uploadUrl(relativePath),
+      fileName: file.originalname || fileName,
+      mimeType: file.mimetype,
+      size: file.size,
+    };
+  }
+
   async getKycStatus(gymId: string) {
     const row = await this.safeGymQuery('g', true).where('g.id = :id', { id: gymId }).getRawOne();
     const gym = await this.attachSchedule(row) as any;
@@ -1802,6 +1874,14 @@ class GymsController {
   @Put('my-gym/location') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
   submitMyLocation(@Req() req: any, @Body() body: { lat?: number; lng?: number }) {
     return this.svc.submitMyLocation(req.user.userId, body);
+  }
+
+  @Post(':id/profile-photos/upload')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('gym_owner', 'gym_staff', 'super_admin')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  uploadProfilePhoto(@Param('id') id: string, @UploadedFile() file: any, @Req() req: any) {
+    return this.svc.uploadProfilePhotoFile(id, file, req.user);
   }
 
   @Get() list(

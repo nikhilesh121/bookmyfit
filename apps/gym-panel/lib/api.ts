@@ -45,9 +45,38 @@ async function request<T = any>(path: string, init: RequestInit = {}): Promise<T
   return (parsed ?? (raw ? raw : {})) as T;
 }
 
+async function requestForm<T = any>(path: string, body: FormData): Promise<T> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    body,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const raw = await res.text().catch(() => '');
+  const parsed = raw ? (() => { try { return JSON.parse(raw); } catch { return null; } })() : null;
+  if (res.status === 401) {
+    const message = Array.isArray(parsed?.message)
+      ? parsed.message.join(', ')
+      : parsed?.message || raw || 'Session expired';
+    localStorage.removeItem(TOKEN_KEY);
+    redirectToLogin();
+    throw new Error(message);
+  }
+  if (!res.ok) {
+    const message = Array.isArray(parsed?.message)
+      ? parsed.message.join(', ')
+      : parsed?.message || raw || res.statusText || `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+  return (parsed ?? (raw ? raw : {})) as T;
+}
+
 export const api = {
   get: <T = any>(p: string) => request<T>(p),
   post: <T = any>(p: string, b?: any) => request<T>(p, { method: 'POST', body: b ? JSON.stringify(b) : undefined }),
+  postForm: <T = any>(p: string, b: FormData) => requestForm<T>(p, b),
   put: <T = any>(p: string, b?: any) => request<T>(p, { method: 'PUT', body: b ? JSON.stringify(b) : undefined }),
   patch: <T = any>(p: string, b?: any) => request<T>(p, { method: 'PATCH', body: b ? JSON.stringify(b) : undefined }),
   delete: <T = any>(p: string) => request<T>(p, { method: 'DELETE' }),

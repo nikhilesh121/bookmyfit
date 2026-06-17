@@ -32,21 +32,6 @@ const MAX_PROFILE_PHOTOS = 12;
 const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
 const SUPPORTED_PROFILE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        reject(new Error(`Could not read ${file.name}`));
-      }
-    };
-    reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
-    reader.readAsDataURL(file);
-  });
-}
-
 function parseGymCoordinates(latValue: string, lngValue: string) {
   const latText = latValue.trim();
   const lngText = lngValue.trim();
@@ -219,6 +204,15 @@ export default function ProfilePage() {
     }
   };
 
+  const uploadProfilePhoto = async (file: File) => {
+    if (!gymId) throw new Error('Gym profile is still loading. Please try again.');
+    const body = new FormData();
+    body.append('file', file);
+    const uploaded = await api.postForm<{ url?: string }>(`/gyms/${gymId}/profile-photos/upload`, body);
+    if (!uploaded?.url) throw new Error(`${file.name}: upload did not return an image URL`);
+    return uploaded.url;
+  };
+
   const handlePhotoFiles = async (files: FileList | null) => {
     if (!files?.length) return;
 
@@ -241,7 +235,7 @@ export default function ProfilePage() {
         skipped.push(`${skippedCount} image${skippedCount === 1 ? '' : 's'} skipped because the profile can hold ${MAX_PROFILE_PHOTOS} photos`);
       }
 
-      const dataUrls: string[] = [];
+      const uploadedUrls: string[] = [];
       for (const file of acceptedFiles) {
         if (!SUPPORTED_PROFILE_IMAGE_TYPES.has(file.type)) {
           skipped.push(`${file.name}: JPG, PNG or WebP only`);
@@ -251,18 +245,18 @@ export default function ProfilePage() {
           skipped.push(`${file.name}: over 2 MB`);
           continue;
         }
-        dataUrls.push(await readFileAsDataUrl(file));
+        uploadedUrls.push(await uploadProfilePhoto(file));
       }
 
-      if (dataUrls.length > 0) {
-        setPhotos((prev) => [...new Set([...prev, ...dataUrls])].slice(0, MAX_PROFILE_PHOTOS));
+      if (uploadedUrls.length > 0) {
+        setPhotos((prev) => [...new Set([...prev, ...uploadedUrls])].slice(0, MAX_PROFILE_PHOTOS));
       }
 
       if (skipped.length > 0) {
         setError(`Some images were skipped. ${skipped.slice(0, 3).join('; ')}${skipped.length > 3 ? '; ...' : ''}`);
       }
     } catch (e: any) {
-      setError(e?.message || 'Could not read selected images.');
+      setError(e?.message || 'Could not upload selected images.');
     } finally {
       setProcessingPhotos(false);
       if (photoInputRef.current) {

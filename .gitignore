@@ -12,6 +12,8 @@ build/
 coverage/
 artifacts/
 *.apk
+*.aab
+release-builds/
 test-results/
 playwright-report/
 blob-report/

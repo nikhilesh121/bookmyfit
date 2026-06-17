@@ -1,9 +1,8 @@
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Dimensions, Share, Linking, Image, FlatList } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ImageBackground, Dimensions, Share, Linking, Image, FlatList, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { WebView } from 'react-native-webview';
-import * as Location from 'expo-location';
 import { colors, fonts, radius } from '../../theme/brand';
 import {
   IconArrowLeft, IconStar, IconPin, IconArrowRight, IconCheck, IconClock,
@@ -113,9 +112,21 @@ function formatClockRange(start?: any, end?: any, fallback?: any) {
 }
 
 function toTextArray(value: any): string[] {
-  const raw = Array.isArray(value)
-    ? value
-    : (typeof value === 'string' ? value.split(',') : []);
+  const raw = (() => {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== 'string') return [];
+    const text = value.trim();
+    if (!text) return [];
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+    if (text.startsWith('{') && text.endsWith('}')) {
+      const matches = text.slice(1, -1).match(/"((?:\\.|[^"\\])*)"|[^,]+/g) || [];
+      return matches.map((item) => item.trim().replace(/^"|"$/g, '').replace(/\\"/g, '"'));
+    }
+    return text.split(',');
+  })();
   return [...new Set(raw
     .map((item: any) => (typeof item === 'string' ? item : (item?.name || item?.label || item?.title || '')))
     .map((item: string) => item.trim())
@@ -424,33 +435,48 @@ export default function GymDetail() {
 
   const gymLat = coordinate(gym?.lat, gym?.latitude, gym?.location?.lat);
   const gymLng = coordinate(gym?.lng, gym?.longitude, gym?.location?.lng);
+  const mapUri = gymLat && gymLng
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${(gymLng - 0.012).toFixed(6)}%2C${(gymLat - 0.012).toFixed(6)}%2C${(gymLng + 0.012).toFixed(6)}%2C${(gymLat + 0.012).toFixed(6)}&layer=mapnik&marker=${gymLat}%2C${gymLng}`
+    : '';
+  const gymShareUrl = `https://bookmyfit.in/gym/${encodeURIComponent(String(id || gym?.id || gym?._id || ''))}`;
 
   const getDirections = async () => {
+    const destinationText = gymLat && gymLng ? `${gymLat},${gymLng}` : `${name} ${address}`.trim();
+    const destination = encodeURIComponent(destinationText || name);
+    const label = encodeURIComponent(name);
+    const urls = Platform.OS === 'ios'
+      ? [
+          `http://maps.apple.com/?daddr=${destination}`,
+          `https://www.google.com/maps/dir/?api=1&destination=${destination}`,
+        ]
+      : [
+          `geo:0,0?q=${destination}(${label})`,
+          `google.navigation:q=${destination}`,
+          `https://www.google.com/maps/dir/?api=1&destination=${destination}`,
+        ];
+
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const { latitude: curLat, longitude: curLng } = pos.coords;
-        if (gymLat && gymLng) {
-          Linking.openURL(`https://www.google.com/maps/dir/${curLat},${curLng}/${gymLat},${gymLng}/`);
-        } else {
-          Linking.openURL(`https://www.google.com/maps/dir/${curLat},${curLng}/${encodeURIComponent(name + ' ' + address)}/`);
-        }
-      } else {
-        // No permission — open destination only
-        if (gymLat && gymLng) {
-          Linking.openURL(`https://maps.google.com/?q=${gymLat},${gymLng}`);
-        } else {
-          Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(name + ' ' + address)}`);
+      for (const url of urls) {
+        const canOpen = url.startsWith('http') || await Linking.canOpenURL(url);
+        if (canOpen) {
+          await Linking.openURL(url);
+          return;
         }
       }
+      await Linking.openURL(`https://maps.google.com/?q=${destination}`);
     } catch {
-      Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(name + ' ' + address)}`);
+      Linking.openURL(`https://maps.google.com/?q=${destination}`).catch(() => {});
     }
   };
 
   const handleShare = () => {
-    Share.share({ message: `Check out ${name} on BookMyFit!` }).catch(() => {});
+    const message = [
+      `Check out ${name} on BookMyFit.`,
+      address ? `Address: ${address}` : '',
+      displayRating !== null ? `Rating: ${displayRating.toFixed(1)} (${reviewCountLabel(displayReviewCount)})` : '',
+      gymShareUrl,
+    ].filter(Boolean).join('\n');
+    Share.share({ title: `${name} on BookMyFit`, message, url: gymShareUrl }).catch(() => {});
   };
 
   const loadSlots = (gymId: string, date: string) => {
@@ -812,6 +838,28 @@ export default function GymDetail() {
               {/* About Tab */}
               {activeTab === 'About' && (
                 <>
+                  <Text style={s.sectionTitle}>Location</Text>
+                  <View style={s.mapCard}>
+                    {mapUri ? (
+                      <WebView
+                        source={{ uri: mapUri }}
+                        scrollEnabled={false}
+                        showsHorizontalScrollIndicator={false}
+                        showsVerticalScrollIndicator={false}
+                        style={{ flex: 1, backgroundColor: colors.surface }}
+                      />
+                    ) : (
+                      <View style={s.mapPlaceholder}>
+                        <IconPin size={22} color={colors.accent} />
+                        <Text style={s.mapAddressText}>{address || 'Location not added yet'}</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity style={s.mapDirOverlay} onPress={getDirections} activeOpacity={0.88}>
+                      <IconPin size={14} color="#060606" />
+                      <Text style={s.mapDirOverlayText}>Get Directions</Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <Text style={s.sectionTitle}>Gym Details</Text>
                   <View style={s.glassCard}>
                     <View style={s.detailRow}>
@@ -838,6 +886,22 @@ export default function GymDetail() {
                       <Text style={s.detailValue}>{description || 'Not added yet'}</Text>
                     </View>
                   </View>
+
+                  {amenityItems.length > 0 && (
+                    <>
+                      <Text style={s.sectionTitle}>Amenities</Text>
+                      <View style={s.amenityWrap}>
+                        {amenityItems.map((item: any) => (
+                          <View key={item.name} style={s.amenityPill}>
+                            <View style={s.amenityIconBox}>
+                              <AmenityIcon label={item.name} iconUrl={item.iconUrl} />
+                            </View>
+                            <Text style={s.amenityText} numberOfLines={2}>{item.name}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  )}
                 </>
               )}
 
