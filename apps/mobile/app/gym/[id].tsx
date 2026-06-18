@@ -438,7 +438,7 @@ export default function GymDetail() {
   const mapUri = gymLat && gymLng
     ? `https://www.openstreetmap.org/export/embed.html?bbox=${(gymLng - 0.012).toFixed(6)}%2C${(gymLat - 0.012).toFixed(6)}%2C${(gymLng + 0.012).toFixed(6)}%2C${(gymLat + 0.012).toFixed(6)}&layer=mapnik&marker=${gymLat}%2C${gymLng}`
     : '';
-  const gymShareUrl = `https://bookmyfit.in/gym/${encodeURIComponent(String(id || gym?.id || gym?._id || ''))}`;
+  const gymShareUrl = `https://bookmyfit.in/app/gym/${encodeURIComponent(String(id || gym?.id || gym?._id || ''))}`;
 
   const getDirections = async () => {
     const destinationText = gymLat && gymLng ? `${gymLat},${gymLng}` : `${name} ${address}`.trim();
@@ -500,25 +500,15 @@ export default function GymDetail() {
     setBookingLoading(slotId);
     try {
       const res: any = await api.post('/sessions/book', { slotId, subscriptionId: activeSub?.id || activeSub?._id });
-      if (res?.bookingQr) {
-        router.push({
-          pathname: '/qr',
-          params: {
-            token: res.bookingQr.token,
-            expiresAt: res.bookingQr.expiresAt,
-            bookedAt: res.bookingQr.bookedAt,
-            gymId: res.bookingQr.gymId,
-            gymName: res.bookingQr.gymName,
-            bookingId: res.bookingQr.bookingId || res.id || '',
-            bookingRef: res.bookingQr.bookingRef || res.bookingRef || '',
-            manualCode: res.bookingQr.manualCode || res.bookingQr.bookingRef || res.bookingRef || res.bookingQr.bookingId || res.id || '',
-          },
-        } as any);
-      } else {
-        const { Alert } = require('react-native');
-        Alert.alert('Booked', 'Your session is confirmed. Check My Bookings for details.');
-        loadSlots(id as string, slotDate);
-      }
+      router.push({
+        pathname: '/(tabs)/bookings',
+        params: {
+          bookingCreated: '1',
+          bookingId: res?.bookingQr?.bookingId || res?.id || '',
+          bookingRef: res?.bookingQr?.bookingRef || res?.bookingRef || '',
+          gymName: res?.bookingQr?.gymName || name,
+        },
+      } as any);
     } catch (e: any) {
       const { Alert } = require('react-native');
       const msg = (e?.message || '');

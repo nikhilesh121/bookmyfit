@@ -161,25 +161,15 @@ export default function SlotsScreen() {
     setBookingId(slotId);
     try {
       const res: any = await api.post('/sessions/book', { slotId, subscriptionId: activeSub?.id || activeSub?._id });
-      if (res?.bookingQr) {
-        router.replace({
-          pathname: '/qr',
-          params: {
-            token: res.bookingQr.token,
-            expiresAt: res.bookingQr.expiresAt,
-            bookedAt: res.bookingQr.bookedAt,
-            gymId: res.bookingQr.gymId,
-            gymName: res.bookingQr.gymName,
-            bookingId: res.bookingQr.bookingId || res.id || '',
-            bookingRef: res.bookingQr.bookingRef || res.bookingRef || '',
-            manualCode: res.bookingQr.manualCode || res.bookingQr.bookingRef || res.bookingRef || res.bookingQr.bookingId || res.id || '',
-          },
-        });
-      } else {
-        Alert.alert('Booking Confirmed!', 'Your slot has been booked.');
-        loadSlots(selectedDay);
-        loadMyBookings();
-      }
+      router.replace({
+        pathname: '/(tabs)/bookings',
+        params: {
+          bookingCreated: '1',
+          bookingId: res?.bookingQr?.bookingId || res?.id || '',
+          bookingRef: res?.bookingQr?.bookingRef || res?.bookingRef || '',
+          gymName: res?.bookingQr?.gymName || '',
+        },
+      } as any);
     } catch (e: any) {
       Alert.alert('Booking Failed', e?.message || 'Please try again.');
     } finally {

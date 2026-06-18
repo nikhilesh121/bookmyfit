@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, router } from 'expo-router';
+import { useFocusEffect, router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, radius, spacing } from '../../theme/brand';
 import { IconCalendar, IconQR, IconClock, IconPin, IconReceipt, IconStar } from '../../components/Icons';
 import { qrApi, api, wellnessApi } from '../../lib/api';
@@ -91,6 +91,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function BookingsTab() {
+  const params = useLocalSearchParams<{ bookingCreated?: string; bookingRef?: string; gymName?: string }>();
   const [activeTab, setActiveTab] = useState<'gym' | 'wellness'>('gym');
   const [gymBookings, setGymBookings] = useState<GymBooking[]>([]);
   const [activeBooking, setActiveBooking] = useState<any>(null);
@@ -235,6 +236,7 @@ export default function BookingsTab() {
     : 0;
   const hrs = Math.floor(secsLeft / 3600);
   const mins = Math.floor((secsLeft % 3600) / 60);
+  const showBookingCreated = activeTab === 'gym' && params.bookingCreated === '1';
 
   return (
     <SafeAreaView style={s.root} edges={['top', 'left', 'right']}>
@@ -261,6 +263,20 @@ export default function BookingsTab() {
           <View style={s.centre}><ActivityIndicator color={colors.accent} /></View>
         ) : activeTab === 'gym' ? (
           <View style={s.list}>
+            {showBookingCreated ? (
+              <View style={s.confirmCard}>
+                <View style={s.activeTop}>
+                  <View style={s.statusDot} />
+                  <Text style={s.statusText}>Booking Confirmed</Text>
+                </View>
+                <Text style={s.confirmTitle}>{params.gymName || 'Your gym slot is booked'}</Text>
+                <Text style={s.confirmText}>
+                  Your slot is listed below. The QR will appear when check-in opens for the booked time.
+                </Text>
+                {params.bookingRef ? <Text style={s.confirmRef}>#{params.bookingRef}</Text> : null}
+              </View>
+            ) : null}
+
             {activeBooking ? (
               <View style={s.activeCard}>
                 <View style={s.activeTop}>
@@ -475,6 +491,17 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 10,
   },
   qrBtnText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#060606' },
+  confirmCard: {
+    backgroundColor: 'rgba(204,255,0,0.08)',
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    padding: 18,
+    gap: 8,
+  },
+  confirmTitle: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
+  confirmText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2, lineHeight: 19 },
+  confirmRef: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent, letterSpacing: 1.2 },
 
   bookingCard: {
     backgroundColor: colors.glass, borderRadius: radius.xl,
