@@ -2,6 +2,7 @@ import { Module, Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, 
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import { IsString, IsDateString, IsOptional } from 'class-validator';
@@ -11,6 +12,8 @@ import { AppConfigEntity } from '../../database/entities/app-config.entity';
 import { UserEntity } from '../../database/entities/user.entity';
 import { CashfreeService } from '../payments/cashfree.service';
 import { PaymentsModule } from '../payments/payments.module';
+import { EmailModule } from '../email/email.module';
+import { EmailService } from '../email/email.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
@@ -34,6 +37,7 @@ export class WellnessService {
     @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
     @InjectRepository(UserEntity) private readonly users: Repository<UserEntity>,
     private readonly cashfree: CashfreeService,
+    private readonly email: EmailService = { sendWellnessOwnerCredentials: async () => false } as any,
   ) {}
   private normalizeServiceTypes(value: any): string[] {
     const raw = Array.isArray(value)
@@ -162,27 +166,41 @@ export class WellnessService {
     }
   }
 
-  private async resolveOwnerId(data: any, existing?: WellnessPartnerEntity) {
+  private generateTemporaryPassword() {
+    return `BMF-${randomBytes(4).toString('hex').toUpperCase()}-${randomBytes(3).toString('hex').toUpperCase()}`;
+  }
+
+  private async resolveOwnerAccount(data: any, existing?: WellnessPartnerEntity) {
     if (data.ownerId !== undefined && data.ownerId !== null && String(data.ownerId).trim()) {
       const ownerId = String(data.ownerId).trim();
       const user = await this.users.findOne({ where: { id: ownerId } });
       if (!user) throw new BadRequestException('Selected wellness owner user was not found');
       if (user.role !== 'wellness_partner') throw new BadRequestException('Selected owner must be a wellness partner user');
       await this.assertOwnerAvailable(ownerId, existing);
-      return ownerId;
+      return { ownerId };
     }
 
     const ownerEmail = String(data.ownerEmail || '').trim().toLowerCase();
+    const suppliedPassword = String(data.ownerPassword || '').trim();
+    const shouldResetPassword = data.resetOwnerPassword === true || data.resetOwnerPassword === 'true';
     if (!ownerEmail) {
-      const ownerPassword = String(data.ownerPassword || '').trim();
-      if (ownerPassword && existing?.ownerId) {
+      if ((suppliedPassword || shouldResetPassword) && existing?.ownerId) {
         const user = await this.users.findOne({ where: { id: existing.ownerId } });
         if (!user) throw new BadRequestException('Linked wellness owner user was not found');
-        user.passwordHash = await bcrypt.hash(ownerPassword, 10);
+        const temporaryPassword = suppliedPassword || this.generateTemporaryPassword();
+        user.passwordHash = await bcrypt.hash(temporaryPassword, 10);
         user.isActive = true;
+        user.mustChangePassword = true;
+        user.temporaryPasswordIssuedAt = new Date();
         await this.users.save(user);
+        return {
+          ownerId: user.id,
+          generatedPassword: temporaryPassword,
+          ownerEmail: user.email,
+          ownerName: user.name,
+        };
       }
-      return existing?.ownerId;
+      return { ownerId: existing?.ownerId };
     }
     let user = await this.users.findOne({ where: { email: ownerEmail } });
     if (user && user.role !== 'wellness_partner') {
@@ -192,23 +210,61 @@ export class WellnessService {
       await this.assertOwnerAvailable(user.id, existing);
     }
     if (!user) {
-      const ownerPassword = String(data.ownerPassword || '').trim();
-      if (!ownerPassword || ownerPassword.length < 6) {
-        throw new BadRequestException('Owner password of at least 6 characters is required for a new wellness login');
-      }
+      const temporaryPassword = suppliedPassword || this.generateTemporaryPassword();
+      if (temporaryPassword.length < 6) throw new BadRequestException('Owner password must be at least 6 characters');
       user = await this.users.save(this.users.create({
         email: ownerEmail,
-        passwordHash: await bcrypt.hash(ownerPassword, 10),
+        passwordHash: await bcrypt.hash(temporaryPassword, 10),
         name: String(data.ownerName || data.name || ownerEmail.split('@')[0] || 'Wellness Partner').trim(),
         role: 'wellness_partner',
         isActive: true,
+        mustChangePassword: true,
+        temporaryPasswordIssuedAt: new Date(),
       }));
-    } else if (data.ownerPassword !== undefined && String(data.ownerPassword || '').trim()) {
-      user.passwordHash = await bcrypt.hash(String(data.ownerPassword).trim(), 10);
+      return {
+        ownerId: user.id,
+        generatedPassword: temporaryPassword,
+        ownerEmail: user.email,
+        ownerName: user.name,
+      };
+    } else if (suppliedPassword || shouldResetPassword) {
+      const temporaryPassword = suppliedPassword || this.generateTemporaryPassword();
+      if (temporaryPassword.length < 6) throw new BadRequestException('Owner password must be at least 6 characters');
+      user.passwordHash = await bcrypt.hash(temporaryPassword, 10);
       user.isActive = true;
+      user.mustChangePassword = true;
+      user.temporaryPasswordIssuedAt = new Date();
       await this.users.save(user);
+      return {
+        ownerId: user.id,
+        generatedPassword: temporaryPassword,
+        ownerEmail: user.email,
+        ownerName: user.name,
+      };
     }
-    return user.id;
+    return { ownerId: user.id };
+  }
+
+  private async withOwnerLoginResponse(response: any, ownerAccount: any, partner: WellnessPartnerEntity) {
+    if (!ownerAccount?.generatedPassword || !ownerAccount?.ownerEmail) return response;
+    const portalUrl = process.env.WELLNESS_PORTAL_URL || 'https://wellness.bookmyfit.in';
+    const emailSent = await this.email.sendWellnessOwnerCredentials({
+      partnerName: partner.name,
+      ownerName: ownerAccount.ownerName || partner.name || 'Wellness Partner',
+      email: ownerAccount.ownerEmail,
+      password: ownerAccount.generatedPassword,
+      portalUrl,
+    }).catch(() => false);
+    return {
+      ...response,
+      ownerLogin: {
+        email: ownerAccount.ownerEmail,
+        password: ownerAccount.generatedPassword,
+        portalUrl,
+        emailSent,
+        mustChangePassword: true,
+      },
+    };
   }
 
   private applyPartnerTypeFilter(qb: any, serviceType?: string) {
@@ -232,13 +288,13 @@ export class WellnessService {
     const rated = await this.withLiveRatings(data);
     return paginatedResponse(rated.map((partner) => this.partnerResponse(partner)), total, p, l);
   }
-  async createPartner(data: Partial<WellnessPartnerEntity> & { ownerEmail?: string; ownerPassword?: string; ownerName?: string }) {
+  async createPartner(data: Partial<WellnessPartnerEntity> & { ownerEmail?: string; ownerPassword?: string; ownerName?: string; resetOwnerPassword?: boolean }) {
     const patch = this.partnerPatch(data);
-    const ownerId = await this.resolveOwnerId(data);
-    if (ownerId) patch.ownerId = ownerId;
+    const ownerAccount = await this.resolveOwnerAccount(data);
+    if (ownerAccount.ownerId) patch.ownerId = ownerAccount.ownerId;
     const partner = await this.partners.save(this.partners.create(patch as Partial<WellnessPartnerEntity>));
     const [ratedPartner] = await this.withLiveRatings([partner]);
-    return this.partnerResponse(ratedPartner);
+    return this.withOwnerLoginResponse(this.partnerResponse(ratedPartner), ownerAccount, partner);
   }
   async getPartner(id: string) {
     const partner = await this.partners.findOne({ where: { id } });
@@ -252,16 +308,18 @@ export class WellnessService {
     const [ratedPartner] = await this.withLiveRatings([partner]);
     return this.partnerResponse(ratedPartner);
   }
-  async updatePartner(id: string, data: Partial<WellnessPartnerEntity> & { ownerEmail?: string; ownerPassword?: string; ownerName?: string }) {
+  async updatePartner(id: string, data: Partial<WellnessPartnerEntity> & { ownerEmail?: string; ownerPassword?: string; ownerName?: string; resetOwnerPassword?: boolean }) {
     const existing = await this.partners.findOne({ where: { id } });
     if (!existing) throw new NotFoundException('Wellness partner not found');
     const patch = this.partnerPatch(data, existing);
-    if (data.ownerId !== undefined || data.ownerEmail !== undefined || data.ownerPassword !== undefined) {
-      patch.ownerId = await this.resolveOwnerId(data, existing);
+    let ownerAccount: any = null;
+    if (data.ownerId !== undefined || data.ownerEmail !== undefined || data.ownerPassword !== undefined || data.resetOwnerPassword !== undefined) {
+      ownerAccount = await this.resolveOwnerAccount(data, existing);
+      patch.ownerId = ownerAccount.ownerId;
     }
     const saved = await this.partners.save({ ...existing, ...patch });
     const [ratedPartner] = await this.withLiveRatings([saved]);
-    return this.partnerResponse(ratedPartner);
+    return this.withOwnerLoginResponse(this.partnerResponse(ratedPartner), ownerAccount, saved);
   }
   async updatePartnerForOwner(ownerId: string, data: Partial<WellnessPartnerEntity>) {
     const existing = await this.partners.findOne({ where: { ownerId } });
@@ -880,7 +938,7 @@ class WellnessController {
 }
 
 @Module({
-  imports: [TypeOrmModule.forFeature([WellnessPartnerEntity, WellnessServiceEntity, WellnessBookingEntity, RatingEntity, AppConfigEntity, UserEntity]), PaymentsModule],
+  imports: [TypeOrmModule.forFeature([WellnessPartnerEntity, WellnessServiceEntity, WellnessBookingEntity, RatingEntity, AppConfigEntity, UserEntity]), PaymentsModule, EmailModule],
   controllers: [WellnessController],
   providers: [WellnessService],
 })

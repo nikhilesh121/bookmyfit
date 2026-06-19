@@ -7,13 +7,14 @@ import { colors, fonts, radius } from '../../theme/brand';
 import {
   IconArrowLeft, IconStar, IconPin, IconArrowRight, IconCheck, IconClock,
   IconDumbbell, IconShare, IconLock, IconRefresh, IconGlobe,
-  IconShield, IconHeadphones, IconBolt, IconPlay,
+  IconShield, IconHeadphones, IconBolt,
 } from '../../components/Icons';
 import { gymsApi, subscriptionsApi, api, API_BASE } from '../../lib/api';
 import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList, subscriptionPlanType } from '../../lib/subscriptionAccess';
 import AuroraBackground from '../../components/AuroraBackground';
 import { DEFAULT_GYM_IMAGE, firstImage, imageList } from '../../lib/imageFallbacks';
 import { applyPassCommission } from '../../lib/passPricing';
+import EmbeddedVideoPlayer from '../../components/EmbeddedVideoPlayer';
 
 const { width } = Dimensions.get('window');
 
@@ -560,20 +561,15 @@ export default function GymDetail() {
               setHeroIndex(Math.max(0, Math.min(nextIndex, heroItems.length - 1)));
             }}
             renderItem={({ item, index }) => item.type === 'video' ? (
-              <TouchableOpacity
-                activeOpacity={0.88}
-                style={s.heroVideoSlide}
-                onPress={() => router.push({
-                  pathname: '/video-player',
-                  params: { url: item.url, title: `${name} video ${index - heroImages.length + 1}`, instructor: name },
-                } as any)}
-              >
-                <ImageBackground source={{ uri: fallbackHeroImage }} style={s.heroVideoBackdrop} blurRadius={6} />
-                <View style={s.heroVideoContent}>
-                  <View style={s.heroPlayButton}><IconPlay size={26} color="#060606" /></View>
-                  <Text style={s.heroPlayLabel}>Play gym video</Text>
-                </View>
-              </TouchableOpacity>
+              <View style={s.heroVideoSlide}>
+                <EmbeddedVideoPlayer
+                  url={item.url}
+                  title={`${name} video ${index - heroImages.length + 1}`}
+                  autoPlay={false}
+                  controls
+                  style={s.heroInlineVideo}
+                />
+              </View>
             ) : (
               <ImageBackground source={{ uri: item.url || DEFAULT_GYM_IMAGE }} style={s.heroSlide} />
             )}
@@ -1070,10 +1066,7 @@ const s = StyleSheet.create({
   hero: { width, height: 260, position: 'relative', overflow: 'hidden', backgroundColor: colors.surface },
   heroSlide: { width, height: 260, backgroundColor: colors.surface },
   heroVideoSlide: { width, height: 260, alignItems: 'center', justifyContent: 'center', backgroundColor: '#050505', overflow: 'hidden' },
-  heroVideoBackdrop: { ...StyleSheet.absoluteFillObject, opacity: 0.36 },
-  heroVideoContent: { alignItems: 'center', justifyContent: 'center', gap: 10, zIndex: 1 },
-  heroPlayButton: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  heroPlayLabel: { fontFamily: fonts.sansBold, fontSize: 13, color: '#fff' },
+  heroInlineVideo: { width, height: 260 },
   heroAurora: { ...StyleSheet.absoluteFillObject, opacity: 0.85 },
   heroDark: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
   heroInner: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 22, paddingTop: 4, flexDirection: 'row', justifyContent: 'space-between', zIndex: 4 },

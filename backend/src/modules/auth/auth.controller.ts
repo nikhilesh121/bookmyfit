@@ -1,7 +1,8 @@
-import { Body, Controller, Post, HttpCode } from '@nestjs/common';
+import { Body, Controller, Post, HttpCode, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ArrayMinSize, IsArray, IsNotEmpty, IsOptional, IsString, Length, IsEmail, MinLength } from 'class-validator';
 import { AuthService } from './auth.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 class SendOtpDto {
   @IsString() @IsNotEmpty() @Length(10, 15) phone: string;
@@ -36,6 +37,10 @@ class CorporateRegisterDto {
   @IsString() @IsNotEmpty() billingContact: string;
   @IsOptional() employeeCount?: number;
   @IsOptional() totalSeats?: number;
+}
+class ChangePasswordDto {
+  @IsString() @IsNotEmpty() currentPassword: string;
+  @IsString() @MinLength(6) newPassword: string;
 }
 
 @ApiTags('Auth')
@@ -89,5 +94,12 @@ export class AuthController {
   @HttpCode(200)
   refresh(@Body() dto: { refreshToken: string }) {
     return this.auth.refresh(dto.refreshToken);
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  changePassword(@Req() req: any, @Body() dto: ChangePasswordDto) {
+    return this.auth.changePassword(req.user.userId, dto.currentPassword, dto.newPassword);
   }
 }

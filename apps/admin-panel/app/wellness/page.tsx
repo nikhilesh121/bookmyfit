@@ -53,7 +53,7 @@ type Service = {
 };
 type ApprovalStatus = NonNullable<Service['approvalStatus']>;
 
-const defaultPartnerForm = { name: '', serviceType: 'Spa', country: 'India', state: '', city: '', area: '', address: '', status: 'active', discountPercent: '0', distanceLabel: '', photos: '', ownerEmail: '', ownerPassword: '' };
+const defaultPartnerForm = { name: '', serviceType: 'Spa', country: 'India', state: '', city: '', area: '', address: '', status: 'active', discountPercent: '0', distanceLabel: '', photos: '', ownerEmail: '', ownerPassword: '', resetOwnerPassword: false };
 const defaultServiceForm = { name: '', category: 'Massage', price: '', originalPrice: '', durationMinutes: '60', partnerId: '', imageUrl: '', isActive: true, approvalStatus: 'approved' };
 
 function asArray(value: any) {
@@ -75,6 +75,7 @@ export default function WellnessPage() {
   const [showPartnerForm, setShowPartnerForm] = useState(false);
   const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
   const [partnerForm, setPartnerForm] = useState(defaultPartnerForm);
+  const [ownerLoginInfo, setOwnerLoginInfo] = useState<{ email: string; password: string; portalUrl: string; emailSent?: boolean } | null>(null);
 
   // Service form
   const [showSvcForm, setShowSvcForm] = useState(false);
@@ -100,6 +101,7 @@ export default function WellnessPage() {
   const openAddPartner = () => {
     setEditingPartner(null);
     setPartnerForm(defaultPartnerForm);
+    setOwnerLoginInfo(null);
     setShowPartnerForm(true);
   };
   const openEditPartner = (p: Partner) => {
@@ -112,11 +114,14 @@ export default function WellnessPage() {
       photos: Array.isArray(p.photos) ? p.photos.join(', ') : String(p.photos || ''),
       ownerEmail: '',
       ownerPassword: '',
+      resetOwnerPassword: false,
     });
+    setOwnerLoginInfo(null);
     setShowPartnerForm(true);
   };
   const savePartner = async () => {
     if (!partnerForm.name || !partnerForm.city) return flash('Please fill required fields', 'error');
+    if (!editingPartner && !partnerForm.ownerEmail.trim()) return flash('Owner email is required to generate wellness login details', 'error');
     const body = {
       name: partnerForm.name,
       serviceType: partnerForm.serviceType,
@@ -132,25 +137,32 @@ export default function WellnessPage() {
       photos: partnerForm.photos ? partnerForm.photos.split(',').map(s => s.trim()).filter(Boolean) : [],
       ...(partnerForm.ownerEmail.trim() ? { ownerEmail: partnerForm.ownerEmail.trim() } : {}),
       ...(partnerForm.ownerPassword.trim() ? { ownerPassword: partnerForm.ownerPassword.trim() } : {}),
+      ...(editingPartner && partnerForm.resetOwnerPassword ? { resetOwnerPassword: true } : {}),
       ...(editingPartner && Number.isFinite(Number(editingPartner.lat)) ? { lat: Number(editingPartner.lat) } : {}),
       ...(editingPartner && Number.isFinite(Number(editingPartner.lng)) ? { lng: Number(editingPartner.lng) } : {}),
     };
+    let nextOwnerLogin: typeof ownerLoginInfo = null;
     try {
       if (editingPartner) {
-        await api.put(`/wellness/partners/${editingPartner.id}`, body);
-        setPartners(ps => ps.map(p => p.id === editingPartner.id ? { ...p, ...body } : p));
+        const updated: any = await api.put(`/wellness/partners/${editingPartner.id}`, body);
+        setPartners(ps => ps.map(p => p.id === editingPartner.id ? { ...p, ...updated } : p));
+        nextOwnerLogin = updated?.ownerLogin || null;
+        setOwnerLoginInfo(nextOwnerLogin);
         flash('Spa centre updated!');
       } else {
         const created: any = await api.post('/wellness/partners', body);
         if (!created?.id) throw new Error('API did not return the created partner.');
         setPartners(ps => [...ps, created]);
+        nextOwnerLogin = created?.ownerLogin || null;
+        setOwnerLoginInfo(nextOwnerLogin);
         flash('Spa centre added!');
       }
     } catch (e: any) {
       flash(e?.message || 'Save failed. Please retry after checking your login session.', 'error');
       return;
     }
-    setShowPartnerForm(false); setEditingPartner(null);
+    if (!nextOwnerLogin) setShowPartnerForm(false);
+    setEditingPartner(null);
   };
   const deletePartner = async (id: string) => {
     try {
@@ -318,6 +330,41 @@ export default function WellnessPage() {
               <h3 style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, color: '#fff', margin: '0 0 20px', fontSize: 17 }}>
                 {editingPartner ? 'Edit Spa Centre' : 'New Spa Centre'}
               </h3>
+              {ownerLoginInfo && (
+                <div style={{
+                  background: 'rgba(61,255,84,0.08)',
+                  border: '1px solid rgba(61,255,84,0.28)',
+                  borderRadius: 12,
+                  padding: 14,
+                  marginBottom: 18,
+                }}>
+                  <div style={{ color: '#3DFF54', fontWeight: 800, marginBottom: 8 }}>Wellness owner login created</div>
+                  <div style={{ color: 'var(--t2)', fontSize: 13, lineHeight: 1.7 }}>
+                    Email: <strong style={{ color: '#fff' }}>{ownerLoginInfo.email}</strong><br />
+                    Temporary password: <strong style={{ color: '#fff' }}>{ownerLoginInfo.password}</strong><br />
+                    Portal: <strong style={{ color: '#fff' }}>{ownerLoginInfo.portalUrl}</strong><br />
+                    Email status: <strong style={{ color: ownerLoginInfo.emailSent ? '#3DFF54' : '#FFD93D' }}>
+                      {ownerLoginInfo.emailSent ? 'sent' : 'not sent, copy and share manually'}
+                    </strong>
+                  </div>
+                  <button
+                    style={{ ...btn('green'), marginTop: 12 }}
+                    onClick={() => navigator.clipboard?.writeText(`Wellness portal: ${ownerLoginInfo.portalUrl}\nEmail: ${ownerLoginInfo.email}\nTemporary password: ${ownerLoginInfo.password}`)}
+                  >
+                    Copy login details
+                  </button>
+                  <button
+                    style={{ ...btn('ghost'), marginTop: 12, marginLeft: 8 }}
+                    onClick={() => {
+                      setOwnerLoginInfo(null);
+                      setShowPartnerForm(false);
+                      setPartnerForm(defaultPartnerForm);
+                    }}
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
               <div className="admin-form-grid" style={{ marginBottom: 16 }}>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={label('NAME *')}>NAME *</label>
@@ -340,8 +387,21 @@ export default function WellnessPage() {
                   <input style={input} type="email" placeholder="wellness@company.in" value={partnerForm.ownerEmail} onChange={e => setPartnerForm(f => ({ ...f, ownerEmail: e.target.value }))} />
                 </div>
                 <div>
-                  <label style={label(editingPartner ? 'NEW OWNER PASSWORD (optional)' : 'OWNER PASSWORD')}>{editingPartner ? 'NEW OWNER PASSWORD' : 'OWNER PASSWORD'}</label>
-                  <input style={input} type="password" placeholder={editingPartner ? 'Leave blank to keep unchanged' : 'Minimum 6 characters'} value={partnerForm.ownerPassword} onChange={e => setPartnerForm(f => ({ ...f, ownerPassword: e.target.value }))} />
+                  <label style={label(editingPartner ? 'OWNER LOGIN RESET' : 'OWNER LOGIN')}>{editingPartner ? 'OWNER LOGIN RESET' : 'OWNER LOGIN'}</label>
+                  {editingPartner ? (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 42, color: 'var(--t2)', fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        checked={partnerForm.resetOwnerPassword}
+                        onChange={e => setPartnerForm(f => ({ ...f, resetOwnerPassword: e.target.checked }))}
+                      />
+                      Generate and email a new temporary password
+                    </label>
+                  ) : (
+                    <div style={{ minHeight: 42, display: 'flex', alignItems: 'center', color: 'var(--t2)', fontSize: 13 }}>
+                      Temporary password will be generated and emailed automatically.
+                    </div>
+                  )}
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <LocationFields

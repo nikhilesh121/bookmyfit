@@ -60,6 +60,8 @@ export default function Duration() {
   const { planId, planName, gymId, gymName, basePrice, planImage, isDayPass: isDayPassParam, gymPlansJson } = useLocalSearchParams<{
     planId: string; planName: string; gymId?: string; gymName?: string; basePrice?: string; planImage?: string; isDayPass?: string; gymPlansJson?: string;
   }>();
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
+  const [overflowingDescriptions, setOverflowingDescriptions] = useState<Record<string, boolean>>({});
 
   const routeBase = Number(basePrice);
   const monthlyBase = Number.isFinite(routeBase) && routeBase > 0 ? routeBase : null;
@@ -263,6 +265,9 @@ export default function Duration() {
 
           {DURATIONS.map((d, i) => {
             const active = i === selected;
+            const descKey = d.isDayPass ? 'daypass' : d.gymPlanId || String(d.months);
+            const descExpanded = !!expandedDescriptions[descKey];
+            const descCanToggle = !!d.description && (d.description.length > 120 || !!overflowingDescriptions[descKey] || descExpanded);
             return (
               <TouchableOpacity
                 key={d.isDayPass ? 'daypass' : d.gymPlanId || d.months}
@@ -286,7 +291,33 @@ export default function Duration() {
                   {d.sublabel && !d.hot && <Text style={s.optionSublabel} numberOfLines={1}>{d.sublabel}</Text>}
                 </View>
                   {!!d.description && (
-                    <Text style={s.optionDescription} numberOfLines={3}>{d.description}</Text>
+                    <>
+                      <Text
+                        style={s.optionDescription}
+                        numberOfLines={descExpanded ? undefined : 3}
+                        onTextLayout={(event) => {
+                          const isOverflowing = event.nativeEvent.lines.length > 3;
+                          setOverflowingDescriptions((prev) => (
+                            prev[descKey] === isOverflowing ? prev : { ...prev, [descKey]: isOverflowing }
+                          ));
+                        }}
+                      >
+                        {d.description}
+                      </Text>
+                      {descCanToggle && (
+                        <TouchableOpacity
+                          activeOpacity={0.75}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          onPress={(event: any) => {
+                            event?.stopPropagation?.();
+                            setExpandedDescriptions((prev) => ({ ...prev, [descKey]: !prev[descKey] }));
+                          }}
+                          style={s.descriptionToggle}
+                        >
+                          <Text style={s.descriptionToggleText}>{descExpanded ? 'Show Less' : 'Show More'}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
                   )}
                   {!!d.originalPrice && d.originalPrice > d.price && (
                     <Text style={s.originalPrice} numberOfLines={1}>{money(d.originalPrice)}</Text>
@@ -470,6 +501,8 @@ const s = StyleSheet.create({
   optionLabel: { flexShrink: 1, fontFamily: fonts.sansMedium, fontSize: 15, color: colors.t },
   optionSublabel: { flexShrink: 1, fontFamily: fonts.sans, fontSize: 10, color: colors.t3 },
   optionDescription: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, lineHeight: 16, marginTop: 3, marginBottom: 2 },
+  descriptionToggle: { alignSelf: 'flex-start', paddingTop: 2, paddingBottom: 4 },
+  descriptionToggleText: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.accent },
   optionPrice: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
   originalPrice: { marginTop: 2, fontFamily: fonts.sans, fontSize: 11, color: colors.t3, textDecorationLine: 'line-through' },
   optionPricePer: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },

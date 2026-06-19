@@ -385,6 +385,22 @@ export class AuthService {
     return { ...this.issueTokens(user), corporate };
   }
 
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user || !user.passwordHash) throw new UnauthorizedException('Invalid session');
+    const current = String(currentPassword || '');
+    const next = String(newPassword || '');
+    if (next.length < 6) throw new BadRequestException('New password must be at least 6 characters');
+    const ok = await bcrypt.compare(current, user.passwordHash);
+    if (!ok) throw new UnauthorizedException('Current password is incorrect');
+    user.passwordHash = await bcrypt.hash(next, 10);
+    user.mustChangePassword = false;
+    user.passwordChangedAt = new Date();
+    user.temporaryPasswordIssuedAt = null;
+    await this.users.save(user);
+    return this.issueTokens(user);
+  }
+
   private issueTokens(user: UserEntity) {
     const payload = { sub: user.id, role: user.role, phone: user.phone, email: user.email };
     const accessToken = this.jwt.sign(payload);
@@ -395,7 +411,14 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: user.id, phone: user.phone, name: user.name, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        phone: user.phone,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        mustChangePassword: !!user.mustChangePassword,
+      },
     };
   }
 }

@@ -40,6 +40,15 @@ export class UserEntity {
   @Column({ default: true })
   isActive: boolean;
 
+  @Column({ default: false })
+  mustChangePassword: boolean;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  passwordChangedAt: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  temporaryPasswordIssuedAt: Date | null;
+
   @Column({ length: 20, nullable: true, unique: true })
   referralCode: string;
 

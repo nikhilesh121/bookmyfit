@@ -31,6 +31,12 @@ export default function Login() {
       if (!res.ok) throw new Error('Invalid credentials');
       const data = await res.json();
       const token = data.accessToken;
+      if (data.user?.mustChangePassword) {
+        localStorage.setItem('bmf_wellness_token', data.accessToken);
+        localStorage.setItem('bmf_wellness_user', JSON.stringify(data.user));
+        window.location.href = '/reset-password';
+        return;
+      }
       let pid = '';
       if (data.user?.role === 'wellness_partner') {
         const meRes = await fetch(`${apiBase}/api/v1/wellness/me`, {

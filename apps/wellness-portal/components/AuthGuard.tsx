@@ -25,6 +25,19 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       localStorage.removeItem(TOKEN_KEY);
       router.replace('/login');
     } else {
+      let mustChangePassword = false;
+      try {
+        const user = JSON.parse(localStorage.getItem('bmf_wellness_user') || 'null');
+        mustChangePassword = !!user?.mustChangePassword;
+      } catch {}
+      if (mustChangePassword && pathname !== '/reset-password') {
+        router.replace('/reset-password');
+        return;
+      }
+      if (!mustChangePassword && pathname === '/reset-password') {
+        router.replace('/');
+        return;
+      }
       setChecked(true);
     }
   }, [pathname]);

@@ -112,6 +112,25 @@ export class EmailService {
     return this.sendRaw(opts.email, `BookMyFit Corporate Access - ${opts.companyName}`, html);
   }
 
+  async sendWellnessOwnerCredentials(opts: { partnerName: string; ownerName: string; email: string; password: string; portalUrl?: string }) {
+    const portalUrl = opts.portalUrl || process.env.WELLNESS_PORTAL_URL || 'https://wellness.bookmyfit.in';
+    const html = `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto;background:#0a0a0a;color:#fff;padding:32px;border-radius:12px">
+        <div style="color:#3DFF54;font-size:22px;font-weight:700;margin-bottom:8px">BookMyFit</div>
+        <h2 style="margin:0 0 16px">Wellness Partner Access</h2>
+        <p style="color:#aaa">Hi ${opts.ownerName},</p>
+        <p style="color:#aaa">Your wellness partner portal access for <strong>${opts.partnerName}</strong> has been created.</p>
+        <div style="background:#111;border:1px solid #222;border-radius:8px;padding:16px;margin:20px 0">
+          <p style="color:#aaa;margin:0 0 8px">Portal: <strong style="color:#fff">${portalUrl}</strong></p>
+          <p style="color:#aaa;margin:0 0 8px">Email: <strong style="color:#fff">${opts.email}</strong></p>
+          <p style="color:#aaa;margin:0">Temporary password: <strong style="color:#3DFF54">${opts.password}</strong></p>
+        </div>
+        <a href="${portalUrl}" style="display:inline-block;background:#3DFF54;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">Open Wellness Portal</a>
+        <p style="color:#777;font-size:12px;margin-top:18px">For security, you will be asked to change this password after your first sign in.</p>
+      </div>`;
+    return this.sendRaw(opts.email, `BookMyFit Wellness Login - ${opts.partnerName}`, html);
+  }
+
   async sendSubscriptionConfirmation(opts: {
     userName: string;
     email: string;
