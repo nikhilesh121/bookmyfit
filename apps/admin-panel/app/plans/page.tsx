@@ -115,20 +115,47 @@ export default function PlansPage() {
     setPassImages((current) => ({ ...current, [key]: value }));
   };
 
-  const handlePassImageUpload = (key: PassImageKey, file: File | null) => {
+  const optimizePassImage = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read selected image'));
+    reader.onload = () => {
+      const raw = String(reader.result || '');
+      const img = new Image();
+      img.onerror = () => resolve(raw);
+      img.onload = () => {
+        const maxSide = 1600;
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(raw);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/webp', 0.82));
+      };
+      img.src = raw;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const handlePassImageUpload = async (key: PassImageKey, file: File | null) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       toast('Please upload an image file', 'error');
       return;
     }
-    if (file.size > 4 * 1024 * 1024) {
-      toast('Pass image must be 4 MB or smaller', 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      toast('Pass image must be 10 MB or smaller', 'error');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => updatePassImage(key, String(reader.result || ''));
-    reader.onerror = () => toast('Could not read selected image', 'error');
-    reader.readAsDataURL(file);
+    try {
+      updatePassImage(key, await optimizePassImage(file));
+    } catch {
+      toast('Could not read selected image', 'error');
+    }
   };
 
   const save = async () => {

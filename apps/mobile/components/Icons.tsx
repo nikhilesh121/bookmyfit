@@ -24,7 +24,7 @@ export const IconClose = ({ size, color }: Props) => (<Svg {...mk(size, color)}>
 export const IconClock = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Circle cx="12" cy="12" r="10" /><Polyline points="12 6 12 12 16 14" /></Svg>);
 export const IconDumbbell = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M6.5 6.5h11M6.5 17.5h11M2 10v4M22 10v4M5 8v8M19 8v8" /></Svg>);
 export const IconPlay = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polygon points="5 3 19 12 5 21 5 3" fill={color || '#fff'} /></Svg>);
-export const IconShare = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polyline points="4 17 10 11 4 5" /><Line x1="12" y1="19" x2="20" y2="19" /></Svg>);
+export const IconShare = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Circle cx="18" cy="5" r="3" /><Circle cx="6" cy="12" r="3" /><Circle cx="18" cy="19" r="3" /><Line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><Line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></Svg>);
 export const IconCart = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" /><Line x1="3" y1="6" x2="21" y2="6" /><Path d="M16 10a4 4 0 01-8 0" /></Svg>);
 export const IconChevronRight = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polyline points="9 18 15 12 9 6" /></Svg>);
 export const IconChevronLeft = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polyline points="15 18 9 12 15 6" /></Svg>);

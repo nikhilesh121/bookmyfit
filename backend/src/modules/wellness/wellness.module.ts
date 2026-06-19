@@ -155,12 +155,20 @@ export class WellnessService {
     );
   }
 
+  private async assertOwnerAvailable(ownerId: string, existing?: WellnessPartnerEntity) {
+    const linkedPartner = await this.partners.findOne({ where: { ownerId } });
+    if (linkedPartner && linkedPartner.id !== existing?.id) {
+      throw new BadRequestException('This wellness login is already linked to another wellness partner');
+    }
+  }
+
   private async resolveOwnerId(data: any, existing?: WellnessPartnerEntity) {
     if (data.ownerId !== undefined && data.ownerId !== null && String(data.ownerId).trim()) {
       const ownerId = String(data.ownerId).trim();
       const user = await this.users.findOne({ where: { id: ownerId } });
       if (!user) throw new BadRequestException('Selected wellness owner user was not found');
       if (user.role !== 'wellness_partner') throw new BadRequestException('Selected owner must be a wellness partner user');
+      await this.assertOwnerAvailable(ownerId, existing);
       return ownerId;
     }
 
@@ -179,6 +187,9 @@ export class WellnessService {
     let user = await this.users.findOne({ where: { email: ownerEmail } });
     if (user && user.role !== 'wellness_partner') {
       throw new BadRequestException('Owner email is already used by another account type');
+    }
+    if (user) {
+      await this.assertOwnerAvailable(user.id, existing);
     }
     if (!user) {
       const ownerPassword = String(data.ownerPassword || '').trim();

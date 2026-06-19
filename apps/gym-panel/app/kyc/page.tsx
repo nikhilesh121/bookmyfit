@@ -203,8 +203,8 @@ export default function KycPage() {
       toast('Upload a PDF or image file only', 'error');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast('KYC file must be 5 MB or smaller', 'error');
+    if (file.size > 10 * 1024 * 1024) {
+      toast('KYC file must be 10 MB or smaller', 'error');
       return;
     }
     setDocumentUpload({
@@ -354,7 +354,7 @@ export default function KycPage() {
                   style={{ width: '100%', color: 'rgba(255,255,255,0.75)', fontSize: 12 }}
                 />
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', marginTop: 8 }}>
-                  Accepted: PDF, PNG, JPG, WebP. Maximum size: 5 MB.
+                  Accepted: PDF, PNG, JPG, WebP. Maximum size: 10 MB.
                 </div>
                 {documentUpload && (
                   <div style={{ marginTop: 10, fontSize: 12, color: '#3DFF54', display: 'flex', alignItems: 'center', gap: 6 }}>

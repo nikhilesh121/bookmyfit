@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconCheck, IconBolt, IconDumbbell, IconStar, IconPercent, IconShield, IconHeadphones, IconChevronRight, IconCalendar, IconPin, IconCreditCard, IconArrowRight } from '../components/Icons';
 import { subscriptionsApi, gymsApi, gymPlansApi } from '../lib/api';
-import { getActiveSubscriptionAccess, normalizeSubscriptionList } from '../lib/subscriptionAccess';
+import { getActiveSubscriptionAccess, normalizeSubscriptionList, subscriptionPlanType } from '../lib/subscriptionAccess';
 import { applyPassCommission, positiveNumber } from '../lib/passPricing';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -179,6 +179,9 @@ export default function PlansScreen() {
 
   const hasSelectedGymAccess = !!gymId && (activeGymSubIds.has(String(gymId)) || hasMultiGymSub);
   const activeSelectedGymSub = gymId ? activeGymSubMap.get(String(gymId)) : null;
+  const activeSelectedGymPlanType = subscriptionPlanType(activeSelectedGymSub);
+  const hasSameGymSub = !!gymId && activeSelectedGymPlanType === 'same_gym';
+  const hasDayPassSub = !!gymId && activeSelectedGymPlanType === 'day_pass';
   const selectedGymDisplayName = gymName || selectedGym?.name || 'this gym';
   const activeUntil = formatDateLabel(activeSelectedGymSub?.endDate || activeSelectedGymSub?.validUntil);
 
@@ -247,7 +250,18 @@ export default function PlansScreen() {
       else router.push('/gyms' as any);
       return;
     }
-    if (hasSelectedGymAccess && (plan.id === 'same_gym' || plan.id === 'day_pass')) {
+    if (plan.id === 'same_gym' && hasSameGymSub) {
+      router.push({
+        pathname: '/qr',
+        params: {
+          subscriptionId: activeSelectedGymSub?.id || activeSelectedGymSub?._id || '',
+          gymId: gymId || '',
+          gymName: selectedGymDisplayName,
+        },
+      } as any);
+      return;
+    }
+    if (plan.id === 'day_pass' && hasDayPassSub) {
       router.push({ pathname: '/slots', params: { gymId } } as any);
       return;
     }
@@ -273,6 +287,7 @@ export default function PlansScreen() {
             originalPrice,
             discountPercent: originalPrice > displayPrice ? Math.round((1 - displayPrice / originalPrice) * 100) : 0,
             durationDays: gymPlan.durationDays || gymPlan.days || 30,
+            description: gymPlan.description || '',
             features: gymPlan.features || [],
           };
         })
@@ -297,7 +312,9 @@ export default function PlansScreen() {
       ? 'Loading...'
       : plan.id === 'multi_gym' && hasMultiGymSub
       ? (gymId ? 'Book Slot' : 'Browse Gyms')
-      : hasSelectedGymAccess && (plan.id === 'same_gym' || plan.id === 'day_pass')
+      : plan.id === 'same_gym' && hasSameGymSub
+        ? 'Show QR'
+      : plan.id === 'day_pass' && hasDayPassSub
         ? 'Book Slot'
       : (plan.id === 'same_gym' || plan.id === 'day_pass') && !gymId
         ? 'Select Gym'
@@ -409,7 +426,7 @@ export default function PlansScreen() {
                 s.ctaBtn,
                 { backgroundColor: plan.accent },
                 (!plan.priceNumber && (plansLoading || (!!gymId && gymPricingLoading))) && s.ctaBtnDisabled,
-                ((hasSelectedGymAccess && (plan.id === 'same_gym' || plan.id === 'day_pass')) || (plan.id === 'multi_gym' && hasMultiGymSub)) && s.ctaBtnSubscribed,
+                (((plan.id === 'same_gym' && hasSameGymSub) || (plan.id === 'day_pass' && hasDayPassSub)) || (plan.id === 'multi_gym' && hasMultiGymSub)) && s.ctaBtnSubscribed,
               ]}
               onPress={() => handleSelect(plan)}
               disabled={!plan.priceNumber && (plansLoading || (!!gymId && gymPricingLoading))}
@@ -418,14 +435,14 @@ export default function PlansScreen() {
               <Text
                 style={[
                   s.ctaBtnText,
-                  ((hasSelectedGymAccess && (plan.id === 'same_gym' || plan.id === 'day_pass')) || (plan.id === 'multi_gym' && hasMultiGymSub)) && s.ctaBtnTextSubscribed,
+                  (((plan.id === 'same_gym' && hasSameGymSub) || (plan.id === 'day_pass' && hasDayPassSub)) || (plan.id === 'multi_gym' && hasMultiGymSub)) && s.ctaBtnTextSubscribed,
                 ]}
               >
                 {ctaLabel(plan)}
               </Text>
               <IconChevronRight
                 size={16}
-                color={((hasSelectedGymAccess && (plan.id === 'same_gym' || plan.id === 'day_pass')) || (plan.id === 'multi_gym' && hasMultiGymSub)) ? colors.accent : '#060606'}
+                color={(((plan.id === 'same_gym' && hasSameGymSub) || (plan.id === 'day_pass' && hasDayPassSub)) || (plan.id === 'multi_gym' && hasMultiGymSub)) ? colors.accent : '#060606'}
               />
             </TouchableOpacity>
           </View>

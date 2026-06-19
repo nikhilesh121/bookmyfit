@@ -6,10 +6,34 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { WebView } from 'react-native-webview';
 import { colors, fonts } from '../theme/brand';
 import { IconArrowLeft, IconPlay } from '../components/Icons';
 
 const { width, height } = Dimensions.get('window');
+
+function textParam(value: any) {
+  return Array.isArray(value) ? String(value[0] || '') : String(value || '');
+}
+
+function youtubeVideoId(value: any) {
+  const raw = textParam(value).trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.replace(/^www\./, '').toLowerCase();
+    if (host === 'youtu.be') return parsed.pathname.replace(/^\/+/, '').split('/')[0] || '';
+    if (host.endsWith('youtube.com')) {
+      const watchId = parsed.searchParams.get('v');
+      if (watchId) return watchId;
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      const marker = parts.findIndex((part) => ['embed', 'shorts', 'live'].includes(part));
+      if (marker >= 0 && parts[marker + 1]) return parts[marker + 1];
+    }
+  } catch {}
+  const loose = raw.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([A-Za-z0-9_-]{6,})/i);
+  return loose?.[1] || '';
+}
 
 export default function VideoPlayer() {
   const { url, title, instructor, duration } = useLocalSearchParams<{
@@ -22,6 +46,29 @@ export default function VideoPlayer() {
   const videoRef = useRef<Video>(null);
   const [status, setStatus] = useState<AVPlaybackStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const videoUrl = textParam(url);
+  const ytId = youtubeVideoId(videoUrl);
+  const isYouTube = !!ytId;
+  const youtubeHtml = isYouTube ? `
+    <!doctype html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+        <style>
+          html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
+          iframe { width: 100%; height: 100%; border: 0; background: #000; }
+        </style>
+      </head>
+      <body>
+        <iframe
+          src="https://www.youtube.com/embed/${ytId}?playsinline=1&autoplay=1&rel=0&modestbranding=1"
+          title="BookMyFit gym video"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen>
+        </iframe>
+      </body>
+    </html>
+  ` : '';
 
   const isPlaying = (status as any)?.isPlaying ?? false;
   const positionMs = (status as any)?.positionMillis ?? 0;
@@ -50,10 +97,20 @@ export default function VideoPlayer() {
       <StatusBar hidden />
       {/* Video */}
       <View style={s.videoWrap}>
-        {url ? (
+        {isYouTube ? (
+          <WebView
+            source={{ html: youtubeHtml, baseUrl: 'https://www.youtube.com' }}
+            style={s.video}
+            javaScriptEnabled
+            domStorageEnabled
+            allowsFullscreenVideo
+            mediaPlaybackRequiresUserAction={false}
+            onLoadEnd={() => setLoading(false)}
+          />
+        ) : videoUrl ? (
           <Video
             ref={videoRef}
-            source={{ uri: url }}
+            source={{ uri: videoUrl }}
             style={s.video}
             resizeMode={ResizeMode.CONTAIN}
             useNativeControls={false}
@@ -69,13 +126,13 @@ export default function VideoPlayer() {
             <Text style={s.noVideoText}>No video URL provided</Text>
           </View>
         )}
-        {loading && url && (
+        {loading && (videoUrl || isYouTube) && (
           <View style={s.loadingOverlay}>
             <ActivityIndicator color={colors.accent} size="large" />
           </View>
         )}
         {/* Play/Pause overlay */}
-        {!loading && url && (
+        {!loading && videoUrl && !isYouTube && (
           <TouchableOpacity style={s.playOverlay} activeOpacity={0.7} onPress={togglePlay}>
             {!isPlaying && (
               <View style={s.playBtn}>

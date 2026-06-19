@@ -16,6 +16,7 @@ type DurationOption = {
   months: number;
   label: string;
   sublabel: string;
+  description?: string;
   price: number;
   originalPrice?: number | null;
   save: string | null;
@@ -27,6 +28,7 @@ type DurationOption = {
 type GymPlanOption = {
   id?: string;
   name?: string;
+  description?: string;
   price?: number | string;
   originalPrice?: number | string | null;
   discountPercent?: number | string | null;
@@ -75,9 +77,9 @@ export default function Duration() {
           if (!plan.id || !Number.isFinite(price) || price <= 0 || !Number.isFinite(days) || days <= 0) return null;
           const originalPrice = Number(plan.originalPrice || price);
           const discountPercent = Number(plan.discountPercent || 0);
-          return { id: plan.id, name: plan.name, price, originalPrice, discountPercent, days };
+          return { id: plan.id, name: plan.name, description: plan.description, price, originalPrice, discountPercent, days };
         })
-        .filter(Boolean) as { id: string; name?: string; price: number; originalPrice: number; discountPercent: number; days: number }[];
+        .filter(Boolean) as { id: string; name?: string; description?: string; price: number; originalPrice: number; discountPercent: number; days: number }[];
     } catch {
       return [];
     }
@@ -102,6 +104,7 @@ export default function Duration() {
             months,
             label: `${months} ${months === 1 ? 'Month' : 'Months'}`,
             sublabel: plan.name || 'Gym managed plan',
+            description: String(plan.description || '').trim(),
             price: Math.round(plan.price),
             originalPrice: plan.originalPrice > plan.price ? Math.round(plan.originalPrice) : null,
             save: savePct > 0 ? `${savePct}% OFF` : null,
@@ -280,8 +283,11 @@ export default function Duration() {
                 <View style={s.optionInfo}>
                   <View style={s.optionLabelRow}>
                     <Text style={[s.optionLabel, active && { color: '#fff' }]} numberOfLines={1}>{d.label}</Text>
-                    {d.sublabel && !d.hot && <Text style={s.optionSublabel} numberOfLines={1}>{d.sublabel}</Text>}
-                  </View>
+                  {d.sublabel && !d.hot && <Text style={s.optionSublabel} numberOfLines={1}>{d.sublabel}</Text>}
+                </View>
+                  {!!d.description && (
+                    <Text style={s.optionDescription} numberOfLines={3}>{d.description}</Text>
+                  )}
                   {!!d.originalPrice && d.originalPrice > d.price && (
                     <Text style={s.originalPrice} numberOfLines={1}>{money(d.originalPrice)}</Text>
                   )}
@@ -463,6 +469,7 @@ const s = StyleSheet.create({
   optionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
   optionLabel: { flexShrink: 1, fontFamily: fonts.sansMedium, fontSize: 15, color: colors.t },
   optionSublabel: { flexShrink: 1, fontFamily: fonts.sans, fontSize: 10, color: colors.t3 },
+  optionDescription: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, lineHeight: 16, marginTop: 3, marginBottom: 2 },
   optionPrice: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
   originalPrice: { marginTop: 2, fontFamily: fonts.sans, fontSize: 11, color: colors.t3, textDecorationLine: 'line-through' },
   optionPricePer: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2 },

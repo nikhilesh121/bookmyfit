@@ -29,7 +29,7 @@ interface CategoryOption {
 }
 
 const MAX_PROFILE_PHOTOS = 12;
-const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_PROFILE_IMAGE_BYTES = 10 * 1024 * 1024;
 const SUPPORTED_PROFILE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 function parseGymCoordinates(latValue: string, lngValue: string) {
@@ -242,7 +242,7 @@ export default function ProfilePage() {
           continue;
         }
         if (file.size > MAX_PROFILE_IMAGE_BYTES) {
-          skipped.push(`${file.name}: over 2 MB`);
+          skipped.push(`${file.name}: over 10 MB`);
           continue;
         }
         uploadedUrls.push(await uploadProfilePhoto(file));
@@ -466,7 +466,7 @@ export default function ProfilePage() {
                   style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
                 >
                   <div className="text-xs leading-relaxed" style={{ color: 'var(--t2)' }}>
-                    Photos appear in the user app gym profile. Add up to {MAX_PROFILE_PHOTOS} JPG, PNG or WebP images, 1200x800 px recommended, under 2 MB each. First image is the cover.
+                    Photos appear in the user app gym profile. Add up to {MAX_PROFILE_PHOTOS} JPG, PNG or WebP images, 1200x800 px recommended, under 10 MB each. First image is the cover.
                     Videos should be MP4/WebM links, 16:9, up to 45 seconds.
                   </div>
 

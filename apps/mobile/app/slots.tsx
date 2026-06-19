@@ -221,6 +221,8 @@ export default function SlotsScreen() {
           </View>
         )}
 
+        {activePlanType !== 'same_gym' && (
+          <>
         {/* Date picker */}
         <View style={s.sectionHeader}>
           <IconCalendar size={14} color={colors.accent} />
@@ -380,6 +382,8 @@ export default function SlotsScreen() {
                 </View>
               );
             })}
+          </>
+        )}
           </>
         )}
       </ScrollView>

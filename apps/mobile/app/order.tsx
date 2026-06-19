@@ -207,8 +207,11 @@ export default function Order() {
     } catch (err: any) {
       const msg = err?.message || 'Unable to create order. Please try again.';
       if (/active pass|already have/i.test(msg)) {
+        const existingPassAction = planId === 'same_gym'
+          ? { text: 'Show QR', onPress: () => router.replace({ pathname: '/qr', params: { gymId: gymId || '', gymName: selectedGymName } } as any) }
+          : { text: 'Book Slot', onPress: () => router.replace({ pathname: '/slots', params: { gymId } } as any) };
         Alert.alert('Already Subscribed', msg, [
-          ...(gymId ? [{ text: 'Book Slot', onPress: () => router.replace({ pathname: '/slots', params: { gymId } } as any) }] : []),
+          ...(gymId ? [existingPassAction] : []),
           { text: 'OK', style: 'cancel' },
         ]);
       } else {

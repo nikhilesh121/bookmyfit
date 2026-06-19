@@ -5,6 +5,7 @@ import { Repository, Between, Brackets, In } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { mkdir, writeFile } from 'fs/promises';
 import { extname, join } from 'path';
+import sharp from 'sharp';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import { GymEntity, GymPlanEntity, GymStatus } from '../../database/entities/gym.entity';
@@ -19,6 +20,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 import { CommissionConfig, PLATFORM_PRICING_CONFIG_KEY, normalizePlatformPricingConfig, serviceCommission } from '../../common/commission-config';
+
+const MAX_GYM_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 function normalizeCatalogName(value: any): string {
   return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -558,6 +561,31 @@ class GymsService {
       'image/webp': '.webp',
     };
     return byMime[file?.mimetype] || extname(String(file?.originalname || '')).toLowerCase() || '.bin';
+  }
+
+  private async normalizeUploadFile(file: any) {
+    const mimeType = String(file?.mimetype || '');
+    if (!mimeType.startsWith('image/')) {
+      return {
+        buffer: file.buffer,
+        extension: this.kycFileExtension(file),
+        mimeType,
+        size: file.size || file.buffer?.length || 0,
+      };
+    }
+
+    const buffer = await sharp(file.buffer)
+      .rotate()
+      .resize({ width: 1800, height: 1800, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+
+    return {
+      buffer,
+      extension: '.webp',
+      mimeType: 'image/webp',
+      size: buffer.length,
+    };
   }
 
   private areRequiredKycDocsSubmitted(docs: any[] = []) {
@@ -1715,8 +1743,8 @@ class GymsService {
     if (!allowedTypes.has(file.mimetype)) {
       throw new BadRequestException('Upload a PDF, PNG, JPG, or WebP file only');
     }
-    if (file.size > 5 * 1024 * 1024) {
-      throw new BadRequestException('KYC file must be 5 MB or smaller');
+    if (file.size > MAX_GYM_UPLOAD_BYTES) {
+      throw new BadRequestException('KYC file must be 10 MB or smaller');
     }
 
     const docs = gym.kycDocuments || [];
@@ -1728,15 +1756,16 @@ class GymsService {
     const relativeDir = join('kyc', gymId, type);
     const targetDir = join(this.uploadRoot(), relativeDir);
     await mkdir(targetDir, { recursive: true });
-    const fileName = `${Date.now()}-${randomUUID()}${this.kycFileExtension(file)}`;
-    await writeFile(join(targetDir, fileName), file.buffer);
+    const normalizedFile = await this.normalizeUploadFile(file);
+    const fileName = `${Date.now()}-${randomUUID()}${normalizedFile.extension}`;
+    await writeFile(join(targetDir, fileName), normalizedFile.buffer);
 
     const relativePath = join(relativeDir, fileName).replace(/\\/g, '/');
     return {
       url: this.uploadUrl(relativePath),
       fileName: file.originalname || fileName,
-      mimeType: file.mimetype,
-      size: file.size,
+      mimeType: normalizedFile.mimeType,
+      size: normalizedFile.size,
     };
   }
 
@@ -1749,22 +1778,23 @@ class GymsService {
     if (!allowedTypes.has(file.mimetype)) {
       throw new BadRequestException('Upload a JPG, PNG, or WebP image only');
     }
-    if (file.size > 2 * 1024 * 1024) {
-      throw new BadRequestException('Profile image must be 2 MB or smaller');
+    if (file.size > MAX_GYM_UPLOAD_BYTES) {
+      throw new BadRequestException('Profile image must be 10 MB or smaller');
     }
 
     const relativeDir = join('gyms', gym.id, 'profile');
     const targetDir = join(this.uploadRoot(), relativeDir);
     await mkdir(targetDir, { recursive: true });
-    const fileName = `${Date.now()}-${randomUUID()}${this.kycFileExtension(file)}`;
-    await writeFile(join(targetDir, fileName), file.buffer);
+    const normalizedFile = await this.normalizeUploadFile(file);
+    const fileName = `${Date.now()}-${randomUUID()}${normalizedFile.extension}`;
+    await writeFile(join(targetDir, fileName), normalizedFile.buffer);
 
     const relativePath = join(relativeDir, fileName).replace(/\\/g, '/');
     return {
       url: this.uploadUrl(relativePath),
       fileName: file.originalname || fileName,
-      mimeType: file.mimetype,
-      size: file.size,
+      mimeType: normalizedFile.mimeType,
+      size: normalizedFile.size,
     };
   }
 
@@ -1879,7 +1909,7 @@ class GymsController {
   @Post(':id/profile-photos/upload')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('gym_owner', 'gym_staff', 'super_admin')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_GYM_UPLOAD_BYTES } }))
   uploadProfilePhoto(@Param('id') id: string, @UploadedFile() file: any, @Req() req: any) {
     return this.svc.uploadProfilePhotoFile(id, file, req.user);
   }
@@ -1958,7 +1988,7 @@ class GymsController {
   @Post(':id/kyc-documents/:type/upload')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('gym_owner', 'gym_staff')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_GYM_UPLOAD_BYTES } }))
   uploadKyc(@Param('id') id: string, @Param('type') type: string, @UploadedFile() file: any, @Req() req: any) {
     return this.svc.uploadKycDocumentFile(id, type, file, req.user);
   }

@@ -674,7 +674,26 @@ export default function GymDetail() {
               {/* Sessions Tab */}
               {activeTab === 'Sessions' && (
                 <>
-                  <Text style={s.sectionTitle}>Book a Session</Text>
+                  <Text style={s.sectionTitle}>{activePlanType === 'same_gym' ? 'Membership Check-In' : 'Book a Session'}</Text>
+                  {activePlanType === 'same_gym' ? (
+                    <View style={s.glassCard}>
+                      <Text style={[s.body, { color: '#fff', fontFamily: fonts.sansBold, marginBottom: 6 }]}>
+                        No slot booking needed for Same Gym Pass
+                      </Text>
+                      <Text style={[s.body, { color: colors.t2 }]}>
+                        Visit {name} anytime during gym hours and show your membership QR at the desk. Each scan tracks your visit.
+                      </Text>
+                      <TouchableOpacity
+                        style={[s.cta, { marginTop: 14 }]}
+                        onPress={() => router.push({ pathname: '/qr', params: { subscriptionId: subscriptionId || '', gymId: id, gymName: name } } as any)}
+                        activeOpacity={0.9}
+                      >
+                        <Text style={s.ctaText}>Show Membership QR</Text>
+                        <IconArrowRight size={16} color="#000" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <>
                   {/* Date selector — today + next 6 days */}
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }} contentContainerStyle={{ gap: 8 }}>
                     {Array.from({ length: 7 }).map((_, d) => {
@@ -821,6 +840,8 @@ export default function GymDetail() {
                       <Text style={s.ctaText}>Subscribe to Book Sessions</Text>
                       <IconArrowRight size={16} color="#000" />
                     </TouchableOpacity>
+                  )}
+                    </>
                   )}
                 </>
               )}

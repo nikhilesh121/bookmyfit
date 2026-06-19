@@ -301,8 +301,8 @@ export default function KYCPage() {
                     {expandedId === g.id && (
                       <tr key={`${g.id}-expanded`} style={{ background: 'rgba(255,255,255,0.02)' }}>
                         <td colSpan={7} style={{ padding: '16px 24px' }}>
-                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6" style={{ fontSize: 13 }}>
-                            <div>
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6" style={{ fontSize: 13, alignItems: 'start', overflow: 'hidden' }}>
+                            <div style={{ minWidth: 0 }}>
                               <div className="kicker mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>KYC Status</div>
                               <div style={{ color: 'var(--t)', marginBottom: 12 }}>{g.kycStatus || g.status || 'not_started'}</div>
                               {missingKyc.length > 0 && (
@@ -323,9 +323,9 @@ export default function KYCPage() {
                                 {locationReady ? `${Number(g.lat).toFixed(6)}, ${Number(g.lng).toFixed(6)}` : 'Coordinates required before approval'}
                               </div>
                               <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Description</div>
-                              <div style={{ color: 'var(--t2)', lineHeight: 1.6 }}>{g.description || 'No description'}</div>
+                              <div style={{ color: 'var(--t2)', lineHeight: 1.6, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{g.description || 'No description'}</div>
                             </div>
-                            <div>
+                            <div style={{ minWidth: 0 }}>
                               <div className="kicker mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Tier</div>
                               <div style={{ color: 'var(--t)' }}>{g.tier || 'Standard'}</div>
                               <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Amenities</div>
@@ -342,11 +342,11 @@ export default function KYCPage() {
                               )}
                               <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Submitted KYC Details</div>
                               {g.kycDocuments && g.kycDocuments.length > 0 ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
                                   {g.kycDocuments.map((doc) => (
-                                    <div key={doc.type} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 10 }}>
+                                    <div key={doc.type} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: 10, minWidth: 0, overflow: 'hidden' }}>
                                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 6 }}>
-                                        <div style={{ color: '#fff', fontWeight: 700 }}>{doc.name}</div>
+                                        <div style={{ color: '#fff', fontWeight: 700, minWidth: 0, overflowWrap: 'anywhere' }}>{doc.name}</div>
                                         <StatusBadge status={doc.status || 'in_review'} />
                                       </div>
                                       {doc.url && (
@@ -360,8 +360,8 @@ export default function KYCPage() {
                                         </a>
                                       )}
                                       {doc.fields && Object.entries(doc.fields).map(([key, value]) => (
-                                        <div key={key} style={{ display: 'grid', gridTemplateColumns: '150px minmax(0, 1fr)', gap: 12, fontSize: 12, marginTop: 6, alignItems: 'start' }}>
-                                          <span style={{ color: 'var(--t3)' }}>{fieldLabel(key)}</span>
+                                        <div key={key} style={{ display: 'grid', gridTemplateColumns: '130px minmax(0, 1fr)', gap: 12, fontSize: 12, marginTop: 6, alignItems: 'start', minWidth: 0 }}>
+                                          <span style={{ color: 'var(--t3)', minWidth: 0, overflowWrap: 'anywhere' }}>{fieldLabel(key)}</span>
                                           {isLinkValue(value) ? (
                                             <a
                                               href={String(value)}
@@ -372,7 +372,7 @@ export default function KYCPage() {
                                               Open link
                                             </a>
                                           ) : (
-                                          <span style={{ color: 'var(--t2)', textAlign: 'right', wordBreak: 'break-word' }}>{String(value || '—')}</span>
+                                          <span style={{ color: 'var(--t2)', minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{String(value || '—')}</span>
                                           )}
                                         </div>
                                       ))}
