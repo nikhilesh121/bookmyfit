@@ -1,8 +1,13 @@
-import { Module, Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Injectable, UseGuards, Req, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Module, Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Injectable, UseGuards, Req, NotFoundException, ForbiddenException, BadRequestException, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
+import { randomUUID } from 'crypto';
+import { mkdir, writeFile } from 'fs/promises';
+import { join } from 'path';
+import sharp from 'sharp';
 import { paginate, paginatedResponse } from '../../common/pagination.helper';
 import { ApiTags } from '@nestjs/swagger';
 import { IsString, IsDateString, IsOptional } from 'class-validator';
@@ -19,6 +24,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 import { v4 as uuid } from 'uuid';
 import { PLATFORM_PRICING_CONFIG_KEY, applyCheckoutCommission, commissionAmount, serviceCommission } from '../../common/commission-config';
+
+const MAX_WELLNESS_SERVICE_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export class BookWellnessDto {
   @IsDateString() bookingDate: string;
@@ -114,6 +121,40 @@ export class WellnessService {
   private bookingRequestResponse(booking: Pick<WellnessBookingEntity, 'specialRequest'>) {
     const specialRequest = this.normalizeSpecialRequest(booking?.specialRequest);
     return { specialRequest, note: specialRequest };
+  }
+
+  private uploadRoot() {
+    return process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
+  }
+
+  private publicApiBase() {
+    const fallback = process.env.NODE_ENV === 'production'
+      ? 'https://bookmyfit.in/api/v1'
+      : `http://localhost:${process.env.PORT || 3003}/api/v1`;
+    const raw = (process.env.PUBLIC_API_BASE_URL || process.env.API_PUBLIC_URL || process.env.NEXT_PUBLIC_API_URL || fallback)
+      .replace(/\/$/, '');
+    return /\/api\/v1$/i.test(raw) ? raw : `${raw}/api/v1`;
+  }
+
+  private uploadUrl(relativePath: string) {
+    const base = this.publicApiBase().replace(/\/uploads\/?$/i, '').replace(/\/$/, '');
+    const path = relativePath.replace(/\\/g, '/').replace(/^\/+/, '');
+    return `${base}/uploads/${path}`;
+  }
+
+  private async normalizeServiceImageFile(file: any) {
+    const buffer = await sharp(file.buffer)
+      .rotate()
+      .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+
+    return {
+      buffer,
+      extension: '.webp',
+      mimeType: 'image/webp',
+      size: buffer.length,
+    };
   }
 
   private partnerPatch(data: any, existing?: WellnessPartnerEntity) {
@@ -342,6 +383,11 @@ export class WellnessService {
     return {
       ...defaults,
       ...data,
+      imageUrl: data.imageUrl === null || data.imageUrl === ''
+        ? null
+        : data.imageUrl !== undefined
+          ? String(data.imageUrl).trim()
+          : defaults.imageUrl,
       durationMinutes: Number.isFinite(durationMinutes) && durationMinutes > 0 ? durationMinutes : 60,
       price: Number.isFinite(price) ? price : 0,
       originalPrice,
@@ -377,6 +423,33 @@ export class WellnessService {
     if (!existing) throw new NotFoundException('Service not found');
     return this.services.save({ ...existing, ...this.normalizeServiceData(data, existing) });
   }
+
+  async uploadServiceImageFile(file: any) {
+    if (!file?.buffer?.length) throw new BadRequestException('Service image is required');
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    if (!allowedTypes.has(file.mimetype)) {
+      throw new BadRequestException('Upload a JPG, PNG, or WebP image only');
+    }
+    if (file.size > MAX_WELLNESS_SERVICE_IMAGE_BYTES) {
+      throw new BadRequestException('Service image must be 10 MB or smaller');
+    }
+
+    const relativeDir = join('wellness', 'services');
+    const targetDir = join(this.uploadRoot(), relativeDir);
+    await mkdir(targetDir, { recursive: true });
+    const normalizedFile = await this.normalizeServiceImageFile(file);
+    const fileName = `${Date.now()}-${randomUUID()}${normalizedFile.extension}`;
+    await writeFile(join(targetDir, fileName), normalizedFile.buffer);
+
+    const relativePath = join(relativeDir, fileName).replace(/\\/g, '/');
+    return {
+      url: this.uploadUrl(relativePath),
+      fileName: file.originalname || fileName,
+      mimeType: normalizedFile.mimeType,
+      size: normalizedFile.size,
+    };
+  }
+
   async deleteService(id: string) {
     await this.services.update(id, { isActive: false } as any);
     return { success: true };
@@ -846,6 +919,14 @@ class WellnessController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
+  @Post('services/upload')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_WELLNESS_SERVICE_IMAGE_BYTES } }))
+  uploadServiceImage(@UploadedFile() file: any) {
+    return this.svc.uploadServiceImageFile(file);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
   @Put('services/:id')
   updateService(@Param('id') id: string, @Body() b: any) { return this.svc.updateService(id, b); }
 
@@ -902,6 +983,15 @@ class WellnessController {
   async partnerServices(@Param('partnerId') partnerId: string, @Req() req: any) {
     await this.assertPartnerAccess(partnerId, req);
     return this.svc.partnerServices(partnerId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin', 'wellness_partner')
+  @Post(':partnerId/services/upload')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_WELLNESS_SERVICE_IMAGE_BYTES } }))
+  async uploadPartnerServiceImage(@Param('partnerId') partnerId: string, @UploadedFile() file: any, @Req() req: any) {
+    await this.assertPartnerAccess(partnerId, req);
+    return this.svc.uploadServiceImageFile(file);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

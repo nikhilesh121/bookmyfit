@@ -233,6 +233,7 @@ describe('WellnessService booking details', () => {
       name: 'Sports Massage',
       price: 1200,
       durationMinutes: 60,
+      imageUrl: ' https://cdn.example.com/sports-massage.jpg ',
       isActive: true,
       approvalStatus: 'approved',
     });
@@ -241,6 +242,7 @@ describe('WellnessService booking details', () => {
       partnerId: 'partner-1',
       isActive: false,
       approvalStatus: 'pending',
+      imageUrl: 'https://cdn.example.com/sports-massage.jpg',
     }));
     expect(services.save).toHaveBeenCalledTimes(1);
   });

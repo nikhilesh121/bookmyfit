@@ -8,6 +8,8 @@ import LocationFields from '../../components/LocationFields';
 
 const SERVICE_CATEGORIES = ['Massage', 'Cupping', 'Physio', 'Spa', 'Nutrition', 'Recovery', 'Other'];
 const SERVICE_TYPES = ['Spa', 'Home', 'Physio', 'Massage', 'Yoga', 'Nutrition'];
+const SUPPORTED_SERVICE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_SERVICE_IMAGE_BYTES = 10 * 1024 * 1024;
 
 const card: React.CSSProperties = {
   background: 'rgba(255,255,255,0.04)',
@@ -81,6 +83,7 @@ export default function WellnessPage() {
   const [showSvcForm, setShowSvcForm] = useState(false);
   const [editingSvc, setEditingSvc] = useState<Service | null>(null);
   const [svcForm, setSvcForm] = useState(defaultServiceForm);
+  const [uploadingSvcImage, setUploadingSvcImage] = useState(false);
   const [selectedPartnerId, setSelectedPartnerId] = useState('');
 
   useEffect(() => {
@@ -193,6 +196,7 @@ export default function WellnessPage() {
   };
   const saveService = async () => {
     if (!svcForm.name || !svcForm.price) return flash('Please fill required fields', 'error');
+    if (!svcForm.imageUrl.trim()) return flash('Service image is required', 'error');
     const approvalStatus = (['pending', 'approved', 'rejected'].includes(svcForm.approvalStatus)
       ? svcForm.approvalStatus
       : 'approved') as ApprovalStatus;
@@ -222,6 +226,30 @@ export default function WellnessPage() {
       return;
     }
     setShowSvcForm(false); setEditingSvc(null);
+  };
+  const uploadServiceImage = async (file: File | null) => {
+    if (!file) return;
+    if (!SUPPORTED_SERVICE_IMAGE_TYPES.has(file.type)) {
+      flash('Upload a JPG, PNG, or WebP image only', 'error');
+      return;
+    }
+    if (file.size > MAX_SERVICE_IMAGE_BYTES) {
+      flash('Service image must be 10 MB or smaller', 'error');
+      return;
+    }
+    setUploadingSvcImage(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const uploaded: any = await api.postForm('/wellness/services/upload', form);
+      if (!uploaded?.url) throw new Error('Upload did not return an image URL.');
+      setSvcForm(f => ({ ...f, imageUrl: uploaded.url }));
+      flash('Service image uploaded!');
+    } catch (e: any) {
+      flash(e?.message || 'Image upload failed. Please retry after checking your login session.', 'error');
+    } finally {
+      setUploadingSvcImage(false);
+    }
   };
   const toggleService = async (id: string) => {
     const svc = services.find(s => s.id === id);
@@ -563,8 +591,39 @@ export default function WellnessPage() {
                   </select>
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={label('IMAGE URL')}>IMAGE URL</label>
-                  <input style={input} placeholder="https://..." value={svcForm.imageUrl} onChange={e => setSvcForm(f => ({ ...f, imageUrl: e.target.value }))} />
+                  <label style={label('SERVICE IMAGE')}>SERVICE IMAGE</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '112px minmax(0, 1fr)', gap: 12, alignItems: 'stretch' }}>
+                    <div style={{
+                      height: 88,
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.10)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      {svcForm.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={svcForm.imageUrl} alt="Service preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <ImageIcon size={22} style={{ color: 'rgba(255,255,255,0.35)' }} />
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+                      <label style={{ ...btn(), justifyContent: 'center', minHeight: 40, cursor: uploadingSvcImage ? 'wait' : 'pointer' }}>
+                        <ImageIcon size={14} /> {uploadingSvcImage ? 'Uploading...' : 'Upload Image'}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          disabled={uploadingSvcImage}
+                          onChange={e => uploadServiceImage(e.target.files?.[0] || null)}
+                          style={{ display: 'none' }}
+                        />
+                      </label>
+                      <input style={input} placeholder="Or paste image URL..." value={svcForm.imageUrl} onChange={e => setSvcForm(f => ({ ...f, imageUrl: e.target.value }))} />
+                    </div>
+                  </div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -582,10 +641,25 @@ export default function WellnessPage() {
               const approval = svc.approvalStatus || 'approved';
               return (
                 <div key={svc.id} style={{ ...card, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', opacity: svc.isActive || approval === 'pending' ? 1 : 0.5 }}>
-                  {svc.imageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={svc.imageUrl} alt={svc.name} style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
-                  )}
+                  <div style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: 10,
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    {svc.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={svc.imageUrl} alt={svc.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <ImageIcon size={18} style={{ color: 'rgba(255,255,255,0.35)' }} />
+                    )}
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontFamily: 'DM Sans, sans-serif', fontWeight: 700, fontSize: 15, color: '#fff' }}>{svc.name}</span>

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Shell from '../../components/Shell';
-import { Plus, X, Pencil, Trash2 } from 'lucide-react';
+import { Image as ImageIcon, Plus, Upload, X, Pencil, Trash2 } from 'lucide-react';
 import { api, getPartnerId } from '../../lib/api';
 import { useToast } from '../../components/Toast';
 
@@ -13,14 +13,17 @@ type Service = {
   durationMinutes?: number;
   price?: number;
   category?: string;
+  imageUrl?: string | null;
   isActive?: boolean;
   approvalStatus?: 'pending' | 'approved' | 'rejected';
   reviewNote?: string | null;
 };
 
 const CATEGORIES = ['yoga', 'physio', 'nutrition', 'meditation', 'spa', 'training'];
+const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
-const EMPTY_FORM = { name: '', description: '', duration: '', price: '', category: 'yoga' };
+const EMPTY_FORM = { name: '', description: '', duration: '', price: '', category: 'yoga', imageUrl: '' };
 
 export default function ServicesPage() {
   const [services, setServices] = useState<Service[]>([]);
@@ -29,6 +32,7 @@ export default function ServicesPage() {
   const [editTarget, setEditTarget] = useState<Service | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const { toast } = useToast();
   const partnerId = getPartnerId();
 
@@ -65,13 +69,43 @@ export default function ServicesPage() {
       duration: String(s.durationMinutes || s.duration || ''),
       price: String(s.price || ''),
       category: s.category || 'yoga',
+      imageUrl: s.imageUrl || '',
     });
     setShowModal(true);
+  };
+
+  const handleImageUpload = async (file: File | null) => {
+    if (!file || !partnerId) return;
+    if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
+      toast('Upload a JPG, PNG, or WebP image only', 'error');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast('Service image must be 10 MB or smaller', 'error');
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const uploaded = await api.postForm<{ url?: string }>(`/wellness/${partnerId}/services/upload`, body);
+      if (!uploaded?.url) throw new Error('Upload did not return an image URL');
+      setForm(f => ({ ...f, imageUrl: uploaded.url || '' }));
+      toast('Service image uploaded');
+    } catch (err: any) {
+      toast(err.message || 'Could not upload service image', 'error');
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!partnerId) return;
+    if (!form.imageUrl.trim()) {
+      toast('Service image is required', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -80,6 +114,7 @@ export default function ServicesPage() {
         durationMinutes: Number(form.duration),
         price: Number(form.price),
         category: form.category,
+        imageUrl: form.imageUrl.trim(),
       };
       if (editTarget) {
         await api.put(`/wellness/${partnerId}/services/${editTarget.id}`, payload);
@@ -147,6 +182,21 @@ export default function ServicesPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {services.map((s) => (
           <div key={s.id} className="card p-5 flex flex-col gap-3">
+            <div
+              className="w-full overflow-hidden flex items-center justify-center"
+              style={{
+                height: 130,
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid var(--border)',
+              }}>
+              {s.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={s.imageUrl} alt={s.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <ImageIcon size={22} style={{ color: 'var(--t3)' }} />
+              )}
+            </div>
             <div className="flex items-start justify-between">
               <div>
                 <div className="font-semibold text-white" style={{ fontSize: 15 }}>{s.name}</div>
@@ -211,7 +261,7 @@ export default function ServicesPage() {
         <div
           className="fixed inset-0 flex items-center justify-center z-50"
           style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
-          <div className="glass p-8 w-full max-w-lg relative">
+          <div className="glass p-8 w-full max-w-lg relative" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
             <button
               onClick={() => setShowModal(false)}
               className="absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center"
@@ -230,6 +280,47 @@ export default function ServicesPage() {
                   className="glass-input w-full"
                   required
                 />
+              </div>
+              <div>
+                <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Service Image</label>
+                <div className="flex gap-3 items-stretch">
+                  <div
+                    className="flex items-center justify-center overflow-hidden"
+                    style={{
+                      width: 112,
+                      height: 86,
+                      borderRadius: 10,
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid var(--border)',
+                      flexShrink: 0,
+                    }}>
+                    {form.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={form.imageUrl} alt="Service preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <ImageIcon size={22} style={{ color: 'var(--t3)' }} />
+                    )}
+                  </div>
+                  <div className="flex-1 flex flex-col gap-2">
+                    <label className="btn btn-ghost justify-center" style={{ minHeight: 40, cursor: uploadingImage ? 'wait' : 'pointer' }}>
+                      <Upload size={14} /> {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        disabled={uploadingImage}
+                        onChange={e => handleImageUpload(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                    <input
+                      type="url"
+                      value={form.imageUrl}
+                      onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))}
+                      placeholder="Image URL"
+                      className="glass-input w-full"
+                    />
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: 'var(--t2)' }}>Description</label>

@@ -15,10 +15,11 @@ function redirectToLogin() {
 
 async function request<T = any>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
+  const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
   const res = await fetch(`${BASE}/api/v1${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init.headers || {}),
     },
@@ -43,6 +44,8 @@ export const api = {
   get: <T = any>(path: string) => request<T>(path),
   post: <T = any>(path: string, body?: any) =>
     request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  postForm: <T = any>(path: string, body: FormData) =>
+    request<T>(path, { method: 'POST', body }),
   put: <T = any>(path: string, body?: any) =>
     request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   patch: <T = any>(path: string, body?: any) =>

@@ -17,9 +17,9 @@ import { applyPassCommission, positiveNumber } from '../../lib/passPricing';
 import {
   DEFAULT_GYM_IMAGE,
   DEFAULT_HOMEPAGE_HERO_IMAGE,
-  DEFAULT_WELLNESS_SERVICE_IMAGE,
   firstImage,
   productImage,
+  wellnessServiceImage,
 } from '../../lib/imageFallbacks';
 import Svg, { Path, Circle, Text as SvgText } from 'react-native-svg';
 import * as Location from 'expo-location';
@@ -553,7 +553,7 @@ function WellnessServicesSection({ services }: { services: any[] }) {
       <SectionRow title="Wellness Services" onViewAll={() => router.push('/wellness' as any)} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} decelerationRate="fast" contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
         {list.map((svc: any) => {
-          const img = firstImage(svc.imageUrl, svc.image, svc.images, svc.partner?.photos, svc.partner?.coverPhoto) || DEFAULT_WELLNESS_SERVICE_IMAGE;
+          const img = wellnessServiceImage(svc);
           const category = svc.category || svc.partner?.serviceType || 'Wellness';
           const price = Number(svc.price || svc.minPrice || 0);
           const serviceId = svc.id || svc._id || '';
