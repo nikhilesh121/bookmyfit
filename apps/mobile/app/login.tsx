@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { ActivityIndicator, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
@@ -52,15 +52,7 @@ export default function Login() {
     <AuroraBackground>
       <SafeAreaView style={s.container}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.keyboard}>
-          <View style={s.brandHero}>
-            <Image source={require('../assets/logo-brand.png')} style={s.brandLogo} resizeMode="contain" />
-            <View style={s.brandPills}>
-              <View style={s.brandPill}><Text style={s.brandPillText}>Gyms</Text></View>
-              <View style={s.brandPill}><Text style={s.brandPillText}>Wellness</Text></View>
-              <View style={s.brandPill}><Text style={s.brandPillText}>Passes</Text></View>
-            </View>
-          </View>
-
+          <View style={s.main}>
           <View style={s.top}>
             <Text style={s.kicker}>Your fitness journey</Text>
             <Text style={s.title}>
@@ -107,6 +99,7 @@ export default function Login() {
               </View>
             )}
           </View>
+          </View>
 
           <View style={s.bottom}>
             <TouchableOpacity
@@ -127,6 +120,11 @@ export default function Login() {
                 </>
               )}
             </TouchableOpacity>
+            <Text style={s.legal}>
+              By continuing, you agree to our{' '}
+              <Text style={s.legalLink}>Terms</Text> and{' '}
+              <Text style={s.legalLink}>Privacy Policy</Text>.
+            </Text>
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -137,27 +135,8 @@ export default function Login() {
 const s = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 24 },
   keyboard: { flex: 1, minHeight: 0 },
-  brandHero: {
-    marginTop: 16,
-    padding: 14,
-    borderRadius: radius.xl,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-    borderWidth: 1,
-    borderColor: colors.borderGlass,
-  },
-  brandLogo: { width: '100%', height: 58 },
-  brandPills: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  brandPill: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 7,
-    borderRadius: radius.pill,
-    backgroundColor: colors.accentSoft,
-    borderWidth: 1,
-    borderColor: colors.accentBorder,
-  },
-  brandPillText: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent },
-  top: { marginTop: 34 },
+  main: { flex: 1, justifyContent: 'center' },
+  top: {},
   kicker: { fontFamily: fonts.sansBold, fontSize: 10, color: colors.accent, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 12 },
   title: { fontFamily: fonts.serifBlack, fontSize: 40, color: '#fff', letterSpacing: 0, lineHeight: 44 },
   titleAccent: { fontFamily: fonts.serifItalic, color: colors.accent, fontSize: 40 },
@@ -188,5 +167,7 @@ const s = StyleSheet.create({
     shadowColor: colors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 16,
   },
   ctaText: { fontFamily: fonts.sansBold, fontSize: 16, color: '#000', letterSpacing: 0.3 },
+  legal: { fontFamily: fonts.sans, fontSize: 11, color: colors.t2, textAlign: 'center', lineHeight: 17, paddingHorizontal: 12 },
+  legalLink: { fontFamily: fonts.sansSemiBold, color: colors.t },
 });
 

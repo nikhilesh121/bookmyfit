@@ -12,6 +12,7 @@ import {
 import { gymsApi, subscriptionsApi, api, API_BASE } from '../../lib/api';
 import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList, subscriptionPlanType } from '../../lib/subscriptionAccess';
 import AuroraBackground from '../../components/AuroraBackground';
+import GlassCard from '../../components/GlassCard';
 import { DEFAULT_GYM_IMAGE, firstImage, imageList } from '../../lib/imageFallbacks';
 import { applyPassCommission } from '../../lib/passPricing';
 import EmbeddedVideoPlayer from '../../components/EmbeddedVideoPlayer';
@@ -672,7 +673,7 @@ export default function GymDetail() {
                 <>
                   <Text style={s.sectionTitle}>{activePlanType === 'same_gym' ? 'Membership Check-In' : 'Book a Session'}</Text>
                   {activePlanType === 'same_gym' ? (
-                    <View style={s.glassCard}>
+                    <GlassCard style={s.glassCard}>
                       <Text style={[s.body, { color: '#fff', fontFamily: fonts.sansBold, marginBottom: 6 }]}>
                         No slot booking needed for Same Gym Pass
                       </Text>
@@ -687,7 +688,7 @@ export default function GymDetail() {
                         <Text style={s.ctaText}>Show Membership QR</Text>
                         <IconArrowRight size={16} color="#000" />
                       </TouchableOpacity>
-                    </View>
+                    </GlassCard>
                   ) : (
                     <>
                   {/* Date selector — today + next 6 days */}
@@ -759,11 +760,11 @@ export default function GymDetail() {
 
                     if (filteredSlots.length === 0) {
                       return (
-                        <View style={s.glassCard}>
+                        <GlassCard style={s.glassCard}>
                           <Text style={[s.body, { textAlign: 'center', color: colors.t2 }]}>
                             No sessions scheduled for this date. Try another date.
                           </Text>
-                        </View>
+                        </GlassCard>
                       );
                     }
 
@@ -868,7 +869,7 @@ export default function GymDetail() {
                   </View>
 
                   <Text style={s.sectionTitle}>Gym Details</Text>
-                  <View style={s.glassCard}>
+                  <GlassCard style={s.glassCard}>
                     <View style={s.detailRow}>
                       <Text style={s.detailLabel}>Address</Text>
                       <Text style={s.detailValue}>{address || 'Not added yet'}</Text>
@@ -892,7 +893,7 @@ export default function GymDetail() {
                       <Text style={s.detailLabel}>Description</Text>
                       <Text style={s.detailValue}>{description || 'Not added yet'}</Text>
                     </View>
-                  </View>
+                  </GlassCard>
 
                   {amenityItems.length > 0 && (
                     <>
@@ -917,9 +918,9 @@ export default function GymDetail() {
                 <>
                   <Text style={s.sectionTitle}>Personal Trainers</Text>
                   {trainers.length === 0 ? (
-                    <View style={s.glassCard}>
+                    <GlassCard style={s.glassCard}>
                       <Text style={[s.body, { textAlign: 'center', color: colors.t2 }]}>No trainers listed for this gym yet.</Text>
-                    </View>
+                    </GlassCard>
                   ) : (
                     trainers.map((t: any) => (
                       <View key={t._id || t.id || t.name} style={s.trainerCard}>
@@ -936,9 +937,9 @@ export default function GymDetail() {
                       </View>
                     ))
                   )}
-                  <View style={s.glassCard}>
+                  <GlassCard style={s.glassCard}>
                     <Text style={[s.body, { textAlign: 'center' }]}>PT add-on available with Pro & Max plans</Text>
-                  </View>
+                  </GlassCard>
                 </>
               )}
 
@@ -955,9 +956,9 @@ export default function GymDetail() {
                     <Text style={s.reviewSubmitText}>Rate This Gym</Text>
                   </TouchableOpacity>
                   {reviews.length === 0 ? (
-                    <View style={s.glassCard}>
+                    <GlassCard style={s.glassCard}>
                       <Text style={[s.body, { textAlign: 'center', color: colors.t2 }]}>No reviews yet. Be the first to review!</Text>
-                    </View>
+                    </GlassCard>
                   ) : (
                     reviews.map((r: any, i: number) => {
                       const reviewName = r.user?.name || r.name || r.userName || 'Member';
@@ -1113,13 +1114,7 @@ const s = StyleSheet.create({
     letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 22, marginBottom: 10,
   },
   glassCard: {
-    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
     borderRadius: radius.xl, padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
   },
   body: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, lineHeight: 20 },
   detailRow: { marginBottom: 12 },

@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fonts, radius } from '../../theme/brand';
 import { IconArrowLeft, IconStar, IconShare, IconCart, IconCheck } from '../../components/Icons';
 import AuroraBackground from '../../components/AuroraBackground';
+import GlassCard from '../../components/GlassCard';
 import { api } from '../../lib/api';
 import { addToCart } from '../cart';
 import { productImage } from '../../lib/imageFallbacks';
@@ -261,15 +262,15 @@ export default function ProductDetail() {
 
             {/* Description card */}
             {!!description && (
-              <View style={s.glassCard}>
+              <GlassCard style={s.glassCard} radiusSize={20}>
                 <Text style={s.cardHeading}>About this product</Text>
                 <Text style={s.descText}>{description}</Text>
-              </View>
+              </GlassCard>
             )}
 
             {/* Benefits/Highlights */}
             {bullets.length > 0 && (
-              <View style={s.glassCard}>
+              <GlassCard style={s.glassCard} radiusSize={20}>
                 <Text style={s.cardHeading}>Why you'll love it</Text>
                 {bullets.map((b, i) => (
                   <View key={i} style={s.bulletRow}>
@@ -279,7 +280,7 @@ export default function ProductDetail() {
                     <Text style={s.bulletText}>{b}</Text>
                   </View>
                 ))}
-              </View>
+              </GlassCard>
             )}
 
             {/* Reviews section */}
@@ -288,9 +289,9 @@ export default function ProductDetail() {
               {topReviews.length > 0 ? (
                 topReviews.map((r, i) => <ReviewCard key={i} review={r} />)
               ) : (
-                <View style={s.glassCard}>
+                <GlassCard style={s.glassCard} radiusSize={20}>
                   <Text style={s.noReviews}>No reviews yet. Be the first!</Text>
-                </View>
+                </GlassCard>
               )}
             </View>
 
@@ -406,8 +407,6 @@ const s = StyleSheet.create({
   },
 
   glassCard: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.13)',
     borderRadius: 20, padding: 16, marginBottom: 14,
   },
   cardHeading: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', marginBottom: 8 },
