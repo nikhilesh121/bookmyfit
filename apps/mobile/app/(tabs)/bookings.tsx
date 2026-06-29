@@ -5,6 +5,7 @@ import { useFocusEffect, router, useLocalSearchParams } from 'expo-router';
 import { colors, fonts, radius, spacing } from '../../theme/brand';
 import { IconCalendar, IconQR, IconClock, IconPin, IconReceipt, IconStar } from '../../components/Icons';
 import { qrApi, api, wellnessApi } from '../../lib/api';
+import { openDirections } from '../../lib/directions';
 
 type GymBooking = {
   id?: string;
@@ -91,7 +92,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function BookingsTab() {
-  const params = useLocalSearchParams<{ bookingCreated?: string; bookingRef?: string; gymName?: string }>();
+  const params = useLocalSearchParams<{ bookingCreated?: string; bookingRef?: string; gymName?: string; gymLat?: string; gymLng?: string; gymAddress?: string }>();
   const [activeTab, setActiveTab] = useState<'gym' | 'wellness'>('gym');
   const [gymBookings, setGymBookings] = useState<GymBooking[]>([]);
   const [activeBooking, setActiveBooking] = useState<any>(null);
@@ -274,6 +275,19 @@ export default function BookingsTab() {
                   Your slot is listed below. The QR will appear when check-in opens for the booked time.
                 </Text>
                 {params.bookingRef ? <Text style={s.confirmRef}>#{params.bookingRef}</Text> : null}
+                <TouchableOpacity
+                  style={s.directionsBtn}
+                  activeOpacity={0.85}
+                  onPress={() => openDirections({
+                    lat: params.gymLat ? Number(params.gymLat) : null,
+                    lng: params.gymLng ? Number(params.gymLng) : null,
+                    name: params.gymName,
+                    address: params.gymAddress,
+                  })}
+                >
+                  <IconPin size={15} color="#060606" />
+                  <Text style={s.directionsBtnText}>Get Directions</Text>
+                </TouchableOpacity>
               </View>
             ) : null}
 
@@ -353,6 +367,13 @@ export default function BookingsTab() {
                       <View style={s.bookingFooter}>
                         <Text style={s.bookingRef}>{booking.bookingRef ? `#${booking.bookingRef}` : 'Booked'}</Text>
                         <View style={s.bookingActions}>
+                          <TouchableOpacity
+                            style={s.directionsGhost}
+                            onPress={() => openDirections({ name: gymName, address: (booking as any).gym?.address })}
+                          >
+                            <IconPin size={13} color={colors.accent} />
+                            <Text style={s.directionsGhostText}>Directions</Text>
+                          </TouchableOpacity>
                           {canShowQr ? (
                             <TouchableOpacity style={s.smallQrBtn} onPress={openQr}>
                               <IconQR size={13} color="#060606" />
@@ -502,6 +523,18 @@ const s = StyleSheet.create({
   confirmTitle: { fontFamily: fonts.sansBold, fontSize: 18, color: '#fff' },
   confirmText: { fontFamily: fonts.sans, fontSize: 13, color: colors.t2, lineHeight: 19 },
   confirmRef: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent, letterSpacing: 1.2 },
+  directionsBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    backgroundColor: colors.accent, borderRadius: radius.pill,
+    alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 9, marginTop: 4,
+  },
+  directionsBtnText: { fontFamily: fonts.sansBold, fontSize: 12, color: '#060606' },
+  directionsGhost: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderWidth: 1, borderColor: colors.accentBorder, borderRadius: radius.pill,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  directionsGhostText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
 
   bookingCard: {
     backgroundColor: colors.glass, borderRadius: radius.xl,

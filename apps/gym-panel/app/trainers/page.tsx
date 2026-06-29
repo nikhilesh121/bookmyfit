@@ -11,6 +11,7 @@ interface Trainer {
   name: string;
   specialization: string;
   specialty?: string;
+  gender?: string;
   monthlyPrice?: number;
   monthlyPriceInr: number;
   bio?: string;
@@ -24,14 +25,14 @@ interface Trainer {
 function SkeletonRow() {
   return (
     <tr style={{ opacity: 0.4 }}>
-      {Array.from({ length: 7 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <td key={i}><div style={{ height: 14, borderRadius: 6, background: 'rgba(255,255,255,0.08)', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
       ))}
     </tr>
   );
 }
 
-const EMPTY_FORM = { name: '', specialization: '', monthlyPriceInr: '', bio: '' };
+const EMPTY_FORM = { name: '', specialization: '', gender: 'male', bio: '' };
 
 export default function TrainersPage() {
   const { toast } = useToast();
@@ -46,6 +47,9 @@ export default function TrainersPage() {
   const [confirmDeactivate, setConfirmDeactivate] = useState<Trainer | null>(null);
   const [deactivating, setDeactivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Gym-level PT charge (Task 5) — single price inherited by all trainers
+  const [ptPrice, setPtPrice] = useState('');
+  const [ptSaving, setPtSaving] = useState(false);
 
   const loadData = async () => {
     setLoading(true); setError(null);
@@ -53,6 +57,7 @@ export default function TrainersPage() {
       const gymData = await api.get<any>('/gyms/my-gym');
       const gid = gymData._id || gymData.id || '';
       setGymId(gid);
+      setPtPrice(gymData.ptMonthlyPrice != null ? String(gymData.ptMonthlyPrice) : '');
       const data = await api.get<any>(`/trainers?gymId=${gid}&includeInactive=true`);
       const rows = Array.isArray(data) ? data : data?.data ?? [];
       setTrainers(rows.map((trainer: Trainer) => ({
@@ -70,13 +75,28 @@ export default function TrainersPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  const savePtPrice = async () => {
+    const value = Number(ptPrice);
+    if (!Number.isFinite(value) || value < 0) { toast('Enter a valid PT charge', 'error'); return; }
+    setPtSaving(true);
+    try {
+      await api.put('/gyms/my-gym', { ptMonthlyPrice: value });
+      toast('PT charges updated for all trainers', 'success');
+      loadData();
+    } catch (e: any) {
+      toast(e.message || 'Failed to update PT charges', 'error');
+    } finally {
+      setPtSaving(false);
+    }
+  };
+
   const openAdd = () => { setEditing(null); setForm({ ...EMPTY_FORM }); setShowModal(true); };
   const openEdit = (t: Trainer) => {
     setEditing(t);
     setForm({
       name: t.name || '',
       specialization: t.specialization || t.specialty || '',
-      monthlyPriceInr: String(t.monthlyPriceInr ?? t.monthlyPrice ?? 0),
+      gender: (t.gender || 'male').toLowerCase(),
       bio: t.bio || '',
     });
     setShowModal(true);
@@ -89,8 +109,7 @@ export default function TrainersPage() {
       const payload = {
         name: form.name.trim(),
         specialization: form.specialization.trim(),
-        monthlyPrice: Number(form.monthlyPriceInr) || 0,
-        monthlyPriceInr: Number(form.monthlyPriceInr) || 0,
+        gender: form.gender,
         bio: form.bio.trim(),
         gymId,
       };
@@ -157,11 +176,35 @@ export default function TrainersPage() {
         </button>
       </div>
 
+      {/* Gym-level PT charges (Task 5) — one price applied to all trainers */}
+      <div className="glass p-4 mb-5" style={{ borderRadius: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 260px' }}>
+            <label style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>
+              Personal Training Charges (Rs / month)
+            </label>
+            <input
+              className="glass-input w-full"
+              type="number"
+              placeholder="e.g. 3000"
+              value={ptPrice}
+              onChange={e => setPtPrice(e.target.value)}
+            />
+            <p style={{ fontSize: 11, color: 'var(--t3)', margin: '6px 0 0' }}>
+              This single charge applies to every trainer at your gym. Members pay the same PT price regardless of which trainer they pick.
+            </p>
+          </div>
+          <button className="btn btn-primary" onClick={savePtPrice} disabled={ptSaving} style={{ minWidth: 130 }}>
+            {ptSaving ? 'Saving...' : 'Save PT Charges'}
+          </button>
+        </div>
+      </div>
+
       <div className="glass overflow-hidden">
         <table className="glass-table">
           <thead>
             <tr>
-              <th>Name</th><th>Specialization</th><th>Monthly Price</th>
+              <th>Name</th><th>Specialization</th><th>Gender</th><th>PT Price</th>
               <th>Members</th><th>Rating</th><th>Status</th><th>Actions</th>
             </tr>
           </thead>
@@ -169,15 +212,16 @@ export default function TrainersPage() {
             {loading
               ? Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
               : filtered.length === 0
-                ? <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--t2)', padding: '40px 0' }}>
+                ? <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--t2)', padding: '40px 0' }}>
                     {search ? 'No trainers match your search' : 'No trainers yet. Click Add Trainer to get started.'}
                   </td></tr>
                 : filtered.map(t => (
                   <tr key={t.id}>
                     <td style={{ fontWeight: 600, color: '#fff' }}>{t.name}</td>
                     <td>{t.specialization || t.specialty}</td>
+                    <td style={{ textTransform: 'capitalize' }}>{(t.gender || 'male')}</td>
                     <td style={{ color: 'var(--accent)' }}>
-                      {t.monthlyPriceInr ? `Rs ${t.monthlyPriceInr.toLocaleString('en-IN')}/month` : '\u2014'}
+                      {t.monthlyPriceInr ? `Rs ${t.monthlyPriceInr.toLocaleString('en-IN')}/month` : 'Set gym PT charge'}
                     </td>
                     <td>{t.sessionsCount ?? '\u2014'}</td>
                     <td>
@@ -220,7 +264,6 @@ export default function TrainersPage() {
               {[
                 { key: 'name', label: 'Full Name *', placeholder: 'e.g. Vikram Patel', type: 'text' },
                 { key: 'specialization', label: 'Specialization *', placeholder: 'e.g. Strength & Conditioning', type: 'text' },
-                { key: 'monthlyPriceInr', label: 'Monthly Price (Rs)', placeholder: 'e.g. 8000', type: 'number' },
               ].map(({ key, label, placeholder, type }) => (
                 <div key={key}>
                   <label style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>{label}</label>
@@ -233,6 +276,32 @@ export default function TrainersPage() {
                   />
                 </div>
               ))}
+              {/* Gender (Task 3) — drives the default profile image shown in the mobile app */}
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Gender *</label>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  {['male', 'female'].map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, gender: g }))}
+                      className="btn flex-1"
+                      style={{
+                        textTransform: 'capitalize',
+                        background: form.gender === g ? 'var(--accent)' : 'rgba(255,255,255,0.07)',
+                        color: form.gender === g ? '#060606' : 'var(--t2)',
+                        border: '1px solid ' + (form.gender === g ? 'var(--accent)' : 'rgba(255,255,255,0.12)'),
+                        fontWeight: 600,
+                      }}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--t3)', margin: '6px 0 0' }}>
+                  A default profile image is shown in the app based on gender. No image upload is needed.
+                </p>
+              </div>
               <div>
                 <label style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1, display: 'block', marginBottom: 6 }}>Bio</label>
                 <textarea

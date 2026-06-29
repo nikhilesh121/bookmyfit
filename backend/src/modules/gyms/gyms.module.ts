@@ -131,6 +131,8 @@ class GymsService {
       .addSelect(`${alias}.ratePerDay`, 'ratePerDay')
       .addSelect(`${alias}.dayPassPrice`, 'dayPassPrice')
       .addSelect(`${alias}.sameGymMonthlyPrice`, 'sameGymMonthlyPrice')
+      .addSelect(`${alias}.ptMonthlyPrice`, 'ptMonthlyPrice')
+      .addSelect(`${alias}.essentials`, 'essentials')
       .addSelect(`${alias}.capacity`, 'capacity')
       .addSelect(`${alias}.ownerId`, 'ownerId')
       .addSelect(`${alias}.kycStatus`, 'kycStatus')
@@ -177,6 +179,8 @@ class GymsService {
       breakHours: row.breakStartTime && row.breakEndTime ? `${row.breakStartTime} - ${row.breakEndTime}` : null,
       dayPassPrice: row.dayPassPrice ?? null,
       sameGymMonthlyPrice: row.sameGymMonthlyPrice ?? null,
+      ptMonthlyPrice: row.ptMonthlyPrice ?? null,
+      essentials: this.normalizeStringList(row.essentials) || [],
     };
     if (options.publicView) {
       delete normalized.ownerId;
@@ -372,6 +376,8 @@ class GymsService {
       breakEndTime: raw.breakEndTime === '' ? null : raw.breakEndTime,
       dayPassPrice: raw.dayPassPrice === '' ? null : raw.dayPassPrice,
       sameGymMonthlyPrice: raw.sameGymMonthlyPrice === '' ? null : raw.sameGymMonthlyPrice,
+      ptMonthlyPrice: raw.ptMonthlyPrice === '' ? null : raw.ptMonthlyPrice,
+      essentials: raw.essentials !== undefined ? (this.normalizeStringList(raw.essentials) || []) : undefined,
       capacity: raw.capacity,
       lat: raw.lat === '' ? undefined : raw.lat,
       lng: raw.lng === '' ? undefined : raw.lng,
@@ -398,7 +404,7 @@ class GymsService {
     if (clean.openingTime && clean.closingTime && clean.openingTime >= clean.closingTime) {
       throw new BadRequestException('Closing time must be after opening time');
     }
-    for (const key of ['dayPassPrice', 'sameGymMonthlyPrice', 'capacity', 'lat', 'lng']) {
+    for (const key of ['dayPassPrice', 'sameGymMonthlyPrice', 'ptMonthlyPrice', 'capacity', 'lat', 'lng']) {
       if (clean[key] !== null && clean[key] !== undefined) clean[key] = Number(clean[key]);
     }
     if (clean.lat !== undefined && (!Number.isFinite(clean.lat) || clean.lat < -90 || clean.lat > 90)) {

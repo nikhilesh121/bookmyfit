@@ -25,13 +25,19 @@ class TrainersService {
     @InjectRepository(AppConfigEntity) private readonly configRepo: Repository<AppConfigEntity>,
     private readonly cashfree: CashfreeService,
   ) {}
-  private trainerDto(t: TrainerEntity) {
+  private trainerDto(t: TrainerEntity, gymPtPrice?: number | null) {
+    // Task 5 — all trainers inherit the gym-level PT monthly charge when configured.
+    const effectiveMonthly = gymPtPrice != null && Number(gymPtPrice) > 0
+      ? Number(gymPtPrice)
+      : Number(t.monthlyPrice || 0);
     return {
       ...t,
       _id: t.id,
       specialty: t.specialization,
-      monthlyPriceInr: Number(t.monthlyPrice || 0),
-      sessionRateInr: Number(t.monthlyPrice || t.pricePerSession || 0),
+      gender: t.gender || 'male',
+      monthlyPrice: effectiveMonthly,
+      monthlyPriceInr: effectiveMonthly,
+      sessionRateInr: effectiveMonthly,
       status: t.isActive ? 'active' : 'inactive',
     };
   }
@@ -41,11 +47,14 @@ class TrainersService {
     const where: any = { gymId };
     if (!includeInactive) where.isActive = true;
     const [data, total] = await this.repo.findAndCount({ where, skip, take });
-    return paginatedResponse(data.map((t) => this.trainerDto(t)), total, p, l);
+    const gym = await this.gyms.findOne({ where: { id: gymId } });
+    return paginatedResponse(data.map((t) => this.trainerDto(t, gym?.ptMonthlyPrice)), total, p, l);
   }
   async get(id: string) {
     const trainer = await this.repo.findOne({ where: { id } });
-    return trainer ? this.trainerDto(trainer) : null;
+    if (!trainer) return null;
+    const gym = await this.gyms.findOne({ where: { id: trainer.gymId } });
+    return this.trainerDto(trainer, gym?.ptMonthlyPrice);
   }
 
   private async resolveGymForWrite(user: any, requestedGymId?: string) {
@@ -73,13 +82,16 @@ class TrainersService {
     const monthlyPrice = Number(data.monthlyPrice ?? data.monthlyPriceInr ?? data.sessionRateInr ?? data.pricePerSession ?? 0);
     if (!data.name?.trim()) throw new BadRequestException('Trainer name is required');
     if (!String(data.specialization ?? data.specialty ?? '').trim()) throw new BadRequestException('Specialization is required');
-    if (!Number.isFinite(monthlyPrice) || monthlyPrice < 0) throw new BadRequestException('Monthly price must be valid');
+    const gender = String(data.gender ?? 'male').trim().toLowerCase();
+    if (!['male', 'female'].includes(gender)) throw new BadRequestException('Gender must be male or female');
     return {
       name: data.name.trim(),
       specialization: String(data.specialization ?? data.specialty).trim(),
-      monthlyPrice,
-      pricePerSession: monthlyPrice,
-      photoUrl: data.photoUrl,
+      gender,
+      // Per-trainer pricing is deprecated — PT charges are configured once at the gym level (Task 5).
+      // We retain the column for backward compatibility but it is no longer the source of truth.
+      monthlyPrice: Number.isFinite(monthlyPrice) && monthlyPrice > 0 ? monthlyPrice : 0,
+      pricePerSession: Number.isFinite(monthlyPrice) && monthlyPrice > 0 ? monthlyPrice : 0,
       bio: data.bio,
       isActive: data.isActive ?? data.status !== 'inactive',
     };
@@ -88,7 +100,7 @@ class TrainersService {
   async create(user: any, data: Partial<TrainerEntity>) {
     const gym = await this.resolveGymForWrite(user, (data as any).gymId);
     const trainer = await this.repo.save(this.repo.create({ ...this.sanitize(data), gymId: gym.id }));
-    return this.trainerDto(trainer);
+    return this.trainerDto(trainer, gym.ptMonthlyPrice);
   }
 
   async update(id: string, user: any, data: Partial<TrainerEntity>) {
@@ -96,7 +108,7 @@ class TrainersService {
     if (!existing) throw new NotFoundException('Trainer not found');
     const gym = await this.resolveGymForWrite(user, existing.gymId);
     if (gym.id !== existing.gymId) throw new ForbiddenException('Cannot manage trainers for another gym');
-    const patch = ('name' in data || 'specialization' in data || 'specialty' in data || 'monthlyPrice' in data || 'monthlyPriceInr' in data || 'sessionRateInr' in data || 'pricePerSession' in data)
+    const patch = ('name' in data || 'specialization' in data || 'specialty' in data || 'gender' in data || 'monthlyPrice' in data || 'monthlyPriceInr' in data || 'sessionRateInr' in data || 'pricePerSession' in data)
       ? this.sanitize({ ...existing, ...data })
       : data;
     if ((data as any).status === 'inactive') (patch as any).isActive = false;
@@ -107,9 +119,14 @@ class TrainersService {
   async book(userId: string, trainerId: string, durationMonths: number, startDate: string, customerPhone: string) {
     const trainer = await this.repo.findOne({ where: { id: trainerId, isActive: true } });
     if (!trainer) throw new Error('Trainer not found');
+    const gym = await this.gyms.findOne({ where: { id: trainer.gymId } });
     const months = Math.max(1, Math.min(12, Number(durationMonths) || 1));
-    const baseAmount = Math.round(Number(trainer.monthlyPrice || trainer.pricePerSession || 0) * months);
-    if (baseAmount <= 0) throw new BadRequestException('Trainer monthly price is not configured');
+    // Task 5 — PT charge comes from the gym-level config; fall back to legacy per-trainer price.
+    const monthlyRate = Number(gym?.ptMonthlyPrice) > 0
+      ? Number(gym?.ptMonthlyPrice)
+      : Number(trainer.monthlyPrice || trainer.pricePerSession || 0);
+    const baseAmount = Math.round(monthlyRate * months);
+    if (baseAmount <= 0) throw new BadRequestException('Personal Training charges are not configured for this gym');
     const configRow = await this.configRepo.findOne({ where: { key: PLATFORM_PRICING_CONFIG_KEY } });
     const commission = serviceCommission(configRow?.value, 'personal_training');
     const amount = applyCheckoutCommission(baseAmount, commission);

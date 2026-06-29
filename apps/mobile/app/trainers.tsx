@@ -8,6 +8,7 @@ import AuroraBackground from '../components/AuroraBackground';
 import { useLocalSearchParams, router } from 'expo-router';
 import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft, IconUser, IconStar, IconClock, IconCheck } from '../components/Icons';
+import TrainerAvatar from '../components/TrainerAvatar';
 import { gymsApi, subscriptionsApi, trainersApi, usersApi } from '../lib/api';
 import { applyPassCommission } from '../lib/passPricing';
 import { distanceLabel, getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../lib/location';
@@ -16,6 +17,7 @@ interface Trainer {
   id: string;
   name: string;
   specialization: string;
+  gender?: string;
   monthlyPriceInr?: number;
   monthlyPrice?: number;
   pricePerSession?: number;
@@ -188,7 +190,7 @@ export default function TrainersScreen() {
             <View key={t.id} style={s.card}>
               <View style={s.cardRow}>
                 <View style={s.avatar}>
-                  <IconUser size={22} color={colors.accent} />
+                  <TrainerAvatar gender={t.gender} size={48} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.trainerName}>{t.name}</Text>

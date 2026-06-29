@@ -8,10 +8,14 @@ import {
   IconArrowLeft, IconStar, IconPin, IconArrowRight, IconCheck, IconClock,
   IconDumbbell, IconShare, IconLock, IconRefresh, IconGlobe,
   IconShield, IconHeadphones, IconBolt,
+  IconSnowflake, IconFlame, IconWaves, IconWifi, IconDroplet, IconActivity,
+  IconFlower, IconMusic, IconBike, IconApple, IconSparkles, IconUsers,
 } from '../../components/Icons';
 import { gymsApi, subscriptionsApi, api, API_BASE } from '../../lib/api';
 import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList, subscriptionPlanType } from '../../lib/subscriptionAccess';
 import AuroraBackground from '../../components/AuroraBackground';
+import GlassCard from '../../components/GlassCard';
+import TrainerAvatar from '../../components/TrainerAvatar';
 import { DEFAULT_GYM_IMAGE, firstImage, imageList } from '../../lib/imageFallbacks';
 import { applyPassCommission } from '../../lib/passPricing';
 import EmbeddedVideoPlayer from '../../components/EmbeddedVideoPlayer';
@@ -36,25 +40,71 @@ function tierLabel(value: any): 'Elite' | 'Premium' | 'Standard' {
   return 'Standard';
 }
 
+// Maps the gym's configured `lucide:<name>` amenity icon to a matching mobile glyph,
+// so amenity icons match the web/gym-portal exactly (Task 6).
+const LUCIDE_AMENITY_ICONS: Record<string, any> = {
+  dumbbell: IconDumbbell,
+  activity: IconActivity,
+  flower: IconFlower,
+  zap: IconBolt,
+  music: IconMusic,
+  badge: IconShield,
+  waves: IconWaves,
+  'parking-circle': IconPin,
+  'shower-head': IconDroplet,
+  'lock-keyhole': IconLock,
+  flame: IconFlame,
+  wifi: IconWifi,
+  snowflake: IconSnowflake,
+  'user-round-check': IconUsers,
+  apple: IconApple,
+  bike: IconBike,
+  'heart-pulse': IconActivity,
+  sparkles: IconSparkles,
+  droplet: IconDroplet,
+  refresh: IconRefresh,
+  globe: IconGlobe,
+};
+
+// Mirror of the backend defaultCatalogIcon matcher so a missing icon resolves to
+// the SAME lucide key the web would render.
+function amenityLucideKey(name: string): string {
+  const key = String(name || '').toLowerCase();
+  const matchers: Array<[string[], string]> = [
+    [['strength', 'weight', 'muscle', 'dumbbell'], 'dumbbell'],
+    [['cardio', 'run', 'running', 'treadmill'], 'activity'],
+    [['yoga', 'pilates', 'stretch'], 'flower'],
+    [['crossfit', 'hiit', 'functional', 'bolt'], 'zap'],
+    [['zumba', 'dance'], 'music'],
+    [['boxing', 'mma'], 'badge'],
+    [['pool', 'swim'], 'waves'],
+    [['parking'], 'parking-circle'],
+    [['shower', 'wash', 'bath'], 'shower-head'],
+    [['locker', 'changing', 'change room'], 'lock-keyhole'],
+    [['steam', 'sauna'], 'flame'],
+    [['wifi', 'internet'], 'wifi'],
+    [['ac', 'air', 'ventilation'], 'snowflake'],
+    [['trainer', 'coach'], 'user-round-check'],
+    [['nutrition', 'diet'], 'apple'],
+    [['cycle', 'spin', 'bike'], 'bike'],
+    [['recovery', 'physio'], 'heart-pulse'],
+    [['water', 'drinking'], 'waves'],
+    [['access', '24/7', '24x7'], 'badge'],
+  ];
+  const found = matchers.find(([tokens]) => tokens.some((token) => key.includes(token)));
+  return found ? found[1] : 'sparkles';
+}
+
 function AmenityIcon({ label, iconUrl }: { label: string; iconUrl?: string | null }) {
-  const customIcon = String(iconUrl || '').trim();
-  if (customIcon && !customIcon.startsWith('lucide:')) {
-    const iconImage = firstImage(customIcon);
+  const raw = String(iconUrl || '').trim();
+  // Admin-uploaded image icon (URL or data URI) — render exactly like the web.
+  if (raw && !raw.startsWith('lucide:')) {
+    const iconImage = firstImage(raw);
     if (iconImage) return <Image source={{ uri: iconImage }} style={{ width: 16, height: 16 }} resizeMode="contain" />;
   }
-
-  const value = `${label} ${customIcon}`.toLowerCase();
-  let Icon = IconShield;
-
-  if (value.includes('locker') || value.includes('changing') || value.includes('lock-keyhole')) Icon = IconLock;
-  else if (value.includes('wifi') || value.includes('internet')) Icon = IconGlobe;
-  else if (value.includes('parking') || value.includes('location') || value.includes('parking-circle')) Icon = IconPin;
-  else if (value.includes('shower') || value.includes('wash') || value.includes('water') || value.includes('waves')) Icon = IconRefresh;
-  else if (value.includes('trainer') || value.includes('coach') || value.includes('user-round-check')) Icon = IconHeadphones;
-  else if (value.includes('ac') || value.includes('air') || value.includes('steam') || value.includes('sauna') || value.includes('snowflake') || value.includes('flame') || value.includes('air-vent')) Icon = IconBolt;
-  else if (value.includes('equipment') || value.includes('weight') || value.includes('cardio') || value.includes('gym') || value.includes('dumbbell') || value.includes('activity') || value.includes('bike')) Icon = IconDumbbell;
-  else if (value.includes('sparkles') || value.includes('flower') || value.includes('badge') || value.includes('apple') || value.includes('nutrition') || value.includes('recovery') || value.includes('heart-pulse')) Icon = IconShield;
-
+  // Resolve the lucide key from the configured icon, else derive it from the name (same logic as web).
+  const lucideKey = raw.startsWith('lucide:') ? raw.slice('lucide:'.length).toLowerCase() : amenityLucideKey(label);
+  const Icon = LUCIDE_AMENITY_ICONS[lucideKey] || IconSparkles;
   return <Icon size={16} color={colors.accent} />;
 }
 
@@ -399,6 +449,7 @@ export default function GymDetail() {
   const categoryItems = Array.isArray(gym?.categoryDetails) && gym.categoryDetails.length
     ? gym.categoryDetails.map((item: any) => ({ name: String(item?.name || item?.label || '').trim(), iconUrl: item?.iconUrl || item?.icon })).filter((item: any) => item.name)
     : categories.map((name) => ({ name, iconUrl: null }));
+  const essentials = toTextArray(gym?.essentials);
   const galleryImages = imageList(gym?.coverPhoto, gym?.coverImage, gym?.photos, gym?.images, gym?.media, gym?.imageUrl, gym?.image, gym?.photo, gym?.img);
   const profileVideos = videoUrlList(gym?.videos, gym?.profileVideos, gym?.videoUrls);
   const fallbackHeroImage = galleryImages[0] || firstImage(fallbackImg) || DEFAULT_GYM_IMAGE;
@@ -508,6 +559,9 @@ export default function GymDetail() {
           bookingId: res?.bookingQr?.bookingId || res?.id || '',
           bookingRef: res?.bookingQr?.bookingRef || res?.bookingRef || '',
           gymName: res?.bookingQr?.gymName || name,
+          gymLat: gymLat != null ? String(gymLat) : '',
+          gymLng: gymLng != null ? String(gymLng) : '',
+          gymAddress: address || '',
         },
       } as any);
     } catch (e: any) {
@@ -672,7 +726,7 @@ export default function GymDetail() {
                 <>
                   <Text style={s.sectionTitle}>{activePlanType === 'same_gym' ? 'Membership Check-In' : 'Book a Session'}</Text>
                   {activePlanType === 'same_gym' ? (
-                    <View style={s.glassCard}>
+                    <GlassCard style={s.glassCard}>
                       <Text style={[s.body, { color: '#fff', fontFamily: fonts.sansBold, marginBottom: 6 }]}>
                         No slot booking needed for Same Gym Pass
                       </Text>
@@ -687,7 +741,7 @@ export default function GymDetail() {
                         <Text style={s.ctaText}>Show Membership QR</Text>
                         <IconArrowRight size={16} color="#000" />
                       </TouchableOpacity>
-                    </View>
+                    </GlassCard>
                   ) : (
                     <>
                   {/* Date selector — today + next 6 days */}
@@ -759,11 +813,11 @@ export default function GymDetail() {
 
                     if (filteredSlots.length === 0) {
                       return (
-                        <View style={s.glassCard}>
+                        <GlassCard style={s.glassCard}>
                           <Text style={[s.body, { textAlign: 'center', color: colors.t2 }]}>
                             No sessions scheduled for this date. Try another date.
                           </Text>
-                        </View>
+                        </GlassCard>
                       );
                     }
 
@@ -868,7 +922,7 @@ export default function GymDetail() {
                   </View>
 
                   <Text style={s.sectionTitle}>Gym Details</Text>
-                  <View style={s.glassCard}>
+                  <GlassCard style={s.glassCard}>
                     <View style={s.detailRow}>
                       <Text style={s.detailLabel}>Address</Text>
                       <Text style={s.detailValue}>{address || 'Not added yet'}</Text>
@@ -892,7 +946,7 @@ export default function GymDetail() {
                       <Text style={s.detailLabel}>Description</Text>
                       <Text style={s.detailValue}>{description || 'Not added yet'}</Text>
                     </View>
-                  </View>
+                  </GlassCard>
 
                   {amenityItems.length > 0 && (
                     <>
@@ -909,6 +963,27 @@ export default function GymDetail() {
                       </View>
                     </>
                   )}
+
+                  {essentials.length > 0 && (
+                    <>
+                      <Text style={s.sectionTitle}>Gym Essentials</Text>
+                      <GlassCard style={s.glassCard}>
+                        <Text style={[s.body, { color: colors.t2, marginBottom: 12 }]}>
+                          What to carry when you visit {name}:
+                        </Text>
+                        <View style={{ gap: 10 }}>
+                          {essentials.map((item) => (
+                            <View key={item} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                              <View style={s.amenityIconBox}>
+                                <IconCheck size={14} color={colors.accent} />
+                              </View>
+                              <Text style={[s.body, { color: '#fff', flex: 1 }]}>{item}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </GlassCard>
+                    </>
+                  )}
                 </>
               )}
 
@@ -917,14 +992,14 @@ export default function GymDetail() {
                 <>
                   <Text style={s.sectionTitle}>Personal Trainers</Text>
                   {trainers.length === 0 ? (
-                    <View style={s.glassCard}>
+                    <GlassCard style={s.glassCard}>
                       <Text style={[s.body, { textAlign: 'center', color: colors.t2 }]}>No trainers listed for this gym yet.</Text>
-                    </View>
+                    </GlassCard>
                   ) : (
                     trainers.map((t: any) => (
                       <View key={t._id || t.id || t.name} style={s.trainerCard}>
                         <View style={s.trainerAvatar}>
-                          <Text style={s.trainerInitial}>{(t.name || 'T')[0]}</Text>
+                          <TrainerAvatar gender={t.gender} size={44} />
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={s.trainerName} numberOfLines={1}>{t.name}</Text>
@@ -936,9 +1011,9 @@ export default function GymDetail() {
                       </View>
                     ))
                   )}
-                  <View style={s.glassCard}>
+                  <GlassCard style={s.glassCard}>
                     <Text style={[s.body, { textAlign: 'center' }]}>PT add-on available with Pro & Max plans</Text>
-                  </View>
+                  </GlassCard>
                 </>
               )}
 
@@ -955,9 +1030,9 @@ export default function GymDetail() {
                     <Text style={s.reviewSubmitText}>Rate This Gym</Text>
                   </TouchableOpacity>
                   {reviews.length === 0 ? (
-                    <View style={s.glassCard}>
+                    <GlassCard style={s.glassCard}>
                       <Text style={[s.body, { textAlign: 'center', color: colors.t2 }]}>No reviews yet. Be the first to review!</Text>
-                    </View>
+                    </GlassCard>
                   ) : (
                     reviews.map((r: any, i: number) => {
                       const reviewName = r.user?.name || r.name || r.userName || 'Member';
@@ -1113,13 +1188,7 @@ const s = StyleSheet.create({
     letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 22, marginBottom: 10,
   },
   glassCard: {
-    backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass,
     borderRadius: radius.xl, padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
   },
   body: { fontFamily: fonts.sans, fontSize: 13, color: colors.t, lineHeight: 20 },
   detailRow: { marginBottom: 12 },

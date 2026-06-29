@@ -80,6 +80,8 @@ export default function ProfilePage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [videos, setVideos] = useState<string[]>([]);
+  const [essentials, setEssentials] = useState<string[]>([]);
+  const [newEssential, setNewEssential] = useState('');
   const [newPhotoUrl, setNewPhotoUrl] = useState('');
   const [newVideoUrl, setNewVideoUrl] = useState('');
   const [processingPhotos, setProcessingPhotos] = useState(false);
@@ -113,6 +115,7 @@ export default function ProfilePage() {
           .map((url: string) => url.trim());
         setPhotos([...new Set<string>(cleanPhotos)]);
         setVideos(Array.isArray(data.videos) ? data.videos.filter((url: any) => typeof url === 'string' && url.trim()).map((url: string) => url.trim()) : []);
+        setEssentials(Array.isArray(data.essentials) ? data.essentials.filter((x: any) => typeof x === 'string' && x.trim()).map((x: string) => x.trim()) : []);
         setGymId(data._id || data.id || '');
         setPartnerTier(data.partnerTier || data.tier || '');
         setRating(data.rating || data.avgRating || null);
@@ -162,6 +165,7 @@ export default function ProfilePage() {
         coverPhoto: photos[0] || null,
         photos,
         videos,
+        essentials,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -283,6 +287,19 @@ export default function ProfilePage() {
   const makeCoverPhoto = (url: string) => {
     setPhotos((prev) => [url, ...prev.filter((item) => item !== url)]);
   };
+
+  const addEssential = () => {
+    const value = newEssential.trim();
+    if (!value) return;
+    setEssentials((prev) => (prev.some((x) => x.toLowerCase() === value.toLowerCase()) ? prev : [...prev, value]));
+    setNewEssential('');
+  };
+
+  const removeEssential = (item: string) => {
+    setEssentials((prev) => prev.filter((x) => x !== item));
+  };
+
+  const ESSENTIAL_SUGGESTIONS = ['Towel', 'Water Bottle', 'Workout Shoes', 'ID Proof', 'Membership QR Code'];
 
   const hasValidLocation = (() => {
     try {
@@ -428,6 +445,63 @@ export default function ProfilePage() {
                   onChange={handleChange('description')}
                   placeholder="Brief description of your gym"
                 />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold block mb-2" style={{ color: 'var(--t2)' }}>
+                  Gym Essentials <span style={{ color: 'var(--t3)', fontWeight: 400 }}>(what members should carry)</span>
+                </label>
+                <div
+                  className="rounded-xl p-4 space-y-3"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      className="glass-input flex-1 min-w-0"
+                      placeholder="e.g. Towel, Water Bottle, ID Proof..."
+                      value={newEssential}
+                      onChange={(e) => setNewEssential(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addEssential())}
+                    />
+                    <button className="btn btn-ghost flex items-center gap-1" type="button" onClick={addEssential}>
+                      <Plus size={14} /> Add
+                    </button>
+                  </div>
+                  {essentials.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {essentials.map((item) => (
+                        <span
+                          key={item}
+                          className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs"
+                          style={{ background: 'rgba(61,255,84,0.08)', border: '1px solid rgba(61,255,84,0.18)', color: 'var(--t)' }}
+                        >
+                          {item}
+                          <button type="button" onClick={() => removeEssential(item)} style={{ color: '#FF8080', lineHeight: 1 }} title="Remove">
+                            <Trash2 size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {ESSENTIAL_SUGGESTIONS.filter((s) => !essentials.some((e) => e.toLowerCase() === s.toLowerCase())).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setEssentials((prev) => [...prev, s])}
+                        className="text-xs"
+                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px dashed rgba(255,255,255,0.18)', color: 'var(--t3)', borderRadius: 8, padding: '5px 10px' }}
+                      >
+                        + {s}
+                      </button>
+                    ))}
+                  </div>
+                  {essentials.length === 0 && (
+                    <div className="text-xs" style={{ color: 'var(--t3)' }}>
+                      No essentials added yet. These appear on the gym details page in the app.
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>

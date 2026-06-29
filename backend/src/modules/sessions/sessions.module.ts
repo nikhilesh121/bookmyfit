@@ -146,7 +146,8 @@ function dayOfWeekFromDate(dateStr: string): number {
 // â”€â”€â”€ Service â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const CHECKIN_GRACE_BEFORE_MINUTES = 15;
+// Members can check in (and see their booking QR) up to 2 hours before the slot start (Task 10).
+const CHECKIN_GRACE_BEFORE_MINUTES = 120;
 const CHECKIN_GRACE_AFTER_MINUTES = 30;
 
 function normalizeCatalogName(value: any): string {

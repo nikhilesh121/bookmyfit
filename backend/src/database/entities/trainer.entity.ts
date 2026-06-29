@@ -6,6 +6,7 @@ export class TrainerEntity {
   @Index() @Column({ type: 'uuid' }) gymId: string;
   @Column({ length: 150 }) name: string;
   @Column({ length: 255, nullable: true }) specialization: string;
+  @Column({ length: 10, default: 'male' }) gender: string; // 'male' | 'female' — drives default profile image in mobile app
   @Column({ length: 500, nullable: true }) photoUrl: string;
   @Column({ length: 1000, nullable: true }) bio: string;
   @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 }) monthlyPrice: number;

@@ -10,6 +10,7 @@ import {
   IconBell, IconPin, IconStar, IconChevronDown,
   IconBolt, IconShield, IconHeadphones, IconPercent,
 } from '../../components/Icons';
+import { Glass } from '../../components/Glass'; // GLASS-DEMO
 import { API_BASE, appStorage, gymsApi, subscriptionsApi, wellnessApi } from '../../lib/api';
 import { getNearbyCoords, nearbyBestSort, nearbyQueryParams } from '../../lib/location';
 import { accessLabelForSubscription, getActiveSubscriptionAccess, normalizeSubscriptionList } from '../../lib/subscriptionAccess';
@@ -380,9 +381,12 @@ export default function Home() {
             <IconChevronDown size={11} color={colors.t2} />
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/notifications' as any)}>
-              <IconBell size={17} color="#fff" />
-            </TouchableOpacity>
+            {/* GLASS-DEMO: wrapped in Glass */}
+            <Glass radiusSize={11} intensity={50}>
+              <TouchableOpacity style={[s.iconBtn, s.iconBtnGlass]} onPress={() => router.push('/notifications' as any)}>
+                <IconBell size={17} color="#fff" />
+              </TouchableOpacity>
+            </Glass>
           </View>
         </View>
 
@@ -524,9 +528,10 @@ function CategoriesSection({ title, categories }: { title: string; categories: a
           const meta = categoryMeta(cat);
           const customIcon = String(cat.iconUrl || '');
           return (
+          // GLASS-DEMO: wrapped chip in Glass
+          <Glass key={cat.id} radiusSize={radius.pill} intensity={50} accentGlow style={{ minWidth: 92 }}>
           <TouchableOpacity
-            key={cat.id}
-            style={[s.catChip, { borderColor: meta.bg }]}
+            style={[s.catChip, s.catChipGlass]}
             onPress={() => router.push(cat.id === 'all'
               ? '/gyms' as any
               : { pathname: '/gyms', params: { category: cat.label || cat.id } } as any)}
@@ -538,6 +543,7 @@ function CategoriesSection({ title, categories }: { title: string; categories: a
             </View>
             <Text style={[s.catLabel, { color: meta.color }]}>{cat.label}</Text>
           </TouchableOpacity>
+          </Glass>
           );
         })}
       </ScrollView>
@@ -873,6 +879,7 @@ const s = StyleSheet.create({
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   locationText: { fontFamily: fonts.sansMedium, fontSize: 12, color: '#fff' },
   iconBtn: { width: 36, height: 36, borderRadius: 11, backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.borderGlass, alignItems: 'center', justifyContent: 'center' },
+  iconBtnGlass: { backgroundColor: 'transparent', borderWidth: 0 }, // GLASS-DEMO
 
   // Logo
   logo: { fontFamily: fonts.serif, fontSize: 22, color: '#fff', letterSpacing: -0.5, paddingHorizontal: 20, marginBottom: 16 },
@@ -912,6 +919,7 @@ const s = StyleSheet.create({
     gap: 7,
   },
   catIconWrap: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  catChipGlass: { backgroundColor: 'transparent', borderWidth: 0, minWidth: 92 }, // GLASS-DEMO
   catLabel:  { fontFamily: fonts.sansMedium, fontSize: 11 },
 
   // Wellness

@@ -50,3 +50,16 @@ export const IconPercent = ({ size, color }: Props) => (<Svg {...mk(size, color)
 export const IconShield = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></Svg>);
 export const IconHeadphones = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M3 18v-6a9 9 0 0118 0v6" /><Path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z" /></Svg>);
 export const IconReceipt = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M4 2v20l3-2 2 2 3-2 3 2 2-2 3 2V2" /><Path d="M8 7h8M8 11h8M8 15h4" /></Svg>);
+
+// Amenity icons — glyphs chosen to match the lucide icons used on the web (Task 6 parity).
+export const IconSnowflake = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Line x1="12" y1="2" x2="12" y2="22" /><Line x1="2" y1="12" x2="22" y2="12" /><Line x1="5" y1="5" x2="19" y2="19" /><Line x1="19" y1="5" x2="5" y2="19" /></Svg>);
+export const IconFlame = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z" /></Svg>);
+export const IconWaves = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 1.3 0 1.9-.5 2.5-1" /><Path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 1.3 0 1.9-.5 2.5-1" /><Path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 1.3 0 1.9-.5 2.5-1" /></Svg>);
+export const IconWifi = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M5 12.55a11 11 0 0114.08 0" /><Path d="M1.42 9a16 16 0 0121.16 0" /><Path d="M8.53 16.11a6 6 0 016.95 0" /><Line x1="12" y1="20" x2="12.01" y2="20" /></Svg>);
+export const IconDroplet = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z" /></Svg>);
+export const IconActivity = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></Svg>);
+export const IconFlower = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Circle cx="12" cy="12" r="3" /><Path d="M12 9a3 3 0 100-6 3 3 0 000 6zM12 21a3 3 0 100-6 3 3 0 000 6zM9 12a3 3 0 10-6 0 3 3 0 006 0zM21 12a3 3 0 10-6 0 3 3 0 006 0z" /></Svg>);
+export const IconMusic = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M9 18V5l12-2v13" /><Circle cx="6" cy="18" r="3" /><Circle cx="18" cy="16" r="3" /></Svg>);
+export const IconBike = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Circle cx="5.5" cy="17.5" r="3.5" /><Circle cx="18.5" cy="17.5" r="3.5" /><Path d="M15 6a1 1 0 100-2 1 1 0 000 2zM12 17.5L9 9l3-3 4 5h3" /></Svg>);
+export const IconApple = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M12 8c-2-3-6-3-7 0-1 3 1 8 3 10 1 1 2 1 4 0 2 1 3 1 4 0 2-2 4-7 3-10-1-3-5-3-7 0z" /><Path d="M12 8c0-2 1-4 3-5" /></Svg>);
+export const IconSparkles = ({ size, color }: Props) => (<Svg {...mk(size, color)}><Path d="M12 3l1.9 4.8L18 9.5l-4.1 1.7L12 16l-1.9-4.8L6 9.5l4.1-1.7L12 3z" /><Path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z" /></Svg>);

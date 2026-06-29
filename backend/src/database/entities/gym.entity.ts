@@ -100,6 +100,12 @@ export class GymEntity {
   @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
   sameGymMonthlyPrice: number | null; // null = use platform default (999)
 
+  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
+  ptMonthlyPrice: number | null; // gym-level Personal Training monthly charge; all trainers inherit this. null = not configured
+
+  @Column({ type: 'text', array: true, default: [] })
+  essentials: string[]; // configurable "what to carry" list shown on gym details (e.g. Towel, Water Bottle)
+
   @Column({ default: 100 })
   capacity: number; // max capacity for live count display
 

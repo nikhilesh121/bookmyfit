@@ -117,7 +117,8 @@ export default function SchedulePage() {
   const applyGlobal = (target: 'all' | 'weekdays' | 'open') => {
     const patch = globalPatch();
     setSchedule((prev) => prev.map((day) => {
-      const shouldApply = target === 'all' || (target === 'weekdays' && day.dayOfWeek < 5) || (target === 'open' && day.isOpen);
+      // "weekdays" = working days Monday–Saturday (dayOfWeek 0–5), Sunday is the only off day.
+      const shouldApply = target === 'all' || (target === 'weekdays' && day.dayOfWeek < 6) || (target === 'open' && day.isOpen);
       return shouldApply ? { ...day, ...patch } : day;
     }));
   };
@@ -139,7 +140,8 @@ export default function SchedulePage() {
   const applyPreset = (preset: 'weekdays' | 'all' | 'custom') => {
     setSchedule((prev) => prev.map((d) => ({
       ...d,
-      isOpen: preset === 'all' ? true : preset === 'weekdays' ? d.dayOfWeek < 5 : d.isOpen,
+      // "weekdays" = Monday–Saturday open (working days), Sunday closed.
+      isOpen: preset === 'all' ? true : preset === 'weekdays' ? d.dayOfWeek < 6 : d.isOpen,
     })));
   };
 
@@ -161,7 +163,7 @@ export default function SchedulePage() {
           {/* Presets */}
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             {[
-              { label: 'Mon–Fri only', action: () => applyPreset('weekdays') },
+              { label: 'Mon–Sat only', action: () => applyPreset('weekdays') },
               { label: 'Open all 7 days', action: () => applyPreset('all') },
             ].map((p) => (
               <button key={p.label} onClick={p.action} style={{
@@ -211,7 +213,7 @@ export default function SchedulePage() {
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
             {[
               { label: 'Apply to all days', action: () => applyGlobal('all') },
-              { label: 'Apply to Mon-Fri', action: () => applyGlobal('weekdays') },
+              { label: 'Apply to Mon-Sat', action: () => applyGlobal('weekdays') },
               { label: 'Apply to open days', action: () => applyGlobal('open') },
             ].map((item) => (
               <button key={item.label} type="button" onClick={item.action} className="btn btn-ghost text-xs" style={{ padding: '7px 12px' }}>

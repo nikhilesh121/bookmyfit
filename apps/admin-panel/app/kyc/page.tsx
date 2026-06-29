@@ -80,6 +80,44 @@ function isLinkValue(value: any) {
   return /^(https?:\/\/|data:)/i.test(String(value || '').trim());
 }
 
+function isImageDoc(url?: string, mimeType?: string) {
+  const u = String(url || '').toLowerCase();
+  if (String(mimeType || '').startsWith('image/')) return true;
+  return /\.(png|jpe?g|webp|gif|bmp|heic)(\?|$)/i.test(u) || u.startsWith('data:image/');
+}
+
+function isPdfDoc(url?: string, mimeType?: string) {
+  const u = String(url || '').toLowerCase();
+  return String(mimeType || '') === 'application/pdf' || /\.pdf(\?|$)/i.test(u);
+}
+
+function KycDocPreview({ url, mimeType, fileName }: { url: string; mimeType?: string; fileName?: string }) {
+  if (isImageDoc(url, mimeType)) {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: 8 }} title="Open full image">
+        <img
+          src={url}
+          alt={fileName || 'KYC document'}
+          style={{
+            width: '100%', maxWidth: 240, maxHeight: 180, objectFit: 'contain',
+            borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(0,0,0,0.3)',
+          }}
+        />
+      </a>
+    );
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      style={{ color: 'var(--accent)', fontSize: 12, display: 'inline-flex', marginBottom: 8, fontWeight: 700 }}
+    >
+      {isPdfDoc(url, mimeType) ? 'Open PDF' : 'Open'} {fileName || 'document'}
+    </a>
+  );
+}
+
 function missingKycDetails(gym: Gym, requireApproved = false) {
   const docs = new Map((gym.kycDocuments || []).map((doc) => [doc.type, doc]));
   return REQUIRED_KYC_TYPES
@@ -179,7 +217,17 @@ export default function KYCPage() {
 
   return (
     <Shell title="KYC Review">
-      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .kyc-detail-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          gap: 24px;
+        }
+        @media (min-width: 1024px) {
+          .kyc-detail-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+        }
+      `}</style>
 
       {/* KPI cards */}
       <div className="grid grid-cols-4 gap-4 mb-8">
@@ -301,7 +349,7 @@ export default function KYCPage() {
                     {expandedId === g.id && (
                       <tr key={`${g.id}-expanded`} style={{ background: 'rgba(255,255,255,0.02)' }}>
                         <td colSpan={7} style={{ padding: '16px 24px' }}>
-                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6" style={{ fontSize: 13, alignItems: 'start', overflow: 'hidden' }}>
+                          <div className="kyc-detail-grid" style={{ fontSize: 13, alignItems: 'start', maxWidth: '100%', overflow: 'hidden' }}>
                             <div style={{ minWidth: 0 }}>
                               <div className="kicker mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>KYC Status</div>
                               <div style={{ color: 'var(--t)', marginBottom: 12 }}>{g.kycStatus || g.status || 'not_started'}</div>
@@ -313,17 +361,27 @@ export default function KYCPage() {
                               {g.kycReviewNote && (
                                 <>
                                   <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Review Note</div>
-                                  <div style={{ color: 'var(--t2)' }}>{g.kycReviewNote}</div>
+                                  <div style={{ color: 'var(--t2)', overflowWrap: 'anywhere' }}>{g.kycReviewNote}</div>
                                 </>
                               )}
-                              <div className="kicker mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Address</div>
-                              <div style={{ color: 'var(--t)' }}>{g.address || 'Not provided'}</div>
+                              <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Address</div>
+                              <div style={{ color: 'var(--t)', overflowWrap: 'anywhere' }}>{g.address || 'Not provided'}</div>
                               <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Nearby Location</div>
                               <div style={{ color: locationReady ? 'var(--t)' : '#FFB400' }}>
                                 {locationReady ? `${Number(g.lat).toFixed(6)}, ${Number(g.lng).toFixed(6)}` : 'Coordinates required before approval'}
                               </div>
                               <div className="kicker mt-4 mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Description</div>
-                              <div style={{ color: 'var(--t2)', lineHeight: 1.6, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{g.description || 'No description'}</div>
+                              <div
+                                style={{
+                                  color: 'var(--t2)', lineHeight: 1.6,
+                                  overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
+                                  maxHeight: 160, overflowY: 'auto',
+                                  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+                                  borderRadius: 10, padding: '10px 12px',
+                                }}
+                              >
+                                {g.description || 'No description'}
+                              </div>
                             </div>
                             <div style={{ minWidth: 0 }}>
                               <div className="kicker mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Tier</div>
@@ -350,27 +408,30 @@ export default function KYCPage() {
                                         <StatusBadge status={doc.status || 'in_review'} />
                                       </div>
                                       {doc.url && (
-                                        <a
-                                          href={doc.url}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          style={{ color: 'var(--accent)', fontSize: 12, display: 'inline-flex', marginBottom: 8, fontWeight: 700 }}
-                                        >
-                                          Open {doc.fileName || 'document'}
-                                        </a>
+                                        <KycDocPreview url={doc.url} mimeType={doc.mimeType} fileName={doc.fileName} />
                                       )}
                                       {doc.fields && Object.entries(doc.fields).map(([key, value]) => (
                                         <div key={key} style={{ display: 'grid', gridTemplateColumns: '130px minmax(0, 1fr)', gap: 12, fontSize: 12, marginTop: 6, alignItems: 'start', minWidth: 0 }}>
                                           <span style={{ color: 'var(--t3)', minWidth: 0, overflowWrap: 'anywhere' }}>{fieldLabel(key)}</span>
                                           {isLinkValue(value) ? (
-                                            <a
-                                              href={String(value)}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              style={{ color: 'var(--accent)', minWidth: 0, overflowWrap: 'anywhere' }}
-                                            >
-                                              Open link
-                                            </a>
+                                            isImageDoc(String(value)) ? (
+                                              <a href={String(value)} target="_blank" rel="noreferrer" style={{ minWidth: 0 }} title="Open full image">
+                                                <img
+                                                  src={String(value)}
+                                                  alt={fieldLabel(key)}
+                                                  style={{ width: '100%', maxWidth: 200, maxHeight: 140, objectFit: 'contain', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(0,0,0,0.3)' }}
+                                                />
+                                              </a>
+                                            ) : (
+                                              <a
+                                                href={String(value)}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{ color: 'var(--accent)', minWidth: 0, overflowWrap: 'anywhere' }}
+                                              >
+                                                Open link
+                                              </a>
+                                            )
                                           ) : (
                                           <span style={{ color: 'var(--t2)', minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{String(value || '—')}</span>
                                           )}

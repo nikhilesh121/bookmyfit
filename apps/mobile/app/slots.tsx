@@ -77,6 +77,18 @@ export default function SlotsScreen() {
   const [activeSub, setActiveSub] = useState<any>(null);
   const activePlanType = subscriptionPlanType(activeSub);
 
+  // Task 9 — Day Pass (and other 1-per-day passes) allow a single slot per date.
+  // Once a slot is confirmed for the selected date, hide "Book" and show the confirmed slot.
+  const selectedDateStr = formatDate(days[selectedDay]);
+  const confirmedBookingForDate = myBookings.find((bk: any) => {
+    const date = String(bk.slot?.date || bk.slotDate || bk.date || '').slice(0, 10);
+    const status = normalizeBookingStatus(bk.status);
+    const sameGym = String(bk.gym?.id || bk.gymId || '') === String(gymId || '');
+    return status === 'confirmed' && date === selectedDateStr && sameGym;
+  });
+  const bookedSlotId = String(confirmedBookingForDate?.slot?.id || confirmedBookingForDate?.slotId || '');
+  const dailyLimitReached = !!confirmedBookingForDate && activePlanType !== 'same_gym';
+
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   const loadSlots = async (dayIndex: number) => {
@@ -271,6 +283,23 @@ export default function SlotsScreen() {
           <Text style={s.sectionTitle}>Available Slots</Text>
         </View>
 
+        {dailyLimitReached && (
+          <View style={s.confirmedBanner}>
+            <View style={s.confirmedBannerTop}>
+              <IconCheck size={15} color={colors.accent} />
+              <Text style={s.confirmedBannerTitle}>Slot Confirmed</Text>
+            </View>
+            <Text style={s.confirmedBannerText}>
+              You're booked for {formatClockRange(
+                confirmedBookingForDate?.slot?.startTime || confirmedBookingForDate?.startTime,
+                confirmedBookingForDate?.slot?.endTime || confirmedBookingForDate?.endTime,
+              )} on {days[selectedDay].toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}.
+              {confirmedBookingForDate?.bookingRef ? ` (#${confirmedBookingForDate.bookingRef})` : ''}
+            </Text>
+            <Text style={s.confirmedBannerHint}>Your day pass allows one slot per day. View it in My Bookings.</Text>
+          </View>
+        )}
+
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
         ) : (() => {
@@ -302,13 +331,15 @@ export default function SlotsScreen() {
             const isBooking = bookingId === (slot.id || slot._id);
             const stColor = slot.sessionType?.color || colors.accent;
             const stName = slot.sessionType?.name || '';
+            const slotIdValue = String(slot.id || slot._id || '');
+            const isBookedSlot = !!slot.userBooked || (!!bookedSlotId && slotIdValue === bookedSlotId);
             return (
-              <View key={slot.id || slot._id} style={[s.slotCard, isFull && s.slotCardFull]}>
-                <View style={[s.slotAccentBar, { backgroundColor: stColor }]} />
+              <View key={slot.id || slot._id} style={[s.slotCard, (isFull && !isBookedSlot) && s.slotCardFull]}>
+                <View style={[s.slotAccentBar, { backgroundColor: isBookedSlot ? colors.accent : stColor }]} />
                 <View style={s.slotLeft}>
                   <View style={s.slotTimeRow}>
-                    <IconClock size={13} color={isFull ? colors.t3 : stColor} />
-                    <Text style={[s.slotTime, isFull && s.slotTimeFull]}>
+                    <IconClock size={13} color={isFull && !isBookedSlot ? colors.t3 : stColor} />
+                    <Text style={[s.slotTime, (isFull && !isBookedSlot) && s.slotTimeFull]}>
                       {formatClockRange(slot.startTime, slot.endTime)}
                     </Text>
                   </View>
@@ -318,22 +349,33 @@ export default function SlotsScreen() {
                   <View style={s.slotCapRow}>
                     <IconUsers size={12} color={colors.t2} />
                     <Text style={s.slotCap}>
-                      {isFull ? 'Full' : `${available} spots left`}
+                      {isBookedSlot ? 'Your booking' : isFull ? 'Full' : `${available} spots left`}
                     </Text>
                   </View>
                 </View>
-                <TouchableOpacity
-                  style={[s.bookBtn, isFull && s.bookBtnFull]}
-                  disabled={isFull || isBooking}
-                  onPress={() => handleBook(slot.id || slot._id)}
-                >
-                  {isBooking
-                    ? <ActivityIndicator size="small" color="#000" />
-                    : <Text style={[s.bookBtnText, isFull && s.bookBtnTextFull]}>
-                        {isFull ? 'Full' : 'Book'}
-                      </Text>
-                  }
-                </TouchableOpacity>
+                {isBookedSlot ? (
+                  <View style={s.bookedTag}>
+                    <IconCheck size={14} color={colors.accent} />
+                    <Text style={s.bookedTagText}>Booked</Text>
+                  </View>
+                ) : dailyLimitReached ? (
+                  <View style={[s.bookBtn, s.bookBtnFull]}>
+                    <Text style={[s.bookBtnText, s.bookBtnTextFull]}>Booked for today</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[s.bookBtn, isFull && s.bookBtnFull]}
+                    disabled={isFull || isBooking}
+                    onPress={() => handleBook(slot.id || slot._id)}
+                  >
+                    {isBooking
+                      ? <ActivityIndicator size="small" color="#000" />
+                      : <Text style={[s.bookBtnText, isFull && s.bookBtnTextFull]}>
+                          {isFull ? 'Full' : 'Book'}
+                        </Text>
+                    }
+                  </TouchableOpacity>
+                )}
               </View>
             );
           });
@@ -449,6 +491,20 @@ const s = StyleSheet.create({
   bookBtnFull: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   bookBtnText: { fontFamily: fonts.sansBold, fontSize: 13, color: '#000' },
   bookBtnTextFull: { color: colors.t3 },
+  bookedTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 14, height: 38, borderRadius: radius.pill,
+    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+  },
+  bookedTagText: { fontFamily: fonts.sansBold, fontSize: 12, color: colors.accent },
+  confirmedBanner: {
+    backgroundColor: colors.accentSoft, borderWidth: 1, borderColor: colors.accentBorder,
+    borderRadius: radius.xl, padding: 16, marginBottom: 16, gap: 6,
+  },
+  confirmedBannerTop: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  confirmedBannerTitle: { fontFamily: fonts.sansBold, fontSize: 13, color: colors.accent, letterSpacing: 0.5, textTransform: 'uppercase' },
+  confirmedBannerText: { fontFamily: fonts.sansBold, fontSize: 14, color: '#fff', lineHeight: 20 },
+  confirmedBannerHint: { fontFamily: fonts.sans, fontSize: 12, color: colors.t2 },
   emptyState: { alignItems: 'center', paddingVertical: 40 },
   emptyText: { fontFamily: fonts.sans, fontSize: 14, color: colors.t2 },
   typeChip: {
