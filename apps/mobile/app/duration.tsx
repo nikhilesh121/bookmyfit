@@ -9,6 +9,7 @@ import { colors, fonts, radius } from '../theme/brand';
 import { IconArrowLeft } from '../components/Icons';
 import { api, trainersApi } from '../lib/api';
 import { applyPassCommission } from '../lib/passPricing';
+import TrainerAvatar from '../components/TrainerAvatar';
 
 const PT_DURATION_OPTIONS = [1, 3, 6, 12];
 
@@ -41,6 +42,7 @@ type TrainerOption = {
   name?: string;
   specialization?: string;
   specialty?: string;
+  gender?: string;
   monthlyPrice?: number | string;
   monthlyPriceInr?: number | string;
   sessionRateInr?: number | string;
@@ -389,12 +391,15 @@ export default function Duration() {
                           onPress={() => setSelectedTrainerId(trainerId)}
                           activeOpacity={0.82}
                         >
-                          <Text style={[s.trainerOptionName, active && { color: '#fff' }]} numberOfLines={1}>
-                            {trainer.name || 'Trainer'}
-                          </Text>
-                          <Text style={[s.trainerOptionPrice, active && { color: colors.accent }]} numberOfLines={1}>
-                            {money(checkoutPrice)}/mo - {gymName || 'This gym'}
-                          </Text>
+                          <TrainerAvatar gender={trainer.gender} size={38} />
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={[s.trainerOptionName, active && { color: '#fff' }]} numberOfLines={1}>
+                              {trainer.name || 'Trainer'}
+                            </Text>
+                            <Text style={[s.trainerOptionPrice, active && { color: colors.accent }]} numberOfLines={1}>
+                              {money(checkoutPrice)}/mo - {gymName || 'This gym'}
+                            </Text>
+                          </View>
                         </TouchableOpacity>
                       );
                     })}
@@ -528,6 +533,9 @@ const s = StyleSheet.create({
   ptDurationLabel: { fontFamily: fonts.sansBold, fontSize: 11, color: colors.t2, marginBottom: 9, textTransform: 'uppercase', letterSpacing: 1 },
   trainerPicker: { gap: 8, marginBottom: 14 },
   trainerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     minHeight: 52,
     borderRadius: radius.lg,
     borderWidth: 1,
