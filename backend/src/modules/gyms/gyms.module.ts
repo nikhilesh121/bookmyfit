@@ -805,6 +805,12 @@ class GymsService {
     return this.attachMasterDetails(row);
   }
 
+  async updateMyGym(ownerId: string, body: Partial<GymEntity>) {
+    const gym = await this.gymEntityForActor(ownerId);
+    if (!gym) throw new NotFoundException('Gym not found');
+    return this.update(gym.id, body, { userId: ownerId, role: 'gym_owner' });
+  }
+
   async myReviews(ownerId: string) {
     const gym = await this.myGym(ownerId) as any;
     if (!gym?.id) return { data: [], stats: { total: 0, approved: 0, pending: 0, rejected: 0, average: 0 } };
@@ -1905,6 +1911,11 @@ class GymsController {
   @Put('my-gym/amenities') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
   updateMyAmenities(@Req() req: any, @Body() body: { amenities: string[] }) {
     return this.svc.updateMyAmenities(req.user.userId, body.amenities || []);
+  }
+
+  @Put('my-gym') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
+  updateMyGym(@Req() req: any, @Body() body: Partial<GymEntity>) {
+    return this.svc.updateMyGym(req.user.userId, body);
   }
 
   @Put('my-gym/location') @UseGuards(JwtAuthGuard, RolesGuard) @Roles('gym_owner', 'gym_staff')
